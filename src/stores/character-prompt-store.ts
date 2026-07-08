@@ -8,6 +8,9 @@ export interface CharacterPrompt {
     prompt: string        // Character-specific tags
     negative: string      // Character-specific negative tags
     enabled: boolean
+    promptEnabled?: boolean
+    negativeEnabled?: boolean
+    costumeEnabled?: boolean
     position: { x: number, y: number }  // 0-1 coordinates (0,0 = top-left, 1,1 = bottom-right)
 }
 
@@ -66,6 +69,9 @@ export interface CharacterPrompt {
     prompt: string        // Character-specific tags
     negative: string      // Character-specific negative tags
     enabled: boolean
+    promptEnabled?: boolean
+    negativeEnabled?: boolean
+    costumeEnabled?: boolean
     position: { x: number, y: number }  // 0-1 coordinates (0,0 = top-left, 1,1 = bottom-right)
 }
 
@@ -120,6 +126,9 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
                             prompt: '',
                             negative: '',
                             enabled: true,
+                            promptEnabled: true,
+                            negativeEnabled: true,
+                            costumeEnabled: true,
                             position: { x: 0.5, y: 0.5 }, // Center by default
                             ...initialData
                         }
@@ -253,6 +262,9 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
                                 prompt: preset.prompt,
                                 negative: preset.negative,
                                 enabled: true,
+                                promptEnabled: true,
+                                negativeEnabled: true,
+                                costumeEnabled: true,
                                 position: { x: 0.5, y: 0.5 }
                             }
                         ]

@@ -39,6 +39,9 @@ interface SettingsState {
     // Image format setting
     imageFormat: 'png' | 'webp'
 
+    // Expert options
+    expertOptionsEnabled: boolean
+
     // Actions
     setSavePath: (path: string, useAbsolute?: boolean) => void
     setAutoSave: (autoSave: boolean) => void
@@ -54,6 +57,7 @@ interface SettingsState {
     setGeminiApiKey: (key: string) => void
     setLibraryPath: (path: string, useAbsolute?: boolean) => void
     setImageFormat: (format: 'png' | 'webp') => void
+    setExpertOptionsEnabled: (enabled: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -74,6 +78,7 @@ export const useSettingsStore = create<SettingsState>()(
             libraryPath: 'NAIS_Library', // Default: relative to Pictures folder
             useAbsoluteLibraryPath: false, // Default: relative to Pictures folder
             imageFormat: 'png', // Default: PNG format
+            expertOptionsEnabled: false,
 
             setSavePath: (savePath, useAbsolute) => set({
                 savePath,
@@ -104,6 +109,7 @@ export const useSettingsStore = create<SettingsState>()(
                 useAbsoluteLibraryPath: useAbsolute ?? false
             }),
             setImageFormat: (format) => set({ imageFormat: format }),
+            setExpertOptionsEnabled: (expertOptionsEnabled) => set({ expertOptionsEnabled }),
         }),
         {
             name: 'nais2-forge-settings',

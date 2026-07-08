@@ -38,6 +38,7 @@ import {
     Database,
     AlertTriangle,
     HardDrive,
+    SlidersHorizontal,
 } from 'lucide-react'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Slider } from '@/components/ui/slider'
@@ -63,7 +64,7 @@ const LANGUAGES = [
     { code: 'ja', name: '日本語' },
 ]
 
-type SettingsSection = 'general' | 'appearance' | 'api' | 'storage' | 'shortcuts' | 'backup'
+type SettingsSection = 'general' | 'appearance' | 'api' | 'storage' | 'shortcuts' | 'expert' | 'backup'
 
 const SECTIONS = [
     { id: 'general' as const, icon: Settings2, labelKey: 'settingsPage.sections.general' },
@@ -71,6 +72,7 @@ const SECTIONS = [
     { id: 'api' as const, icon: Key, labelKey: 'settingsPage.sections.api' },
     { id: 'storage' as const, icon: FolderOpen, labelKey: 'settingsPage.sections.storage' },
     { id: 'shortcuts' as const, icon: Keyboard, labelKey: 'settingsPage.sections.shortcuts' },
+    { id: 'expert' as const, icon: SlidersHorizontal, label: 'Expert Options' },
     { id: 'backup' as const, icon: Database, labelKey: 'settingsPage.backup.title' },
 ]
 
@@ -78,7 +80,7 @@ export default function Settings() {
     const { t, i18n } = useTranslation()
     const { theme, setTheme } = useThemeStore()
     const { token, isVerified, anlas, isLoading, verifyAndSave } = useAuthStore()
-    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat } = useSettingsStore()
+    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertOptionsEnabled, setExpertOptionsEnabled } = useSettingsStore()
     const { bindings, enabled: shortcutsEnabled, setBinding, resetBinding, resetAllBindings, setEnabled: setShortcutsEnabled } = useShortcutStore()
     const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey)
 
@@ -323,7 +325,7 @@ export default function Settings() {
                         )}
                     >
                         <section.icon className="h-4 w-4" />
-                        {t(section.labelKey)}
+                        {'label' in section ? section.label : t(section.labelKey)}
                     </button>
                 ))}
 
@@ -1033,6 +1035,34 @@ export default function Settings() {
                                             t={t}
                                         />
                                     ))}
+                                </div>
+                            </div>
+                        </section>
+                    )}
+                    
+
+                    {/* Expert Options Section */}
+                    {activeSection === 'expert' && (
+                        <section className="space-y-6">
+                            <div>
+                                <h2 className="text-xl font-semibold">Expert Options</h2>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Enable optional advanced UI experiments.
+                                </p>
+                            </div>
+
+                            <div className="border border-border/50 rounded-xl p-6 bg-card/30">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <label className="text-sm font-medium">Use Expert Options</label>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Switch character prompts to the advanced prompt / negative / costume layout.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={expertOptionsEnabled}
+                                        onChange={(e) => setExpertOptionsEnabled(e.target.checked)}
+                                    />
                                 </div>
                             </div>
                         </section>

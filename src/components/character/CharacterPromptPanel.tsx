@@ -69,6 +69,39 @@ interface CharacterPromptPanelProps {
     onOpenChange: (open: boolean) => void
 }
 
+
+const COSTUME_MARKER = '\n#!-\uc758\uc0c1\ud504\ub86c\n'
+
+const splitCostumePrompt = (prompt: string) => {
+    const normalized = prompt.replace(/\r\n/g, '\n')
+    const marker = '#!-\uc758\uc0c1\ud504\ub86c'
+    const index = normalized.indexOf(marker)
+    if (index === -1) return { characterPrompt: prompt, costumePrompt: '' }
+    const characterPrompt = normalized.slice(0, index).replace(/\n+$/g, '')
+    const costumePrompt = normalized.slice(index + marker.length).replace(/^\n+/g, '')
+    return { characterPrompt, costumePrompt }
+}
+
+const joinCostumePrompt = (characterPrompt: string, costumePrompt: string) => {
+    const cleanCharacter = characterPrompt.replace(/\s+$/g, '')
+    const cleanCostume = costumePrompt.replace(/^\s+/g, '')
+    if (!cleanCostume.trim()) return cleanCharacter
+    return `${cleanCharacter}${COSTUME_MARKER}${cleanCostume}`
+}
+
+const getVariantBaseName = (char: CharacterPrompt, fallback: string) => {
+    const name = char.name?.trim() || fallback
+    return name.replace(/\d+$/g, '') || name
+}
+
+const getVariantIndex = (char: CharacterPrompt, fallback: string) => {
+    const name = char.name?.trim() || fallback
+    const match = name.match(/(\d+)$/)
+    return match ? Number(match[1]) : 0
+}
+
+const getVariantName = (baseName: string, index: number) => index === 0 ? baseName : `${baseName}${index}`
+
 export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPanelProps) {
     const { t } = useTranslation()
     const {
@@ -96,6 +129,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
     const [editingGroupName, setEditingGroupName] = useState('')
     const [activeId, setActiveId] = useState<string | null>(null)
+    const expertOptionsEnabled = useSettingsStore(state => state.expertOptionsEnabled)
 
     // DnD sensors
     const sensors = useSensors(
@@ -185,6 +219,30 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
             }
         }, 0)
     }, [addCharacter, updateCharacter])
+
+
+    const handleAddVariant = useCallback((char: CharacterPrompt) => {
+        const baseName = getVariantBaseName(char, char.name || 'Character')
+        const variants = characters
+            .filter(c => c.groupId === char.groupId && getVariantBaseName(c, c.name || 'Character') === baseName)
+            .sort((a, b) => getVariantIndex(a, a.name || 'Character') - getVariantIndex(b, b.name || 'Character'))
+        if (variants.length >= 5) return
+        const nextIndex = Math.max(-1, ...variants.map(c => getVariantIndex(c, c.name || 'Character'))) + 1
+        addCharacter({
+            name: getVariantName(baseName, nextIndex),
+            prompt: char.prompt,
+            negative: char.negative,
+            groupId: char.groupId,
+            promptEnabled: char.promptEnabled ?? true,
+            negativeEnabled: char.negativeEnabled ?? true,
+            costumeEnabled: char.costumeEnabled ?? true,
+            position: char.position,
+        })
+        setTimeout(() => {
+            const newChar = useCharacterPromptStore.getState().characters.slice(-1)[0]
+            if (newChar) setExpandedId(newChar.id)
+        }, 0)
+    }, [addCharacter, characters])
 
     const handleToggleExpand = useCallback((id: string) => {
         setExpandedId(prev => prev === id ? null : id)
@@ -474,6 +532,10 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                                                     onMoveToGroup={moveCharacterToGroup}
                                                                     positionEnabled={positionEnabled}
                                                                     groups={groups}
+                                                                allCharacters={characters}
+                                                                expertOptionsEnabled={expertOptionsEnabled}
+                                                                onAddVariant={() => handleAddVariant(char)}
+                                                                onSelectVariant={(id) => setExpandedId(id)}
                                                                 />
                                                             )
                                                         })}
@@ -517,6 +579,10 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                                                 onMoveToGroup={moveCharacterToGroup}
                                                                 positionEnabled={positionEnabled}
                                                                 groups={groups}
+                                                            allCharacters={characters}
+                                                            expertOptionsEnabled={expertOptionsEnabled}
+                                                            onAddVariant={() => handleAddVariant(char)}
+                                                            onSelectVariant={(id) => setExpandedId(id)}
                                                             />
                                                         )
                                                     })}
@@ -662,6 +728,10 @@ interface CharacterCardProps {
     onMoveToGroup: (characterId: string, groupId: string | undefined) => void
     positionEnabled: boolean
     groups: { id: string; name: string; collapsed: boolean }[]
+    allCharacters: CharacterPrompt[]
+    expertOptionsEnabled: boolean
+    onAddVariant: () => void
+    onSelectVariant: (id: string) => void
     dragHandleProps?: React.HTMLAttributes<HTMLElement>
 }
 
@@ -678,6 +748,10 @@ function CharacterCard({
     onMoveToGroup,
     positionEnabled,
     groups,
+    allCharacters,
+    expertOptionsEnabled,
+    onAddVariant,
+    onSelectVariant,
     dragHandleProps,
 }: CharacterCardProps) {
     const color = CHARACTER_COLORS[index % CHARACTER_COLORS.length]
@@ -687,6 +761,15 @@ function CharacterCard({
     // 로컬 상태로 입력값 관리 (렉 방지)
     const [renameDialogOpen, setRenameDialogOpen] = useState(false)
     const [newName, setNewName] = useState(character.name || '')
+    const [activePromptTab, setActivePromptTab] = useState<'prompt' | 'negative'>('prompt')
+    const { characterPrompt, costumePrompt } = splitCostumePrompt(character.prompt)
+    const promptEnabled = character.promptEnabled ?? true
+    const negativeEnabled = character.negativeEnabled ?? true
+    const costumeEnabled = character.costumeEnabled ?? true
+    const baseName = getVariantBaseName(character, character.name || `Character ${index + 1}`)
+    const variants = allCharacters
+        .filter(c => c.groupId === character.groupId && getVariantBaseName(c, c.name || `Character ${index + 1}`) === baseName)
+        .sort((a, b) => getVariantIndex(a, a.name || baseName) - getVariantIndex(b, b.name || baseName))
 
     return (
         <>
@@ -756,30 +839,103 @@ function CharacterCard({
                         {/* Expanded Content - 아래로 펼쳐짐 */}
                         {isExpanded && (
                             <div className="min-w-0 px-3 py-3 space-y-3 border-t border-border/30 bg-background/40 animate-in slide-in-from-top-2 duration-150">
-                                <div className="min-w-0 space-y-1.5">
-                                    <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                                        {t('characterPanel.prompt', '프롬프트')}
-                                    </label>
-                                    <AutocompleteTextarea
-                                        value={character.prompt}
-                                        onChange={(e) => onUpdate({ prompt: e.target.value })}
-                                        placeholder={t('characterPanel.promptPlaceholder', '캐릭터 외형 태그...')}
-                                        className="h-[180px] text-sm resize-none"
-                                        style={{ fontSize: `${promptFontSize}px` }}
-                                    />
-                                </div>
-                                <div className="min-w-0 space-y-1.5">
-                                    <label className="text-xs font-medium text-destructive/70 whitespace-nowrap">
-                                        {t('characterPanel.negative', '네거티브')}
-                                    </label>
-                                    <AutocompleteTextarea
-                                        value={character.negative}
-                                        onChange={(e) => onUpdate({ negative: e.target.value })}
-                                        placeholder={t('characterPanel.negativePlaceholder', '제외할 태그...')}
-                                        className="h-[140px] text-sm border-destructive/20 resize-none"
-                                        style={{ fontSize: `${promptFontSize}px` }}
-                                    />
-                                </div>
+                                {expertOptionsEnabled ? (
+                                    <>
+                                        <div className="min-w-0 space-y-1.5">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2 text-xs font-medium">
+                                                    <button
+                                                        className={cn("px-2 py-1 rounded-md", activePromptTab === 'prompt' ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted")}
+                                                        onClick={() => setActivePromptTab('prompt')}
+                                                    >Prompt</button>
+                                                    <button
+                                                        className={cn("px-2 py-1 rounded-md", activePromptTab === 'negative' ? "bg-destructive/15 text-destructive" : "text-muted-foreground hover:bg-muted")}
+                                                        onClick={() => setActivePromptTab('negative')}
+                                                    >Negative</button>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6 shrink-0"
+                                                    onClick={() => activePromptTab === 'prompt' ? onUpdate({ promptEnabled: !promptEnabled }) : onUpdate({ negativeEnabled: !negativeEnabled })}
+                                                >
+                                                    {(activePromptTab === 'prompt' ? promptEnabled : negativeEnabled) ? <Eye className="h-3.5 w-3.5 text-primary" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
+                                                </Button>
+                                            </div>
+                                            {activePromptTab === 'prompt' ? (
+                                                <AutocompleteTextarea
+                                                    value={characterPrompt}
+                                                    onChange={(e) => onUpdate({ prompt: joinCostumePrompt(e.target.value, costumePrompt) })}
+                                                    placeholder={t('characterPanel.promptPlaceholder', '??? ?? ??...')}
+                                                    className={cn("h-[150px] text-sm resize-none", !promptEnabled && "opacity-50")}
+                                                    style={{ fontSize: `${promptFontSize}px` }}
+                                                />
+                                            ) : (
+                                                <AutocompleteTextarea
+                                                    value={character.negative}
+                                                    onChange={(e) => onUpdate({ negative: e.target.value })}
+                                                    placeholder={t('characterPanel.negativePlaceholder', '??? ??...')}
+                                                    className={cn("h-[150px] text-sm border-destructive/20 resize-none", !negativeEnabled && "opacity-50")}
+                                                    style={{ fontSize: `${promptFontSize}px` }}
+                                                />
+                                            )}
+                                        </div>
+                                        <div className="min-w-0 space-y-1.5">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">Costume</label>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => onUpdate({ costumeEnabled: !costumeEnabled })}>
+                                                    {costumeEnabled ? <Eye className="h-3.5 w-3.5 text-primary" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
+                                                </Button>
+                                            </div>
+                                            <AutocompleteTextarea
+                                                value={costumePrompt}
+                                                onChange={(e) => onUpdate({ prompt: joinCostumePrompt(characterPrompt, e.target.value) })}
+                                                placeholder="Costume prompt..."
+                                                className={cn("h-[110px] text-sm resize-none", !costumeEnabled && "opacity-50")}
+                                                style={{ fontSize: `${promptFontSize}px` }}
+                                            />
+                                        </div>
+                                        <div className="rounded-lg border border-dashed border-border/70 p-2 flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-1">
+                                                {variants.map((variant, i) => (
+                                                    <Button key={variant.id} size="sm" variant={variant.id === character.id ? "default" : "outline"} className="h-7 px-2" onClick={() => onSelectVariant(variant.id)} disabled={variant.id === character.id}>
+                                                        {i + 1}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                            <Button size="sm" variant="outline" className="h-7 border-dashed" onClick={onAddVariant} disabled={variants.length >= 5}>
+                                                <Plus className="h-3.5 w-3.5 mr-1" />{variants.length}/5
+                                            </Button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="min-w-0 space-y-1.5">
+                                            <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                                                {t('characterPanel.prompt', '????')}
+                                            </label>
+                                            <AutocompleteTextarea
+                                                value={character.prompt}
+                                                onChange={(e) => onUpdate({ prompt: e.target.value })}
+                                                placeholder={t('characterPanel.promptPlaceholder', '??? ?? ??...')}
+                                                className="h-[180px] text-sm resize-none"
+                                                style={{ fontSize: `${promptFontSize}px` }}
+                                            />
+                                        </div>
+                                        <div className="min-w-0 space-y-1.5">
+                                            <label className="text-xs font-medium text-destructive/70 whitespace-nowrap">
+                                                {t('characterPanel.negative', '????')}
+                                            </label>
+                                            <AutocompleteTextarea
+                                                value={character.negative}
+                                                onChange={(e) => onUpdate({ negative: e.target.value })}
+                                                placeholder={t('characterPanel.negativePlaceholder', '??? ??...')}
+                                                className="h-[140px] text-sm border-destructive/20 resize-none"
+                                                style={{ fontSize: `${promptFontSize}px` }}
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>

@@ -402,11 +402,31 @@ export const useGenerationStore = create<GenerationState>()(
                         // Character Prompts (Position-based)
                         const { characters: characterPrompts, positionEnabled } = useCharacterPromptStore.getState()
 
+
+                        const splitCharacterCostumePrompt = (prompt: string) => {
+                            const normalized = prompt.replace(/\r\n/g, '\n')
+                            const marker = '#!-\uc758\uc0c1\ud504\ub86c'
+                            const index = normalized.indexOf(marker)
+                            if (index === -1) return { characterPrompt: prompt, costumePrompt: '' }
+                            return {
+                                characterPrompt: normalized.slice(0, index).replace(/\n+$/g, ''),
+                                costumePrompt: normalized.slice(index + marker.length).replace(/^\n+/g, ''),
+                            }
+                        }
+
+                        const buildCharacterPromptForGeneration = (char: typeof characterPrompts[number]) => {
+                            const { characterPrompt, costumePrompt } = splitCharacterCostumePrompt(char.prompt)
+                            const parts: string[] = []
+                            if (char.promptEnabled !== false && characterPrompt.trim()) parts.push(characterPrompt)
+                            if (char.costumeEnabled !== false && costumePrompt.trim()) parts.push(costumePrompt)
+                            return parts.join('\n')
+                        }
+
                         // Apply fragment/wildcard substitution to character prompts (async)
                         const processedCharacterPrompts = await Promise.all(
                             characterPrompts.filter(c => c.enabled).map(async c => {
-                                const processedPrompt = await processWildcards(c.prompt)
-                                const processedNegative = await processWildcards(c.negative)
+                                const processedPrompt = await processWildcards(buildCharacterPromptForGeneration(c))
+                                const processedNegative = await processWildcards(c.negativeEnabled === false ? '' : c.negative)
                                 return {
                                     ...c,
                                     prompt: processedPrompt,
