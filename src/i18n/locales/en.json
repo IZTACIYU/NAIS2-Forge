@@ -169,7 +169,8 @@
     "scenes": "Scene Mode",
     "web": "Web",
     "library": "Library",
-    "settings": "Settings"
+    "settings": "Settings",
+    "cloudR2": "R2 Cloud"
   },
   "prompt": {
     "base": "Base Prompt",
@@ -449,7 +450,16 @@
       },
       "geminiKey": "Gemini API Key",
       "geminiKeyPlaceholder": "AIza...",
-      "geminiKeyHelp": "Get your API key from Google AI Studio"
+      "geminiKeyHelp": "Get your API key from Google AI Studio",
+      "r2": {
+        "title": "Cloudflare R2 API",
+        "accountId": "Account ID",
+        "bucket": "Bucket",
+        "accessKeyId": "Access Key ID",
+        "secretAccessKey": "Secret Access Key",
+        "publicBaseUrl": "Public image URL (optional)",
+        "help": "Used for R2 bucket file management. Image previews use the public URL when provided."
+      }
     },
     "theme": {
       "title": "Theme Settings",
@@ -557,6 +567,10 @@
         "layoutDesc": "Switch prompt and negative with tabs, and separate costume prompt so each part can be toggled independently.",
         "variantsTitle": "Character Version Stack",
         "variantsDesc": "Keep up to five versions inside one character card and switch between them like pages."
+      },
+      "cloudR2": {
+        "title": "Cloudflare R2 Manager",
+        "desc": "Adds an R2 cloud management tab for folder and image upload/delete workflows."
       }
     }
   },
@@ -734,5 +748,16 @@
     "newFolderName": "New Folder",
     "costume": "Costume",
     "costumePlaceholder": "Costume prompt..."
+  },
+  "cloudR2": {
+    "title": "R2 Cloud",
+    "disabled": "Enable Cloudflare R2 Manager in Expert Options.",
+    "missingConfig": "Enter R2 credentials in Settings > API.",
+    "upload": "Upload",
+    "newFolder": "New folder",
+    "selectFile": "Select a file to view details.",
+    "uploaded": "Upload complete",
+    "error": "R2 operation failed",
+    "confirmDelete": "Delete {{name}}?"
   }
 }

@@ -17,6 +17,7 @@ import {
     Film,
     Globe,
     Images,
+    Cloud,
     Settings,
     Coins,
     Wand2,
@@ -33,6 +34,7 @@ import { calculateExtraCost } from '@/lib/anlas-calculator'
 import { useCharacterStore } from '@/stores/character-store'
 import { usePresetStore } from '@/stores/preset-store'
 import { useLayoutStore } from '@/stores/layout-store'
+import { useSettingsStore } from '@/stores/settings-store'
 
 // Check if running on Mac (works in browser and Tauri WebView)
 const isMac = navigator.platform.toUpperCase().includes('MAC') ||
@@ -43,6 +45,7 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const location = useLocation()
     const { anlas, isVerified, refreshAnlas } = useAuthStore()
     const { leftSidebarVisible, rightSidebarVisible, toggleLeftSidebar, toggleRightSidebar } = useLayoutStore()
+    const expertCloudR2Enabled = useSettingsStore(state => state.expertCloudR2Enabled)
 
     // Get generation params for cost calculation
     const { characterImages, vibeImages } = useCharacterStore()
@@ -95,6 +98,7 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
         { path: '/tools', icon: Wand2, labelKey: 'smartTools.title' },
         { path: '/web', icon: Globe, labelKey: 'nav.web' },
         { path: '/library', icon: Images, labelKey: 'nav.library' },
+        ...(expertCloudR2Enabled ? [{ path: '/cloud-r2', icon: Cloud, labelKey: 'nav.cloudR2' }] : []),
         { path: '/settings', icon: Settings, labelKey: 'nav.settings' },
     ]
 

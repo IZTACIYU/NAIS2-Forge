@@ -38,6 +38,7 @@ import {
     Database,
     AlertTriangle,
     HardDrive,
+    Cloud,
     SlidersHorizontal,
 } from 'lucide-react'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -80,7 +81,7 @@ export default function Settings() {
     const { t, i18n } = useTranslation()
     const { theme, setTheme } = useThemeStore()
     const { token, isVerified, anlas, isLoading, verifyAndSave } = useAuthStore()
-    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled } = useSettingsStore()
+    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
     const { bindings, enabled: shortcutsEnabled, setBinding, resetBinding, resetAllBindings, setEnabled: setShortcutsEnabled } = useShortcutStore()
     const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey)
 
@@ -744,6 +745,45 @@ export default function Settings() {
                                         {t('settingsPage.api.geminiKeyHelp', 'Get your API key from Google AI Studio')}
                                     </p>
                                 </div>
+
+                                <div className="space-y-3 pt-4 border-t border-border/30">
+                                    <label className="text-sm font-medium flex items-center gap-2">
+                                        <Cloud className="h-4 w-4 text-orange-500" />
+                                        {t('settingsPage.api.r2.title')}
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Input
+                                            value={r2AccountId}
+                                            onChange={(e) => setR2Config({ r2AccountId: e.target.value })}
+                                            placeholder={t('settingsPage.api.r2.accountId')}
+                                        />
+                                        <Input
+                                            value={r2Bucket}
+                                            onChange={(e) => setR2Config({ r2Bucket: e.target.value })}
+                                            placeholder={t('settingsPage.api.r2.bucket')}
+                                        />
+                                        <Input
+                                            value={r2AccessKeyId}
+                                            onChange={(e) => setR2Config({ r2AccessKeyId: e.target.value })}
+                                            placeholder={t('settingsPage.api.r2.accessKeyId')}
+                                        />
+                                        <Input
+                                            type="password"
+                                            value={r2SecretAccessKey}
+                                            onChange={(e) => setR2Config({ r2SecretAccessKey: e.target.value })}
+                                            placeholder={t('settingsPage.api.r2.secretAccessKey')}
+                                        />
+                                        <Input
+                                            className="col-span-2"
+                                            value={r2PublicBaseUrl}
+                                            onChange={(e) => setR2Config({ r2PublicBaseUrl: e.target.value })}
+                                            placeholder={t('settingsPage.api.r2.publicBaseUrl')}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        {t('settingsPage.api.r2.help')}
+                                    </p>
+                                </div>
                             </div>
                         </section>
                     )}
@@ -1082,6 +1122,19 @@ export default function Settings() {
                                     <Switch
                                         checked={expertCharacterPromptVariantsEnabled}
                                         onChange={(e) => setExpertCharacterPromptVariantsEnabled(e.target.checked)}
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-4">
+                                    <div>
+                                        <label className="text-sm font-medium">{t('settingsPage.expert.cloudR2.title')}</label>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            {t('settingsPage.expert.cloudR2.desc')}
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={expertCloudR2Enabled}
+                                        onChange={(e) => setExpertCloudR2Enabled(e.target.checked)}
                                     />
                                 </div>
                             </div>

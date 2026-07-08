@@ -12,6 +12,7 @@ import SceneMode from '@/pages/SceneMode'
 import SceneDetail from '@/pages/SceneDetail'
 import WebView from '@/pages/WebView'
 import Library from '@/pages/Library'
+import CloudR2 from '@/pages/CloudR2'
 import Settings from '@/pages/Settings'
 import ToolsMode from '@/pages/ToolsMode'
 
@@ -49,6 +50,7 @@ function AppContent() {
                 <Route path="/tools" element={<ToolsMode />} />
                 <Route path="/web" element={<WebView />} />
                 <Route path="/library" element={<Library />} />
+                <Route path="/cloud-r2" element={<CloudR2 />} />
                 <Route path="/settings" element={<Settings />} />
             </Routes>
         </ThreeColumnLayout>

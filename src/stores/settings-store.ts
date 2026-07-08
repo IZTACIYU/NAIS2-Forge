@@ -43,6 +43,14 @@ interface SettingsState {
     expertOptionsEnabled: boolean
     expertCharacterPromptLayoutEnabled: boolean
     expertCharacterPromptVariantsEnabled: boolean
+    expertCloudR2Enabled: boolean
+
+    // R2 settings
+    r2AccountId: string
+    r2AccessKeyId: string
+    r2SecretAccessKey: string
+    r2Bucket: string
+    r2PublicBaseUrl: string
 
     // Actions
     setSavePath: (path: string, useAbsolute?: boolean) => void
@@ -62,6 +70,8 @@ interface SettingsState {
     setExpertOptionsEnabled: (enabled: boolean) => void
     setExpertCharacterPromptLayoutEnabled: (enabled: boolean) => void
     setExpertCharacterPromptVariantsEnabled: (enabled: boolean) => void
+    setExpertCloudR2Enabled: (enabled: boolean) => void
+    setR2Config: (config: Partial<Pick<SettingsState, 'r2AccountId' | 'r2AccessKeyId' | 'r2SecretAccessKey' | 'r2Bucket' | 'r2PublicBaseUrl'>>) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -85,6 +95,12 @@ export const useSettingsStore = create<SettingsState>()(
             expertOptionsEnabled: false,
             expertCharacterPromptLayoutEnabled: false,
             expertCharacterPromptVariantsEnabled: false,
+            expertCloudR2Enabled: false,
+            r2AccountId: '',
+            r2AccessKeyId: '',
+            r2SecretAccessKey: '',
+            r2Bucket: '',
+            r2PublicBaseUrl: '',
 
             setSavePath: (savePath, useAbsolute) => set({
                 savePath,
@@ -118,6 +134,8 @@ export const useSettingsStore = create<SettingsState>()(
             setExpertOptionsEnabled: (expertOptionsEnabled) => set({ expertOptionsEnabled }),
             setExpertCharacterPromptLayoutEnabled: (expertCharacterPromptLayoutEnabled) => set({ expertCharacterPromptLayoutEnabled }),
             setExpertCharacterPromptVariantsEnabled: (expertCharacterPromptVariantsEnabled) => set({ expertCharacterPromptVariantsEnabled }),
+            setExpertCloudR2Enabled: (expertCloudR2Enabled) => set({ expertCloudR2Enabled }),
+            setR2Config: (config) => set(config),
         }),
         {
             name: 'nais2-forge-settings',

@@ -170,7 +170,8 @@
     "marketplace": "마켓",
     "web": "웹",
     "library": "라이브러리",
-    "settings": "설정"
+    "settings": "설정",
+    "cloudR2": "R2 ????"
   },
   "prompt": {
     "base": "기본 프롬프트",
@@ -479,7 +480,16 @@
       },
       "geminiKey": "Gemini API Key",
       "geminiKeyPlaceholder": "AIza...",
-      "geminiKeyHelp": "Google AI Studio에서 API 키를 발급받으세요"
+      "geminiKeyHelp": "Google AI Studio에서 API 키를 발급받으세요",
+      "r2": {
+        "title": "Cloudflare R2 API",
+        "accountId": "Account ID",
+        "bucket": "Bucket",
+        "accessKeyId": "Access Key ID",
+        "secretAccessKey": "Secret Access Key",
+        "publicBaseUrl": "?? ??? URL (??)",
+        "help": "R2 ?? ?? ??? ?? ?????. ?? URL? ???? ??? ????? ?????."
+      }
     },
     "theme": {
       "title": "테마 설정",
@@ -587,6 +597,10 @@
         "layoutDesc": "프롬프트와 네거티브를 탭으로 전환하고, 의상 프롬프트를 분리해 개별로 켜고 끄게 합니다.",
         "variantsTitle": "캐릭터 버전 스택",
         "variantsDesc": "하나의 캐릭터 카드 안에 최대 5개의 버전을 묶어, 페이지를 넘기듯 전환합니다."
+      },
+      "cloudR2": {
+        "title": "Cloudflare R2 ???",
+        "desc": "?? ?? R2 ???? ?? ??? ???? ??? ??? ??? ???/?????."
       }
     }
   },
@@ -830,5 +844,16 @@
     "newFolderName": "새폴더",
     "costume": "의상",
     "costumePlaceholder": "의상 프롬프트..."
+  },
+  "cloudR2": {
+    "title": "R2 ????",
+    "disabled": "??? ???? Cloudflare R2 ???? ????.",
+    "missingConfig": "?? > API?? R2 ??? ??????.",
+    "upload": "???",
+    "newFolder": "? ??",
+    "selectFile": "??? ???? ??? ?????.",
+    "uploaded": "??? ??",
+    "error": "R2 ?? ??",
+    "confirmDelete": "{{name}}? ??????"
   }
 }

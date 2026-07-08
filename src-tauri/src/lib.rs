@@ -427,6 +427,221 @@ async fn remove_background(image_base64: String) -> RemoveBackgroundResult {
     }
 }
 
+
+#[derive(Debug, Deserialize)]
+struct R2Config {
+    account_id: String,
+    access_key_id: String,
+    secret_access_key: String,
+    bucket: String,
+}
+
+#[derive(Debug, Serialize)]
+struct R2ObjectInfo {
+    key: String,
+    name: String,
+    size: u64,
+    last_modified: Option<String>,
+    is_folder: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct R2ListResult {
+    folders: Vec<R2ObjectInfo>,
+    files: Vec<R2ObjectInfo>,
+}
+
+fn hmac_sha256(key: &[u8], data: &str) -> Vec<u8> {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    let mut mac = Hmac::<Sha256>::new_from_slice(key).expect("hmac key");
+    mac.update(data.as_bytes());
+    mac.finalize().into_bytes().to_vec()
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    hex::encode(Sha256::digest(bytes))
+}
+
+fn aws_encode(value: &str, keep_slash: bool) -> String {
+    let mut out = String::new();
+    for b in value.bytes() {
+        let ok = b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') || (keep_slash && b == b'/');
+        if ok {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{:02X}", b));
+        }
+    }
+    out
+}
+
+fn r2_endpoint(config: &R2Config) -> String {
+    format!("https://{}.r2.cloudflarestorage.com", config.account_id.trim())
+}
+
+fn r2_sign_headers(
+    config: &R2Config,
+    method: &str,
+    canonical_uri: &str,
+    canonical_query: &str,
+    payload_hash: &str,
+    content_type: Option<&str>,
+) -> Vec<(String, String)> {
+    let now = chrono::Utc::now();
+    let amz_date = now.format("%Y%m%dT%H%M%SZ").to_string();
+    let date_stamp = now.format("%Y%m%d").to_string();
+    let host = format!("{}.r2.cloudflarestorage.com", config.account_id.trim());
+
+    let mut canonical_headers = format!("host:{}\nx-amz-content-sha256:{}\nx-amz-date:{}\n", host, payload_hash, amz_date);
+    let mut signed_headers = "host;x-amz-content-sha256;x-amz-date".to_string();
+    if let Some(ct) = content_type {
+        canonical_headers = format!("content-type:{}\n{}", ct, canonical_headers);
+        signed_headers = format!("content-type;{}", signed_headers);
+    }
+
+    let canonical_request = format!(
+        "{}\n{}\n{}\n{}\n{}\n{}",
+        method, canonical_uri, canonical_query, canonical_headers, signed_headers, payload_hash
+    );
+    let credential_scope = format!("{}/auto/s3/aws4_request", date_stamp);
+    let string_to_sign = format!(
+        "AWS4-HMAC-SHA256\n{}\n{}\n{}",
+        amz_date,
+        credential_scope,
+        sha256_hex(canonical_request.as_bytes())
+    );
+
+    let k_date = hmac_sha256(format!("AWS4{}", config.secret_access_key).as_bytes(), &date_stamp);
+    let k_region = hmac_sha256(&k_date, "auto");
+    let k_service = hmac_sha256(&k_region, "s3");
+    let k_signing = hmac_sha256(&k_service, "aws4_request");
+    let signature = hex::encode(hmac_sha256(&k_signing, &string_to_sign));
+    let authorization = format!(
+        "AWS4-HMAC-SHA256 Credential={}/{}, SignedHeaders={}, Signature={}",
+        config.access_key_id.trim(), credential_scope, signed_headers, signature
+    );
+
+    let mut headers = vec![
+        ("Authorization".to_string(), authorization),
+        ("x-amz-content-sha256".to_string(), payload_hash.to_string()),
+        ("x-amz-date".to_string(), amz_date),
+    ];
+    if let Some(ct) = content_type {
+        headers.push(("Content-Type".to_string(), ct.to_string()));
+    }
+    headers
+}
+
+fn xml_text(block: &str, tag: &str) -> Option<String> {
+    let open = format!("<{}>", tag);
+    let close = format!("</{}>", tag);
+    let start = block.find(&open)? + open.len();
+    let end = block[start..].find(&close)? + start;
+    Some(block[start..end].replace("&amp;", "&"))
+}
+
+fn split_xml_blocks<'a>(xml: &'a str, tag: &str) -> Vec<&'a str> {
+    let mut blocks = Vec::new();
+    let open = format!("<{}>", tag);
+    let close = format!("</{}>", tag);
+    let mut rest = xml;
+    while let Some(start) = rest.find(&open) {
+        let from = start + open.len();
+        if let Some(end_rel) = rest[from..].find(&close) {
+            let end = from + end_rel;
+            blocks.push(&rest[from..end]);
+            rest = &rest[end + close.len()..];
+        } else {
+            break;
+        }
+    }
+    blocks
+}
+
+#[tauri::command]
+async fn r2_list_objects(config: R2Config, prefix: Option<String>) -> Result<R2ListResult, String> {
+    let prefix = prefix.unwrap_or_default();
+    let canonical_uri = format!("/{}", aws_encode(config.bucket.trim(), true));
+    let canonical_query = format!(
+        "delimiter=%2F&list-type=2&prefix={}",
+        aws_encode(&prefix, false)
+    );
+    let url = format!("{}{}?{}", r2_endpoint(&config), canonical_uri, canonical_query);
+    let payload_hash = sha256_hex(b"");
+    let headers = r2_sign_headers(&config, "GET", &canonical_uri, &canonical_query, &payload_hash, None);
+    let client = reqwest::Client::new();
+    let mut req = client.get(url);
+    for (k, v) in headers { req = req.header(k, v); }
+    let response = req.send().await.map_err(|e| e.to_string())?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("R2 list failed: {} {}", status, body));
+    }
+    let xml = response.text().await.map_err(|e| e.to_string())?;
+    let folders = split_xml_blocks(&xml, "CommonPrefixes").into_iter().filter_map(|block| {
+        let key = xml_text(block, "Prefix")?;
+        let name = key.trim_end_matches('/').rsplit('/').next().unwrap_or(&key).to_string();
+        Some(R2ObjectInfo { key, name, size: 0, last_modified: None, is_folder: true })
+    }).collect();
+    let files = split_xml_blocks(&xml, "Contents").into_iter().filter_map(|block| {
+        let key = xml_text(block, "Key")?;
+        if key.ends_with('/') { return None; }
+        let name = key.rsplit('/').next().unwrap_or(&key).to_string();
+        let size = xml_text(block, "Size").and_then(|s| s.parse().ok()).unwrap_or(0);
+        let last_modified = xml_text(block, "LastModified");
+        Some(R2ObjectInfo { key, name, size, last_modified, is_folder: false })
+    }).collect();
+    Ok(R2ListResult { folders, files })
+}
+
+#[tauri::command]
+async fn r2_put_object(config: R2Config, key: String, content_base64: String, content_type: Option<String>) -> Result<(), String> {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    let body = STANDARD.decode(content_base64).map_err(|e| e.to_string())?;
+    let canonical_uri = format!("/{}/{}", aws_encode(config.bucket.trim(), true), aws_encode(&key, true));
+    let canonical_query = "";
+    let payload_hash = sha256_hex(&body);
+    let content_type = content_type.unwrap_or_else(|| "application/octet-stream".to_string());
+    let headers = r2_sign_headers(&config, "PUT", &canonical_uri, canonical_query, &payload_hash, Some(&content_type));
+    let url = format!("{}{}", r2_endpoint(&config), canonical_uri);
+    let client = reqwest::Client::new();
+    let mut req = client.put(url).body(body);
+    for (k, v) in headers { req = req.header(k, v); }
+    let response = req.send().await.map_err(|e| e.to_string())?;
+    if response.status().is_success() { Ok(()) } else {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        Err(format!("R2 upload failed: {} {}", status, body))
+    }
+}
+
+#[tauri::command]
+async fn r2_delete_object(config: R2Config, key: String) -> Result<(), String> {
+    let canonical_uri = format!("/{}/{}", aws_encode(config.bucket.trim(), true), aws_encode(&key, true));
+    let canonical_query = "";
+    let payload_hash = sha256_hex(b"");
+    let headers = r2_sign_headers(&config, "DELETE", &canonical_uri, canonical_query, &payload_hash, None);
+    let url = format!("{}{}", r2_endpoint(&config), canonical_uri);
+    let client = reqwest::Client::new();
+    let mut req = client.delete(url);
+    for (k, v) in headers { req = req.header(k, v); }
+    let response = req.send().await.map_err(|e| e.to_string())?;
+    if response.status().is_success() { Ok(()) } else {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        Err(format!("R2 delete failed: {} {}", status, body))
+    }
+}
+
+#[tauri::command]
+async fn r2_create_folder(config: R2Config, key: String) -> Result<(), String> {
+    let folder_key = if key.ends_with('/') { key } else { format!("{}/", key) };
+    r2_put_object(config, folder_key, String::new(), Some("application/x-directory".to_string())).await
+}
+
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Url};
@@ -600,6 +815,10 @@ pub fn run() {
             hide_embedded_browser,
             is_browser_open,
             zoom_embedded_browser,
+            r2_list_objects,
+            r2_put_object,
+            r2_delete_object,
+            r2_create_folder,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
