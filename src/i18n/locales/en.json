@@ -458,7 +458,10 @@
         "accessKeyId": "Access Key ID",
         "secretAccessKey": "Secret Access Key",
         "publicBaseUrl": "Public image URL (optional)",
-        "help": "Used for R2 bucket file management. Image previews use the public URL when provided."
+        "help": "Used for R2 bucket file management. Image previews use the public URL when provided.",
+        "connectionPlaceholder": "Account ID|Bucket|Access Key ID|Secret Key|Public URL",
+        "applyConnection": "Apply",
+        "invalidConnection": "R2 connection string needs at least 4 fields."
       }
     },
     "theme": {

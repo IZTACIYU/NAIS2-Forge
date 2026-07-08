@@ -171,7 +171,7 @@
     "web": "웹",
     "library": "라이브러리",
     "settings": "설정",
-    "cloudR2": "R2 ????"
+    "cloudR2": "R2 클라우드"
   },
   "prompt": {
     "base": "기본 프롬프트",
@@ -487,8 +487,11 @@
         "bucket": "Bucket",
         "accessKeyId": "Access Key ID",
         "secretAccessKey": "Secret Access Key",
-        "publicBaseUrl": "?? ??? URL (??)",
-        "help": "R2 ?? ?? ??? ?? ?????. ?? URL? ???? ??? ????? ?????."
+        "publicBaseUrl": "공개 이미지 URL (선택)",
+        "help": "R2 버킷 파일 관리에 사용합니다. 공개 URL을 입력하면 이미지 미리보기를 표시합니다.",
+        "connectionPlaceholder": "Account ID|Bucket|Access Key ID|Secret Key|?? URL",
+        "applyConnection": "??",
+        "invalidConnection": "R2 ?? ???? ?? 4? ??? ?????."
       }
     },
     "theme": {
@@ -599,8 +602,8 @@
         "variantsDesc": "하나의 캐릭터 카드 안에 최대 5개의 버전을 묶어, 페이지를 넘기듯 전환합니다."
       },
       "cloudR2": {
-        "title": "Cloudflare R2 ???",
-        "desc": "?? ?? R2 ???? ?? ??? ???? ??? ??? ??? ???/?????."
+        "title": "Cloudflare R2 관리자",
+        "desc": "상단 탭에 R2 클라우드 관리 화면을 추가하여 폴더와 이미지 파일을 업로드/삭제합니다."
       }
     }
   },
@@ -846,14 +849,14 @@
     "costumePlaceholder": "의상 프롬프트..."
   },
   "cloudR2": {
-    "title": "R2 ????",
-    "disabled": "??? ???? Cloudflare R2 ???? ????.",
-    "missingConfig": "?? > API?? R2 ??? ??????.",
-    "upload": "???",
-    "newFolder": "? ??",
-    "selectFile": "??? ???? ??? ?????.",
-    "uploaded": "??? ??",
-    "error": "R2 ?? ??",
-    "confirmDelete": "{{name}}? ??????"
+    "title": "R2 클라우드",
+    "disabled": "숙련자 옵션에서 Cloudflare R2 관리자를 켜주세요.",
+    "missingConfig": "설정 > API에서 R2 정보를 입력해주세요.",
+    "upload": "업로드",
+    "newFolder": "새 폴더",
+    "selectFile": "파일을 선택하면 정보가 표시됩니다.",
+    "uploaded": "업로드 완료",
+    "error": "R2 작업 실패",
+    "confirmDelete": "{{name}}을 삭제할까요?"
   }
 }
