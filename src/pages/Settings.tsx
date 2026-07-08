@@ -84,7 +84,6 @@ export default function Settings() {
     const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
     const { bindings, enabled: shortcutsEnabled, setBinding, resetBinding, resetAllBindings, setEnabled: setShortcutsEnabled } = useShortcutStore()
     const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey)
-    const [r2ConnectionString, setR2ConnectionString] = useState('')
 
     const [activeSection, setActiveSection] = useState<SettingsSection>('general')
     const [apiToken, setApiToken] = useState(token)
@@ -132,23 +131,6 @@ export default function Settings() {
         }
     }, [token, isVerified])
 
-
-    const handleApplyR2Connection = () => {
-        const parts = r2ConnectionString.split('|').map(part => part.trim())
-        if (parts.length < 4) {
-            toast({ title: t('settingsPage.api.r2.invalidConnection'), variant: 'destructive' })
-            return
-        }
-        setR2Config({
-            r2AccountId: parts[0] || '',
-            r2Bucket: parts[1] || '',
-            r2AccessKeyId: parts[2] || '',
-            r2SecretAccessKey: parts[3] || '',
-            r2PublicBaseUrl: parts[4] || r2PublicBaseUrl,
-        })
-        setR2ConnectionString('')
-        toast({ title: t('settingsPage.saved'), variant: 'success' })
-    }
 
     const handleVerifyToken = async () => {
         if (!apiToken) return
@@ -770,18 +752,6 @@ export default function Settings() {
                                         <Cloud className="h-4 w-4 text-orange-500" />
                                         {t('settingsPage.api.r2.title')}
                                     </label>
-                                    <div className="flex gap-2">
-                                        <Input
-                                            type="password"
-                                            value={r2ConnectionString}
-                                            onChange={(e) => setR2ConnectionString(e.target.value)}
-                                            placeholder={t('settingsPage.api.r2.connectionPlaceholder')}
-                                            className="flex-1"
-                                        />
-                                        <Button variant="outline" onClick={handleApplyR2Connection} disabled={!r2ConnectionString.trim()}>
-                                            {t('settingsPage.api.r2.applyConnection')}
-                                        </Button>
-                                    </div>
                                     <div className="grid grid-cols-2 gap-2">
                                         <Input
                                             value={r2AccountId}

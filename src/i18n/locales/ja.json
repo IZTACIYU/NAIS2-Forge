@@ -457,10 +457,7 @@
         "accessKeyId": "Access Key ID",
         "secretAccessKey": "Secret Access Key",
         "publicBaseUrl": "公開画像URL（任意）",
-        "help": "R2バケットのファイル管理に使用します。公開URLを入力すると画像プレビューを表示します。",
-        "connectionPlaceholder": "Account ID|Bucket|Access Key ID|Secret Key|??URL",
-        "applyConnection": "??",
-        "invalidConnection": "R2?????????4????????"
+        "help": "R2バケットのファイル管理に使用します。公開URLを入力すると画像プレビューを表示します。"
       }
     },
     "theme": {

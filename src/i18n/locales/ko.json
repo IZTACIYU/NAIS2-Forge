@@ -488,10 +488,7 @@
         "accessKeyId": "Access Key ID",
         "secretAccessKey": "Secret Access Key",
         "publicBaseUrl": "공개 이미지 URL (선택)",
-        "help": "R2 버킷 파일 관리에 사용합니다. 공개 URL을 입력하면 이미지 미리보기를 표시합니다.",
-        "connectionPlaceholder": "Account ID|Bucket|Access Key ID|Secret Key|?? URL",
-        "applyConnection": "??",
-        "invalidConnection": "R2 ?? ???? ?? 4? ??? ?????."
+        "help": "R2 버킷 파일 관리에 사용합니다. 공개 URL을 입력하면 이미지 미리보기를 표시합니다."
       }
     },
     "theme": {
