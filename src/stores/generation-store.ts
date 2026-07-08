@@ -415,6 +415,8 @@ export const useGenerationStore = create<GenerationState>()(
                         }
 
                         const buildCharacterPromptForGeneration = (char: typeof characterPrompts[number]) => {
+                            const { expertCharacterPromptLayoutEnabled } = useSettingsStore.getState()
+                            if (!expertCharacterPromptLayoutEnabled) return char.prompt
                             const { characterPrompt, costumePrompt } = splitCharacterCostumePrompt(char.prompt)
                             const parts: string[] = []
                             if (char.promptEnabled !== false && characterPrompt.trim()) parts.push(characterPrompt)
@@ -426,7 +428,7 @@ export const useGenerationStore = create<GenerationState>()(
                         const processedCharacterPrompts = await Promise.all(
                             characterPrompts.filter(c => c.enabled).map(async c => {
                                 const processedPrompt = await processWildcards(buildCharacterPromptForGeneration(c))
-                                const processedNegative = await processWildcards(c.negativeEnabled === false ? '' : c.negative)
+                                const processedNegative = await processWildcards(useSettingsStore.getState().expertCharacterPromptLayoutEnabled && c.negativeEnabled === false ? '' : c.negative)
                                 return {
                                     ...c,
                                     prompt: processedPrompt,

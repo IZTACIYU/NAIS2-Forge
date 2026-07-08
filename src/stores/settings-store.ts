@@ -41,6 +41,8 @@ interface SettingsState {
 
     // Expert options
     expertOptionsEnabled: boolean
+    expertCharacterPromptLayoutEnabled: boolean
+    expertCharacterPromptVariantsEnabled: boolean
 
     // Actions
     setSavePath: (path: string, useAbsolute?: boolean) => void
@@ -58,6 +60,8 @@ interface SettingsState {
     setLibraryPath: (path: string, useAbsolute?: boolean) => void
     setImageFormat: (format: 'png' | 'webp') => void
     setExpertOptionsEnabled: (enabled: boolean) => void
+    setExpertCharacterPromptLayoutEnabled: (enabled: boolean) => void
+    setExpertCharacterPromptVariantsEnabled: (enabled: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -79,6 +83,8 @@ export const useSettingsStore = create<SettingsState>()(
             useAbsoluteLibraryPath: false, // Default: relative to Pictures folder
             imageFormat: 'png', // Default: PNG format
             expertOptionsEnabled: false,
+            expertCharacterPromptLayoutEnabled: false,
+            expertCharacterPromptVariantsEnabled: false,
 
             setSavePath: (savePath, useAbsolute) => set({
                 savePath,
@@ -110,6 +116,8 @@ export const useSettingsStore = create<SettingsState>()(
             }),
             setImageFormat: (format) => set({ imageFormat: format }),
             setExpertOptionsEnabled: (expertOptionsEnabled) => set({ expertOptionsEnabled }),
+            setExpertCharacterPromptLayoutEnabled: (expertCharacterPromptLayoutEnabled) => set({ expertCharacterPromptLayoutEnabled }),
+            setExpertCharacterPromptVariantsEnabled: (expertCharacterPromptVariantsEnabled) => set({ expertCharacterPromptVariantsEnabled }),
         }),
         {
             name: 'nais2-forge-settings',

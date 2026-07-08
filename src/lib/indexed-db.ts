@@ -514,6 +514,25 @@ export async function migrateFromLocalStorage(keys: string[]): Promise<void> {
  * 데이터 손실 방지를 위한 수동 백업 기능
  * 재생성 가능한 캐시(encodedVibe, thumbnails)는 자동으로 제외됩니다.
  */
+
+function stripCharacterVariantHashesForExport(value: unknown): unknown {
+    const clone = JSON.parse(JSON.stringify(value))
+    const stripName = (item: unknown) => {
+        if (item && typeof item === 'object' && 'name' in item) {
+            const named = item as { name?: unknown }
+            if (typeof named.name === 'string') {
+                named.name = named.name.replace(/\s-\s[a-z0-9]{6}$/i, '').trim()
+            }
+        }
+    }
+    if (clone && typeof clone === 'object') {
+        const data = clone as { state?: { characters?: unknown[]; presets?: unknown[] } }
+        data.state?.characters?.forEach(stripName)
+        data.state?.presets?.forEach(stripName)
+    }
+    return clone
+}
+
 export async function exportAllData(): Promise<{ [key: string]: unknown }> {
     const keys = [
         'nais2-forge-generation',
@@ -544,7 +563,7 @@ export async function exportAllData(): Promise<{ [key: string]: unknown }> {
                 // Always filter out regenerable cache data
                 parsed = filterLargeImageData(key, parsed)
                 
-                backup[key] = parsed
+                backup[key] = key === 'nais2-forge-character-prompts' ? stripCharacterVariantHashesForExport(parsed) : parsed
             }
         } catch (err) {
             console.error(`[Backup] Failed to export ${key}:`, err)

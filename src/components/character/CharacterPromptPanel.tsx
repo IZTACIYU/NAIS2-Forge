@@ -71,6 +71,7 @@ interface CharacterPromptPanelProps {
 
 
 const COSTUME_MARKER = '\n#!-\uc758\uc0c1\ud504\ub86c\n'
+const VARIANT_HASH_PATTERN = /\s-\s([a-z0-9]{6})$/i
 
 const splitCostumePrompt = (prompt: string) => {
     const normalized = prompt.replace(/\r\n/g, '\n')
@@ -89,18 +90,30 @@ const joinCostumePrompt = (characterPrompt: string, costumePrompt: string) => {
     return `${cleanCharacter}${COSTUME_MARKER}${cleanCostume}`
 }
 
-const getVariantBaseName = (char: CharacterPrompt, fallback: string) => {
-    const name = char.name?.trim() || fallback
-    return name.replace(/\d+$/g, '') || name
-}
-
+const stripVariantHash = (name: string) => name.replace(VARIANT_HASH_PATTERN, '').trim()
+const stripVariantIndex = (name: string) => name.replace(/\d+$/g, '').trim()
+const getVariantHash = (char: CharacterPrompt) => char.name?.match(VARIANT_HASH_PATTERN)?.[1]
+const getVariantBaseName = (char: CharacterPrompt, fallback: string) => stripVariantIndex(stripVariantHash(char.name?.trim() || fallback)) || fallback
 const getVariantIndex = (char: CharacterPrompt, fallback: string) => {
-    const name = char.name?.trim() || fallback
-    const match = name.match(/(\d+)$/)
+    const match = stripVariantHash(char.name?.trim() || fallback).match(/(\d+)$/)
     return match ? Number(match[1]) : 0
 }
-
-const getVariantName = (baseName: string, index: number) => index === 0 ? baseName : `${baseName}${index}`
+const getVariantName = (baseName: string, index: number, hash: string) => `${baseName}${index === 0 ? '' : index} - ${hash}`
+const getStackKey = (char: CharacterPrompt) => {
+    const hash = getVariantHash(char)
+    return hash ? `${char.groupId || 'root'}:${hash}` : char.id
+}
+const makeVariantHash = (baseName: string, taken: Set<string>) => {
+    let seed = `${baseName}:${Date.now()}:${Math.random()}`
+    for (let attempt = 0; attempt < 10; attempt++) {
+        let value = 0
+        for (let i = 0; i < seed.length; i++) value = ((value << 5) - value + seed.charCodeAt(i)) | 0
+        const hash = Math.abs(value).toString(36).slice(0, 6).padEnd(6, '0')
+        if (!taken.has(hash)) return hash
+        seed += `:${attempt}`
+    }
+    return Math.random().toString(36).slice(2, 8).padEnd(6, '0')
+}
 
 export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPanelProps) {
     const { t } = useTranslation()
@@ -129,7 +142,9 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
     const [editingGroupName, setEditingGroupName] = useState('')
     const [activeId, setActiveId] = useState<string | null>(null)
-    const expertOptionsEnabled = useSettingsStore(state => state.expertOptionsEnabled)
+    const expertCharacterPromptLayoutEnabled = useSettingsStore(state => state.expertCharacterPromptLayoutEnabled)
+    const expertCharacterPromptVariantsEnabled = useSettingsStore(state => state.expertCharacterPromptVariantsEnabled)
+    const [activeVariantByStack, setActiveVariantByStack] = useState<Record<string, string>>({})
 
     // DnD sensors
     const sensors = useSensors(
@@ -223,13 +238,25 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
 
     const handleAddVariant = useCallback((char: CharacterPrompt) => {
         const baseName = getVariantBaseName(char, char.name || 'Character')
-        const variants = characters
-            .filter(c => c.groupId === char.groupId && getVariantBaseName(c, c.name || 'Character') === baseName)
-            .sort((a, b) => getVariantIndex(a, a.name || 'Character') - getVariantIndex(b, b.name || 'Character'))
-        if (variants.length >= 5) return
-        const nextIndex = Math.max(-1, ...variants.map(c => getVariantIndex(c, c.name || 'Character'))) + 1
+        const takenHashes = new Set(characters.map(c => getVariantHash(c)).filter(Boolean) as string[])
+        const hash = getVariantHash(char) || makeVariantHash(baseName, takenHashes)
+        const stackKey = `${char.groupId || 'root'}:${hash}`
+
+        const stackCharacters = characters
+            .filter(c => c.id === char.id || getVariantHash(c) === hash)
+            .sort((a, b) => getVariantIndex(a, a.name || baseName) - getVariantIndex(b, b.name || baseName))
+        if (stackCharacters.length >= 5) return
+
+        if (!getVariantHash(char)) {
+            updateCharacter(char.id, { name: getVariantName(baseName, 0, hash) })
+        }
+
+        const usedIndexes = new Set(stackCharacters.map(c => getVariantIndex(c, c.name || baseName)))
+        let nextIndex = 1
+        while (usedIndexes.has(nextIndex) && nextIndex < 5) nextIndex++
+
         addCharacter({
-            name: getVariantName(baseName, nextIndex),
+            name: getVariantName(baseName, nextIndex, hash),
             prompt: char.prompt,
             negative: char.negative,
             groupId: char.groupId,
@@ -240,9 +267,12 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         })
         setTimeout(() => {
             const newChar = useCharacterPromptStore.getState().characters.slice(-1)[0]
-            if (newChar) setExpandedId(newChar.id)
+            if (newChar) {
+                setActiveVariantByStack(prev => ({ ...prev, [stackKey]: newChar.id }))
+                setExpandedId(newChar.id)
+            }
         }, 0)
-    }, [addCharacter, characters])
+    }, [addCharacter, characters, updateCharacter])
 
     const handleToggleExpand = useCallback((id: string) => {
         setExpandedId(prev => prev === id ? null : id)
@@ -298,13 +328,35 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     }
 
     // 폴더별로 그룹화
+
+    const getVisibleStackCharacters = (list: CharacterPrompt[]) => {
+        if (!expertCharacterPromptVariantsEnabled) return list
+        const stacks = new Map<string, CharacterPrompt[]>()
+        for (const char of list) {
+            const key = getStackKey(char)
+            const current = stacks.get(key) || []
+            current.push(char)
+            stacks.set(key, current)
+        }
+        return Array.from(stacks.entries()).map(([key, stack]) => {
+            const sorted = stack.sort((a, b) => getVariantIndex(a, a.name || '') - getVariantIndex(b, b.name || ''))
+            const activeId = activeVariantByStack[key]
+            return sorted.find(c => c.id === activeId) || sorted[0]
+        })
+    }
+
     const groupIds = new Set(groups.map(g => g.id))
     // 미분류: groupId가 없거나, 존재하지 않는 그룹에 속한 캐릭터
-    const ungroupedCharacters = characters.filter(c => (!c.groupId || !groupIds.has(c.groupId)) && matchesSearch(c))
-    const groupedCharacters = groups.map(group => ({
-        group,
-        chars: characters.filter(c => c.groupId === group.id && matchesSearch(c))
-    }))
+    const ungroupedSourceCharacters = characters.filter(c => (!c.groupId || !groupIds.has(c.groupId)) && matchesSearch(c))
+    const ungroupedCharacters = getVisibleStackCharacters(ungroupedSourceCharacters)
+    const groupedCharacters = groups.map(group => {
+        const sourceChars = characters.filter(c => c.groupId === group.id && matchesSearch(c))
+        return {
+            group,
+            sourceCount: sourceChars.length,
+            chars: getVisibleStackCharacters(sourceChars)
+        }
+    })
 
     if (!open) return null
 
@@ -429,7 +481,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                 ) : (
                                     <>
                                         {/* Grouped Characters */}
-                                        {groupedCharacters.map(({ group, chars }) => {
+                                        {groupedCharacters.map(({ group, chars, sourceCount }) => {
                                             const folderColor = FOLDER_COLORS[group.colorIndex ?? 0]
                                             return (
                                             <DroppableFolder key={group.id} folderId={group.id} isActive={activeId !== null} isCollapsed={group.collapsed} colorClass={folderColor.bg}>
@@ -472,7 +524,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                                             <span className="font-medium">{group.name}</span>
                                                         )}
                                                         <span className="text-xs opacity-50">
-                                                            ({chars.length})
+                                                            ({expertCharacterPromptVariantsEnabled ? chars.length : sourceCount})
                                                         </span>
                                                     </button>
                                                     <div className="opacity-0 group-hover/folder:opacity-100 transition-opacity flex gap-1">
@@ -533,9 +585,14 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                                                     positionEnabled={positionEnabled}
                                                                     groups={groups}
                                                                 allCharacters={characters}
-                                                                expertOptionsEnabled={expertOptionsEnabled}
+                                                                expertCharacterPromptLayoutEnabled={expertCharacterPromptLayoutEnabled}
                                                                 onAddVariant={() => handleAddVariant(char)}
-                                                                onSelectVariant={(id) => setExpandedId(id)}
+                                                                expertCharacterPromptVariantsEnabled={expertCharacterPromptVariantsEnabled}
+                                                                onSelectVariant={(id) => {
+                                                                        const selected = characters.find(c => c.id === id)
+                                                                        if (selected) setActiveVariantByStack(prev => ({ ...prev, [getStackKey(selected)]: id }))
+                                                                        setExpandedId(id)
+                                                                    }}
                                                                 />
                                                             )
                                                         })}
@@ -580,9 +637,14 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                                                 positionEnabled={positionEnabled}
                                                                 groups={groups}
                                                             allCharacters={characters}
-                                                            expertOptionsEnabled={expertOptionsEnabled}
+                                                            expertCharacterPromptLayoutEnabled={expertCharacterPromptLayoutEnabled}
                                                             onAddVariant={() => handleAddVariant(char)}
-                                                            onSelectVariant={(id) => setExpandedId(id)}
+                                                            onSelectVariant={(id) => {
+                                                                        const selected = characters.find(c => c.id === id)
+                                                                        if (selected) setActiveVariantByStack(prev => ({ ...prev, [getStackKey(selected)]: id }))
+                                                                        setExpandedId(id)
+                                                                    }}
+                                                            expertCharacterPromptVariantsEnabled={expertCharacterPromptVariantsEnabled}
                                                             />
                                                         )
                                                     })}
@@ -729,7 +791,8 @@ interface CharacterCardProps {
     positionEnabled: boolean
     groups: { id: string; name: string; collapsed: boolean }[]
     allCharacters: CharacterPrompt[]
-    expertOptionsEnabled: boolean
+    expertCharacterPromptLayoutEnabled: boolean
+    expertCharacterPromptVariantsEnabled: boolean
     onAddVariant: () => void
     onSelectVariant: (id: string) => void
     dragHandleProps?: React.HTMLAttributes<HTMLElement>
@@ -749,7 +812,8 @@ function CharacterCard({
     positionEnabled,
     groups,
     allCharacters,
-    expertOptionsEnabled,
+    expertCharacterPromptLayoutEnabled,
+    expertCharacterPromptVariantsEnabled,
     onAddVariant,
     onSelectVariant,
     dragHandleProps,
@@ -767,9 +831,9 @@ function CharacterCard({
     const negativeEnabled = character.negativeEnabled ?? true
     const costumeEnabled = character.costumeEnabled ?? true
     const baseName = getVariantBaseName(character, character.name || `Character ${index + 1}`)
-    const variants = allCharacters
-        .filter(c => c.groupId === character.groupId && getVariantBaseName(c, c.name || `Character ${index + 1}`) === baseName)
-        .sort((a, b) => getVariantIndex(a, a.name || baseName) - getVariantIndex(b, b.name || baseName))
+    const variants = expertCharacterPromptVariantsEnabled ? allCharacters
+        .filter(c => getStackKey(c) === getStackKey(character))
+        .sort((a, b) => getVariantIndex(a, a.name || baseName) - getVariantIndex(b, b.name || baseName)) : [character]
 
     return (
         <>
@@ -839,7 +903,7 @@ function CharacterCard({
                         {/* Expanded Content - 아래로 펼쳐짐 */}
                         {isExpanded && (
                             <div className="min-w-0 px-3 py-3 space-y-3 border-t border-border/30 bg-background/40 animate-in slide-in-from-top-2 duration-150">
-                                {expertOptionsEnabled ? (
+                                {expertCharacterPromptLayoutEnabled ? (
                                     <>
                                         <div className="min-w-0 space-y-1.5">
                                             <div className="flex items-center justify-between gap-2">
@@ -847,18 +911,13 @@ function CharacterCard({
                                                     <button
                                                         className={cn("px-2 py-1 rounded-md", activePromptTab === 'prompt' ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted")}
                                                         onClick={() => setActivePromptTab('prompt')}
-                                                    >Prompt</button>
+                                                    >{t('characterPanel.prompt', 'Prompt')}</button>
                                                     <button
                                                         className={cn("px-2 py-1 rounded-md", activePromptTab === 'negative' ? "bg-destructive/15 text-destructive" : "text-muted-foreground hover:bg-muted")}
                                                         onClick={() => setActivePromptTab('negative')}
-                                                    >Negative</button>
+                                                    >{t('characterPanel.negative', 'Negative')}</button>
                                                 </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 shrink-0"
-                                                    onClick={() => activePromptTab === 'prompt' ? onUpdate({ promptEnabled: !promptEnabled }) : onUpdate({ negativeEnabled: !negativeEnabled })}
-                                                >
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => activePromptTab === 'prompt' ? onUpdate({ promptEnabled: !promptEnabled }) : onUpdate({ negativeEnabled: !negativeEnabled })}>
                                                     {(activePromptTab === 'prompt' ? promptEnabled : negativeEnabled) ? <Eye className="h-3.5 w-3.5 text-primary" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
                                                 </Button>
                                             </div>
@@ -866,7 +925,7 @@ function CharacterCard({
                                                 <AutocompleteTextarea
                                                     value={characterPrompt}
                                                     onChange={(e) => onUpdate({ prompt: joinCostumePrompt(e.target.value, costumePrompt) })}
-                                                    placeholder={t('characterPanel.promptPlaceholder', '??? ?? ??...')}
+                                                    placeholder={t('characterPanel.promptPlaceholder')}
                                                     className={cn("h-[150px] text-sm resize-none", !promptEnabled && "opacity-50")}
                                                     style={{ fontSize: `${promptFontSize}px` }}
                                                 />
@@ -874,7 +933,7 @@ function CharacterCard({
                                                 <AutocompleteTextarea
                                                     value={character.negative}
                                                     onChange={(e) => onUpdate({ negative: e.target.value })}
-                                                    placeholder={t('characterPanel.negativePlaceholder', '??? ??...')}
+                                                    placeholder={t('characterPanel.negativePlaceholder')}
                                                     className={cn("h-[150px] text-sm border-destructive/20 resize-none", !negativeEnabled && "opacity-50")}
                                                     style={{ fontSize: `${promptFontSize}px` }}
                                                 />
@@ -882,7 +941,7 @@ function CharacterCard({
                                         </div>
                                         <div className="min-w-0 space-y-1.5">
                                             <div className="flex items-center justify-between gap-2">
-                                                <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">Costume</label>
+                                                <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">{t('characterPanel.costume')}</label>
                                                 <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => onUpdate({ costumeEnabled: !costumeEnabled })}>
                                                     {costumeEnabled ? <Eye className="h-3.5 w-3.5 text-primary" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
                                                 </Button>
@@ -890,53 +949,61 @@ function CharacterCard({
                                             <AutocompleteTextarea
                                                 value={costumePrompt}
                                                 onChange={(e) => onUpdate({ prompt: joinCostumePrompt(characterPrompt, e.target.value) })}
-                                                placeholder="Costume prompt..."
+                                                placeholder={t('characterPanel.costumePlaceholder')}
                                                 className={cn("h-[110px] text-sm resize-none", !costumeEnabled && "opacity-50")}
                                                 style={{ fontSize: `${promptFontSize}px` }}
                                             />
-                                        </div>
-                                        <div className="rounded-lg border border-dashed border-border/70 p-2 flex items-center justify-between gap-2">
-                                            <div className="flex items-center gap-1">
-                                                {variants.map((variant, i) => (
-                                                    <Button key={variant.id} size="sm" variant={variant.id === character.id ? "default" : "outline"} className="h-7 px-2" onClick={() => onSelectVariant(variant.id)} disabled={variant.id === character.id}>
-                                                        {i + 1}
-                                                    </Button>
-                                                ))}
-                                            </div>
-                                            <Button size="sm" variant="outline" className="h-7 border-dashed" onClick={onAddVariant} disabled={variants.length >= 5}>
-                                                <Plus className="h-3.5 w-3.5 mr-1" />{variants.length}/5
-                                            </Button>
                                         </div>
                                     </>
                                 ) : (
                                     <>
                                         <div className="min-w-0 space-y-1.5">
                                             <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                                                {t('characterPanel.prompt', '????')}
+                                                {t('characterPanel.prompt', 'Prompt')}
                                             </label>
                                             <AutocompleteTextarea
                                                 value={character.prompt}
                                                 onChange={(e) => onUpdate({ prompt: e.target.value })}
-                                                placeholder={t('characterPanel.promptPlaceholder', '??? ?? ??...')}
+                                                placeholder={t('characterPanel.promptPlaceholder')}
                                                 className="h-[180px] text-sm resize-none"
                                                 style={{ fontSize: `${promptFontSize}px` }}
                                             />
                                         </div>
                                         <div className="min-w-0 space-y-1.5">
                                             <label className="text-xs font-medium text-destructive/70 whitespace-nowrap">
-                                                {t('characterPanel.negative', '????')}
+                                                {t('characterPanel.negative', 'Negative')}
                                             </label>
                                             <AutocompleteTextarea
                                                 value={character.negative}
                                                 onChange={(e) => onUpdate({ negative: e.target.value })}
-                                                placeholder={t('characterPanel.negativePlaceholder', '??? ??...')}
+                                                placeholder={t('characterPanel.negativePlaceholder')}
                                                 className="h-[140px] text-sm border-destructive/20 resize-none"
                                                 style={{ fontSize: `${promptFontSize}px` }}
                                             />
                                         </div>
                                     </>
                                 )}
-                            </div>
+                                {expertCharacterPromptVariantsEnabled && (
+                                    <div className="flex items-center justify-between gap-2 py-1">
+                                        <div className="flex items-center gap-1">
+                                            {variants.length > 1 && variants.map((variant, i) => (
+                                                <Button key={variant.id} size="icon" variant={variant.id === character.id ? "default" : "outline"} className="h-8 w-8 rounded-md" onClick={() => onSelectVariant(variant.id)} disabled={variant.id === character.id}>
+                                                    {i + 1}
+                                                </Button>
+                                            ))}
+                                            {variants.length < 5 && (
+                                                <Button size="icon" variant="outline" className="h-8 w-8 rounded-md border-dashed" onClick={onAddVariant}>
+                                                    <Plus className="h-3.5 w-3.5" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                        {variants.length > 1 && (
+                                            <Button size="icon" variant="ghost" className="h-8 w-8 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10" onClick={onRemove}>
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}                            </div>
                         )}
                     </div>
                 </ContextMenuTrigger>

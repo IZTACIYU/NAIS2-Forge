@@ -72,7 +72,7 @@ const SECTIONS = [
     { id: 'api' as const, icon: Key, labelKey: 'settingsPage.sections.api' },
     { id: 'storage' as const, icon: FolderOpen, labelKey: 'settingsPage.sections.storage' },
     { id: 'shortcuts' as const, icon: Keyboard, labelKey: 'settingsPage.sections.shortcuts' },
-    { id: 'expert' as const, icon: SlidersHorizontal, label: 'Expert Options' },
+    { id: 'expert' as const, icon: SlidersHorizontal, labelKey: 'settingsPage.sections.expert' },
     { id: 'backup' as const, icon: Database, labelKey: 'settingsPage.backup.title' },
 ]
 
@@ -80,7 +80,7 @@ export default function Settings() {
     const { t, i18n } = useTranslation()
     const { theme, setTheme } = useThemeStore()
     const { token, isVerified, anlas, isLoading, verifyAndSave } = useAuthStore()
-    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertOptionsEnabled, setExpertOptionsEnabled } = useSettingsStore()
+    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled } = useSettingsStore()
     const { bindings, enabled: shortcutsEnabled, setBinding, resetBinding, resetAllBindings, setEnabled: setShortcutsEnabled } = useShortcutStore()
     const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey)
 
@@ -325,7 +325,7 @@ export default function Settings() {
                         )}
                     >
                         <section.icon className="h-4 w-4" />
-                        {'label' in section ? section.label : t(section.labelKey)}
+                        {t(section.labelKey)}
                     </button>
                 ))}
 
@@ -1045,23 +1045,43 @@ export default function Settings() {
                     {activeSection === 'expert' && (
                         <section className="space-y-6">
                             <div>
-                                <h2 className="text-xl font-semibold">Expert Options</h2>
+                                <h2 className="text-xl font-semibold">{t('settingsPage.expert.title')}</h2>
                                 <p className="text-sm text-muted-foreground mt-1">
-                                    Enable optional advanced UI experiments.
+                                    {t('settingsPage.expert.description')}
                                 </p>
                             </div>
 
-                            <div className="border border-border/50 rounded-xl p-6 bg-card/30">
-                                <div className="flex items-center justify-between">
+                            <div className="border border-border/50 rounded-xl p-6 bg-card/30 space-y-5">
+                                <div className="space-y-1">
+                                    <h3 className="text-sm font-semibold">{t('settingsPage.expert.characterPrompt.header')}</h3>
+                                    <p className="text-xs text-muted-foreground">
+                                        {t('settingsPage.expert.characterPrompt.description')}
+                                    </p>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-4">
                                     <div>
-                                        <label className="text-sm font-medium">Use Expert Options</label>
+                                        <label className="text-sm font-medium">{t('settingsPage.expert.characterPrompt.layoutTitle')}</label>
                                         <p className="text-xs text-muted-foreground mt-1">
-                                            Switch character prompts to the advanced prompt / negative / costume layout.
+                                            {t('settingsPage.expert.characterPrompt.layoutDesc')}
                                         </p>
                                     </div>
                                     <Switch
-                                        checked={expertOptionsEnabled}
-                                        onChange={(e) => setExpertOptionsEnabled(e.target.checked)}
+                                        checked={expertCharacterPromptLayoutEnabled}
+                                        onChange={(e) => setExpertCharacterPromptLayoutEnabled(e.target.checked)}
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-4">
+                                    <div>
+                                        <label className="text-sm font-medium">{t('settingsPage.expert.characterPrompt.variantsTitle')}</label>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            {t('settingsPage.expert.characterPrompt.variantsDesc')}
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={expertCharacterPromptVariantsEnabled}
+                                        onChange={(e) => setExpertCharacterPromptVariantsEnabled(e.target.checked)}
                                     />
                                 </div>
                             </div>
