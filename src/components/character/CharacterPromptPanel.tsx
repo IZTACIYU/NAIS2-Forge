@@ -918,10 +918,12 @@ function CharacterCard({
                             </div>
 
                             <span className="min-w-0 flex-1 text-sm font-medium truncate">
-                                {character.name
-                                    || (character.prompt
+                                {getVariantBaseName(
+                                    character,
+                                    character.prompt
                                         ? character.prompt.split(',')[0].trim().substring(0, 30)
-                                        : t('characterPanel.unnamed', '캐릭터 ' + (index + 1)))}
+                                        : t('characterPanel.unnamed', '??? ' + (index + 1))
+                                )}
                             </span>
 
                             <Button
