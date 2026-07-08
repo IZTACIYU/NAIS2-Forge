@@ -521,7 +521,7 @@ function stripCharacterVariantHashesForExport(value: unknown): unknown {
         if (item && typeof item === 'object' && 'name' in item) {
             const named = item as { name?: unknown }
             if (typeof named.name === 'string') {
-                named.name = named.name.replace(/\s-\s[a-z0-9]{6}$/i, '').trim()
+                named.name = named.name.replace(/\s-\s[a-z0-9]{6}\s-\s\d+$/i, '').replace(/\s-\s[a-z0-9]{6}$/i, '').trim()
             }
         }
     }

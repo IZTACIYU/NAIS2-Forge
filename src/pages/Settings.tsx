@@ -1051,15 +1051,15 @@ export default function Settings() {
                                 </p>
                             </div>
 
-                            <div className="border border-border/50 rounded-xl p-6 bg-card/30 space-y-5">
-                                <div className="space-y-1">
-                                    <h3 className="text-sm font-semibold">{t('settingsPage.expert.characterPrompt.header')}</h3>
-                                    <p className="text-xs text-muted-foreground">
-                                        {t('settingsPage.expert.characterPrompt.description')}
-                                    </p>
-                                </div>
+                            <div className="space-y-1">
+                                <h3 className="text-sm font-semibold">{t('settingsPage.expert.characterPrompt.header')}</h3>
+                                <p className="text-xs text-muted-foreground">
+                                    {t('settingsPage.expert.characterPrompt.description')}
+                                </p>
+                            </div>
 
-                                <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-4">
+                            <div className="border border-border/50 rounded-xl p-6 bg-card/30 space-y-5">
+                                <div className="flex items-center justify-between gap-4">
                                     <div>
                                         <label className="text-sm font-medium">{t('settingsPage.expert.characterPrompt.layoutTitle')}</label>
                                         <p className="text-xs text-muted-foreground mt-1">

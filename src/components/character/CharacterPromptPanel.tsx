@@ -71,7 +71,6 @@ interface CharacterPromptPanelProps {
 
 
 const COSTUME_MARKER = '\n#!-\uc758\uc0c1\ud504\ub86c\n'
-const VARIANT_HASH_PATTERN = /\s-\s([a-z0-9]{6})$/i
 
 const splitCostumePrompt = (prompt: string) => {
     const normalized = prompt.replace(/\r\n/g, '\n')
@@ -90,15 +89,36 @@ const joinCostumePrompt = (characterPrompt: string, costumePrompt: string) => {
     return `${cleanCharacter}${COSTUME_MARKER}${cleanCostume}`
 }
 
-const stripVariantHash = (name: string) => name.replace(VARIANT_HASH_PATTERN, '').trim()
-const stripVariantIndex = (name: string) => name.replace(/\d+$/g, '').trim()
-const getVariantHash = (char: CharacterPrompt) => char.name?.match(VARIANT_HASH_PATTERN)?.[1]
-const getVariantBaseName = (char: CharacterPrompt, fallback: string) => stripVariantIndex(stripVariantHash(char.name?.trim() || fallback)) || fallback
-const getVariantIndex = (char: CharacterPrompt, fallback: string) => {
-    const match = stripVariantHash(char.name?.trim() || fallback).match(/(\d+)$/)
-    return match ? Number(match[1]) : 0
+const VARIANT_NAME_PATTERN = /\s-\s([a-z0-9]{6})\s-\s(\d+)$/i
+const LEGACY_VARIANT_HASH_PATTERN = /\s-\s([a-z0-9]{6})$/i
+
+const getStoredVariantParts = (name?: string) => {
+    const rawName = name?.trim() || ''
+    const match = rawName.match(VARIANT_NAME_PATTERN)
+    if (match) {
+        return {
+            displayName: rawName.slice(0, match.index).trim(),
+            hash: match[1],
+            index: Number(match[2]),
+        }
+    }
+    const legacy = rawName.match(LEGACY_VARIANT_HASH_PATTERN)
+    if (legacy) {
+        const legacyBase = rawName.slice(0, legacy.index).trim()
+        const indexMatch = legacyBase.match(/(\d+)$/)
+        return {
+            displayName: legacyBase.replace(/\d+$/g, '').trim() || legacyBase,
+            hash: legacy[1],
+            index: indexMatch ? Number(indexMatch[1]) : 0,
+        }
+    }
+    return { displayName: rawName, hash: undefined as string | undefined, index: 0 }
 }
-const getVariantName = (baseName: string, index: number, hash: string) => `${baseName}${index === 0 ? '' : index} - ${hash}`
+
+const getVariantHash = (char: CharacterPrompt) => getStoredVariantParts(char.name).hash
+const getVariantBaseName = (char: CharacterPrompt, fallback: string) => getStoredVariantParts(char.name).displayName || fallback
+const getVariantIndex = (char: CharacterPrompt) => getStoredVariantParts(char.name).index
+const getVariantName = (displayName: string, index: number, hash: string) => `${displayName.trim() || 'Character'} - ${hash} - ${index}`
 const getStackKey = (char: CharacterPrompt) => {
     const hash = getVariantHash(char)
     return hash ? `${char.groupId || 'root'}:${hash}` : char.id
@@ -237,21 +257,21 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
 
 
     const handleAddVariant = useCallback((char: CharacterPrompt) => {
-        const baseName = getVariantBaseName(char, char.name || 'Character')
+        const baseName = getVariantBaseName(char, char.name || char.prompt.split(',')[0]?.trim() || 'Character')
         const takenHashes = new Set(characters.map(c => getVariantHash(c)).filter(Boolean) as string[])
         const hash = getVariantHash(char) || makeVariantHash(baseName, takenHashes)
         const stackKey = `${char.groupId || 'root'}:${hash}`
 
         const stackCharacters = characters
             .filter(c => c.id === char.id || getVariantHash(c) === hash)
-            .sort((a, b) => getVariantIndex(a, a.name || baseName) - getVariantIndex(b, b.name || baseName))
+            .sort((a, b) => getVariantIndex(a) - getVariantIndex(b))
         if (stackCharacters.length >= 5) return
 
         if (!getVariantHash(char)) {
             updateCharacter(char.id, { name: getVariantName(baseName, 0, hash) })
         }
 
-        const usedIndexes = new Set(stackCharacters.map(c => getVariantIndex(c, c.name || baseName)))
+        const usedIndexes = new Set(stackCharacters.map(c => getVariantIndex(c)))
         let nextIndex = 1
         while (usedIndexes.has(nextIndex) && nextIndex < 5) nextIndex++
 
@@ -339,7 +359,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
             stacks.set(key, current)
         }
         return Array.from(stacks.entries()).map(([key, stack]) => {
-            const sorted = stack.sort((a, b) => getVariantIndex(a, a.name || '') - getVariantIndex(b, b.name || ''))
+            const sorted = stack.sort((a, b) => getVariantIndex(a) - getVariantIndex(b))
             const activeId = activeVariantByStack[key]
             return sorted.find(c => c.id === activeId) || sorted[0]
         })
@@ -577,6 +597,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                                                     isExpanded={expandedId === char.id}
                                                                     onToggleExpand={() => handleToggleExpand(char.id)}
                                                                     onUpdate={(data) => updateCharacter(char.id, data)}
+                                                                    updateCharacterDirect={updateCharacter}
                                                                     onRemove={() => removeCharacter(char.id)}
                                                                     onToggleEnabled={() => toggleEnabled(char.id)}
                                                                     onDuplicate={() => handleDuplicate(char)}
@@ -629,6 +650,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                                                 isExpanded={expandedId === char.id}
                                                                 onToggleExpand={() => handleToggleExpand(char.id)}
                                                                 onUpdate={(data) => updateCharacter(char.id, data)}
+                                                                updateCharacterDirect={updateCharacter}
                                                                 onRemove={() => removeCharacter(char.id)}
                                                                 onToggleEnabled={() => toggleEnabled(char.id)}
                                                                 onDuplicate={() => handleDuplicate(char)}
@@ -783,6 +805,7 @@ interface CharacterCardProps {
     isExpanded: boolean
     onToggleExpand: () => void
     onUpdate: (data: Partial<CharacterPrompt>) => void
+    updateCharacterDirect: (id: string, data: Partial<CharacterPrompt>) => void
     onRemove: () => void
     onToggleEnabled: () => void
     onDuplicate: () => void
@@ -804,6 +827,7 @@ function CharacterCard({
     isExpanded,
     onToggleExpand,
     onUpdate,
+    updateCharacterDirect,
     onRemove,
     onToggleEnabled,
     onDuplicate,
@@ -830,10 +854,34 @@ function CharacterCard({
     const promptEnabled = character.promptEnabled ?? true
     const negativeEnabled = character.negativeEnabled ?? true
     const costumeEnabled = character.costumeEnabled ?? true
-    const baseName = getVariantBaseName(character, character.name || `Character ${index + 1}`)
     const variants = expertCharacterPromptVariantsEnabled ? allCharacters
         .filter(c => getStackKey(c) === getStackKey(character))
-        .sort((a, b) => getVariantIndex(a, a.name || baseName) - getVariantIndex(b, b.name || baseName)) : [character]
+        .sort((a, b) => getVariantIndex(a) - getVariantIndex(b)) : [character]
+    const [variantNames, setVariantNames] = useState<Record<string, string>>({})
+
+    useEffect(() => {
+        if (!renameDialogOpen) return
+        setNewName(getVariantBaseName(character, ''))
+        setVariantNames(Object.fromEntries(variants.map(variant => [
+            variant.id,
+            getVariantBaseName(variant, variant.name || '')
+        ])))
+    }, [renameDialogOpen, character.id, variants.length])
+
+    const saveVariantNames = () => {
+        if (expertCharacterPromptVariantsEnabled && variants.length > 1) {
+            variants.forEach((variant) => {
+                const hash = getVariantHash(variant)
+                if (!hash) return
+                const nextName = (variantNames[variant.id] || '').trim()
+                updateCharacterDirect(variant.id, { name: getVariantName(nextName || getVariantBaseName(variant, 'Character'), getVariantIndex(variant), hash) })
+            })
+        } else {
+            const hash = getVariantHash(character)
+            onUpdate({ name: hash ? getVariantName(newName.trim() || getVariantBaseName(character, 'Character'), getVariantIndex(character), hash) : (newName.trim() || undefined) })
+        }
+        setRenameDialogOpen(false)
+    }
 
     return (
         <>
@@ -1078,30 +1126,37 @@ function CharacterCard({
                         </DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 pt-2">
-                        <Input
-                            value={newName}
-                            onChange={(e) => setNewName(e.target.value)}
-                            placeholder={t('characterPanel.namePlaceholder', '캐릭터 이름 입력...')}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    onUpdate({ name: newName.trim() || undefined })
-                                    setRenameDialogOpen(false)
-                                }
-                            }}
-                            autoFocus
-                        />
+                        {expertCharacterPromptVariantsEnabled && variants.length > 1 ? (
+                            <div className="space-y-2">
+                                {variants.map((variant, i) => (
+                                    <div key={variant.id} className="flex items-center gap-2">
+                                        <span className="w-6 text-xs text-muted-foreground text-center">{i + 1}</span>
+                                        <Input
+                                            value={variantNames[variant.id] ?? getVariantBaseName(variant, '')}
+                                            onChange={(e) => setVariantNames(prev => ({ ...prev, [variant.id]: e.target.value }))}
+                                            placeholder={t('characterPanel.namePlaceholder', '??? ?? ??...')}
+                                            autoFocus={variant.id === character.id}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <Input
+                                value={newName}
+                                onChange={(e) => setNewName(e.target.value)}
+                                placeholder={t('characterPanel.namePlaceholder', '??? ?? ??...')}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') saveVariantNames()
+                                }}
+                                autoFocus
+                            />
+                        )}
                         <div className="flex justify-end gap-2">
                             <Button variant="outline" size="sm" onClick={() => setRenameDialogOpen(false)}>
-                                {t('common.cancel', '취소')}
+                                {t('common.cancel', '??')}
                             </Button>
-                            <Button
-                                size="sm"
-                                onClick={() => {
-                                    onUpdate({ name: newName.trim() || undefined })
-                                    setRenameDialogOpen(false)
-                                }}
-                            >
-                                {t('common.save', '저장')}
+                            <Button size="sm" onClick={saveVariantNames}>
+                                {t('common.save', '??')}
                             </Button>
                         </div>
                     </div>
