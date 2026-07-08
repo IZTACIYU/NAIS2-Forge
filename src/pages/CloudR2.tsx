@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Cloud, Folder, FolderPlus, Image as ImageIcon, Loader2, RefreshCw, Trash2, Upload, ChevronRight, Home, File } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Input } from '@/components/ui/input'
 import { useSettingsStore } from '@/stores/settings-store'
 import { toast } from '@/components/ui/use-toast'
@@ -21,6 +23,15 @@ const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
+const buildPublicUrl = (baseUrl: string, key: string) => {
+    const base = baseUrl.replace(/\/$/, '')
+    if (!base) return ''
+    if (base.endsWith('/N') && key.startsWith('IMG/private/')) {
+        return `${base}/${key.slice('IMG/private/'.length)}`
+    }
+    return `${base}/${key}`
 }
 
 export default function CloudR2() {
@@ -47,6 +58,7 @@ export default function CloudR2() {
     const [selected, setSelected] = useState<R2ObjectInfo | null>(null)
     const [newFolderName, setNewFolderName] = useState('')
     const [loading, setLoading] = useState(false)
+    const [deleteTarget, setDeleteTarget] = useState<R2ObjectInfo | null>(null)
 
     const ready = expertCloudR2Enabled && hasR2Config(config)
     const breadcrumbs = prefix ? prefix.split('/').filter(Boolean) : []
@@ -61,7 +73,7 @@ export default function CloudR2() {
             setPrefix(nextPrefix)
             setSelected(null)
         } catch (error) {
-            toast({ title: t('cloudR2.error'), description: String(error), variant: 'destructive' })
+            toast({ title: t('cloudR2.error'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
         } finally {
             setLoading(false)
         }
@@ -87,17 +99,21 @@ export default function CloudR2() {
 
     const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const uploadFiles = Array.from(event.target.files || [])
-        if (!uploadFiles.length || !ready) return
+        if (!uploadFiles.length || !ready) {
+            event.target.value = ''
+            return
+        }
         setLoading(true)
         try {
             for (const file of uploadFiles) {
                 const base64 = await fileToBase64(file)
-                await uploadR2Object(config, `${prefix}${file.name}`, base64, file.type || 'application/octet-stream')
+                const safeName = file.name.replace(/^\/+/, '')
+                await uploadR2Object(config, `${prefix}${safeName}`, base64, file.type || 'application/octet-stream')
             }
             toast({ title: t('cloudR2.uploaded'), variant: 'success' })
             refresh()
         } catch (error) {
-            toast({ title: t('cloudR2.error'), description: String(error), variant: 'destructive' })
+            toast({ title: t('cloudR2.error'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
         } finally {
             setLoading(false)
             event.target.value = ''
@@ -106,14 +122,18 @@ export default function CloudR2() {
 
     const handleDelete = async (item: R2ObjectInfo) => {
         if (!ready) return
-        if (!window.confirm(t('cloudR2.confirmDelete', { name: item.name }))) return
-        await deleteR2Object(config, item.key)
-        setSelected(null)
-        refresh()
+        try {
+            await deleteR2Object(config, item.key)
+            if (selected?.key === item.key) setSelected(null)
+            toast({ title: t('actions.deleted'), variant: 'success' })
+            refresh()
+        } catch (error) {
+            toast({ title: t('cloudR2.error'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+        }
     }
 
     const publicUrl = selected && !selected.is_folder && r2PublicBaseUrl
-        ? `${r2PublicBaseUrl.replace(/\/$/, '')}/${selected.key}`
+        ? buildPublicUrl(r2PublicBaseUrl, selected.key)
         : ''
     const isImage = selected && imageExtensions.some(ext => selected.name.toLowerCase().endsWith(ext))
 
@@ -150,7 +170,7 @@ export default function CloudR2() {
                     <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={loading}>
                         <Upload className="h-4 w-4 mr-2" />{t('cloudR2.upload')}
                     </Button>
-                    <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
+                    <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleUpload} />
                 </div>
             </div>
 
@@ -164,10 +184,23 @@ export default function CloudR2() {
                     </div>
                     <div className="space-y-1">
                         {folders.map(folder => (
-                            <button key={folder.key} onClick={() => openFolder(folder.key)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-muted text-left">
-                                <Folder className="h-4 w-4 text-amber-500 shrink-0" />
-                                <span className="truncate">{folder.name}</span>
-                            </button>
+                            <ContextMenu key={folder.key}>
+                                <ContextMenuTrigger asChild>
+                                    <button onClick={() => openFolder(folder.key)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-muted text-left">
+                                        <Folder className="h-4 w-4 text-amber-500 shrink-0" />
+                                        <span className="truncate">{folder.name}</span>
+                                    </button>
+                                </ContextMenuTrigger>
+                                <ContextMenuContent className="w-36">
+                                    <ContextMenuItem onClick={() => openFolder(folder.key)}>
+                                        <Folder className="mr-2 h-4 w-4" />{t('actions.openFolder')}
+                                    </ContextMenuItem>
+                                    <ContextMenuSeparator />
+                                    <ContextMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteTarget(folder)}>
+                                        <Trash2 className="mr-2 h-4 w-4" />{t('common.delete')}
+                                    </ContextMenuItem>
+                                </ContextMenuContent>
+                            </ContextMenu>
                         ))}
                     </div>
                 </aside>
@@ -180,13 +213,26 @@ export default function CloudR2() {
                             {files.map(file => {
                                 const image = imageExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
                                 return (
-                                    <button key={file.key} onClick={() => setSelected(file)} className={cn('min-w-0 rounded-lg border border-border/50 bg-card/40 p-3 text-left hover:bg-muted/50 transition-colors', selected?.key === file.key && 'ring-1 ring-primary')}>
-                                        <div className="aspect-square rounded-md bg-muted/40 flex items-center justify-center mb-2 overflow-hidden">
-                                            {image && r2PublicBaseUrl ? <img src={`${r2PublicBaseUrl.replace(/\/$/, '')}/${file.key}`} className="w-full h-full object-cover" /> : image ? <ImageIcon className="h-8 w-8 text-primary" /> : <File className="h-8 w-8 text-muted-foreground" />}
-                                        </div>
-                                        <div className="text-sm font-medium truncate">{file.name}</div>
-                                        <div className="text-xs text-muted-foreground">{formatSize(file.size)}</div>
-                                    </button>
+                                    <ContextMenu key={file.key}>
+                                        <ContextMenuTrigger asChild>
+                                            <button onClick={() => setSelected(file)} className={cn('min-w-0 rounded-lg border border-border/50 bg-card/40 p-3 text-left hover:bg-muted/50 transition-colors', selected?.key === file.key && 'ring-1 ring-primary')}>
+                                                <div className="aspect-square rounded-md bg-muted/40 flex items-center justify-center mb-2 overflow-hidden">
+                                                    {image && r2PublicBaseUrl ? <img src={buildPublicUrl(r2PublicBaseUrl, file.key)} className="w-full h-full object-cover" /> : image ? <ImageIcon className="h-8 w-8 text-primary" /> : <File className="h-8 w-8 text-muted-foreground" />}
+                                                </div>
+                                                <div className="text-sm font-medium truncate">{file.name}</div>
+                                                <div className="text-xs text-muted-foreground">{formatSize(file.size)}</div>
+                                            </button>
+                                        </ContextMenuTrigger>
+                                        <ContextMenuContent className="w-36">
+                                            <ContextMenuItem onClick={() => setSelected(file)}>
+                                                <File className="mr-2 h-4 w-4" />{t('cloudR2.selectFile')}
+                                            </ContextMenuItem>
+                                            <ContextMenuSeparator />
+                                            <ContextMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteTarget(file)}>
+                                                <Trash2 className="mr-2 h-4 w-4" />{t('common.delete')}
+                                            </ContextMenuItem>
+                                        </ContextMenuContent>
+                                    </ContextMenu>
                                 )
                             })}
                         </div>
@@ -205,7 +251,7 @@ export default function CloudR2() {
                                 <div>{formatSize(selected.size)}</div>
                                 {selected.last_modified && <div>{new Date(selected.last_modified).toLocaleString()}</div>}
                             </div>
-                            <Button variant="destructive" className="w-full" onClick={() => handleDelete(selected)}>
+                            <Button variant="destructive" className="w-full" onClick={() => setDeleteTarget(selected)}>
                                 <Trash2 className="h-4 w-4 mr-2" />{t('common.delete')}
                             </Button>
                         </div>
@@ -214,6 +260,19 @@ export default function CloudR2() {
                     )}
                 </aside>
             </div>
+            <ConfirmDialog
+                open={!!deleteTarget}
+                onOpenChange={(open) => !open && setDeleteTarget(null)}
+                title={t('common.delete')}
+                description={deleteTarget ? t('cloudR2.confirmDelete', { name: deleteTarget.name }) : ''}
+                confirmText={t('common.delete')}
+                cancelText={t('common.cancel')}
+                variant="destructive"
+                onConfirm={async () => {
+                    if (deleteTarget) await handleDelete(deleteTarget)
+                    setDeleteTarget(null)
+                }}
+            />
         </div>
     )
 }
