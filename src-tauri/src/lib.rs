@@ -428,7 +428,7 @@ async fn remove_background(image_base64: String) -> RemoveBackgroundResult {
 }
 
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct R2Config {
     account_id: String,
     access_key_id: String,
@@ -636,6 +636,28 @@ async fn r2_delete_object(config: R2Config, key: String) -> Result<(), String> {
     }
 }
 
+
+#[tauri::command]
+async fn r2_delete_prefix(config: R2Config, prefix: String) -> Result<(), String> {
+    let mut root_prefix = prefix;
+    if !root_prefix.ends_with('/') {
+        root_prefix.push('/');
+    }
+
+    let mut stack = vec![root_prefix.clone()];
+    while let Some(current_prefix) = stack.pop() {
+        let listed = r2_list_objects(config.clone(), Some(current_prefix.clone())).await?;
+        for folder in listed.folders {
+            stack.push(folder.key);
+        }
+        for file in listed.files {
+            r2_delete_object(config.clone(), file.key).await?;
+        }
+        let _ = r2_delete_object(config.clone(), current_prefix).await;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 async fn r2_create_folder(config: R2Config, key: String) -> Result<(), String> {
     let folder_key = if key.ends_with('/') { key } else { format!("{}/", key) };
@@ -818,6 +840,7 @@ pub fn run() {
             r2_list_objects,
             r2_put_object,
             r2_delete_object,
+            r2_delete_prefix,
             r2_create_folder,
         ])
         .setup(|app| {

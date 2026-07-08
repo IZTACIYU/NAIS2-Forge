@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { useSettingsStore } from '@/stores/settings-store'
 import { toast } from '@/components/ui/use-toast'
 import { cn } from '@/lib/utils'
-import { createR2Folder, deleteR2Object, hasR2Config, listR2Objects, R2ObjectInfo, uploadR2Object } from '@/services/r2-api'
+import { createR2Folder, deleteR2Object, deleteR2Prefix, hasR2Config, listR2Objects, R2ObjectInfo, uploadR2Object } from '@/services/r2-api'
 
 const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif']
 
@@ -26,12 +26,15 @@ const formatSize = (bytes: number) => {
 }
 
 const buildPublicUrl = (baseUrl: string, key: string) => {
-    const base = baseUrl.replace(/\/$/, '')
+    const base = baseUrl.trim().replace(/\/$/, '')
     if (!base) return ''
+    const encodedKey = key.split('/').map(encodeURIComponent).join('/')
+    if (base.includes('{key}')) return base.replace(/\{key\}/g, encodedKey)
+    if (base.includes('{rawKey}')) return base.replace(/\{rawKey\}/g, key)
     if (base.endsWith('/N') && key.startsWith('IMG/private/')) {
-        return `${base}/${key.slice('IMG/private/'.length)}`
+        return `${base}/${key.slice('IMG/private/'.length).split('/').map(encodeURIComponent).join('/')}`
     }
-    return `${base}/${key}`
+    return `${base}/${encodedKey}`
 }
 
 export default function CloudR2() {
@@ -92,9 +95,17 @@ export default function CloudR2() {
     const handleCreateFolder = async () => {
         const name = newFolderName.trim().replace(/^\/+|\/+$/g, '')
         if (!name || !ready) return
-        await createR2Folder(config, `${prefix}${name}/`)
-        setNewFolderName('')
-        refresh()
+        setLoading(true)
+        try {
+            await createR2Folder(config, `${prefix}${name}/`)
+            setNewFolderName('')
+            toast({ title: t('settingsPage.saved'), variant: 'success' })
+            refresh()
+        } catch (error) {
+            toast({ title: t('cloudR2.error'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+        } finally {
+            setLoading(false)
+        }
     }
 
     const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,7 +134,11 @@ export default function CloudR2() {
     const handleDelete = async (item: R2ObjectInfo) => {
         if (!ready) return
         try {
-            await deleteR2Object(config, item.key)
+            if (item.is_folder) {
+                await deleteR2Prefix(config, item.key)
+            } else {
+                await deleteR2Object(config, item.key)
+            }
             if (selected?.key === item.key) setSelected(null)
             toast({ title: t('actions.deleted'), variant: 'success' })
             refresh()

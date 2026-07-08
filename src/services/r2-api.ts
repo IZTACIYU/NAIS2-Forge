@@ -42,6 +42,10 @@ export async function deleteR2Object(config: R2Config, key: string): Promise<voi
     return invoke('r2_delete_object', { config: toBackendConfig(config), key })
 }
 
+export async function deleteR2Prefix(config: R2Config, prefix: string): Promise<void> {
+    return invoke('r2_delete_prefix', { config: toBackendConfig(config), prefix })
+}
+
 export async function createR2Folder(config: R2Config, key: string): Promise<void> {
     return invoke('r2_create_folder', { config: toBackendConfig(config), key })
 }
