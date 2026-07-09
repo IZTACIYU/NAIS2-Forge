@@ -640,12 +640,6 @@ export default function SceneMode() {
                             className="hidden"
                             onChange={handleFileInputChange}
                         />
-                        {/* Import JSON Button */}
-                        <Tip content={t('scene.importJson', 'JSON 불러오기')}>
-                            <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" onClick={handleImportClick} disabled={isGenerating}>
-                                <Upload className="h-4 w-4" />
-                            </Button>
-                        </Tip>
                         {/* Edit Mode Toggle Button */}
                         <Tip content={t('scene.editMode', '여러 씬을 선택하여 일괄 편집')}>
                             <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" onClick={() => setEditMode(true)} disabled={scenes.length === 0 || isGenerating}>
@@ -665,14 +659,20 @@ export default function SceneMode() {
                                 </Button>
                             </Tip>
                         </div>
+                        {/* Import JSON Button */}
+                        <Tip content={t('scene.importJson', 'JSON 불러오기')}>
+                            <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" onClick={handleImportClick} disabled={isGenerating}>
+                                <Upload className="h-4 w-4" />
+                            </Button>
+                        </Tip>
                         <Tip content={t('scene.exportJson', '씬 데이터를 JSON으로 내보내기')}>
                             <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" onClick={handleExportJson} disabled={!activePreset || isGenerating}>
-                                <Copy className="h-4 w-4" />
+                                <Download className="h-4 w-4" />
                             </Button>
                         </Tip>
                         <Tip content={t('scene.exportZip', '모든 씬 이미지 ZIP 내보내기')}>
                             <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" onClick={handleExportZip} disabled={scenes.length === 0}>
-                                <Download className="h-4 w-4" />
+                                <span className="text-[10px] font-bold leading-none">.zip</span>
                             </Button>
                         </Tip>
                     </div>

@@ -575,7 +575,7 @@ export default function MainMode() {
             )}
 
             {/* Bottom Info Bar Overlay */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-2.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 shadow-xl flex items-center gap-6 text-sm text-white/90 transition-all hover:bg-black/50">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-2.5 bg-black/25 opacity-35 hover:opacity-100 hover:bg-black/50 backdrop-blur-md rounded-full border border-white/10 hover:border-white/25 shadow-xl flex items-center gap-6 text-sm text-white/90 transition-all duration-200">
                 <span className="flex items-center gap-2">
                     <span className="opacity-60 text-xs uppercase tracking-wider">{t('settings.resolution')}</span>
                     <span className="font-medium">{selectedResolution.width} × {selectedResolution.height}</span>
