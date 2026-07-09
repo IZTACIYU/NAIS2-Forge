@@ -31,9 +31,6 @@ const buildPublicUrl = (baseUrl: string, key: string) => {
     const encodedKey = key.split('/').map(encodeURIComponent).join('/')
     if (base.includes('{key}')) return base.replace(/\{key\}/g, encodedKey)
     if (base.includes('{rawKey}')) return base.replace(/\{rawKey\}/g, key)
-    if (base.endsWith('/N') && key.startsWith('IMG/private/')) {
-        return `${base}/${key.slice('IMG/private/'.length).split('/').map(encodeURIComponent).join('/')}`
-    }
     return `${base}/${encodedKey}`
 }
 
