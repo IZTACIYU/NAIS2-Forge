@@ -13,10 +13,11 @@ import { SceneCard, SceneImage } from '@/stores/scene-store'
 interface SceneR2DirectUploadDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
-    scenes: SceneCard[]
+    scenes?: SceneCard[]
+    items?: UploadCandidate[]
 }
 
-interface UploadCandidate {
+export interface UploadCandidate {
     sceneId: string
     sceneName: string
     image: SceneImage
@@ -58,10 +59,9 @@ const pickRepresentativeImage = (scene: SceneCard) => {
     return [...candidates].sort((a, b) => b.timestamp - a.timestamp)[0] || null
 }
 
-export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes }: SceneR2DirectUploadDialogProps) {
+export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], items }: SceneR2DirectUploadDialogProps) {
     const { t } = useTranslation()
     const {
-        expertCloudR2Enabled,
         r2AccountId,
         r2AccessKeyId,
         r2SecretAccessKey,
@@ -81,14 +81,15 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes }: SceneR
     const [uploading, setUploading] = useState(false)
     const [progress, setProgress] = useState(0)
 
-    const ready = expertCloudR2Enabled && hasR2Config(config)
+    const ready = hasR2Config(config)
     const breadcrumbs = prefix ? prefix.split('/').filter(Boolean) : []
-    const candidates = useMemo<UploadCandidate[]>(() => scenes
+    const candidates = useMemo<UploadCandidate[]>(() => items || scenes
         .map(scene => {
+            if ('image' in scene) return scene
             const image = pickRepresentativeImage(scene)
             return image ? { sceneId: scene.id, sceneName: scene.name, image } : null
         })
-        .filter((item): item is UploadCandidate => Boolean(item)), [scenes])
+        .filter((item): item is UploadCandidate => Boolean(item)), [items, scenes])
 
     const resetRuntime = () => {
         setProgress(0)

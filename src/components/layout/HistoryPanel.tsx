@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState, useCallback, memo } from 'react'
-import { Clock, Trash2, FolderOpen, RefreshCw, FileSearch, Copy, RotateCcw, Save, Users, Image as ImageIcon, Paintbrush, Maximize2, Film, Zap, PenTool, Pencil, Droplets, Smile, Sparkles } from 'lucide-react'
+import { Clock, Trash2, FolderOpen, RefreshCw, FileSearch, Copy, RotateCcw, Save, Users, Image as ImageIcon, Paintbrush, Maximize2, Film, Zap, PenTool, Pencil, Droplets, Smile, Sparkles, Cloud } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useAuthStore } from '@/stores/auth-store'
@@ -27,6 +27,7 @@ import {
     ContextMenuSeparator,
 } from '@/components/ui/context-menu'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
+import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/SceneR2DirectUploadDialog'
 
 // Convert ArrayBuffer to base64 without stack overflow
 const arrayBufferToBase64 = (buffer: Uint8Array): string => {
@@ -62,6 +63,7 @@ interface HistoryImageItemProps {
     onInpaint: (image: SavedImage) => void
     onI2I: (image: SavedImage) => void
     onOpenFolder: (image: SavedImage) => void
+    onR2DirectUpload: (image: SavedImage) => void
     onLoadMetadata: (image: SavedImage) => void
     onLoadComplete: (path: string, data: string) => void
 }
@@ -69,7 +71,7 @@ interface HistoryImageItemProps {
 const HistoryImageItem = memo(function HistoryImageItem({
     image, thumbnail, index, getTypeIcon,
     onImageClick, onDelete, onSaveAs, onCopy, onRegenerate,
-    onOpenSmartTools, onAddAsReference, onInpaint, onI2I, onOpenFolder, onLoadMetadata,
+    onOpenSmartTools, onAddAsReference, onInpaint, onI2I, onOpenFolder, onR2DirectUpload, onLoadMetadata,
     onLoadComplete
 }: HistoryImageItemProps) {
     const { t } = useTranslation()
@@ -212,6 +214,15 @@ const HistoryImageItem = memo(function HistoryImageItem({
                     <FolderOpen className="h-4 w-4 mr-2" />
                     {t('actions.openFolder', '폴더 열기')}
                 </ContextMenuItem>
+                {useSettingsStore.getState().expertR2DirectUploadEnabled && (
+                    <>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem onClick={() => onR2DirectUpload(image)}>
+                            <Cloud className="h-4 w-4 mr-2" />
+                            {t('scene.r2DirectUpload.title', 'R2 Direct Upload')}
+                        </ContextMenuItem>
+                    </>
+                )}
             </ContextMenuContent>
         </ContextMenu>
     )
@@ -228,6 +239,8 @@ export function HistoryPanel() {
     const [selectedImageForMetadata, setSelectedImageForMetadata] = useState<string | undefined>()
     const [imageRefDialogOpen, setImageRefDialogOpen] = useState(false)
     const [selectedImageForRef, setSelectedImageForRef] = useState<string | null>(null)
+    const [r2DirectUploadItems, setR2DirectUploadItems] = useState<UploadCandidate[]>([])
+    const [r2DirectUploadOpen, setR2DirectUploadOpen] = useState(false)
     // Inpainting dialog state
     const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false)
     const [selectedImageForInpaint, setSelectedImageForInpaint] = useState<string | null>(null)
@@ -857,6 +870,22 @@ export function HistoryPanel() {
         }
     }
 
+    const handleR2DirectUpload = (image: SavedImage) => {
+        const url = image.isTemporary ? imageThumbnails[image.path] : image.path
+        if (!url) return
+        setR2DirectUploadItems([{
+            sceneId: image.path,
+            sceneName: image.name.replace(/\.[^.]+$/g, '') || 'Image',
+            image: {
+                id: image.path,
+                url,
+                timestamp: image.timestamp,
+                isFavorite: false,
+            },
+        }])
+        setR2DirectUploadOpen(true)
+    }
+
     const handleOpenSmartTools = async (image: SavedImage) => {
         setIsLoading(true)
         try {
@@ -1012,6 +1041,7 @@ export function HistoryPanel() {
                                 onInpaint={handleInpaint}
                                 onI2I={handleI2I}
                                 onOpenFolder={handleOpenFolder}
+                                onR2DirectUpload={handleR2DirectUpload}
                                 onLoadMetadata={handleLoadMetadata}
                             />
                         ))}
@@ -1041,6 +1071,14 @@ export function HistoryPanel() {
                     if (!open) setSelectedImageForInpaint(null)
                 }}
                 sourceImage={selectedImageForInpaint}
+            />
+            <SceneR2DirectUploadDialog
+                open={r2DirectUploadOpen}
+                onOpenChange={(open) => {
+                    setR2DirectUploadOpen(open)
+                    if (!open) setR2DirectUploadItems([])
+                }}
+                items={r2DirectUploadItems}
             />
         </div>
     )

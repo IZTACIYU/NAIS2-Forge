@@ -5,7 +5,8 @@ import {
     ContextMenuTrigger,
     ContextMenuSeparator,
 } from '@/components/ui/context-menu'
-import { Copy, FolderOpen, Save, Trash2, Wand2, Users, FileSearch, Paintbrush, Image as ImageIcon } from 'lucide-react'
+import { useState } from 'react'
+import { Copy, FolderOpen, Save, Trash2, Wand2, Users, FileSearch, Paintbrush, Image as ImageIcon, Cloud } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/components/ui/use-toast'
 import { save } from '@tauri-apps/plugin-dialog'
@@ -16,6 +17,7 @@ import { useToolsStore } from '@/stores/tools-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { SceneImage } from '@/stores/scene-store'
+import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/SceneR2DirectUploadDialog'
 
 interface SceneContextMenuProps {
     image: SceneImage
@@ -31,6 +33,7 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
     const navigate = useNavigate()
     const { setActiveImage } = useToolsStore()
     const { setSourceImage, setI2IMode } = useGenerationStore()
+    const [r2DirectUploadOpen, setR2DirectUploadOpen] = useState(false)
 
     // Determine file path. 
     // image.url is expected to be the full file path for saved images.
@@ -118,6 +121,12 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
             console.error('Failed to open folder:', e)
         }
     }
+
+    const r2UploadItems: UploadCandidate[] = [{
+        sceneId: image.id,
+        sceneName: `Image_${image.timestamp}`,
+        image,
+    }]
 
     // Helper to get base64 data
     const getImageBase64 = async (): Promise<string | null> => {
@@ -220,11 +229,26 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
                     </ContextMenuItem>
                 )}
 
+                {useSettingsStore.getState().expertR2DirectUploadEnabled && (
+                    <>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem onClick={() => setR2DirectUploadOpen(true)}>
+                            <Cloud className="h-4 w-4 mr-2" />
+                            {t('scene.r2DirectUpload.title', 'R2 Direct Upload')}
+                        </ContextMenuItem>
+                    </>
+                )}
+
                 <ContextMenuItem onClick={handleDelete} className="text-red-500 focus:text-red-500">
                     <Trash2 className="h-4 w-4 mr-2" />
                     {t('actions.delete', '삭제')}
                 </ContextMenuItem>
             </ContextMenuContent>
+            <SceneR2DirectUploadDialog
+                open={r2DirectUploadOpen}
+                onOpenChange={setR2DirectUploadOpen}
+                items={r2UploadItems}
+            />
         </ContextMenu>
     )
 }

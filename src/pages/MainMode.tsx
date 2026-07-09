@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ImageIcon, ImagePlus, Download, Copy, RotateCcw, Save, Users, FolderOpen, Paintbrush } from 'lucide-react'
+import { ImageIcon, ImagePlus, Download, Copy, RotateCcw, Save, Users, FolderOpen, Paintbrush, Cloud } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useAuthStore } from '@/stores/auth-store'
@@ -25,6 +25,7 @@ import { useNavigate } from 'react-router-dom'
 import { useToolsStore } from '@/stores/tools-store'
 import { Wand2 } from 'lucide-react'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
+import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/SceneR2DirectUploadDialog'
 
 export default function MainMode() {
     const { t } = useTranslation()
@@ -48,11 +49,13 @@ export default function MainMode() {
 
     const navigate = useNavigate()
     const { setActiveImage } = useToolsStore()
+    const expertR2DirectUploadEnabled = useSettingsStore(s => s.expertR2DirectUploadEnabled)
 
     const [metadataDialogOpen, setMetadataDialogOpen] = useState(false)
     const [metadataImage, setMetadataImage] = useState<string | undefined>(undefined)
     const [isDragOver, setIsDragOver] = useState(false)
     const [imageRefDialogOpen, setImageRefDialogOpen] = useState(false)
+    const [r2DirectUploadOpen, setR2DirectUploadOpen] = useState(false)
     // Inpainting dialog state
     const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false)
 
@@ -312,6 +315,17 @@ export default function MainMode() {
         }
     }
 
+    const r2UploadItems: UploadCandidate[] = previewImage ? [{
+        sceneId: 'main-preview',
+        sceneName: displaySeed ? `Seed_${displaySeed}` : 'Generated_Image',
+        image: {
+            id: 'main-preview',
+            url: previewImage,
+            timestamp: Date.now(),
+            isFavorite: false,
+        },
+    }] : []
+
     // Drag counter to prevent flickering from child elements
     const dragCounter = useRef(0)
 
@@ -507,6 +521,15 @@ export default function MainMode() {
                                 <FolderOpen className="h-4 w-4 mr-2" />
                                 {t('actions.openFolder', '폴더 열기')}
                             </ContextMenuItem>
+                            {expertR2DirectUploadEnabled && (
+                                <>
+                                    <ContextMenuSeparator />
+                                    <ContextMenuItem onClick={() => setR2DirectUploadOpen(true)}>
+                                        <Cloud className="h-4 w-4 mr-2" />
+                                        {t('scene.r2DirectUpload.title', 'R2 Direct Upload')}
+                                    </ContextMenuItem>
+                                </>
+                            )}
                         </ContextMenuContent>
                     </ContextMenu>
                 ) : isGenerating ? (
@@ -624,6 +647,11 @@ export default function MainMode() {
                 open={inpaintDialogOpen}
                 onOpenChange={setInpaintDialogOpen}
                 sourceImage={previewImage}
+            />
+            <SceneR2DirectUploadDialog
+                open={r2DirectUploadOpen}
+                onOpenChange={setR2DirectUploadOpen}
+                items={r2UploadItems}
             />
         </div>
     )
