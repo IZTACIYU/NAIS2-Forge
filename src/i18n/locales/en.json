@@ -117,6 +117,12 @@
       "noCharacters": "No characters",
       "emptyQueue": "Add characters in run order."
     },
+    "r2DirectUpload": {
+      "title": "R2 Direct Upload",
+      "description": "Upload one selected scene image per scene to the current R2 folder.",
+      "upload": "Upload Selected",
+      "count": "{{count}} images"
+    },
     "thumbnailLayout": "Toggle vertical/horizontal/square thumbnails",
     "deleteNonFavorites": "Delete Non-Favorites",
     "deletedNonFavorites": "{{count}} images deleted",
@@ -619,6 +625,10 @@
       "header": "Cloudflare",
       "description": "Experimental options for Cloudflare R2 and public image routing."
     },
+    "r2DirectUpload": {
+        "title": "R2 Direct Upload",
+        "desc": "Adds a Scene Mode button that uploads the selected representative images directly to an R2 folder."
+      },
     "cloudR2": {
         "viewModeTitle": "R2 display mode",
         "viewModeDesc": "Choose how the R2 manager displays files to balance image loading cost and browsing convenience.",

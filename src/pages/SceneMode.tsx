@@ -76,6 +76,7 @@ import {
     Users,
     UserPlus,
     SlidersHorizontal,
+    Cloud,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -113,6 +114,7 @@ import { Switch } from '@/components/ui/switch'
 import { useSettingsStore } from '@/stores/settings-store'
 import { SceneCharacterSequenceDialog } from '@/components/scene/SceneCharacterSequenceDialog'
 import { SceneCharacterAdditionDialog } from '@/components/scene/SceneCharacterAdditionDialog'
+import { SceneR2DirectUploadDialog } from '@/components/scene/SceneR2DirectUploadDialog'
 
 const dropAnimation = {
     sideEffects: defaultDropAnimationSideEffects({
@@ -242,6 +244,7 @@ export default function SceneMode() {
     const batchCount = useGenerationStore(s => s.batchCount)
     const expertSceneCharacterRepeatEnabled = useSettingsStore(s => s.expertSceneCharacterRepeatEnabled)
     const expertSceneCharacterAdditionsEnabled = useSettingsStore(s => s.expertSceneCharacterAdditionsEnabled)
+    const expertR2DirectUploadEnabled = useSettingsStore(s => s.expertR2DirectUploadEnabled)
     const characterSequenceEnabled = useSceneStore(s => s.characterSequenceEnabled)
     const setCharacterSequenceEnabled = useSceneStore(s => s.setCharacterSequenceEnabled)
     const characterSequenceEntries = useSceneStore(s => s.characterSequenceEntries)
@@ -437,6 +440,7 @@ export default function SceneMode() {
     const [showDeletePresetDialog, setShowDeletePresetDialog] = useState(false)
     const [showCharacterSequenceDialog, setShowCharacterSequenceDialog] = useState(false)
     const [sceneCharacterAdditionSceneId, setSceneCharacterAdditionSceneId] = useState<string | null>(null)
+    const [showR2DirectUploadDialog, setShowR2DirectUploadDialog] = useState(false)
 
     // Scenes to export based on filter
     const scenesToExport = exportScenesFilter === 'selected'
@@ -732,6 +736,13 @@ export default function SceneMode() {
                                 <Download className="h-4 w-4" />
                             </Button>
                         </Tip>
+                        {expertR2DirectUploadEnabled && (
+                            <Tip content={t('scene.r2DirectUpload.title', 'R2 Direct Upload')}>
+                                <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" onClick={() => setShowR2DirectUploadDialog(true)} disabled={scenes.length === 0 || isGenerating}>
+                                    <Cloud className="h-4 w-4" />
+                                </Button>
+                            </Tip>
+                        )}
                         <Tip content={t('scene.exportZip', '모든 씬 이미지 ZIP 내보내기')}>
                             <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" onClick={handleExportZip} disabled={scenes.length === 0}>
                                 <span className="text-[10px] font-bold leading-none">.zip</span>
@@ -961,6 +972,11 @@ export default function SceneMode() {
                 }}
                 presetId={activePresetId}
                 sceneId={sceneCharacterAdditionSceneId}
+            />
+            <SceneR2DirectUploadDialog
+                open={showR2DirectUploadDialog}
+                onOpenChange={setShowR2DirectUploadDialog}
+                scenes={scenes}
             />
         </div >
     )

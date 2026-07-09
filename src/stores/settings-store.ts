@@ -45,6 +45,7 @@ interface SettingsState {
     expertCharacterPromptVariantsEnabled: boolean
     expertSceneCharacterRepeatEnabled: boolean
     expertSceneCharacterAdditionsEnabled: boolean
+    expertR2DirectUploadEnabled: boolean
     expertCloudR2Enabled: boolean
     r2ViewMode: 'folders' | 'list' | 'thumbnails'
 
@@ -75,6 +76,7 @@ interface SettingsState {
     setExpertCharacterPromptVariantsEnabled: (enabled: boolean) => void
     setExpertSceneCharacterRepeatEnabled: (enabled: boolean) => void
     setExpertSceneCharacterAdditionsEnabled: (enabled: boolean) => void
+    setExpertR2DirectUploadEnabled: (enabled: boolean) => void
     setExpertCloudR2Enabled: (enabled: boolean) => void
     setR2ViewMode: (mode: 'folders' | 'list' | 'thumbnails') => void
     setR2Config: (config: Partial<Pick<SettingsState, 'r2AccountId' | 'r2AccessKeyId' | 'r2SecretAccessKey' | 'r2Bucket' | 'r2PublicBaseUrl'>>) => void
@@ -103,6 +105,7 @@ export const useSettingsStore = create<SettingsState>()(
             expertCharacterPromptVariantsEnabled: false,
             expertSceneCharacterRepeatEnabled: false,
             expertSceneCharacterAdditionsEnabled: false,
+            expertR2DirectUploadEnabled: false,
             expertCloudR2Enabled: false,
             r2ViewMode: 'list',
             r2AccountId: '',
@@ -145,6 +148,7 @@ export const useSettingsStore = create<SettingsState>()(
             setExpertCharacterPromptVariantsEnabled: (expertCharacterPromptVariantsEnabled) => set({ expertCharacterPromptVariantsEnabled }),
             setExpertSceneCharacterRepeatEnabled: (expertSceneCharacterRepeatEnabled) => set({ expertSceneCharacterRepeatEnabled }),
             setExpertSceneCharacterAdditionsEnabled: (expertSceneCharacterAdditionsEnabled) => set({ expertSceneCharacterAdditionsEnabled }),
+            setExpertR2DirectUploadEnabled: (expertR2DirectUploadEnabled) => set({ expertR2DirectUploadEnabled }),
             setExpertCloudR2Enabled: (expertCloudR2Enabled) => set({ expertCloudR2Enabled }),
             setR2ViewMode: (r2ViewMode) => set({ r2ViewMode }),
             setR2Config: (config) => set(config),
