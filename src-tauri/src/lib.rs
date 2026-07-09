@@ -607,8 +607,9 @@ async fn r2_put_object(config: R2Config, key: String, content_base64: String, co
     let content_type = content_type.unwrap_or_else(|| "application/octet-stream".to_string());
     let headers = r2_sign_headers(&config, "PUT", &canonical_uri, canonical_query, &payload_hash, Some(&content_type));
     let url = format!("{}{}", r2_endpoint(&config), canonical_uri);
+    let content_length = body.len();
     let client = reqwest::Client::new();
-    let mut req = client.put(url).body(body);
+    let mut req = client.put(url).body(body).header("Content-Length", content_length);
     for (k, v) in headers { req = req.header(k, v); }
     let response = req.send().await.map_err(|e| e.to_string())?;
     if response.status().is_success() { Ok(()) } else {
