@@ -1153,9 +1153,9 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
                         </div>
 
                         <div className="flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-                            <Button variant="secondary" size="icon" className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/5 disabled:opacity-30" onClick={() => onDecrement()} disabled={queueCount === 0 || disabled}> <Minus className="h-3 w-3" /> </Button>
+                            <Button variant="secondary" size="icon" className="h-7 w-7 rounded-lg bg-white/15 hover:bg-white/25 text-white border border-white/5 disabled:opacity-30" onClick={() => onDecrement()} disabled={queueCount === 0 || disabled}> <Minus className="h-3 w-3" /> </Button>
                             <div className="flex-1" />
-                            <Button variant="secondary" size="icon" className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/5" onClick={() => onIncrement()} disabled={disabled}> <Plus className="h-3 w-3" /> </Button>
+                            <Button variant="secondary" size="icon" className="h-7 w-7 rounded-lg bg-white/15 hover:bg-white/25 text-white border border-white/5" onClick={() => onIncrement()} disabled={disabled}> <Plus className="h-3 w-3" /> </Button>
                         </div>
                         {expertSceneCharacterAdditionsEnabled && sceneCharacterAdditionsEnabled && !isEditMode && !isOverlay && (
                             <div
