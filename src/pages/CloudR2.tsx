@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils'
 import { createR2Folder, deleteR2Object, deleteR2Prefix, hasR2Config, listR2Objects, R2ObjectInfo, uploadR2Object } from '@/services/r2-api'
 
 const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif']
+const LIST_CACHE_TTL_MS = 60_000
+const listCache = new Map<string, { time: number; folders: R2ObjectInfo[]; files: R2ObjectInfo[] }>()
 
 const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -64,11 +66,21 @@ export default function CloudR2() {
     const ready = expertCloudR2Enabled && hasR2Config(config)
     const breadcrumbs = prefix ? prefix.split('/').filter(Boolean) : []
 
-    const refresh = async (nextPrefix = prefix) => {
+    const refresh = async (nextPrefix = prefix, force = false) => {
         if (!ready) return
+        const cacheKey = `${r2AccountId}:${r2Bucket}:${nextPrefix}`
+        const cached = listCache.get(cacheKey)
+        if (!force && cached && Date.now() - cached.time < LIST_CACHE_TTL_MS) {
+            setFolders(cached.folders)
+            setFiles(cached.files)
+            setPrefix(nextPrefix)
+            setSelected(null)
+            return
+        }
         setLoading(true)
         try {
             const result = await listR2Objects(config, nextPrefix)
+            listCache.set(cacheKey, { time: Date.now(), folders: result.folders, files: result.files })
             setFolders(result.folders)
             setFiles(result.files)
             setPrefix(nextPrefix)
@@ -98,7 +110,8 @@ export default function CloudR2() {
             await createR2Folder(config, `${prefix}${name}/`)
             setNewFolderName('')
             toast({ title: t('settingsPage.saved'), variant: 'success' })
-            refresh()
+            listCache.clear()
+            refresh(prefix, true)
         } catch (error) {
             toast({ title: t('cloudR2.error'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
         } finally {
@@ -120,7 +133,8 @@ export default function CloudR2() {
                 await uploadR2Object(config, `${prefix}${safeName}`, base64, file.type || 'application/octet-stream')
             }
             toast({ title: t('cloudR2.uploaded'), variant: 'success' })
-            refresh()
+            listCache.clear()
+            refresh(prefix, true)
         } catch (error) {
             toast({ title: t('cloudR2.error'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
         } finally {
@@ -139,7 +153,8 @@ export default function CloudR2() {
             }
             if (selected?.key === item.key) setSelected(null)
             toast({ title: t('actions.deleted'), variant: 'success' })
-            refresh()
+            listCache.clear()
+            refresh(prefix, true)
         } catch (error) {
             toast({ title: t('cloudR2.error'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
         }
@@ -179,7 +194,7 @@ export default function CloudR2() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => refresh()} disabled={loading}>
+                    <Button variant="outline" size="sm" onClick={() => refresh(prefix, true)} disabled={loading}>
                         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                     </Button>
                     <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={loading}>

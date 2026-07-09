@@ -1156,6 +1156,9 @@ export default function Settings() {
                                             <p className="text-xs text-muted-foreground mt-1">
                                                 {t('settingsPage.expert.cloudR2.viewModeDesc')}
                                             </p>
+                                            <p className="text-xs font-bold text-destructive mt-1">
+                                                {t('settingsPage.expert.cloudR2.costWarning')}
+                                            </p>
                                         </div>
                                         <Select value={r2ViewMode} onValueChange={(value) => setR2ViewMode(value as 'folders' | 'list' | 'thumbnails')}>
                                             <SelectTrigger className="w-44">

@@ -578,6 +578,7 @@
         "viewFolders": "Folders only",
         "viewList": "Name list",
         "viewThumbnails": "Image preview",
+        "costWarning": "Warning: R2 list requests and image loads consume Cloudflare request quotas. Avoid unnecessary frequent refreshes.",
         "title": "Cloudflare R2 Manager",
         "desc": "Adds an R2 cloud management tab for folder and image upload/delete workflows."
       }
