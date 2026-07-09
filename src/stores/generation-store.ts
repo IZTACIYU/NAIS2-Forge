@@ -381,19 +381,12 @@ export const useGenerationStore = create<GenerationState>()(
                         // Wildcard Processing (handles both <filename> fragments and (a/b/c) random selection) - async
                         finalPrompt = await processWildcards(finalPrompt)
 
-                        // Get current seed for this generation
-                        // Use the current store seed, then immediately set next seed
-                        let currentSeed = get().seed
-                        if (currentSeed === 0) {
-                            currentSeed = Math.floor(Math.random() * 4294967295)
-                        }
-
-                        set({ activeImageSeed: currentSeed })
-
-                        // Immediately advance the next seed while keeping the current image seed visible.
-                        if (!get().seedLocked) {
-                            set({ seed: Math.floor(Math.random() * 4294967295) })
-                        }
+                        // Decide the seed at generation time and use the same value for API/UI.
+                        const lockedSeed = get().seed
+                        const currentSeed = get().seedLocked && lockedSeed !== 0
+                            ? lockedSeed
+                            : Math.floor(Math.random() * 4294967295)
+                        set({ seed: currentSeed, activeImageSeed: currentSeed })
 
                         // Character & Vibe Data (활성화된 이미지만 필터링)
                         // Ensure base64 data is loaded from files before generation
