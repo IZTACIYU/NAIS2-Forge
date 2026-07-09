@@ -108,7 +108,7 @@
     "exportSelectedZip": "Export selected scene images as ZIP",
     "importJson": "Import JSON",
     "exportJson": "Export scene data as JSON",
-    "thumbnailLayout": "Toggle vertical/horizontal thumbnails",
+    "thumbnailLayout": "Toggle vertical/horizontal/square thumbnails",
     "deleteNonFavorites": "Delete Non-Favorites",
     "deletedNonFavorites": "{{count}} images deleted",
     "clearedFavorites": "{{count}} favorites cleared",

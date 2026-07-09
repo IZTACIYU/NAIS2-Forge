@@ -108,7 +108,7 @@
     "exportSelectedZip": "선택한 씬 이미지 ZIP 내보내기",
     "importJson": "JSON 불러오기",
     "exportJson": "씬 데이터를 JSON으로 내보내기",
-    "thumbnailLayout": "세로/가로 썸네일 전환",
+    "thumbnailLayout": "\uc138\ub85c/\uac00\ub85c/\uc815\uc0ac\uac01\ud615 \uc378\ub124\uc77c \uc804\ud658",
     "deleteNonFavorites": "즐겨찾기 제외 삭제",
     "deletedNonFavorites": "{{count}}개 이미지 삭제됨",
     "clearedFavorites": "{{count}}개 즐겨찾기 해제됨",

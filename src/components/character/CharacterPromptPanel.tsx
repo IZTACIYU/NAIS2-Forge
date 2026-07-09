@@ -255,13 +255,24 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         }, 0)
     }, [addCharacter, updateCharacter])
 
+    const activateVariant = useCallback((id: string) => {
+        const selected = useCharacterPromptStore.getState().characters.find(c => c.id === id)
+        if (!selected) return
+        const stackKey = getStackKey(selected)
+        setActiveVariantByStack(prev => ({ ...prev, [stackKey]: id }))
+        useCharacterPromptStore.getState().characters.forEach((char) => {
+            if (getStackKey(char) === stackKey) {
+                updateCharacter(char.id, { enabled: char.id === id })
+            }
+        })
+        setExpandedId(id)
+    }, [updateCharacter])
+
 
     const handleAddVariant = useCallback((char: CharacterPrompt) => {
         const baseName = getVariantBaseName(char, char.name || char.prompt.split(',')[0]?.trim() || 'Character')
         const takenHashes = new Set(characters.map(c => getVariantHash(c)).filter(Boolean) as string[])
         const hash = getVariantHash(char) || makeVariantHash(baseName, takenHashes)
-        const stackKey = `${char.groupId || 'root'}:${hash}`
-
         const stackCharacters = characters
             .filter(c => c.id === char.id || getVariantHash(c) === hash)
             .sort((a, b) => getVariantIndex(a) - getVariantIndex(b))
@@ -288,11 +299,10 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         setTimeout(() => {
             const newChar = useCharacterPromptStore.getState().characters.slice(-1)[0]
             if (newChar) {
-                setActiveVariantByStack(prev => ({ ...prev, [stackKey]: newChar.id }))
-                setExpandedId(newChar.id)
+                activateVariant(newChar.id)
             }
         }, 0)
-    }, [addCharacter, characters, updateCharacter])
+    }, [activateVariant, addCharacter, characters, updateCharacter])
 
     const handleToggleExpand = useCallback((id: string) => {
         setExpandedId(prev => prev === id ? null : id)
@@ -609,11 +619,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                                                 expertCharacterPromptLayoutEnabled={expertCharacterPromptLayoutEnabled}
                                                                 onAddVariant={() => handleAddVariant(char)}
                                                                 expertCharacterPromptVariantsEnabled={expertCharacterPromptVariantsEnabled}
-                                                                onSelectVariant={(id) => {
-                                                                        const selected = characters.find(c => c.id === id)
-                                                                        if (selected) setActiveVariantByStack(prev => ({ ...prev, [getStackKey(selected)]: id }))
-                                                                        setExpandedId(id)
-                                                                    }}
+                                                                        onSelectVariant={activateVariant}
                                                                 />
                                                             )
                                                         })}
@@ -661,11 +667,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                                             allCharacters={characters}
                                                             expertCharacterPromptLayoutEnabled={expertCharacterPromptLayoutEnabled}
                                                             onAddVariant={() => handleAddVariant(char)}
-                                                            onSelectVariant={(id) => {
-                                                                        const selected = characters.find(c => c.id === id)
-                                                                        if (selected) setActiveVariantByStack(prev => ({ ...prev, [getStackKey(selected)]: id }))
-                                                                        setExpandedId(id)
-                                                                    }}
+                                                                    onSelectVariant={activateVariant}
                                                             expertCharacterPromptVariantsEnabled={expertCharacterPromptVariantsEnabled}
                                                             />
                                                         )

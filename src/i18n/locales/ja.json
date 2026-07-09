@@ -107,7 +107,7 @@
     "exportSelectedZip": "選択シーン画像ZIP出力",
     "importJson": "JSONインポート",
     "exportJson": "シーンデータJSON出力",
-    "thumbnailLayout": "縦/横サムネイル切替",
+    "thumbnailLayout": "\u7e26/\u6a2a/\u6b63\u65b9\u5f62\u30b5\u30e0\u30cd\u30a4\u30eb\u5207\u66ff",
     "deleteNonFavorites": "お気に入り以外を削除",
     "deletedNonFavorites": "{{count}}枚の画像を削除しました",
     "clearedFavorites": "{{count}}件のお気に入りを解除しました",

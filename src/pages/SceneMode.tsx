@@ -75,6 +75,20 @@ import {
     ArrowUpDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+
+const getThumbnailAspectClass = (layout: 'vertical' | 'horizontal' | 'square') => {
+    if (layout === 'vertical') return 'aspect-[2/3]'
+    if (layout === 'square') return 'aspect-square'
+    return 'aspect-[3/2]'
+}
+
+const getNextThumbnailLayout = (layout: 'vertical' | 'horizontal' | 'square') => {
+    if (layout === 'vertical') return 'horizontal'
+    if (layout === 'horizontal') return 'square'
+    return 'vertical'
+}
+
 import { Tip } from '@/components/ui/tooltip'
 import { useSceneStore } from '@/stores/scene-store'
 import { useGenerationStore } from '@/stores/generation-store'
@@ -791,9 +805,9 @@ export default function SceneMode() {
                             variant="ghost" 
                             size="icon" 
                             className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-white/10" 
-                            onClick={() => setThumbnailLayout(thumbnailLayout === 'vertical' ? 'horizontal' : 'vertical')}
+                            onClick={() => setThumbnailLayout(getNextThumbnailLayout(thumbnailLayout))}
                         >
-                            {thumbnailLayout === 'vertical' ? <LayoutGrid className="h-4 w-4" /> : <LayoutList className="h-4 w-4" />}
+                            {thumbnailLayout === 'vertical' ? <LayoutGrid className="h-4 w-4" /> : thumbnailLayout === 'horizontal' ? <LayoutList className="h-4 w-4" /> : <Square className="h-4 w-4" />}
                         </Button>
                     </Tip>
                     <Tip content={t('scene.gridColumnsDesc', '그리드 열 개수 변경')}>
@@ -835,7 +849,7 @@ export default function SceneMode() {
                                         disabled={isGenerating}
                                     />
                                 ))}
-                                <button onClick={!isGenerating ? handleAddScene : undefined} className={cn("flex flex-col items-center justify-center h-full rounded-2xl border-2 border-dashed border-white/10 bg-white/5 hover:bg-white/10 hover:border-primary/50 transition-all group", thumbnailLayout === 'vertical' ? "aspect-[2/3]" : "aspect-[3/2]", isGenerating && "opacity-50 cursor-not-allowed")}>
+                                <button onClick={!isGenerating ? handleAddScene : undefined} className={cn("flex flex-col items-center justify-center h-full rounded-2xl border-2 border-dashed border-white/10 bg-white/5 hover:bg-white/10 hover:border-primary/50 transition-all group", getThumbnailAspectClass(thumbnailLayout), isGenerating && "opacity-50 cursor-not-allowed")}>
                                     <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"> <Plus className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" /> </div>
                                     <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors"> {t('scene.addScene')} </span>
                                 </button>
@@ -970,7 +984,7 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
                     style={style}
                     className={cn(
                         "group relative flex flex-col rounded-2xl overflow-hidden",
-                        thumbnailLayout === 'vertical' ? "aspect-[2/3]" : "aspect-[3/2]",
+                        getThumbnailAspectClass(thumbnailLayout),
                         "bg-card border border-border/50 shadow-sm",
                         !isOverlay && "hover:shadow-lg hover:border-primary/30 transition-shadow",
                         isOverlay && "shadow-xl ring-2 ring-primary cursor-grabbing z-50",

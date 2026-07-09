@@ -122,8 +122,8 @@ interface SceneState {
     // Grid Layout
     gridColumns: number
     setGridColumns: (columns: number) => void
-    thumbnailLayout: 'vertical' | 'horizontal'
-    setThumbnailLayout: (layout: 'vertical' | 'horizontal') => void
+    thumbnailLayout: 'vertical' | 'horizontal' | 'square'
+    setThumbnailLayout: (layout: 'vertical' | 'horizontal' | 'square') => void
 
     // Scroll Position (for returning from detail page)
     scrollPosition: number

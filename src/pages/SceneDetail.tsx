@@ -22,6 +22,14 @@ import { Input } from '@/components/ui/input'
 import { AutocompleteTextarea } from "@/components/ui/AutocompleteTextarea";
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+
+
+const getThumbnailAspectClass = (layout: 'vertical' | 'horizontal' | 'square') => {
+    if (layout === 'vertical') return 'aspect-[2/3]'
+    if (layout === 'square') return 'aspect-square'
+    return 'aspect-[3/2]'
+}
+
 import { useSceneStore, SceneImage } from '@/stores/scene-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { useSceneGeneration } from '@/hooks/useSceneGeneration'
@@ -545,7 +553,7 @@ export default function SceneDetail() {
                         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
                             {/* Streaming Card Slot */}
                             {isStreaming && streamingImage && (
-                                <div className={cn("rounded-xl overflow-hidden bg-muted/30 relative border border-primary/50 shadow-[0_0_15px_rgba(59,130,246,0.5)]", thumbnailLayout === 'vertical' ? "aspect-[2/3]" : "aspect-[3/2]")}>
+                                <div className={cn("rounded-xl overflow-hidden bg-muted/30 relative border border-primary/50 shadow-[0_0_15px_rgba(59,130,246,0.5)]", getThumbnailAspectClass(thumbnailLayout))}>
                                     <img src={streamingImage} alt="Generating..." className="w-full h-full object-cover animate-pulse opacity-80" />
                                     <div className="absolute inset-x-0 bottom-0 h-1 bg-gray-500/50">
                                         <div className="h-full bg-white transition-all duration-300 shadow-[0_0_8px_rgba(255,255,255,0.8)]" style={{ width: `${streamingProgress * 100}%` }} />
@@ -746,7 +754,7 @@ function SceneImageCard({
     onInpaint,
 }: {
     image: SceneImage
-    thumbnailLayout: 'vertical' | 'horizontal'
+    thumbnailLayout: 'vertical' | 'horizontal' | 'square'
     isEditMode?: boolean
     isSelected?: boolean
     onSelect?: () => void
@@ -791,7 +799,7 @@ function SceneImageCard({
             <div
                 className={cn(
                     "relative group rounded-xl overflow-hidden bg-muted/30 border-2 transition-all duration-300 shadow-sm cursor-pointer",
-                    thumbnailLayout === 'vertical' ? "aspect-[2/3]" : "aspect-[3/2]",
+                    getThumbnailAspectClass(thumbnailLayout),
                     isEditMode && isSelected
                         ? "border-orange-500 ring-2 ring-orange-500/50"
                         : image.isFavorite
