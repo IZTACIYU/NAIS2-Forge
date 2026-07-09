@@ -59,6 +59,7 @@ interface GenerationState {
     variety: boolean
 
     seed: number
+    activeImageSeed: number | null
     previewSeed: number | null
     seedLocked: boolean
     selectedResolution: Resolution
@@ -116,6 +117,7 @@ interface GenerationState {
     setVariety: (v: boolean) => void
 
     setSeed: (seed: number) => void
+    setActiveImageSeed: (seed: number | null) => void
     setPreviewSeed: (seed: number | null) => void
     setSeedLocked: (locked: boolean) => void
     setSelectedResolution: (resolution: Resolution) => void
@@ -188,6 +190,7 @@ export const useGenerationStore = create<GenerationState>()(
             variety: false,
 
             seed: Math.floor(Math.random() * 4294967295),
+            activeImageSeed: null,
             previewSeed: null,
             seedLocked: false,
             selectedResolution: { label: 'Portrait', width: 832, height: 1216 },
@@ -255,6 +258,7 @@ export const useGenerationStore = create<GenerationState>()(
             setVariety: (variety) => set({ variety }),
 
             setSeed: (seed) => set({ seed }),
+            setActiveImageSeed: (activeImageSeed) => set({ activeImageSeed }),
             setPreviewSeed: (previewSeed) => set({ previewSeed }),
             setSeedLocked: (locked) => set({ seedLocked: locked }),
             setSelectedResolution: (resolution) => set({ selectedResolution: resolution }),
@@ -284,19 +288,16 @@ export const useGenerationStore = create<GenerationState>()(
             },
 
             cancelGeneration: () => {
-                const { abortController, seedLocked } = get()
+                const { abortController } = get()
                 if (abortController) {
                     abortController.abort()
                 }
-                // Generate new seed if not locked (same as successful generation)
-                const newSeed = seedLocked ? undefined : Math.floor(Math.random() * 4294967295)
-                // Keep isGenerating=true until current request completes (prevents 429 errors)
+                // Keep the seed unchanged on cancel so the current/streamed image can be retried.
                 // The finally block in generate() will set isGenerating=false
                 set({ 
                     isCancelled: true, 
                     // isGenerating stays true - button remains locked until API response arrives
                     currentBatch: 0,
-                    ...(newSeed !== undefined && { seed: newSeed })
                 })
                 toast({
                     title: i18n.t('toast.generationCancelled.title'),
@@ -387,7 +388,9 @@ export const useGenerationStore = create<GenerationState>()(
                             currentSeed = Math.floor(Math.random() * 4294967295)
                         }
 
-                        // Immediately advance seed so UI shows next seed at generation start
+                        set({ activeImageSeed: currentSeed })
+
+                        // Immediately advance the next seed while keeping the current image seed visible.
                         if (!get().seedLocked) {
                             set({ seed: Math.floor(Math.random() * 4294967295) })
                         }

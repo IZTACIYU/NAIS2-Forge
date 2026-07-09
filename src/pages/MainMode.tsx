@@ -33,6 +33,7 @@ export default function MainMode() {
         isGenerating,
         selectedResolution,
         seed,
+        activeImageSeed,
         previewSeed,
 
         lastGenerationTime,
@@ -42,6 +43,8 @@ export default function MainMode() {
         setSourceImage,
         setI2IMode,
     } = useGenerationStore()
+
+    const displaySeed = previewSeed ?? activeImageSeed ?? seed
 
     const navigate = useNavigate()
     const { setActiveImage } = useToolsStore()
@@ -584,23 +587,18 @@ export default function MainMode() {
                 <span
                     className={`flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity ${previewSeed ? 'text-yellow-400 font-bold' : ''}`}
                     onClick={() => {
-                        const targetSeed = previewSeed ?? seed
+                        const targetSeed = displaySeed
                         if (targetSeed) {
-                            // If previewing, apply the seed
-                            if (previewSeed) {
-                                genStore.setSeed(previewSeed)
-                                genStore.setPreviewSeed(null) // Exit preview mode
-                                toast({ title: t('toast.seedApplied', '시드 적용됨'), variant: 'success' })
-                            } else {
-                                // Normal behavior: Copy to clipboard
-                                navigator.clipboard.writeText(targetSeed.toString())
-                                toast({ title: t('toast.copied', '복사됨'), variant: 'success' })
-                            }
+                            genStore.setSeed(targetSeed)
+                            genStore.setSeedLocked(true)
+                            genStore.setActiveImageSeed(targetSeed)
+                            genStore.setPreviewSeed(null)
+                            toast({ title: t('toast.seedApplied', 'Seed applied'), variant: 'success' })
                         }
                     }}
                 >
                     <span className="opacity-60 text-xs uppercase tracking-wider">{t('settings.seed')}</span>
-                    <span className="font-mono">{previewSeed ?? seed ?? t('settings.random')}</span>
+                    <span className="font-mono">{displaySeed ?? t('settings.random')}</span>
                 </span>
             </div>
 
