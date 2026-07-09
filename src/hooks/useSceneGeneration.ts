@@ -150,8 +150,9 @@ export function useSceneGeneration() {
                 const latestCharStore = useCharacterStore.getState()
                 const latestPromptStore = useCharacterPromptStore.getState()
                 const latestSceneStore = useSceneStore.getState()
+                const latestSettingsStore = useSettingsStore.getState()
                 const sequenceMode = !!sequenceEntry
-                const sceneAddition = latestSceneStore.sceneCharacterAdditionsEnabled
+                const sceneAddition = latestSettingsStore.expertSceneCharacterAdditionsEnabled && latestSceneStore.sceneCharacterAdditionsEnabled
                     ? latestSceneStore.sceneCharacterAdditions[activePresetId]?.[scene.id]
                     : null
                 const uniqueIds = (ids: string[]) => Array.from(new Set(ids))

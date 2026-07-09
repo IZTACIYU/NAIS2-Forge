@@ -241,6 +241,7 @@ export default function SceneMode() {
     const getTotalQueueCount = useSceneStore(s => s.getTotalQueueCount)
     const batchCount = useGenerationStore(s => s.batchCount)
     const expertSceneCharacterRepeatEnabled = useSettingsStore(s => s.expertSceneCharacterRepeatEnabled)
+    const expertSceneCharacterAdditionsEnabled = useSettingsStore(s => s.expertSceneCharacterAdditionsEnabled)
     const characterSequenceEnabled = useSceneStore(s => s.characterSequenceEnabled)
     const setCharacterSequenceEnabled = useSceneStore(s => s.setCharacterSequenceEnabled)
     const characterSequenceEntries = useSceneStore(s => s.characterSequenceEntries)
@@ -662,7 +663,6 @@ export default function SceneMode() {
                             </Button>
                         </Tip>
                         {expertSceneCharacterRepeatEnabled && (
-                            <>
                                 <Tip content={t('sceneSequence.toggleTooltip', 'Character queue repeat')}>
                                     <div className={cn(
                                         "flex items-center gap-2 rounded-xl border border-white/10 px-2 h-10 bg-white/5",
@@ -692,20 +692,21 @@ export default function SceneMode() {
                                         )}
                                     </div>
                                 </Tip>
-                                <Tip content={t('sceneCharacterAddition.toggleTooltip', 'Add scene characters')}>
-                                    <div className={cn(
-                                        "flex items-center gap-2 rounded-xl border border-white/10 px-2 h-10 bg-white/5",
-                                        sceneCharacterAdditionsEnabled && "border-primary/40 bg-primary/10"
-                                    )}>
-                                        <UserPlus className={cn("h-4 w-4", sceneCharacterAdditionsEnabled ? "text-primary" : "text-muted-foreground")} />
-                                        <Switch
-                                            checked={sceneCharacterAdditionsEnabled}
-                                            onChange={(e) => setSceneCharacterAdditionsEnabled(e.target.checked)}
-                                            disabled={isGenerating}
-                                        />
-                                    </div>
-                                </Tip>
-                            </>
+                        )}
+                        {expertSceneCharacterAdditionsEnabled && (
+                            <Tip content={t('sceneCharacterAddition.toggleTooltip', 'Add scene characters')}>
+                                <div className={cn(
+                                    "flex items-center gap-2 rounded-xl border border-white/10 px-2 h-10 bg-white/5",
+                                    sceneCharacterAdditionsEnabled && "border-primary/40 bg-primary/10"
+                                )}>
+                                    <UserPlus className={cn("h-4 w-4", sceneCharacterAdditionsEnabled ? "text-primary" : "text-muted-foreground")} />
+                                    <Switch
+                                        checked={sceneCharacterAdditionsEnabled}
+                                        onChange={(e) => setSceneCharacterAdditionsEnabled(e.target.checked)}
+                                        disabled={isGenerating}
+                                    />
+                                </div>
+                            </Tip>
                         )}
                         <div className="flex items-center bg-muted/30 rounded-xl p-1 border border-white/5">
                             <Tip content={t('scene.addAllQueue', '모든 씬 생성 대기열에 추가')}>
@@ -977,6 +978,7 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
     const isEditMode = useSceneStore(s => s.isEditMode)
     const isSelected = useSceneStore(s => s.selectedSceneIds.includes(scene.id))
     const thumbnailLayout = useSceneStore(s => s.thumbnailLayout)
+    const expertSceneCharacterAdditionsEnabled = useSettingsStore(s => s.expertSceneCharacterAdditionsEnabled)
     const sceneCharacterAdditionsEnabled = useSceneStore(s => s.sceneCharacterAdditionsEnabled)
     const sceneCharacterAddition = useSceneStore(s => {
         const presetId = s.activePresetId
@@ -1155,13 +1157,12 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
                             <div className="flex-1" />
                             <Button variant="secondary" size="icon" className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/5" onClick={() => onIncrement()} disabled={disabled}> <Plus className="h-3 w-3" /> </Button>
                         </div>
-                    </div>
-                    {sceneCharacterAdditionsEnabled && !isEditMode && !isOverlay && (
-                        <div
-                            className="border-t border-border/60 bg-card px-2.5 py-2"
-                            onClick={(e) => e.stopPropagation()}
-                            onPointerDown={(e) => e.stopPropagation()}
-                        >
+                        {expertSceneCharacterAdditionsEnabled && sceneCharacterAdditionsEnabled && !isEditMode && !isOverlay && (
+                            <div
+                                className="mt-2 rounded-lg border border-white/10 bg-black/55 px-2.5 py-1.5 backdrop-blur-sm"
+                                onClick={(e) => e.stopPropagation()}
+                                onPointerDown={(e) => e.stopPropagation()}
+                            >
                             <div className="flex items-center gap-1.5">
                                 <UserPlus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                                 <div className="flex-1 min-w-0 flex items-center gap-1 overflow-hidden">
@@ -1199,8 +1200,9 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
                                     <Plus className="h-3 w-3" />
                                 </Button>
                             </div>
-                        </div>
-                    )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </ContextMenuTrigger>
             <ContextMenuContent className="w-40">

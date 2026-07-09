@@ -611,7 +611,9 @@
         "header": "Scene Mode",
         "description": "Advanced tools for batch scene generation.",
         "characterRepeatTitle": "Character Repeat",
-        "characterRepeatDesc": "Adds a lightweight character queue to Scene Mode so the same scene reservations can run for multiple characters in order."
+        "characterRepeatDesc": "Adds a lightweight character queue to Scene Mode so the same scene reservations can run for multiple characters in order.",
+        "characterAdditionsTitle": "Scene Character Additions",
+        "characterAdditionsDesc": "Adds per-scene character prompt, character reference, and vibe reference controls."
       },
       "cloudflare": {
       "header": "Cloudflare",

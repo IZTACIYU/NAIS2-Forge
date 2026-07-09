@@ -30,6 +30,18 @@ const emptyAddition: SceneCharacterAddition = {
     vibeReferenceIds: [],
 }
 
+const VARIANT_NAME_PATTERN = /\s-\s([a-z0-9]{6})\s-\s(\d+)$/i
+const LEGACY_VARIANT_HASH_PATTERN = /\s-\s([a-z0-9]{6})$/i
+
+const cleanCharacterName = (name?: string) => {
+    const rawName = name?.trim() || ''
+    const match = rawName.match(VARIANT_NAME_PATTERN)
+    if (match) return rawName.slice(0, match.index).trim()
+    const legacy = rawName.match(LEGACY_VARIANT_HASH_PATTERN)
+    if (legacy) return rawName.slice(0, legacy.index).replace(/\d+$/g, '').trim()
+    return rawName
+}
+
 export function SceneCharacterAdditionDialog({ open, onOpenChange, presetId, sceneId }: SceneCharacterAdditionDialogProps) {
     const { t } = useTranslation()
     const promptCharacters = useCharacterPromptStore(s => s.characters)
@@ -84,7 +96,7 @@ export function SceneCharacterAdditionDialog({ open, onOpenChange, presetId, sce
         ids.includes(id) ? ids.filter(v => v !== id) : [...ids, id]
 
     const getCharacterName = (character: CharacterPrompt, fallbackIndex?: number) =>
-        character.name
+        cleanCharacterName(character.name)
         || character.prompt.split(',')[0]?.trim()
         || t('characterPanel.unnamed', `Character ${(fallbackIndex ?? 0) + 1}`)
 
