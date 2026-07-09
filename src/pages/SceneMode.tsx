@@ -73,9 +73,9 @@ import {
     ImageOff,
     GripVertical,
     ArrowUpDown,
-    User,
-    ArrowUp,
-    ArrowDown,
+    Users,
+    UserPlus,
+    SlidersHorizontal,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -108,27 +108,11 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog'
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from '@/components/ui/popover'
 import { ResolutionSelector, Resolution } from '@/components/ui/ResolutionSelector'
+import { Switch } from '@/components/ui/switch'
 import { useSettingsStore } from '@/stores/settings-store'
-import { useCharacterPromptStore, CharacterPrompt } from '@/stores/character-prompt-store'
-
-const VARIANT_NAME_PATTERN = /\s-\s([a-z0-9]{6})\s-\s(\d+)$/i
-const LEGACY_VARIANT_HASH_PATTERN = /\s-\s([a-z0-9]{6})$/i
-
-const getCharacterDisplayName = (char?: Pick<CharacterPrompt, 'name' | 'id'>) => {
-    if (!char) return 'Character'
-    const rawName = char.name?.trim() || 'Character'
-    const match = rawName.match(VARIANT_NAME_PATTERN)
-    if (match) return rawName.slice(0, match.index).trim() || 'Character'
-    const legacy = rawName.match(LEGACY_VARIANT_HASH_PATTERN)
-    if (legacy) return rawName.slice(0, legacy.index).replace(/\d+$/g, '').trim() || 'Character'
-    return rawName
-}
+import { SceneCharacterSequenceDialog } from '@/components/scene/SceneCharacterSequenceDialog'
+import { SceneCharacterAdditionDialog } from '@/components/scene/SceneCharacterAdditionDialog'
 
 const dropAnimation = {
     sideEffects: defaultDropAnimationSideEffects({
@@ -255,27 +239,15 @@ export default function SceneMode() {
     const addAllToQueue = useSceneStore(s => s.addAllToQueue)
     const clearAllQueue = useSceneStore(s => s.clearAllQueue)
     const getTotalQueueCount = useSceneStore(s => s.getTotalQueueCount)
-    const sceneCharacterRepeatQueue = useSceneStore(s => s.sceneCharacterRepeatQueue)
-    const setSceneCharacterRepeatQueue = useSceneStore(s => s.setSceneCharacterRepeatQueue)
     const batchCount = useGenerationStore(s => s.batchCount)
     const expertSceneCharacterRepeatEnabled = useSettingsStore(s => s.expertSceneCharacterRepeatEnabled)
-    const characterPrompts = useCharacterPromptStore(s => s.characters)
+    const characterSequenceEnabled = useSceneStore(s => s.characterSequenceEnabled)
+    const setCharacterSequenceEnabled = useSceneStore(s => s.setCharacterSequenceEnabled)
+    const characterSequenceEntries = useSceneStore(s => s.characterSequenceEntries)
+    const sceneCharacterAdditionsEnabled = useSceneStore(s => s.sceneCharacterAdditionsEnabled)
+    const setSceneCharacterAdditionsEnabled = useSceneStore(s => s.setSceneCharacterAdditionsEnabled)
 
     const totalQueue = activePresetId ? getTotalQueueCount(activePresetId) : 0
-    const queuedCharacters = sceneCharacterRepeatQueue
-        .map(id => characterPrompts.find(char => char.id === id))
-        .filter((char): char is CharacterPrompt => Boolean(char))
-    const addCharacterToRepeatQueue = (id: string) => {
-        setSceneCharacterRepeatQueue([...sceneCharacterRepeatQueue, id])
-    }
-    const removeCharacterFromRepeatQueue = (index: number) => {
-        setSceneCharacterRepeatQueue(sceneCharacterRepeatQueue.filter((_, i) => i !== index))
-    }
-    const moveCharacterRepeatQueue = (index: number, direction: -1 | 1) => {
-        const nextIndex = index + direction
-        if (nextIndex < 0 || nextIndex >= sceneCharacterRepeatQueue.length) return
-        setSceneCharacterRepeatQueue(arrayMove(sceneCharacterRepeatQueue, index, nextIndex))
-    }
 
     // Edit Mode (Multi-Select)
     const isEditMode = useSceneStore(s => s.isEditMode)
@@ -462,6 +434,8 @@ export default function SceneMode() {
     const [showExportDialog, setShowExportDialog] = useState(false)
     const [exportScenesFilter, setExportScenesFilter] = useState<'all' | 'selected'>('all')
     const [showDeletePresetDialog, setShowDeletePresetDialog] = useState(false)
+    const [showCharacterSequenceDialog, setShowCharacterSequenceDialog] = useState(false)
+    const [sceneCharacterAdditionSceneId, setSceneCharacterAdditionSceneId] = useState<string | null>(null)
 
     // Scenes to export based on filter
     const scenesToExport = exportScenesFilter === 'selected'
@@ -688,72 +662,50 @@ export default function SceneMode() {
                             </Button>
                         </Tip>
                         {expertSceneCharacterRepeatEnabled && (
-                            <Popover>
-                                <Tip content={t('scene.characterRepeat.open', 'Character repeat queue')}>
-                                    <PopoverTrigger asChild>
-                                        <Button variant="outline" size="icon" className="relative rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" disabled={isGenerating}>
-                                            <User className="h-4 w-4" />
-                                            {sceneCharacterRepeatQueue.length > 0 && (
-                                                <span className="absolute -right-1 -top-1 min-w-4 h-4 px-1 rounded-full bg-primary text-[10px] leading-4 text-primary-foreground">
-                                                    {sceneCharacterRepeatQueue.length}
-                                                </span>
-                                            )}
-                                        </Button>
-                                    </PopoverTrigger>
-                                </Tip>
-                                <PopoverContent align="end" className="w-[520px] p-4">
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h3 className="text-sm font-semibold">{t('scene.characterRepeat.title', 'Character Repeat')}</h3>
-                                            <p className="text-xs text-muted-foreground mt-1">{t('scene.characterRepeat.description', 'Run the current scene queue once for each character in order.')}</p>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-2">
-                                                <div className="text-xs font-medium text-muted-foreground">{t('scene.characterRepeat.characters', 'Characters')}</div>
-                                                <div className="max-h-72 overflow-y-auto rounded-lg border border-border/50 bg-muted/20 p-1">
-                                                    {characterPrompts.length === 0 ? (
-                                                        <div className="p-3 text-xs text-muted-foreground">{t('scene.characterRepeat.noCharacters', 'No characters')}</div>
-                                                    ) : characterPrompts.map(char => (
-                                                        <button key={char.id} type="button" className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted" onClick={() => addCharacterToRepeatQueue(char.id)}>
-                                                            <span className="min-w-0 truncate">{getCharacterDisplayName(char)}</span>
-                                                            <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="text-xs font-medium text-muted-foreground">{t('scene.characterRepeat.queue', 'Queue')}</div>
-                                                    {sceneCharacterRepeatQueue.length > 0 && (
-                                                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setSceneCharacterRepeatQueue([])}>
-                                                            {t('common.clear', 'Clear')}
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                                <div className="max-h-72 overflow-y-auto rounded-lg border border-border/50 bg-muted/20 p-1">
-                                                    {queuedCharacters.length === 0 ? (
-                                                        <div className="p-3 text-xs text-muted-foreground">{t('scene.characterRepeat.emptyQueue', 'Add characters in run order.')}</div>
-                                                    ) : queuedCharacters.map((char, index) => (
-                                                        <div key={`${char.id}-${index}`} className="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm">
-                                                            <span className="w-5 shrink-0 text-xs text-muted-foreground">{index + 1}</span>
-                                                            <span className="min-w-0 flex-1 truncate">{getCharacterDisplayName(char)}</span>
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveCharacterRepeatQueue(index, -1)} disabled={index === 0}>
-                                                                <ArrowUp className="h-3.5 w-3.5" />
-                                                            </Button>
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveCharacterRepeatQueue(index, 1)} disabled={index === queuedCharacters.length - 1}>
-                                                                <ArrowDown className="h-3.5 w-3.5" />
-                                                            </Button>
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => removeCharacterFromRepeatQueue(index)}>
-                                                                <X className="h-3.5 w-3.5" />
-                                                            </Button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
+                            <>
+                                <Tip content={t('sceneSequence.toggleTooltip', 'Character queue repeat')}>
+                                    <div className={cn(
+                                        "flex items-center gap-2 rounded-xl border border-white/10 px-2 h-10 bg-white/5",
+                                        characterSequenceEnabled && "border-primary/40 bg-primary/10"
+                                    )}>
+                                        <Users className={cn("h-4 w-4", characterSequenceEnabled ? "text-primary" : "text-muted-foreground")} />
+                                        <Switch
+                                            checked={characterSequenceEnabled}
+                                            onChange={(e) => setCharacterSequenceEnabled(e.target.checked)}
+                                            disabled={isGenerating}
+                                        />
+                                        <Tip content={t('sceneSequence.settings', 'Character/reference queue repeat settings')}>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7"
+                                                onClick={() => setShowCharacterSequenceDialog(true)}
+                                                disabled={isGenerating}
+                                            >
+                                                <SlidersHorizontal className="h-4 w-4" />
+                                            </Button>
+                                        </Tip>
+                                        {characterSequenceEntries.filter(e => e.enabled).length > 0 && (
+                                            <span className="text-[10px] min-w-5 h-5 px-1 rounded-full bg-primary/15 text-primary flex items-center justify-center">
+                                                {characterSequenceEntries.filter(e => e.enabled).length}
+                                            </span>
+                                        )}
                                     </div>
-                                </PopoverContent>
-                            </Popover>
+                                </Tip>
+                                <Tip content={t('sceneCharacterAddition.toggleTooltip', 'Add scene characters')}>
+                                    <div className={cn(
+                                        "flex items-center gap-2 rounded-xl border border-white/10 px-2 h-10 bg-white/5",
+                                        sceneCharacterAdditionsEnabled && "border-primary/40 bg-primary/10"
+                                    )}>
+                                        <UserPlus className={cn("h-4 w-4", sceneCharacterAdditionsEnabled ? "text-primary" : "text-muted-foreground")} />
+                                        <Switch
+                                            checked={sceneCharacterAdditionsEnabled}
+                                            onChange={(e) => setSceneCharacterAdditionsEnabled(e.target.checked)}
+                                            disabled={isGenerating}
+                                        />
+                                    </div>
+                                </Tip>
+                            </>
                         )}
                         <div className="flex items-center bg-muted/30 rounded-xl p-1 border border-white/5">
                             <Tip content={t('scene.addAllQueue', '모든 씬 생성 대기열에 추가')}>
@@ -956,6 +908,7 @@ export default function SceneMode() {
                                         key={scene.id}
                                         scene={scene}
                                         disabled={isGenerating}
+                                        onOpenSceneCharacterAddition={setSceneCharacterAdditionSceneId}
                                     />
                                 ))}
                                 <button onClick={!isGenerating ? handleAddScene : undefined} className={cn("flex flex-col items-center justify-center h-full rounded-2xl border-2 border-dashed border-white/10 bg-white/5 hover:bg-white/10 hover:border-primary/50 transition-all group", getThumbnailAspectClass(thumbnailLayout), isGenerating && "opacity-50 cursor-not-allowed")}>
@@ -996,12 +949,24 @@ export default function SceneMode() {
                 variant="destructive"
                 onConfirm={() => { if (activePreset) deletePreset(activePreset.id) }}
             />
+            <SceneCharacterSequenceDialog
+                open={showCharacterSequenceDialog}
+                onOpenChange={setShowCharacterSequenceDialog}
+            />
+            <SceneCharacterAdditionDialog
+                open={!!sceneCharacterAdditionSceneId}
+                onOpenChange={(open) => {
+                    if (!open) setSceneCharacterAdditionSceneId(null)
+                }}
+                presetId={activePresetId}
+                sceneId={sceneCharacterAdditionSceneId}
+            />
         </div >
     )
 }
 
 // Memoized SceneCard to prevent unnecessary re-renders
-const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = false, isOverlay = false, style, dragAttributes, dragListeners }: any) {
+const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = false, isOverlay = false, style, dragAttributes, dragListeners, onOpenSceneCharacterAddition }: any) {
     const { t } = useTranslation()
     const navigate = useNavigate()
     const [isEditing, setIsEditing] = useState(false)
@@ -1012,6 +977,12 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
     const isEditMode = useSceneStore(s => s.isEditMode)
     const isSelected = useSceneStore(s => s.selectedSceneIds.includes(scene.id))
     const thumbnailLayout = useSceneStore(s => s.thumbnailLayout)
+    const sceneCharacterAdditionsEnabled = useSceneStore(s => s.sceneCharacterAdditionsEnabled)
+    const sceneCharacterAddition = useSceneStore(s => {
+        const presetId = s.activePresetId
+        if (!presetId) return null
+        return s.sceneCharacterAdditions[presetId]?.[scene.id] || null
+    })
     
     // Subscribe to queueCount directly for fast updates (bypasses memo)
     const queueCount = useSceneStore(s => {
@@ -1063,6 +1034,12 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
     const onDuplicate = () => { if (activePresetId) duplicateScene(activePresetId, scene.id) }
     const onIncrement = () => { if (activePresetId) incrementQueue(activePresetId, scene.id, useGenerationStore.getState().batchCount) }
     const onDecrement = () => { if (activePresetId) decrementQueue(activePresetId, scene.id) }
+    const additionCounts = {
+        characters: sceneCharacterAddition?.characterPromptIds.length || 0,
+        refs: sceneCharacterAddition?.characterReferenceIds.length || 0,
+        vibes: sceneCharacterAddition?.vibeReferenceIds.length || 0,
+    }
+    const hasAdditions = additionCounts.characters + additionCounts.refs + additionCounts.vibes > 0
 
     const handleSceneClick = (e: React.MouseEvent) => {
         if (isEditMode) {
@@ -1179,6 +1156,51 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
                             <Button variant="secondary" size="icon" className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/5" onClick={() => onIncrement()} disabled={disabled}> <Plus className="h-3 w-3" /> </Button>
                         </div>
                     </div>
+                    {sceneCharacterAdditionsEnabled && !isEditMode && !isOverlay && (
+                        <div
+                            className="border-t border-border/60 bg-card px-2.5 py-2"
+                            onClick={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center gap-1.5">
+                                <UserPlus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <div className="flex-1 min-w-0 flex items-center gap-1 overflow-hidden">
+                                    {!hasAdditions ? (
+                                        <span className="text-[11px] text-muted-foreground truncate">
+                                            {t('sceneCharacterAddition.emptyInline', 'No scene characters')}
+                                        </span>
+                                    ) : (
+                                        <>
+                                            {additionCounts.characters > 0 && (
+                                                <span className="min-w-5 rounded bg-sky-500/15 px-1.5 py-0.5 text-center text-[10px] text-sky-600 dark:text-sky-300">
+                                                    {additionCounts.characters}
+                                                </span>
+                                            )}
+                                            {additionCounts.refs > 0 && (
+                                                <span className="min-w-5 rounded bg-emerald-500/15 px-1.5 py-0.5 text-center text-[10px] text-emerald-600 dark:text-emerald-300">
+                                                    {additionCounts.refs}
+                                                </span>
+                                            )}
+                                            {additionCounts.vibes > 0 && (
+                                                <span className="min-w-5 rounded bg-violet-500/15 px-1.5 py-0.5 text-center text-[10px] text-violet-600 dark:text-violet-300">
+                                                    {additionCounts.vibes}
+                                                </span>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 rounded-md"
+                                    onClick={() => onOpenSceneCharacterAddition?.(scene.id)}
+                                    disabled={disabled}
+                                >
+                                    <Plus className="h-3 w-3" />
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </ContextMenuTrigger>
             <ContextMenuContent className="w-40">
