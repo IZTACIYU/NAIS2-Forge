@@ -496,13 +496,13 @@ export default function MainMode() {
                                 <Users className="h-4 w-4 mr-2" />
                                 {t('actions.addAsRef', '이미지 참조')}
                             </ContextMenuItem>
-                            <ContextMenuItem onClick={handleOpenFolder}>
-                                <FolderOpen className="h-4 w-4 mr-2" />
-                                {t('actions.openFolder', '폴더 열기')}
-                            </ContextMenuItem>
                             <ContextMenuItem onClick={handleLoadMetadata}>
                                 <ImageIcon className="h-4 w-4 mr-2" />
                                 {t('metadata.loadFromImage', '메타데이터 불러오기')}
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={handleOpenFolder}>
+                                <FolderOpen className="h-4 w-4 mr-2" />
+                                {t('actions.openFolder', '폴더 열기')}
                             </ContextMenuItem>
                         </ContextMenuContent>
                     </ContextMenu>
