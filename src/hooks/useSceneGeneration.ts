@@ -15,6 +15,33 @@ import { useCharacterStore } from '@/stores/character-store'
 
 // Module-level variable to prevent concurrent processing
 let isProcessing = false
+let repeatRuntime: {
+    sessionId: number
+    presetId: string
+    queueSnapshot: Record<string, number>
+    characterIds: string[]
+    currentIndex: number
+    originalEnabled: Record<string, boolean>
+} | null = null
+
+const restoreCharacterRepeatState = () => {
+    if (!repeatRuntime) return
+    const { originalEnabled } = repeatRuntime
+    const characterStore = useCharacterPromptStore.getState()
+    characterStore.characters.forEach(char => {
+        if (Object.prototype.hasOwnProperty.call(originalEnabled, char.id)) {
+            characterStore.updateCharacter(char.id, { enabled: originalEnabled[char.id] })
+        }
+    })
+    repeatRuntime = null
+}
+
+const activateRepeatCharacter = (characterId: string) => {
+    const characterStore = useCharacterPromptStore.getState()
+    characterStore.characters.forEach(char => {
+        characterStore.updateCharacter(char.id, { enabled: char.id === characterId })
+    })
+}
 
 export function useSceneGeneration() {
     const { t } = useTranslation()
@@ -58,6 +85,7 @@ export function useSceneGeneration() {
             // Check if cancelled - if so, stop generation after current API call completes
             const sceneState = useSceneStore.getState()
             if (sceneState.isCancelling || !isGenerating) {
+                restoreCharacterRepeatState()
                 // If scene generation stopped or cancelled, ensure global mode is cleared
                 if (useGenerationStore.getState().generatingMode === 'scene') {
                     useGenerationStore.getState().setGeneratingMode(null)
@@ -69,6 +97,7 @@ export function useSceneGeneration() {
 
             // Conflict Check: If Main Mode is generating, stop Scene Mode
             if (useGenerationStore.getState().generatingMode === 'main') {
+                restoreCharacterRepeatState()
                 setIsGenerating(false)
                 isProcessing = false  // CRITICAL: Reset flag on early return
                 toast({
@@ -85,6 +114,7 @@ export function useSceneGeneration() {
             }
 
             if (!activePresetId || !token) {
+                restoreCharacterRepeatState()
                 setIsGenerating(false)
                 isProcessing = false  // CRITICAL: Reset flag on early return
                 return
@@ -96,9 +126,53 @@ export function useSceneGeneration() {
                 return
             }
 
+            const settingsState = useSettingsStore.getState()
+            const currentSceneState = useSceneStore.getState()
+            const availableCharacterIds = new Set(useCharacterPromptStore.getState().characters.map(char => char.id))
+            const repeatCharacterIds = settingsState.expertSceneCharacterRepeatEnabled
+                ? currentSceneState.sceneCharacterRepeatQueue.filter(id => availableCharacterIds.has(id))
+                : []
+
+            if (repeatCharacterIds.length > 0 && (!repeatRuntime || repeatRuntime.sessionId !== sessionId || repeatRuntime.presetId !== activePresetId)) {
+                const preset = currentSceneState.presets.find(p => p.id === activePresetId)
+                const queueSnapshot = Object.fromEntries((preset?.scenes || [])
+                    .filter(scene => scene.queueCount > 0)
+                    .map(scene => [scene.id, scene.queueCount]))
+                const totalPerCharacter = Object.values(queueSnapshot).reduce((sum, count) => sum + count, 0)
+
+                if (totalPerCharacter > 0) {
+                    repeatRuntime = {
+                        sessionId,
+                        presetId: activePresetId,
+                        queueSnapshot,
+                        characterIds: repeatCharacterIds,
+                        currentIndex: 0,
+                        originalEnabled: Object.fromEntries(useCharacterPromptStore.getState().characters.map(char => [char.id, char.enabled])),
+                    }
+                    activateRepeatCharacter(repeatCharacterIds[0])
+                    setGenerationProgress(0, totalPerCharacter * repeatCharacterIds.length)
+                }
+            }
+
             const scene = decrementFirstQueuedScene(activePresetId)
 
             if (!scene) {
+                if (
+                    repeatRuntime &&
+                    repeatRuntime.sessionId === sessionId &&
+                    repeatRuntime.presetId === activePresetId &&
+                    !useSceneStore.getState().isCancelling &&
+                    repeatRuntime.currentIndex < repeatRuntime.characterIds.length - 1
+                ) {
+                    repeatRuntime.currentIndex += 1
+                    activateRepeatCharacter(repeatRuntime.characterIds[repeatRuntime.currentIndex])
+                    useSceneStore.getState().restoreQueueSnapshot(activePresetId, repeatRuntime.queueSnapshot)
+                    isProcessing = false
+                    processQueue(sessionId)
+                    return
+                }
+
+                restoreCharacterRepeatState()
                 setIsGenerating(false)
                 // Global mode will be cleared by the effect or next loop
                 useGenerationStore.getState().setGeneratingMode(null)
@@ -422,6 +496,7 @@ export function useSceneGeneration() {
                     }
                 } else {
                     toast({ title: t('common.error', '오류'), description: errorMessage, variant: 'destructive' })
+                    restoreCharacterRepeatState()
                     setIsGenerating(false)
                 }
             }
@@ -441,6 +516,7 @@ export function useSceneGeneration() {
     useEffect(() => {
         if (!isGenerating) {
             isProcessing = false
+            restoreCharacterRepeatState()
         }
     }, [isGenerating])
 

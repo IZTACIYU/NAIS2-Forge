@@ -73,10 +73,13 @@ interface SceneState {
 
     // Actions - Generation
     decrementFirstQueuedScene: (presetId: string) => SceneCard | null
+    restoreQueueSnapshot: (presetId: string, queueCounts: Record<string, number>) => void
 
     // Generation Status
     isGenerating: boolean
     isCancelling: boolean  // True when cancel requested but API call still in progress
+    sceneCharacterRepeatQueue: string[]
+    setSceneCharacterRepeatQueue: (characterIds: string[]) => void
     setIsGenerating: (isGenerating: boolean) => void
     cancelSceneGeneration: () => void  // Request cancel (keeps button locked until API completes)
     generationSessionId: number  // Incremented on each new generation session to invalidate old ones
@@ -632,9 +635,23 @@ export const useSceneStore = create<SceneState>()(
                 get().setQueueCount(presetId, queuedScene.id, queuedScene.queueCount - 1)
                 return queuedScene
             },
+            restoreQueueSnapshot: (presetId, queueCounts) => {
+                set(state => ({
+                    presets: state.presets.map(p =>
+                        p.id === presetId
+                            ? {
+                                ...p,
+                                scenes: p.scenes.map(s => ({ ...s, queueCount: queueCounts[s.id] || 0 })),
+                            }
+                            : p
+                    ),
+                }))
+            },
 
             isGenerating: false,
             isCancelling: false,
+            sceneCharacterRepeatQueue: [],
+            setSceneCharacterRepeatQueue: (sceneCharacterRepeatQueue) => set({ sceneCharacterRepeatQueue }),
             setIsGenerating: (isGenerating) => {
                 // When stopping generation, increment session ID to invalidate any in-progress operations
                 if (!isGenerating) {

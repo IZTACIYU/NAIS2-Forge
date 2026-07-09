@@ -108,6 +108,15 @@
     "exportSelectedZip": "Export selected scene images as ZIP",
     "importJson": "Import JSON",
     "exportJson": "Export scene data as JSON",
+    "characterRepeat": {
+      "open": "Character repeat queue",
+      "title": "Character Repeat",
+      "description": "Run the current scene queue once for each character in order.",
+      "characters": "Characters",
+      "queue": "Queue",
+      "noCharacters": "No characters",
+      "emptyQueue": "Add characters in run order."
+    },
     "thumbnailLayout": "Toggle vertical/horizontal/square thumbnails",
     "deleteNonFavorites": "Delete Non-Favorites",
     "deletedNonFavorites": "{{count}} images deleted",
@@ -567,6 +576,12 @@
         "layoutDesc": "Switch prompt and negative with tabs, and separate costume prompt so each part can be toggled independently.",
         "variantsTitle": "Character Version Stack",
         "variantsDesc": "Keep up to five versions inside one character card and switch between them like pages."
+      },
+      "sceneMode": {
+        "header": "Scene Mode",
+        "description": "Advanced tools for batch scene generation.",
+        "characterRepeatTitle": "Character Repeat",
+        "characterRepeatDesc": "Adds a lightweight character queue to Scene Mode so the same scene reservations can run for multiple characters in order."
       },
       "cloudflare": {
       "header": "Cloudflare",

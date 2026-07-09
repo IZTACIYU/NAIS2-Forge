@@ -73,6 +73,9 @@ import {
     ImageOff,
     GripVertical,
     ArrowUpDown,
+    User,
+    ArrowUp,
+    ArrowDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -105,7 +108,27 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover'
 import { ResolutionSelector, Resolution } from '@/components/ui/ResolutionSelector'
+import { useSettingsStore } from '@/stores/settings-store'
+import { useCharacterPromptStore, CharacterPrompt } from '@/stores/character-prompt-store'
+
+const VARIANT_NAME_PATTERN = /\s-\s([a-z0-9]{6})\s-\s(\d+)$/i
+const LEGACY_VARIANT_HASH_PATTERN = /\s-\s([a-z0-9]{6})$/i
+
+const getCharacterDisplayName = (char?: Pick<CharacterPrompt, 'name' | 'id'>) => {
+    if (!char) return 'Character'
+    const rawName = char.name?.trim() || 'Character'
+    const match = rawName.match(VARIANT_NAME_PATTERN)
+    if (match) return rawName.slice(0, match.index).trim() || 'Character'
+    const legacy = rawName.match(LEGACY_VARIANT_HASH_PATTERN)
+    if (legacy) return rawName.slice(0, legacy.index).replace(/\d+$/g, '').trim() || 'Character'
+    return rawName
+}
 
 const dropAnimation = {
     sideEffects: defaultDropAnimationSideEffects({
@@ -232,9 +255,27 @@ export default function SceneMode() {
     const addAllToQueue = useSceneStore(s => s.addAllToQueue)
     const clearAllQueue = useSceneStore(s => s.clearAllQueue)
     const getTotalQueueCount = useSceneStore(s => s.getTotalQueueCount)
+    const sceneCharacterRepeatQueue = useSceneStore(s => s.sceneCharacterRepeatQueue)
+    const setSceneCharacterRepeatQueue = useSceneStore(s => s.setSceneCharacterRepeatQueue)
     const batchCount = useGenerationStore(s => s.batchCount)
+    const expertSceneCharacterRepeatEnabled = useSettingsStore(s => s.expertSceneCharacterRepeatEnabled)
+    const characterPrompts = useCharacterPromptStore(s => s.characters)
 
     const totalQueue = activePresetId ? getTotalQueueCount(activePresetId) : 0
+    const queuedCharacters = sceneCharacterRepeatQueue
+        .map(id => characterPrompts.find(char => char.id === id))
+        .filter((char): char is CharacterPrompt => Boolean(char))
+    const addCharacterToRepeatQueue = (id: string) => {
+        setSceneCharacterRepeatQueue([...sceneCharacterRepeatQueue, id])
+    }
+    const removeCharacterFromRepeatQueue = (index: number) => {
+        setSceneCharacterRepeatQueue(sceneCharacterRepeatQueue.filter((_, i) => i !== index))
+    }
+    const moveCharacterRepeatQueue = (index: number, direction: -1 | 1) => {
+        const nextIndex = index + direction
+        if (nextIndex < 0 || nextIndex >= sceneCharacterRepeatQueue.length) return
+        setSceneCharacterRepeatQueue(arrayMove(sceneCharacterRepeatQueue, index, nextIndex))
+    }
 
     // Edit Mode (Multi-Select)
     const isEditMode = useSceneStore(s => s.isEditMode)
@@ -646,6 +687,74 @@ export default function SceneMode() {
                                 <Edit3 className="h-4 w-4" />
                             </Button>
                         </Tip>
+                        {expertSceneCharacterRepeatEnabled && (
+                            <Popover>
+                                <Tip content={t('scene.characterRepeat.open', 'Character repeat queue')}>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" size="icon" className="relative rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" disabled={isGenerating}>
+                                            <User className="h-4 w-4" />
+                                            {sceneCharacterRepeatQueue.length > 0 && (
+                                                <span className="absolute -right-1 -top-1 min-w-4 h-4 px-1 rounded-full bg-primary text-[10px] leading-4 text-primary-foreground">
+                                                    {sceneCharacterRepeatQueue.length}
+                                                </span>
+                                            )}
+                                        </Button>
+                                    </PopoverTrigger>
+                                </Tip>
+                                <PopoverContent align="end" className="w-[520px] p-4">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <h3 className="text-sm font-semibold">{t('scene.characterRepeat.title', 'Character Repeat')}</h3>
+                                            <p className="text-xs text-muted-foreground mt-1">{t('scene.characterRepeat.description', 'Run the current scene queue once for each character in order.')}</p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-2">
+                                                <div className="text-xs font-medium text-muted-foreground">{t('scene.characterRepeat.characters', 'Characters')}</div>
+                                                <div className="max-h-72 overflow-y-auto rounded-lg border border-border/50 bg-muted/20 p-1">
+                                                    {characterPrompts.length === 0 ? (
+                                                        <div className="p-3 text-xs text-muted-foreground">{t('scene.characterRepeat.noCharacters', 'No characters')}</div>
+                                                    ) : characterPrompts.map(char => (
+                                                        <button key={char.id} type="button" className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted" onClick={() => addCharacterToRepeatQueue(char.id)}>
+                                                            <span className="min-w-0 truncate">{getCharacterDisplayName(char)}</span>
+                                                            <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="text-xs font-medium text-muted-foreground">{t('scene.characterRepeat.queue', 'Queue')}</div>
+                                                    {sceneCharacterRepeatQueue.length > 0 && (
+                                                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setSceneCharacterRepeatQueue([])}>
+                                                            {t('common.clear', 'Clear')}
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                                <div className="max-h-72 overflow-y-auto rounded-lg border border-border/50 bg-muted/20 p-1">
+                                                    {queuedCharacters.length === 0 ? (
+                                                        <div className="p-3 text-xs text-muted-foreground">{t('scene.characterRepeat.emptyQueue', 'Add characters in run order.')}</div>
+                                                    ) : queuedCharacters.map((char, index) => (
+                                                        <div key={`${char.id}-${index}`} className="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm">
+                                                            <span className="w-5 shrink-0 text-xs text-muted-foreground">{index + 1}</span>
+                                                            <span className="min-w-0 flex-1 truncate">{getCharacterDisplayName(char)}</span>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveCharacterRepeatQueue(index, -1)} disabled={index === 0}>
+                                                                <ArrowUp className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveCharacterRepeatQueue(index, 1)} disabled={index === queuedCharacters.length - 1}>
+                                                                <ArrowDown className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => removeCharacterFromRepeatQueue(index)}>
+                                                                <X className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                        )}
                         <div className="flex items-center bg-muted/30 rounded-xl p-1 border border-white/5">
                             <Tip content={t('scene.addAllQueue', '모든 씬 생성 대기열에 추가')}>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-white/10" onClick={() => activePresetId && addAllToQueue(activePresetId, batchCount)} disabled={scenes.length === 0 || isGenerating}>

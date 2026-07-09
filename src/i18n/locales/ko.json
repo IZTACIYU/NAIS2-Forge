@@ -108,6 +108,15 @@
     "exportSelectedZip": "선택한 씬 이미지 ZIP 내보내기",
     "importJson": "JSON 불러오기",
     "exportJson": "씬 데이터를 JSON으로 내보내기",
+    "characterRepeat": {
+      "open": "\uce90\ub9ad\ud130 \ubc18\ubcf5 \ud050",
+      "title": "\uce90\ub9ad\ud130 \ubc18\ubcf5",
+      "description": "\ud604\uc7ac \uc52c \uc608\uc57d\uc744 \uc120\ud0dd\ud55c \uce90\ub9ad\ud130 \uc21c\uc11c\ub300\ub85c \ud55c \ubc88\uc529 \uc2e4\ud589\ud569\ub2c8\ub2e4.",
+      "characters": "\uce90\ub9ad\ud130",
+      "queue": "\ud050",
+      "noCharacters": "\uce90\ub9ad\ud130 \uc5c6\uc74c",
+      "emptyQueue": "\uc2e4\ud589\ud560 \uc21c\uc11c\ub300\ub85c \uce90\ub9ad\ud130\ub97c \ucd94\uac00\ud558\uc138\uc694."
+    },
     "thumbnailLayout": "\uc138\ub85c/\uac00\ub85c/\uc815\uc0ac\uac01\ud615 \uc378\ub124\uc77c \uc804\ud658",
     "deleteNonFavorites": "즐겨찾기 제외 삭제",
     "deletedNonFavorites": "{{count}}개 이미지 삭제됨",
@@ -597,6 +606,12 @@
         "layoutDesc": "프롬프트와 네거티브를 탭으로 전환하고, 의상 프롬프트를 분리해 개별로 켜고 끄게 합니다.",
         "variantsTitle": "캐릭터 버전 스택",
         "variantsDesc": "하나의 캐릭터 카드 안에 최대 5개의 버전을 묶어, 페이지를 넘기듯 전환합니다."
+      },
+      "sceneMode": {
+        "header": "\uc52c \ubaa8\ub4dc",
+        "description": "\uc52c \uc77c\uad04 \uc0dd\uc131\uc744 \uc704\ud55c \uc219\ub828\uc790 \uae30\ub2a5\uc785\ub2c8\ub2e4.",
+        "characterRepeatTitle": "\uce90\ub9ad\ud130 \ubc18\ubcf5",
+        "characterRepeatDesc": "\uc52c \ubaa8\ub4dc\uc5d0 \uac00\ubcbc\uc6b4 \uce90\ub9ad\ud130 \ud050\ub97c \ucd94\uac00\ud574, \uac19\uc740 \uc52c \uc608\uc57d\uc744 \uc5ec\ub7ec \uce90\ub9ad\ud130\uc5d0\uac8c \uc21c\uc11c\ub300\ub85c \uc2e4\ud589\ud569\ub2c8\ub2e4."
       },
       "cloudflare": {
       "header": "Cloudflare",
