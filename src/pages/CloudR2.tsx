@@ -44,6 +44,7 @@ export default function CloudR2() {
         r2SecretAccessKey,
         r2Bucket,
         r2PublicBaseUrl,
+        r2ViewMode,
     } = useSettingsStore()
     const config = useMemo(() => ({
         accountId: r2AccountId,
@@ -148,6 +149,8 @@ export default function CloudR2() {
         ? buildPublicUrl(r2PublicBaseUrl, selected.key)
         : ''
     const isImage = selected && imageExtensions.some(ext => selected.name.toLowerCase().endsWith(ext))
+    const visibleFiles = r2ViewMode === 'folders' ? [] : files
+    const showThumbnails = r2ViewMode === 'thumbnails'
 
     if (!expertCloudR2Enabled) {
         return <div className="h-full flex items-center justify-center text-muted-foreground">{t('cloudR2.disabled')}</div>
@@ -221,18 +224,20 @@ export default function CloudR2() {
                     {loading && !files.length && !folders.length ? (
                         <div className="h-full flex items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" />{t('common.loading', 'Loading')}</div>
                     ) : (
-                        <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
-                            {files.map(file => {
+                        <div className={cn(r2ViewMode === 'list' ? 'space-y-2' : 'grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3')}>
+                            {visibleFiles.map(file => {
                                 const image = imageExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
                                 return (
                                     <ContextMenu key={file.key}>
                                         <ContextMenuTrigger asChild>
-                                            <button onClick={() => setSelected(file)} className={cn('min-w-0 rounded-lg border border-border/50 bg-card/40 p-3 text-left hover:bg-muted/50 transition-colors', selected?.key === file.key && 'ring-1 ring-primary')}>
-                                                <div className="aspect-square rounded-md bg-muted/40 flex items-center justify-center mb-2 overflow-hidden">
-                                                    {image && r2PublicBaseUrl ? <img src={buildPublicUrl(r2PublicBaseUrl, file.key)} className="w-full h-full object-cover" /> : image ? <ImageIcon className="h-8 w-8 text-primary" /> : <File className="h-8 w-8 text-muted-foreground" />}
+                                            <button onClick={() => setSelected(file)} className={cn('min-w-0 rounded-lg border border-border/50 bg-card/40 p-3 text-left hover:bg-muted/50 transition-colors', r2ViewMode === 'list' && 'flex items-center gap-3', selected?.key === file.key && 'ring-1 ring-primary')}>
+                                                <div className={cn('rounded-md bg-muted/40 flex items-center justify-center overflow-hidden shrink-0', r2ViewMode === 'list' ? 'h-10 w-10 mb-0' : 'aspect-square mb-2')}>
+                                                    {image && showThumbnails && r2PublicBaseUrl ? <img src={buildPublicUrl(r2PublicBaseUrl, file.key)} className="w-full h-full object-cover" /> : image ? <ImageIcon className="h-8 w-8 text-primary" /> : <File className="h-8 w-8 text-muted-foreground" />}
                                                 </div>
-                                                <div className="text-sm font-medium truncate">{file.name}</div>
-                                                <div className="text-xs text-muted-foreground">{formatSize(file.size)}</div>
+                                                <div className="min-w-0">
+                                                    <div className="text-sm font-medium truncate">{file.name}</div>
+                                                    <div className="text-xs text-muted-foreground">{formatSize(file.size)}</div>
+                                                </div>
                                             </button>
                                         </ContextMenuTrigger>
                                         <ContextMenuContent className="w-36">

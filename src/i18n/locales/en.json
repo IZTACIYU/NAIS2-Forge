@@ -568,7 +568,16 @@
         "variantsTitle": "Character Version Stack",
         "variantsDesc": "Keep up to five versions inside one character card and switch between them like pages."
       },
-      "cloudR2": {
+      "cloudflare": {
+      "header": "Cloudflare",
+      "description": "Experimental options for Cloudflare R2 and public image routing."
+    },
+    "cloudR2": {
+        "viewModeTitle": "R2 display mode",
+        "viewModeDesc": "Choose how the R2 manager displays files to balance image loading cost and browsing convenience.",
+        "viewFolders": "Folders only",
+        "viewList": "Name list",
+        "viewThumbnails": "Image preview",
         "title": "Cloudflare R2 Manager",
         "desc": "Adds an R2 cloud management tab for folder and image upload/delete workflows."
       }

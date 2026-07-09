@@ -81,7 +81,7 @@ export default function Settings() {
     const { t, i18n } = useTranslation()
     const { theme, setTheme } = useThemeStore()
     const { token, isVerified, anlas, isLoading, verifyAndSave } = useAuthStore()
-    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
+    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
     const { bindings, enabled: shortcutsEnabled, setBinding, resetBinding, resetAllBindings, setEnabled: setShortcutsEnabled } = useShortcutStore()
     const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey)
 
@@ -1126,7 +1126,17 @@ export default function Settings() {
                                     />
                                 </div>
 
-                                <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-4">
+                            </div>
+
+                            <div className="space-y-1">
+                                <h3 className="text-sm font-semibold">{t('settingsPage.expert.cloudflare.header')}</h3>
+                                <p className="text-xs text-muted-foreground">
+                                    {t('settingsPage.expert.cloudflare.description')}
+                                </p>
+                            </div>
+
+                            <div className="border border-border/50 rounded-xl p-6 bg-card/30 space-y-5">
+                                <div className="flex items-center justify-between gap-4">
                                     <div>
                                         <label className="text-sm font-medium">{t('settingsPage.expert.cloudR2.title')}</label>
                                         <p className="text-xs text-muted-foreground mt-1">
@@ -1138,6 +1148,27 @@ export default function Settings() {
                                         onChange={(e) => setExpertCloudR2Enabled(e.target.checked)}
                                     />
                                 </div>
+
+                                {expertCloudR2Enabled && (
+                                    <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-4">
+                                        <div>
+                                            <label className="text-sm font-medium">{t('settingsPage.expert.cloudR2.viewModeTitle')}</label>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                {t('settingsPage.expert.cloudR2.viewModeDesc')}
+                                            </p>
+                                        </div>
+                                        <Select value={r2ViewMode} onValueChange={(value) => setR2ViewMode(value as 'folders' | 'list' | 'thumbnails')}>
+                                            <SelectTrigger className="w-44">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="folders">{t('settingsPage.expert.cloudR2.viewFolders')}</SelectItem>
+                                                <SelectItem value="list">{t('settingsPage.expert.cloudR2.viewList')}</SelectItem>
+                                                <SelectItem value="thumbnails">{t('settingsPage.expert.cloudR2.viewThumbnails')}</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
                             </div>
                         </section>
                     )}

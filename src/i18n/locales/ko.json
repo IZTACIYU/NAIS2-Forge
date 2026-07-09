@@ -598,7 +598,16 @@
         "variantsTitle": "캐릭터 버전 스택",
         "variantsDesc": "하나의 캐릭터 카드 안에 최대 5개의 버전을 묶어, 페이지를 넘기듯 전환합니다."
       },
-      "cloudR2": {
+      "cloudflare": {
+      "header": "Cloudflare",
+      "description": "Cloudflare R2\uc640 \uacf5\uac1c \uc774\ubbf8\uc9c0 \ub77c\uc6b0\ud305 \uad00\ub828 \uc2e4\ud5d8 \uae30\ub2a5\uc785\ub2c8\ub2e4."
+    },
+    "cloudR2": {
+        "viewModeTitle": "R2 \ud45c\uc2dc \ubc29\uc2dd",
+        "viewModeDesc": "\uc774\ubbf8\uc9c0 \ub85c\ub529 \ube44\uc6a9\uacfc \ud0d0\uc0c9 \ud3b8\uc758\uc5d0 \ub9de\ucdb0 R2 \uad00\ub9ac\uc790 \ud45c\uc2dc \ubc29\uc2dd\uc744 \uc120\ud0dd\ud569\ub2c8\ub2e4.",
+        "viewFolders": "\ud3f4\ub354\ub9cc",
+        "viewList": "\uc774\ub984 \ubaa9\ub85d",
+        "viewThumbnails": "\uc774\ubbf8\uc9c0 \ubbf8\ub9ac\ubcf4\uae30",
         "title": "Cloudflare R2 관리자",
         "desc": "상단 탭에 R2 클라우드 관리 화면을 추가하여 폴더와 이미지 파일을 업로드/삭제합니다."
       }

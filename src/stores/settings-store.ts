@@ -44,6 +44,7 @@ interface SettingsState {
     expertCharacterPromptLayoutEnabled: boolean
     expertCharacterPromptVariantsEnabled: boolean
     expertCloudR2Enabled: boolean
+    r2ViewMode: 'folders' | 'list' | 'thumbnails'
 
     // R2 settings
     r2AccountId: string
@@ -71,6 +72,7 @@ interface SettingsState {
     setExpertCharacterPromptLayoutEnabled: (enabled: boolean) => void
     setExpertCharacterPromptVariantsEnabled: (enabled: boolean) => void
     setExpertCloudR2Enabled: (enabled: boolean) => void
+    setR2ViewMode: (mode: 'folders' | 'list' | 'thumbnails') => void
     setR2Config: (config: Partial<Pick<SettingsState, 'r2AccountId' | 'r2AccessKeyId' | 'r2SecretAccessKey' | 'r2Bucket' | 'r2PublicBaseUrl'>>) => void
 }
 
@@ -96,6 +98,7 @@ export const useSettingsStore = create<SettingsState>()(
             expertCharacterPromptLayoutEnabled: false,
             expertCharacterPromptVariantsEnabled: false,
             expertCloudR2Enabled: false,
+            r2ViewMode: 'list',
             r2AccountId: '',
             r2AccessKeyId: '',
             r2SecretAccessKey: '',
@@ -135,6 +138,7 @@ export const useSettingsStore = create<SettingsState>()(
             setExpertCharacterPromptLayoutEnabled: (expertCharacterPromptLayoutEnabled) => set({ expertCharacterPromptLayoutEnabled }),
             setExpertCharacterPromptVariantsEnabled: (expertCharacterPromptVariantsEnabled) => set({ expertCharacterPromptVariantsEnabled }),
             setExpertCloudR2Enabled: (expertCloudR2Enabled) => set({ expertCloudR2Enabled }),
+            setR2ViewMode: (r2ViewMode) => set({ r2ViewMode }),
             setR2Config: (config) => set(config),
         }),
         {
