@@ -9,6 +9,8 @@ import { toast } from '@/components/ui/use-toast'
 import { createR2Folder, hasR2Config, listR2Objects, R2Config, R2ObjectInfo, uploadR2Object } from '@/services/r2-api'
 import { useSettingsStore } from '@/stores/settings-store'
 import { SceneCard, SceneImage } from '@/stores/scene-store'
+import { bytesToImageDataUrl } from '@/lib/exif-stripper'
+import { exifFormatExtension, stripExifForUpload } from '@/lib/exif-actions'
 
 interface SceneR2DirectUploadDialogProps {
     open: boolean
@@ -66,6 +68,8 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
         r2AccessKeyId,
         r2SecretAccessKey,
         r2Bucket,
+        expertR2ExifRemovalEnabled,
+        exifOutputFormat,
     } = useSettingsStore()
     const config: R2Config = useMemo(() => ({
         accountId: r2AccountId,
@@ -154,6 +158,11 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
         return bytesToBase64(await readFile(image.url))
     }
 
+    const readImageDataUrl = async (image: SceneImage) => {
+        if (image.url.startsWith('data:')) return image.url
+        return bytesToImageDataUrl(await readFile(image.url), image.url)
+    }
+
     const handleUpload = async () => {
         if (!ready || candidates.length === 0) return
         setUploading(true)
@@ -161,11 +170,21 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
         try {
             for (let index = 0; index < candidates.length; index++) {
                 const candidate = candidates[index]
-                const ext = getExt(candidate.image.url)
+                let ext = getExt(candidate.image.url)
                 const baseName = sanitizeName(candidate.sceneName)
+                let contentBase64: string
+                let contentType: string
+                if (expertR2ExifRemovalEnabled) {
+                    const processed = await stripExifForUpload(await readImageDataUrl(candidate.image))
+                    ext = processed.extension
+                    contentBase64 = processed.contentBase64
+                    contentType = processed.contentType
+                } else {
+                    contentBase64 = await readImageBase64(candidate.image)
+                    contentType = getContentType(ext)
+                }
                 const key = `${prefix}${baseName}.${ext}`
-                const base64 = await readImageBase64(candidate.image)
-                await uploadR2Object(config, key, base64, getContentType(ext))
+                await uploadR2Object(config, key, contentBase64, contentType)
                 setProgress(Math.round(((index + 1) / candidates.length) * 100))
             }
             listCache.clear()
@@ -244,7 +263,9 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
                                         {t('scene.noImagesToExport', 'No images to upload')}
                                     </div>
                                 ) : candidates.map(candidate => {
-                                    const ext = getExt(candidate.image.url)
+                                    const ext = expertR2ExifRemovalEnabled
+                                        ? exifFormatExtension(exifOutputFormat)
+                                        : getExt(candidate.image.url)
                                     return (
                                         <div key={candidate.sceneId} className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-background/40 px-3 py-2 text-sm">
                                             <span className="min-w-0 truncate">{candidate.sceneName}</span>

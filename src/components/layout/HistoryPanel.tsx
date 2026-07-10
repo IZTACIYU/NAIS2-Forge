@@ -30,6 +30,7 @@ import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/SceneR2DirectUploadDialog'
 import { useExifStore } from '@/stores/exif-store'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
+import { processAndSaveExifImage } from '@/lib/exif-actions'
 
 // Convert ArrayBuffer to base64 without stack overflow
 const arrayBufferToBase64 = (buffer: Uint8Array): string => {
@@ -62,6 +63,8 @@ interface HistoryImageItemProps {
     onRegenerate: (image: SavedImage) => void
     onOpenSmartTools: (image: SavedImage) => void
     onOpenExifManager: (image: SavedImage) => void
+    onExifDirectAction: (image: SavedImage) => void
+    showExifDirectAction: boolean
     showExifQuickAction: boolean
     onAddAsReference: (image: SavedImage) => void
     onInpaint: (image: SavedImage) => void
@@ -75,7 +78,7 @@ interface HistoryImageItemProps {
 const HistoryImageItem = memo(function HistoryImageItem({
     image, thumbnail, index, getTypeIcon,
     onImageClick, onDelete, onSaveAs, onCopy, onRegenerate,
-    onOpenSmartTools, onOpenExifManager, showExifQuickAction, onAddAsReference, onInpaint, onI2I, onOpenFolder, onR2DirectUpload, onLoadMetadata,
+    onOpenSmartTools, onOpenExifManager, onExifDirectAction, showExifDirectAction, showExifQuickAction, onAddAsReference, onInpaint, onI2I, onOpenFolder, onR2DirectUpload, onLoadMetadata,
     onLoadComplete
 }: HistoryImageItemProps) {
     const { t } = useTranslation()
@@ -192,6 +195,12 @@ const HistoryImageItem = memo(function HistoryImageItem({
                     <RotateCcw className="h-4 w-4 mr-2" />
                     {t('actions.regenerate', '재생성')}
                 </ContextMenuItem>
+                {showExifDirectAction && (
+                    <ContextMenuItem onClick={() => onExifDirectAction(image)}>
+                        <Eraser className="h-4 w-4 mr-2" />
+                        {t('exif.directAction')}
+                    </ContextMenuItem>
+                )}
                 {showExifQuickAction && (
                     <ContextMenuItem onClick={() => onOpenExifManager(image)}>
                         <Eraser className="h-4 w-4 mr-2" />
@@ -241,7 +250,7 @@ const HistoryImageItem = memo(function HistoryImageItem({
 export function HistoryPanel() {
     const { t } = useTranslation()
     const { setPreviewImage, isGenerating, setIsGenerating, setSourceImage, setI2IMode } = useGenerationStore()
-    const { savePath, useAbsolutePath, expertExifManagerEnabled, expertExifQuickActionEnabled } = useSettingsStore()
+    const { savePath, useAbsolutePath, expertExifDirectActionEnabled, expertExifManagerEnabled, expertExifQuickActionEnabled } = useSettingsStore()
     const [savedImages, setSavedImages] = useState<SavedImage[]>([])
     const [imageThumbnails, setImageThumbnails] = useState<Record<string, string>>({})
     const [isLoading, setIsLoading] = useState(false)
@@ -918,17 +927,33 @@ export function HistoryPanel() {
         }
     }
 
+    const getExifSource = (image: SavedImage) => image.isTemporary
+        ? Promise.resolve(imageThumbnails[image.path])
+        : readFile(image.path).then(data => bytesToImageDataUrl(data, image.name))
+
     const handleOpenExifManager = async (image: SavedImage) => {
         setIsLoading(true)
         try {
-            const source = image.isTemporary
-                ? imageThumbnails[image.path]
-                : await bytesToImageDataUrl(await readFile(image.path), image.name)
+            const source = await getExifSource(image)
             if (!source) return
             useExifStore.getState().setSource(source, image.name)
             navigate('/exif')
         } catch (e) {
             toast({ title: t('exif.loadFailed'), variant: 'destructive' })
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const handleExifDirectAction = async (image: SavedImage) => {
+        setIsLoading(true)
+        try {
+            const source = await getExifSource(image)
+            if (!source) return
+            const filePath = await processAndSaveExifImage(source, image.name)
+            toast({ title: t('exif.autoSaved'), description: filePath, variant: 'success' })
+        } catch (error) {
+            toast({ title: t('exif.failed'), description: String(error), variant: 'destructive' })
         } finally {
             setIsLoading(false)
         }
@@ -1064,6 +1089,8 @@ export function HistoryPanel() {
                                 onRegenerate={handleRegenerate}
                                 onOpenSmartTools={handleOpenSmartTools}
                                 onOpenExifManager={handleOpenExifManager}
+                                onExifDirectAction={handleExifDirectAction}
+                                showExifDirectAction={expertExifDirectActionEnabled}
                                 showExifQuickAction={expertExifManagerEnabled && expertExifQuickActionEnabled}
                                 onAddAsReference={handleAddAsReference}
                                 onInpaint={handleInpaint}

@@ -2,34 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, Eraser, ImagePlus, Trash2, Upload } from 'lucide-react'
 import { save } from '@tauri-apps/plugin-dialog'
-import { exists, mkdir, readDir, writeFile } from '@tauri-apps/plugin-fs'
-import { join, pictureDir } from '@tauri-apps/api/path'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/use-toast'
 import { useExifStore } from '@/stores/exif-store'
 import { useSettingsStore } from '@/stores/settings-store'
-import { stripImageMetadata, StrippedImage, ExifOutputFormat } from '@/lib/exif-stripper'
-
-const isAbsolutePath = (path: string) => /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('/')
-const safeFileName = (name: string) => name.replace(/[<>:"/\\|?*]/g, '_').trim()
-
-const getAvailableFilePath = async (directory: string, fileName: string) => {
-    const existingNames = new Set(
-        (await readDir(directory)).map(entry => entry.name.toLowerCase())
-    )
-    if (!existingNames.has(fileName.toLowerCase())) return join(directory, fileName)
-
-    const extensionIndex = fileName.lastIndexOf('.')
-    const baseName = extensionIndex > 0 ? fileName.slice(0, extensionIndex) : fileName
-    const extension = extensionIndex > 0 ? fileName.slice(extensionIndex) : ''
-    let index = 1
-    let candidateName: string
-    do {
-        candidateName = `${baseName} (${index})${extension}`
-        index++
-    } while (existingNames.has(candidateName.toLowerCase()))
-    return join(directory, candidateName)
-}
+import { stripImageMetadata, StrippedImage } from '@/lib/exif-stripper'
+import { getExifOutputName, saveStrippedExifImage, writeExifBlob } from '@/lib/exif-actions'
 
 export default function ExifManager() {
     const { t } = useTranslation()
@@ -39,12 +17,10 @@ export default function ExifManager() {
     const clearSource = useExifStore(state => state.clearSource)
     const enabled = useSettingsStore(state => state.expertExifManagerEnabled)
     const autoSaveEnabled = useSettingsStore(state => state.expertExifAutoSaveEnabled)
-    const autoSaveName = useSettingsStore(state => state.exifAutoSaveName)
-    const autoSavePath = useSettingsStore(state => state.exifAutoSavePath)
+    const outputFormat = useSettingsStore(state => state.exifOutputFormat)
     const [result, setResult] = useState<StrippedImage | null>(null)
     const [resultUrl, setResultUrl] = useState<string | null>(null)
     const [processing, setProcessing] = useState(false)
-    const [outputFormat, setOutputFormat] = useState<ExifOutputFormat>('jpeg')
     const [dragging, setDragging] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
 
@@ -67,24 +43,8 @@ export default function ExifManager() {
         reader.readAsDataURL(file)
     }
 
-    const outputName = (extension: StrippedImage['extension']) => {
-        const fallback = sourceName.replace(/\.[^.]+$/g, '') || 'exif_cleaned'
-        const requested = safeFileName(autoSaveName.replace(/\.[^.]+$/g, '') || `${fallback}_clean`)
-        return `${requested}.${extension}`
-    }
-
-    const writeResult = async (processed: StrippedImage, path: string) => {
-        await writeFile(path, new Uint8Array(await processed.blob.arrayBuffer()))
-    }
-
     const autoSave = async (processed: StrippedImage) => {
-        const configuredPath = autoSavePath.trim()
-        const directory = isAbsolutePath(configuredPath)
-            ? configuredPath
-            : await join(await pictureDir(), configuredPath || 'NAIS_EXIF')
-        if (!(await exists(directory))) await mkdir(directory, { recursive: true })
-        const filePath = await getAvailableFilePath(directory, outputName(processed.extension))
-        await writeResult(processed, filePath)
+        const filePath = await saveStrippedExifImage(processed, sourceName)
         toast({ title: t('exif.autoSaved'), description: filePath, variant: 'success' })
     }
 
@@ -111,11 +71,11 @@ export default function ExifManager() {
     const saveResult = async () => {
         if (!result) return
         const filePath = await save({
-            defaultPath: outputName(result.extension),
+            defaultPath: getExifOutputName(sourceName, result.extension),
             filters: [{ name: 'Image', extensions: [result.extension] }],
         })
         if (!filePath) return
-        await writeResult(result, filePath)
+        await writeExifBlob(result, filePath)
         toast({ title: t('toast.saved'), variant: 'success' })
     }
 
@@ -136,19 +96,6 @@ export default function ExifManager() {
                     <p className="text-sm text-muted-foreground mt-1">{t('exif.description')}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="flex items-center rounded-lg border border-border overflow-hidden">
-                        {(['jpeg', 'png', 'webp'] as ExifOutputFormat[]).map(format => (
-                            <Button
-                                key={format}
-                                type="button"
-                                variant={outputFormat === format ? 'secondary' : 'ghost'}
-                                className="h-9 rounded-none px-3 text-xs"
-                                onClick={() => setOutputFormat(format)}
-                            >
-                                {format === 'jpeg' ? 'JPG' : format.toUpperCase()}
-                            </Button>
-                        ))}
-                    </div>
                     <Button variant="outline" onClick={() => inputRef.current?.click()}>
                         <Upload className="h-4 w-4 mr-2" />{t('exif.open')}
                     </Button>

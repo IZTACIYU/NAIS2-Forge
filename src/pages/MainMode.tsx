@@ -27,6 +27,7 @@ import { Wand2 } from 'lucide-react'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/SceneR2DirectUploadDialog'
 import { useExifStore } from '@/stores/exif-store'
+import { processAndSaveExifImage } from '@/lib/exif-actions'
 
 export default function MainMode() {
     const { t } = useTranslation()
@@ -51,6 +52,7 @@ export default function MainMode() {
     const navigate = useNavigate()
     const { setActiveImage } = useToolsStore()
     const expertR2DirectUploadEnabled = useSettingsStore(s => s.expertR2DirectUploadEnabled)
+    const expertExifDirectActionEnabled = useSettingsStore(s => s.expertExifDirectActionEnabled)
     const expertExifQuickActionEnabled = useSettingsStore(s => s.expertExifManagerEnabled && s.expertExifQuickActionEnabled)
 
     const [metadataDialogOpen, setMetadataDialogOpen] = useState(false)
@@ -295,6 +297,16 @@ export default function MainMode() {
         navigate('/exif')
     }
 
+    const handleExifDirectAction = async () => {
+        if (!previewImage) return
+        try {
+            const filePath = await processAndSaveExifImage(previewImage, `NAIS_${Date.now()}.png`)
+            toast({ title: t('exif.autoSaved'), description: filePath, variant: 'success' })
+        } catch (error) {
+            toast({ title: t('exif.failed'), description: String(error), variant: 'destructive' })
+        }
+    }
+
     // Inpainting: Open dialog directly (source/mode set when mask is saved)
     const handleInpaint = () => {
         if (!previewImage) return
@@ -503,6 +515,12 @@ export default function MainMode() {
                                 <RotateCcw className="h-4 w-4 mr-2" />
                                 {t('actions.regenerate', '재생성')}
                             </ContextMenuItem>
+                            {expertExifDirectActionEnabled && (
+                                <ContextMenuItem onClick={handleExifDirectAction}>
+                                    <Eraser className="h-4 w-4 mr-2" />
+                                    {t('exif.directAction')}
+                                </ContextMenuItem>
+                            )}
                             {expertExifQuickActionEnabled && (
                                 <ContextMenuItem onClick={handleOpenExifManager}>
                                     <Eraser className="h-4 w-4 mr-2" />

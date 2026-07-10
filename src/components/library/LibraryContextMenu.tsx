@@ -16,6 +16,7 @@ import { useToolsStore } from '@/stores/tools-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { useExifStore } from '@/stores/exif-store'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
+import { processAndSaveExifImage } from '@/lib/exif-actions'
 
 interface LibraryContextMenuProps {
     item: LibraryItem
@@ -30,6 +31,7 @@ export function LibraryContextMenu({ item, children, onRename, onAddRef, onLoadM
     const { removeItem } = useLibraryStore()
     const navigate = useNavigate()
     const { setActiveImage } = useToolsStore()
+    const showExifDirectAction = useSettingsStore(s => s.expertExifDirectActionEnabled)
     const showExifQuickAction = useSettingsStore(s => s.expertExifManagerEnabled && s.expertExifQuickActionEnabled)
 
     const handleCopy = async () => {
@@ -91,6 +93,16 @@ export function LibraryContextMenu({ item, children, onRename, onAddRef, onLoadM
         }
     }
 
+    const handleExifDirectAction = async () => {
+        try {
+            const source = await bytesToImageDataUrl(await readFile(item.path), item.name)
+            const filePath = await processAndSaveExifImage(source, item.name)
+            toast({ title: t('exif.autoSaved'), description: filePath, variant: 'success' })
+        } catch (error) {
+            toast({ title: t('exif.failed'), description: String(error), variant: 'destructive' })
+        }
+    }
+
     const handleOpenFolder = async () => {
         try {
             await revealItemInDir(item.path)
@@ -131,6 +143,12 @@ export function LibraryContextMenu({ item, children, onRename, onAddRef, onLoadM
                     <Copy className="h-4 w-4 mr-2" />
                     {t('actions.copy', '복사')}
                 </ContextMenuItem>
+                {showExifDirectAction && (
+                    <ContextMenuItem onClick={handleExifDirectAction}>
+                        <Eraser className="h-4 w-4 mr-2" />
+                        {t('exif.directAction')}
+                    </ContextMenuItem>
+                )}
                 {showExifQuickAction && (
                     <ContextMenuItem onClick={handleExifManager}>
                         <Eraser className="h-4 w-4 mr-2" />

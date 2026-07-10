@@ -238,6 +238,7 @@
     "failed": "EXIF removal failed",
     "autoSaved": "Clean image saved",
     "quickAction": "Send to EXIF Cleaner",
+    "directAction": "Remove EXIF and save now",
     "loadFailed": "Failed to load image for EXIF Cleaner"
   },
   "prompt": {
@@ -657,12 +658,20 @@
         "quickActionDesc": "Adds an action that sends images directly to the EXIF Manager.",
         "autoSaveTitle": "Immediate Download",
         "autoSaveDesc": "Automatically saves the clean image after processing.",
+        "nameLabel": "Output name",
+        "pathLabel": "Output path",
+        "formatTitle": "Encoding format",
+        "formatDesc": "Choose the format used by EXIF processing, direct actions, and R2 preprocessing.",
+        "directActionTitle": "EXIF Direct Action",
+        "directActionDesc": "Removes EXIF and saves immediately without opening the manager page.",
         "namePlaceholder": "Output file name",
         "pathPlaceholder": "Output folder path"
       },
       "cloudflare": {
       "header": "Cloudflare",
-      "description": "Experimental options for Cloudflare R2 and public image routing."
+      "description": "Experimental options for Cloudflare R2 and public image routing.",
+      "exifRemovalTitle": "Remove EXIF before R2 upload",
+      "exifRemovalDesc": "Re-encodes images with the configured EXIF format before R2 manager and direct uploads."
     },
     "r2DirectUpload": {
         "title": "R2 Direct Upload",

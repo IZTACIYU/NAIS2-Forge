@@ -20,6 +20,7 @@ import { SceneImage } from '@/stores/scene-store'
 import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/SceneR2DirectUploadDialog'
 import { useExifStore } from '@/stores/exif-store'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
+import { processAndSaveExifImage } from '@/lib/exif-actions'
 
 interface SceneContextMenuProps {
     image: SceneImage
@@ -36,6 +37,7 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
     const { setActiveImage } = useToolsStore()
     const { setSourceImage, setI2IMode } = useGenerationStore()
     const [r2DirectUploadOpen, setR2DirectUploadOpen] = useState(false)
+    const showExifDirectAction = useSettingsStore(s => s.expertExifDirectActionEnabled)
     const showExifQuickAction = useSettingsStore(s => s.expertExifManagerEnabled && s.expertExifQuickActionEnabled)
 
     // Determine file path. 
@@ -116,16 +118,26 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
         }
     }
 
+    const exifSourceName = `NAIS_${image.timestamp}.${image.url.toLowerCase().endsWith('.webp') ? 'webp' : 'png'}`
+    const getExifSource = () => isFile
+        ? readFile(image.url).then(data => bytesToImageDataUrl(data, image.url))
+        : Promise.resolve(image.url)
+
     const handleExifManager = async () => {
         try {
-            const name = `NAIS_${image.timestamp}.${image.url.toLowerCase().endsWith('.webp') ? 'webp' : 'png'}`
-            const source = isFile
-                ? await bytesToImageDataUrl(await readFile(image.url), image.url)
-                : image.url
-            useExifStore.getState().setSource(source, name)
+            useExifStore.getState().setSource(await getExifSource(), exifSourceName)
             navigate('/exif')
         } catch (e) {
             toast({ title: t('exif.loadFailed'), variant: 'destructive' })
+        }
+    }
+
+    const handleExifDirectAction = async () => {
+        try {
+            const filePath = await processAndSaveExifImage(await getExifSource(), exifSourceName)
+            toast({ title: t('exif.autoSaved'), description: filePath, variant: 'success' })
+        } catch (error) {
+            toast({ title: t('exif.failed'), description: String(error), variant: 'destructive' })
         }
     }
 
@@ -209,6 +221,12 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
                     <Copy className="h-4 w-4 mr-2" />
                     {t('actions.copy', '복사')}
                 </ContextMenuItem>
+                {showExifDirectAction && (
+                    <ContextMenuItem onClick={handleExifDirectAction}>
+                        <Eraser className="h-4 w-4 mr-2" />
+                        {t('exif.directAction')}
+                    </ContextMenuItem>
+                )}
                 {showExifQuickAction && (
                     <ContextMenuItem onClick={handleExifManager}>
                         <Eraser className="h-4 w-4 mr-2" />

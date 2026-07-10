@@ -9,6 +9,7 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { toast } from '@/components/ui/use-toast'
 import { cn } from '@/lib/utils'
 import { createR2Folder, deleteR2Object, deleteR2Prefix, hasR2Config, listR2Objects, R2ObjectInfo, uploadR2Object } from '@/services/r2-api'
+import { replaceImageExtension, stripExifForUpload } from '@/lib/exif-actions'
 
 const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif']
 const LIST_CACHE_TTL_MS = 60_000
@@ -17,6 +18,13 @@ const listCache = new Map<string, { time: number; folders: R2ObjectInfo[]; files
 const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result).split(',')[1] || '')
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+})
+
+const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
     reader.onerror = () => reject(reader.error)
     reader.readAsDataURL(file)
 })
@@ -41,6 +49,7 @@ export default function CloudR2() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const {
         expertCloudR2Enabled,
+        expertR2ExifRemovalEnabled,
         r2AccountId,
         r2AccessKeyId,
         r2SecretAccessKey,
@@ -128,9 +137,18 @@ export default function CloudR2() {
         setLoading(true)
         try {
             for (const file of uploadFiles) {
-                const base64 = await fileToBase64(file)
-                const safeName = file.name.replace(/^\/+/, '')
-                await uploadR2Object(config, `${prefix}${safeName}`, base64, file.type || 'application/octet-stream')
+                let safeName = file.name.replace(/^\/+/, '')
+                let contentBase64: string
+                let contentType = file.type || 'application/octet-stream'
+                if (expertR2ExifRemovalEnabled && file.type.startsWith('image/')) {
+                    const processed = await stripExifForUpload(await fileToDataUrl(file))
+                    safeName = replaceImageExtension(safeName, processed.extension)
+                    contentBase64 = processed.contentBase64
+                    contentType = processed.contentType
+                } else {
+                    contentBase64 = await fileToBase64(file)
+                }
+                await uploadR2Object(config, `${prefix}${safeName}`, contentBase64, contentType)
             }
             toast({ title: t('cloudR2.uploaded'), variant: 'success' })
             listCache.clear()

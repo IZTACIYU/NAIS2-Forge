@@ -237,6 +237,7 @@
     "failed": "EXIF削除失敗",
     "autoSaved": "クリーン画像を保存しました",
     "quickAction": "EXIF削除へ送る",
+    "directAction": "EXIF\u524a\u9664\u5f8c\u3059\u3050\u4fdd\u5b58",
     "loadFailed": "EXIF削除用画像の読み込みに失敗しました"
   },
   "prompt": {
@@ -656,12 +657,20 @@
         "quickActionDesc": "画像をEXIF管理ページに直接送る機能を追加します。",
         "autoSaveTitle": "即時ダウンロード",
         "autoSaveDesc": "処理完了後、指定した名前とパスに自動保存します。",
+        "nameLabel": "\u4fdd\u5b58\u540d",
+        "pathLabel": "\u4fdd\u5b58\u30d1\u30b9",
+        "formatTitle": "\u30a8\u30f3\u30b3\u30fc\u30c9\u5f62\u5f0f",
+        "formatDesc": "EXIF\u51e6\u7406\u3001\u30c0\u30a4\u30ec\u30af\u30c8\u30a2\u30af\u30b7\u30e7\u30f3\u3001R2\u524d\u51e6\u7406\u3067\u4f7f\u7528\u3059\u308b\u5f62\u5f0f\u3092\u9078\u629e\u3057\u307e\u3059\u3002",
+        "directActionTitle": "EXIF\u30c0\u30a4\u30ec\u30af\u30c8\u30a2\u30af\u30b7\u30e7\u30f3",
+        "directActionDesc": "\u7ba1\u7406\u30da\u30fc\u30b8\u3092\u958b\u304b\u305a\u306bEXIF\u3092\u524a\u9664\u3057\u3066\u3059\u3050\u4fdd\u5b58\u3057\u307e\u3059\u3002",
         "namePlaceholder": "保存ファイル名",
         "pathPlaceholder": "保存フォルダーパス"
       },
       "cloudflare": {
       "header": "Cloudflare",
-      "description": "Cloudflare R2\u3068\u516c\u958b\u753b\u50cf\u30eb\u30fc\u30c6\u30a3\u30f3\u30b0\u306b\u95a2\u3059\u308b\u5b9f\u9a13\u6a5f\u80fd\u3067\u3059\u3002"
+      "description": "Cloudflare R2\u3068\u516c\u958b\u753b\u50cf\u30eb\u30fc\u30c6\u30a3\u30f3\u30b0\u306b\u95a2\u3059\u308b\u5b9f\u9a13\u6a5f\u80fd\u3067\u3059\u3002",
+      "exifRemovalTitle": "R2\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9\u524d\u306bEXIF\u3092\u524a\u9664",
+      "exifRemovalDesc": "R2\u7ba1\u7406\u753b\u9762\u3068\u30c0\u30a4\u30ec\u30af\u30c8\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9\u306e\u524d\u306b\u8a2d\u5b9a\u5f62\u5f0f\u3067\u753b\u50cf\u3092\u518d\u30a8\u30f3\u30b3\u30fc\u30c9\u3057\u307e\u3059\u3002"
     },
     "r2DirectUpload": {
         "title": "R2\u30c0\u30a4\u30ec\u30af\u30c8\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9",

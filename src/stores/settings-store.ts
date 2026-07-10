@@ -47,12 +47,15 @@ interface SettingsState {
     expertSceneCharacterCostumeOverrideEnabled: boolean
     expertSceneCharacterRepeatEnabled: boolean
     expertSceneCharacterAdditionsEnabled: boolean
+    expertExifDirectActionEnabled: boolean
     expertExifManagerEnabled: boolean
     expertExifQuickActionEnabled: boolean
     expertExifAutoSaveEnabled: boolean
     exifAutoSaveName: string
     exifAutoSavePath: string
+    exifOutputFormat: 'jpeg' | 'png' | 'webp'
     expertR2DirectUploadEnabled: boolean
+    expertR2ExifRemovalEnabled: boolean
     expertCloudR2Enabled: boolean
     r2ViewMode: 'folders' | 'list' | 'thumbnails'
 
@@ -85,12 +88,15 @@ interface SettingsState {
     setExpertSceneCharacterCostumeOverrideEnabled: (enabled: boolean) => void
     setExpertSceneCharacterRepeatEnabled: (enabled: boolean) => void
     setExpertSceneCharacterAdditionsEnabled: (enabled: boolean) => void
+    setExpertExifDirectActionEnabled: (enabled: boolean) => void
     setExpertExifManagerEnabled: (enabled: boolean) => void
     setExpertExifQuickActionEnabled: (enabled: boolean) => void
     setExpertExifAutoSaveEnabled: (enabled: boolean) => void
     setExifAutoSaveName: (name: string) => void
     setExifAutoSavePath: (path: string) => void
+    setExifOutputFormat: (format: 'jpeg' | 'png' | 'webp') => void
     setExpertR2DirectUploadEnabled: (enabled: boolean) => void
+    setExpertR2ExifRemovalEnabled: (enabled: boolean) => void
     setExpertCloudR2Enabled: (enabled: boolean) => void
     setR2ViewMode: (mode: 'folders' | 'list' | 'thumbnails') => void
     setR2Config: (config: Partial<Pick<SettingsState, 'r2AccountId' | 'r2AccessKeyId' | 'r2SecretAccessKey' | 'r2Bucket' | 'r2PublicBaseUrl'>>) => void
@@ -121,12 +127,15 @@ export const useSettingsStore = create<SettingsState>()(
             expertSceneCharacterCostumeOverrideEnabled: false,
             expertSceneCharacterRepeatEnabled: false,
             expertSceneCharacterAdditionsEnabled: false,
+            expertExifDirectActionEnabled: false,
             expertExifManagerEnabled: false,
             expertExifQuickActionEnabled: false,
             expertExifAutoSaveEnabled: false,
             exifAutoSaveName: 'exif_cleaned',
             exifAutoSavePath: 'NAIS_EXIF',
+            exifOutputFormat: 'jpeg',
             expertR2DirectUploadEnabled: false,
+            expertR2ExifRemovalEnabled: false,
             expertCloudR2Enabled: false,
             r2ViewMode: 'list',
             r2AccountId: '',
@@ -171,12 +180,15 @@ export const useSettingsStore = create<SettingsState>()(
             setExpertSceneCharacterCostumeOverrideEnabled: (expertSceneCharacterCostumeOverrideEnabled) => set({ expertSceneCharacterCostumeOverrideEnabled }),
             setExpertSceneCharacterRepeatEnabled: (expertSceneCharacterRepeatEnabled) => set({ expertSceneCharacterRepeatEnabled }),
             setExpertSceneCharacterAdditionsEnabled: (expertSceneCharacterAdditionsEnabled) => set({ expertSceneCharacterAdditionsEnabled }),
+            setExpertExifDirectActionEnabled: (expertExifDirectActionEnabled) => set({ expertExifDirectActionEnabled }),
             setExpertExifManagerEnabled: (expertExifManagerEnabled) => set({ expertExifManagerEnabled }),
             setExpertExifQuickActionEnabled: (expertExifQuickActionEnabled) => set({ expertExifQuickActionEnabled }),
             setExpertExifAutoSaveEnabled: (expertExifAutoSaveEnabled) => set({ expertExifAutoSaveEnabled }),
             setExifAutoSaveName: (exifAutoSaveName) => set({ exifAutoSaveName }),
             setExifAutoSavePath: (exifAutoSavePath) => set({ exifAutoSavePath }),
+            setExifOutputFormat: (exifOutputFormat) => set({ exifOutputFormat }),
             setExpertR2DirectUploadEnabled: (expertR2DirectUploadEnabled) => set({ expertR2DirectUploadEnabled }),
+            setExpertR2ExifRemovalEnabled: (expertR2ExifRemovalEnabled) => set({ expertR2ExifRemovalEnabled }),
             setExpertCloudR2Enabled: (expertCloudR2Enabled) => set({ expertCloudR2Enabled }),
             setR2ViewMode: (r2ViewMode) => set({ r2ViewMode }),
             setR2Config: (config) => set(config),
