@@ -81,7 +81,7 @@ export default function Settings() {
     const { t, i18n } = useTranslation()
     const { theme, setTheme } = useThemeStore()
     const { token, isVerified, anlas, isLoading, verifyAndSave } = useAuthStore()
-    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertSceneCharacterVariantOverrideEnabled, setExpertSceneCharacterVariantOverrideEnabled, expertSceneCharacterCostumeOverrideEnabled, setExpertSceneCharacterCostumeOverrideEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
+    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertSceneCharacterVariantOverrideEnabled, setExpertSceneCharacterVariantOverrideEnabled, expertSceneCharacterCostumeOverrideEnabled, setExpertSceneCharacterCostumeOverrideEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, expertExifManagerEnabled, setExpertExifManagerEnabled, expertExifQuickActionEnabled, setExpertExifQuickActionEnabled, expertExifAutoSaveEnabled, setExpertExifAutoSaveEnabled, exifAutoSaveName, setExifAutoSaveName, exifAutoSavePath, setExifAutoSavePath, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
     const { bindings, enabled: shortcutsEnabled, setBinding, resetBinding, resetAllBindings, setEnabled: setShortcutsEnabled } = useShortcutStore()
     const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey)
 
@@ -1183,6 +1183,61 @@ export default function Settings() {
                                         checked={expertSceneCharacterAdditionsEnabled}
                                         onChange={(e) => setExpertSceneCharacterAdditionsEnabled(e.target.checked)}
                                     />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <h3 className="text-sm font-semibold">{t('settingsPage.expert.exif.header')}</h3>
+                                <p className="text-xs text-muted-foreground">{t('settingsPage.expert.exif.description')}</p>
+                            </div>
+
+                            <div className="border border-border/50 rounded-xl p-6 bg-card/30 space-y-5">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <label className="text-sm font-medium">{t('settingsPage.expert.exif.managerTitle')}</label>
+                                        <p className="text-xs text-muted-foreground mt-1">{t('settingsPage.expert.exif.managerDesc')}</p>
+                                    </div>
+                                    <Switch checked={expertExifManagerEnabled} onChange={(e) => setExpertExifManagerEnabled(e.target.checked)} />
+                                </div>
+
+                                <div className={cn("flex items-center justify-between gap-4 border-t border-border/30 pt-4", !expertExifManagerEnabled && "opacity-45")}>
+                                    <div>
+                                        <label className="text-sm font-medium">{t('settingsPage.expert.exif.quickActionTitle')}</label>
+                                        <p className="text-xs text-muted-foreground mt-1">{t('settingsPage.expert.exif.quickActionDesc')}</p>
+                                    </div>
+                                    <Switch
+                                        checked={expertExifQuickActionEnabled}
+                                        onChange={(e) => setExpertExifQuickActionEnabled(e.target.checked)}
+                                        disabled={!expertExifManagerEnabled}
+                                    />
+                                </div>
+
+                                <div className={cn("border-t border-border/30 pt-4 space-y-4", !expertExifManagerEnabled && "opacity-45")}>
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <label className="text-sm font-medium">{t('settingsPage.expert.exif.autoSaveTitle')}</label>
+                                            <p className="text-xs text-muted-foreground mt-1">{t('settingsPage.expert.exif.autoSaveDesc')}</p>
+                                        </div>
+                                        <Switch
+                                            checked={expertExifAutoSaveEnabled}
+                                            onChange={(e) => setExpertExifAutoSaveEnabled(e.target.checked)}
+                                            disabled={!expertExifManagerEnabled}
+                                        />
+                                    </div>
+                                    {expertExifAutoSaveEnabled && expertExifManagerEnabled && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <Input
+                                                value={exifAutoSaveName}
+                                                onChange={(e) => setExifAutoSaveName(e.target.value)}
+                                                placeholder={t('settingsPage.expert.exif.namePlaceholder')}
+                                            />
+                                            <Input
+                                                value={exifAutoSavePath}
+                                                onChange={(e) => setExifAutoSavePath(e.target.value)}
+                                                placeholder={t('settingsPage.expert.exif.pathPlaceholder')}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

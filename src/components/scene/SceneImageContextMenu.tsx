@@ -6,7 +6,7 @@ import {
     ContextMenuSeparator,
 } from '@/components/ui/context-menu'
 import { useState } from 'react'
-import { Copy, FolderOpen, Save, Trash2, Wand2, Users, FileSearch, Paintbrush, Image as ImageIcon, Cloud } from 'lucide-react'
+import { Copy, FolderOpen, Save, Trash2, Wand2, Users, FileSearch, Paintbrush, Image as ImageIcon, Cloud, Eraser } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/components/ui/use-toast'
 import { save } from '@tauri-apps/plugin-dialog'
@@ -18,6 +18,8 @@ import { useGenerationStore } from '@/stores/generation-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { SceneImage } from '@/stores/scene-store'
 import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/SceneR2DirectUploadDialog'
+import { useExifStore } from '@/stores/exif-store'
+import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 
 interface SceneContextMenuProps {
     image: SceneImage
@@ -34,6 +36,7 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
     const { setActiveImage } = useToolsStore()
     const { setSourceImage, setI2IMode } = useGenerationStore()
     const [r2DirectUploadOpen, setR2DirectUploadOpen] = useState(false)
+    const showExifQuickAction = useSettingsStore(s => s.expertExifManagerEnabled && s.expertExifQuickActionEnabled)
 
     // Determine file path. 
     // image.url is expected to be the full file path for saved images.
@@ -110,6 +113,19 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
         } catch (e) {
             console.error('Failed to load for tools:', e)
             toast({ title: t('smartTools.error', '이미지 로드 실패'), variant: 'destructive' })
+        }
+    }
+
+    const handleExifManager = async () => {
+        try {
+            const name = `NAIS_${image.timestamp}.${image.url.toLowerCase().endsWith('.webp') ? 'webp' : 'png'}`
+            const source = isFile
+                ? await bytesToImageDataUrl(await readFile(image.url), image.url)
+                : image.url
+            useExifStore.getState().setSource(source, name)
+            navigate('/exif')
+        } catch (e) {
+            toast({ title: t('exif.loadFailed'), variant: 'destructive' })
         }
     }
 
@@ -193,6 +209,12 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
                     <Copy className="h-4 w-4 mr-2" />
                     {t('actions.copy', '복사')}
                 </ContextMenuItem>
+                {showExifQuickAction && (
+                    <ContextMenuItem onClick={handleExifManager}>
+                        <Eraser className="h-4 w-4 mr-2" />
+                        {t('exif.quickAction')}
+                    </ContextMenuItem>
+                )}
                 <ContextMenuItem onClick={handleSmartTools}>
                     <Wand2 className="h-4 w-4 mr-2" />
                     {t('smartTools.title', '스마트 툴')}

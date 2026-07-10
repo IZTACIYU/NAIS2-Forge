@@ -15,6 +15,7 @@ import Library from '@/pages/Library'
 import CloudR2 from '@/pages/CloudR2'
 import Settings from '@/pages/Settings'
 import ToolsMode from '@/pages/ToolsMode'
+import ExifManager from '@/pages/ExifManager'
 
 function AppContent() {
     // Scene generation hook at App level - persists across page navigation
@@ -48,6 +49,7 @@ function AppContent() {
                 <Route path="/scenes" element={<SceneMode />} />
                 <Route path="/scenes/:id" element={<SceneDetail />} />
                 <Route path="/tools" element={<ToolsMode />} />
+                <Route path="/exif" element={<ExifManager />} />
                 <Route path="/web" element={<WebView />} />
                 <Route path="/library" element={<Library />} />
                 <Route path="/cloud-r2" element={<CloudR2 />} />

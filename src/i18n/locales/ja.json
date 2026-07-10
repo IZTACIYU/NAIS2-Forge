@@ -219,7 +219,25 @@
     "web": "ウェブ",
     "library": "ライブラリ",
     "settings": "設定",
-    "cloudR2": "R2クラウド"
+    "cloudR2": "R2クラウド",
+    "exifManager": "EXIF削除"
+  },
+  "exif": {
+    "title": "EXIF削除",
+    "description": "画像を新しいキャンバスに再描画し、埋め込みメタデータなしで書き出します。",
+    "disabled": "熟練者オプションでEXIF管理ページを有効にしてください。",
+    "open": "画像を開く",
+    "drop": "画像をドロップするかクリックして開く",
+    "process": "EXIF削除",
+    "processing": "処理中...",
+    "original": "元画像",
+    "result": "削除結果",
+    "noResult": "EXIF削除を実行すると結果が表示されます。",
+    "complete": "EXIF削除完了",
+    "failed": "EXIF削除失敗",
+    "autoSaved": "クリーン画像を保存しました",
+    "quickAction": "EXIF削除へ送る",
+    "loadFailed": "EXIF削除用画像の読み込みに失敗しました"
   },
   "prompt": {
     "base": "基本プロンプト",
@@ -628,6 +646,18 @@
         "characterRepeatDesc": "\u30b7\u30fc\u30f3\u30e2\u30fc\u30c9\u306b\u8efd\u91cf\u306a\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u30ad\u30e5\u30fc\u3092\u8ffd\u52a0\u3057\u3001\u540c\u3058\u30b7\u30fc\u30f3\u4e88\u7d04\u3092\u8907\u6570\u306e\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u306b\u9806\u756a\u306b\u5b9f\u884c\u3057\u307e\u3059\u3002",
         "characterAdditionsTitle": "\u30b7\u30fc\u30f3\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u8ffd\u52a0",
         "characterAdditionsDesc": "\u30b7\u30fc\u30f3\u3054\u3068\u306b\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u30d7\u30ed\u30f3\u30d7\u30c8\u3001\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u30ea\u30d5\u30a1\u30ec\u30f3\u30b9\u3001Vibe\u30ea\u30d5\u30a1\u30ec\u30f3\u30b9\u3092\u8ffd\u52a0\u3067\u304d\u308b\u3088\u3046\u306b\u3057\u307e\u3059\u3002"
+      },
+      "exif": {
+        "header": "EXIF管理",
+        "description": "画像メタデータの削除と保存方法を管理します。",
+        "managerTitle": "EXIF管理ページ",
+        "managerDesc": "画像メタデータ削除用の専用ページを追加します。",
+        "quickActionTitle": "EXIFクイックアクション",
+        "quickActionDesc": "画像をEXIF管理ページに直接送る機能を追加します。",
+        "autoSaveTitle": "即時ダウンロード",
+        "autoSaveDesc": "処理完了後、指定した名前とパスに自動保存します。",
+        "namePlaceholder": "保存ファイル名",
+        "pathPlaceholder": "保存フォルダーパス"
       },
       "cloudflare": {
       "header": "Cloudflare",

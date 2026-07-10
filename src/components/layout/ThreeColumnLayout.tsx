@@ -21,6 +21,7 @@ import {
     Settings,
     Coins,
     Wand2,
+    Eraser,
     Zap,
     PanelLeft,
     PanelRight,
@@ -46,6 +47,7 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const { anlas, isVerified, refreshAnlas } = useAuthStore()
     const { leftSidebarVisible, rightSidebarVisible, toggleLeftSidebar, toggleRightSidebar } = useLayoutStore()
     const expertCloudR2Enabled = useSettingsStore(state => state.expertCloudR2Enabled)
+    const expertExifManagerEnabled = useSettingsStore(state => state.expertExifManagerEnabled)
 
     // Get generation params for cost calculation
     const { characterImages, vibeImages } = useCharacterStore()
@@ -96,6 +98,7 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
         { path: '/', icon: Home, labelKey: 'nav.main' },
         { path: '/scenes', icon: Film, labelKey: 'nav.scenes' },
         { path: '/tools', icon: Wand2, labelKey: 'smartTools.title' },
+        ...(expertExifManagerEnabled ? [{ path: '/exif', icon: Eraser, labelKey: 'nav.exifManager' }] : []),
         { path: '/web', icon: Globe, labelKey: 'nav.web' },
         { path: '/library', icon: Images, labelKey: 'nav.library' },
         ...(expertCloudR2Enabled ? [{ path: '/cloud-r2', icon: Cloud, labelKey: 'nav.cloudR2' }] : []),

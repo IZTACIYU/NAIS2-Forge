@@ -220,7 +220,25 @@
     "web": "Web",
     "library": "Library",
     "settings": "Settings",
-    "cloudR2": "R2 Cloud"
+    "cloudR2": "R2 Cloud",
+    "exifManager": "EXIF Cleaner"
+  },
+  "exif": {
+    "title": "EXIF Cleaner",
+    "description": "Redraw an image to a clean canvas and export it without embedded metadata.",
+    "disabled": "Enable the EXIF Manager in Expert Options.",
+    "open": "Open image",
+    "drop": "Drop an image here or click to open",
+    "process": "Remove EXIF",
+    "processing": "Processing...",
+    "original": "Original",
+    "result": "Clean result",
+    "noResult": "Run EXIF removal to preview the result.",
+    "complete": "EXIF removal complete",
+    "failed": "EXIF removal failed",
+    "autoSaved": "Clean image saved",
+    "quickAction": "Send to EXIF Cleaner",
+    "loadFailed": "Failed to load image for EXIF Cleaner"
   },
   "prompt": {
     "base": "Base Prompt",
@@ -629,6 +647,18 @@
         "characterRepeatDesc": "Adds a lightweight character queue to Scene Mode so the same scene reservations can run for multiple characters in order.",
         "characterAdditionsTitle": "Scene Character Additions",
         "characterAdditionsDesc": "Adds per-scene character prompt, character reference, and vibe reference controls."
+      },
+      "exif": {
+        "header": "EXIF Handling",
+        "description": "Manage image metadata removal and export behavior.",
+        "managerTitle": "EXIF Manager Page",
+        "managerDesc": "Adds a dedicated workspace for removing image metadata.",
+        "quickActionTitle": "EXIF Quick Action",
+        "quickActionDesc": "Adds an action that sends images directly to the EXIF Manager.",
+        "autoSaveTitle": "Immediate Download",
+        "autoSaveDesc": "Automatically saves the clean image after processing.",
+        "namePlaceholder": "Output file name",
+        "pathPlaceholder": "Output folder path"
       },
       "cloudflare": {
       "header": "Cloudflare",

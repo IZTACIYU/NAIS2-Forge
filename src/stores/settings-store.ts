@@ -47,6 +47,11 @@ interface SettingsState {
     expertSceneCharacterCostumeOverrideEnabled: boolean
     expertSceneCharacterRepeatEnabled: boolean
     expertSceneCharacterAdditionsEnabled: boolean
+    expertExifManagerEnabled: boolean
+    expertExifQuickActionEnabled: boolean
+    expertExifAutoSaveEnabled: boolean
+    exifAutoSaveName: string
+    exifAutoSavePath: string
     expertR2DirectUploadEnabled: boolean
     expertCloudR2Enabled: boolean
     r2ViewMode: 'folders' | 'list' | 'thumbnails'
@@ -80,6 +85,11 @@ interface SettingsState {
     setExpertSceneCharacterCostumeOverrideEnabled: (enabled: boolean) => void
     setExpertSceneCharacterRepeatEnabled: (enabled: boolean) => void
     setExpertSceneCharacterAdditionsEnabled: (enabled: boolean) => void
+    setExpertExifManagerEnabled: (enabled: boolean) => void
+    setExpertExifQuickActionEnabled: (enabled: boolean) => void
+    setExpertExifAutoSaveEnabled: (enabled: boolean) => void
+    setExifAutoSaveName: (name: string) => void
+    setExifAutoSavePath: (path: string) => void
     setExpertR2DirectUploadEnabled: (enabled: boolean) => void
     setExpertCloudR2Enabled: (enabled: boolean) => void
     setR2ViewMode: (mode: 'folders' | 'list' | 'thumbnails') => void
@@ -111,6 +121,11 @@ export const useSettingsStore = create<SettingsState>()(
             expertSceneCharacterCostumeOverrideEnabled: false,
             expertSceneCharacterRepeatEnabled: false,
             expertSceneCharacterAdditionsEnabled: false,
+            expertExifManagerEnabled: false,
+            expertExifQuickActionEnabled: false,
+            expertExifAutoSaveEnabled: false,
+            exifAutoSaveName: 'exif_cleaned',
+            exifAutoSavePath: 'NAIS_EXIF',
             expertR2DirectUploadEnabled: false,
             expertCloudR2Enabled: false,
             r2ViewMode: 'list',
@@ -156,6 +171,11 @@ export const useSettingsStore = create<SettingsState>()(
             setExpertSceneCharacterCostumeOverrideEnabled: (expertSceneCharacterCostumeOverrideEnabled) => set({ expertSceneCharacterCostumeOverrideEnabled }),
             setExpertSceneCharacterRepeatEnabled: (expertSceneCharacterRepeatEnabled) => set({ expertSceneCharacterRepeatEnabled }),
             setExpertSceneCharacterAdditionsEnabled: (expertSceneCharacterAdditionsEnabled) => set({ expertSceneCharacterAdditionsEnabled }),
+            setExpertExifManagerEnabled: (expertExifManagerEnabled) => set({ expertExifManagerEnabled }),
+            setExpertExifQuickActionEnabled: (expertExifQuickActionEnabled) => set({ expertExifQuickActionEnabled }),
+            setExpertExifAutoSaveEnabled: (expertExifAutoSaveEnabled) => set({ expertExifAutoSaveEnabled }),
+            setExifAutoSaveName: (exifAutoSaveName) => set({ exifAutoSaveName }),
+            setExifAutoSavePath: (exifAutoSavePath) => set({ exifAutoSavePath }),
             setExpertR2DirectUploadEnabled: (expertR2DirectUploadEnabled) => set({ expertR2DirectUploadEnabled }),
             setExpertCloudR2Enabled: (expertCloudR2Enabled) => set({ expertCloudR2Enabled }),
             setR2ViewMode: (r2ViewMode) => set({ r2ViewMode }),

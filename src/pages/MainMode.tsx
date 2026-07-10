@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ImageIcon, ImagePlus, Download, Copy, RotateCcw, Save, Users, FolderOpen, Paintbrush, Cloud } from 'lucide-react'
+import { ImageIcon, ImagePlus, Download, Copy, RotateCcw, Save, Users, FolderOpen, Paintbrush, Cloud, Eraser } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useAuthStore } from '@/stores/auth-store'
@@ -26,6 +26,7 @@ import { useToolsStore } from '@/stores/tools-store'
 import { Wand2 } from 'lucide-react'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/SceneR2DirectUploadDialog'
+import { useExifStore } from '@/stores/exif-store'
 
 export default function MainMode() {
     const { t } = useTranslation()
@@ -50,6 +51,7 @@ export default function MainMode() {
     const navigate = useNavigate()
     const { setActiveImage } = useToolsStore()
     const expertR2DirectUploadEnabled = useSettingsStore(s => s.expertR2DirectUploadEnabled)
+    const expertExifQuickActionEnabled = useSettingsStore(s => s.expertExifManagerEnabled && s.expertExifQuickActionEnabled)
 
     const [metadataDialogOpen, setMetadataDialogOpen] = useState(false)
     const [metadataImage, setMetadataImage] = useState<string | undefined>(undefined)
@@ -287,6 +289,12 @@ export default function MainMode() {
         }
     }
 
+    const handleOpenExifManager = () => {
+        if (!previewImage) return
+        useExifStore.getState().setSource(previewImage, `NAIS_${Date.now()}.png`)
+        navigate('/exif')
+    }
+
     // Inpainting: Open dialog directly (source/mode set when mask is saved)
     const handleInpaint = () => {
         if (!previewImage) return
@@ -495,6 +503,12 @@ export default function MainMode() {
                                 <RotateCcw className="h-4 w-4 mr-2" />
                                 {t('actions.regenerate', '재생성')}
                             </ContextMenuItem>
+                            {expertExifQuickActionEnabled && (
+                                <ContextMenuItem onClick={handleOpenExifManager}>
+                                    <Eraser className="h-4 w-4 mr-2" />
+                                    {t('exif.quickAction')}
+                                </ContextMenuItem>
+                            )}
                             <ContextMenuItem onClick={handleOpenSmartTools}>
                                 <Wand2 className="h-4 w-4 mr-2" />
                                 {t('smartTools.title', '스마트 툴')}

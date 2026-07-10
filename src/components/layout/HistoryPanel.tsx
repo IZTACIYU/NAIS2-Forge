@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState, useCallback, memo } from 'react'
-import { Clock, Trash2, FolderOpen, RefreshCw, FileSearch, Copy, RotateCcw, Save, Users, Image as ImageIcon, Paintbrush, Maximize2, Film, Zap, PenTool, Pencil, Droplets, Smile, Sparkles, Cloud } from 'lucide-react'
+import { Clock, Trash2, FolderOpen, RefreshCw, FileSearch, Copy, RotateCcw, Save, Users, Image as ImageIcon, Paintbrush, Maximize2, Film, Zap, PenTool, Pencil, Droplets, Smile, Sparkles, Cloud, Eraser } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useAuthStore } from '@/stores/auth-store'
@@ -28,6 +28,8 @@ import {
 } from '@/components/ui/context-menu'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/SceneR2DirectUploadDialog'
+import { useExifStore } from '@/stores/exif-store'
+import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 
 // Convert ArrayBuffer to base64 without stack overflow
 const arrayBufferToBase64 = (buffer: Uint8Array): string => {
@@ -59,6 +61,8 @@ interface HistoryImageItemProps {
     onCopy: (image: SavedImage) => void
     onRegenerate: (image: SavedImage) => void
     onOpenSmartTools: (image: SavedImage) => void
+    onOpenExifManager: (image: SavedImage) => void
+    showExifQuickAction: boolean
     onAddAsReference: (image: SavedImage) => void
     onInpaint: (image: SavedImage) => void
     onI2I: (image: SavedImage) => void
@@ -71,7 +75,7 @@ interface HistoryImageItemProps {
 const HistoryImageItem = memo(function HistoryImageItem({
     image, thumbnail, index, getTypeIcon,
     onImageClick, onDelete, onSaveAs, onCopy, onRegenerate,
-    onOpenSmartTools, onAddAsReference, onInpaint, onI2I, onOpenFolder, onR2DirectUpload, onLoadMetadata,
+    onOpenSmartTools, onOpenExifManager, showExifQuickAction, onAddAsReference, onInpaint, onI2I, onOpenFolder, onR2DirectUpload, onLoadMetadata,
     onLoadComplete
 }: HistoryImageItemProps) {
     const { t } = useTranslation()
@@ -188,6 +192,12 @@ const HistoryImageItem = memo(function HistoryImageItem({
                     <RotateCcw className="h-4 w-4 mr-2" />
                     {t('actions.regenerate', '재생성')}
                 </ContextMenuItem>
+                {showExifQuickAction && (
+                    <ContextMenuItem onClick={() => onOpenExifManager(image)}>
+                        <Eraser className="h-4 w-4 mr-2" />
+                        {t('exif.quickAction')}
+                    </ContextMenuItem>
+                )}
                 <ContextMenuItem onClick={() => onOpenSmartTools(image)}>
                     <Wand2 className="h-4 w-4 mr-2" />
                     {t('smartTools.title', '스마트 툴')}
@@ -231,7 +241,7 @@ const HistoryImageItem = memo(function HistoryImageItem({
 export function HistoryPanel() {
     const { t } = useTranslation()
     const { setPreviewImage, isGenerating, setIsGenerating, setSourceImage, setI2IMode } = useGenerationStore()
-    const { savePath, useAbsolutePath } = useSettingsStore()
+    const { savePath, useAbsolutePath, expertExifManagerEnabled, expertExifQuickActionEnabled } = useSettingsStore()
     const [savedImages, setSavedImages] = useState<SavedImage[]>([])
     const [imageThumbnails, setImageThumbnails] = useState<Record<string, string>>({})
     const [isLoading, setIsLoading] = useState(false)
@@ -908,6 +918,22 @@ export function HistoryPanel() {
         }
     }
 
+    const handleOpenExifManager = async (image: SavedImage) => {
+        setIsLoading(true)
+        try {
+            const source = image.isTemporary
+                ? imageThumbnails[image.path]
+                : await bytesToImageDataUrl(await readFile(image.path), image.name)
+            if (!source) return
+            useExifStore.getState().setSource(source, image.name)
+            navigate('/exif')
+        } catch (e) {
+            toast({ title: t('exif.loadFailed'), variant: 'destructive' })
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
     const handleSaveAs = async (image: SavedImage) => {
         try {
             let data: Uint8Array
@@ -1037,6 +1063,8 @@ export function HistoryPanel() {
                                 onCopy={handleCopyImage}
                                 onRegenerate={handleRegenerate}
                                 onOpenSmartTools={handleOpenSmartTools}
+                                onOpenExifManager={handleOpenExifManager}
+                                showExifQuickAction={expertExifManagerEnabled && expertExifQuickActionEnabled}
                                 onAddAsReference={handleAddAsReference}
                                 onInpaint={handleInpaint}
                                 onI2I={handleI2I}
