@@ -40,10 +40,10 @@ interface CharacterState {
     clearAll: () => void
 
     /** Load base64 data from files for all images (call before generation) */
-    ensureImagesLoaded: () => Promise<void>
+    ensureImagesLoaded: (requiredIds?: string[]) => Promise<void>
 
     /** Release base64 data from memory (call after generation to free ~30-60MB) */
-    releaseImageData: () => void
+    releaseImageData: (force?: boolean) => void
 
     /** Upgrade old low-resolution thumbnails without retaining originals in memory. */
     ensureHighQualityThumbnails: () => Promise<void>
@@ -51,11 +51,17 @@ interface CharacterState {
 
 const MAX_CHARACTER_IMAGES = 10
 const MAX_VIBE_IMAGES = 10
-const THUMBNAIL_VERSION = 2
+const THUMBNAIL_VERSION = 3
+const REFERENCE_CACHE_LIMIT_BYTES = 64 * 1024 * 1024
+const referenceAccessOrder = new Map<string, number>()
+let referenceAccessCounter = 0
 let thumbnailRefreshPromise: Promise<void> | null = null
 
+const estimateRuntimeBytes = (image: ReferenceImage) =>
+    ((image.base64?.length || 0) + (image.encodedVibe?.length || 0)) * 2
+
 /** Create a tiny thumbnail for UI display (~10-30KB instead of 2-5MB) */
-async function makeThumbnail(base64: string, size = 384): Promise<string> {
+async function makeThumbnail(base64: string, width = 384, height = 264): Promise<string> {
     return new Promise((resolve) => {
         const img = new Image()
         img.onload = () => {
@@ -64,14 +70,17 @@ async function makeThumbnail(base64: string, size = 384): Promise<string> {
                 canvas = document.createElement('canvas')
                 const ctx = canvas.getContext('2d')
                 if (!ctx) { resolve(''); return }
-                const cropSize = Math.min(img.width, img.height)
-                const sourceX = (img.width - cropSize) / 2
-                const sourceY = (img.height - cropSize) / 2
-                canvas.width = size
-                canvas.height = size
+                const targetRatio = width / height
+                const sourceRatio = img.width / img.height
+                const sourceWidth = sourceRatio > targetRatio ? img.height * targetRatio : img.width
+                const sourceHeight = sourceRatio > targetRatio ? img.height : img.width / targetRatio
+                const sourceX = (img.width - sourceWidth) / 2
+                const sourceY = (img.height - sourceHeight) / 2
+                canvas.width = width
+                canvas.height = height
                 ctx.imageSmoothingEnabled = true
                 ctx.imageSmoothingQuality = 'high'
-                ctx.drawImage(img, sourceX, sourceY, cropSize, cropSize, 0, 0, size, size)
+                ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, width, height)
                 resolve(canvas.toDataURL('image/webp', 0.82))
             } catch { resolve('') }
             finally {
@@ -124,7 +133,8 @@ export const useCharacterStore = create<CharacterState>()(
                     const newImages = [
                         ...state.characterImages,
                         {
-                            id, name, base64, enabled: true,
+                            id, name, base64,
+                            enabled: !get().vibeImages.some(image => image.enabled !== false),
                             informationExtracted: 1.0, strength: 0.6, fidelity: 0.6,
                             referenceType: 'character&style' as PreciseReferenceType
                         }
@@ -140,11 +150,16 @@ export const useCharacterStore = create<CharacterState>()(
                 await persistImageToFile(id, base64, useCharacterStore, 'characterImages')
             },
 
-            updateCharacterImage: (id, updates) => set((state) => ({
-                characterImages: state.characterImages.map(img =>
-                    img.id === id ? { ...img, ...updates } : img
-                )
-            })),
+            updateCharacterImage: (id, updates) => set((state) => {
+                const safeUpdates = updates.enabled === true && state.vibeImages.some(image => image.enabled !== false)
+                    ? { ...updates, enabled: false }
+                    : updates
+                return {
+                    characterImages: state.characterImages.map(img =>
+                        img.id === id ? { ...img, ...safeUpdates } : img
+                    )
+                }
+            }),
 
             removeCharacterImage: (id) => {
                 const img = get().characterImages.find(i => i.id === id)
@@ -160,7 +175,9 @@ export const useCharacterStore = create<CharacterState>()(
                     const newImages = [
                         ...state.vibeImages,
                         {
-                            id, name, base64, enabled: true, encodedVibe,
+                            id, name, base64,
+                            enabled: !get().characterImages.some(image => image.enabled !== false),
+                            encodedVibe,
                             informationExtracted: informationExtracted ?? 1.0,
                             strength: strength ?? 0.6, fidelity: 0.6,
                             referenceType: 'character&style' as PreciseReferenceType
@@ -182,11 +199,16 @@ export const useCharacterStore = create<CharacterState>()(
             },
 
             updateVibeImage: (id, updates) => {
-                set((state) => ({
-                    vibeImages: state.vibeImages.map(img =>
-                        img.id === id ? { ...img, ...updates } : img
-                    )
-                }))
+                set((state) => {
+                    const safeUpdates = updates.enabled === true && state.characterImages.some(image => image.enabled !== false)
+                        ? { ...updates, enabled: false }
+                        : updates
+                    return {
+                        vibeImages: state.vibeImages.map(img =>
+                            img.id === id ? { ...img, ...safeUpdates } : img
+                        )
+                    }
+                })
                 // If encodedVibe was updated and no path yet, save to file
                 if (updates.encodedVibe && !get().vibeImages.find(v => v.id === id)?.encodedVibePath) {
                     persistVibeToFile(id, updates.encodedVibe, useCharacterStore)
@@ -211,30 +233,35 @@ export const useCharacterStore = create<CharacterState>()(
                 set({ characterImages: [], vibeImages: [], _imagesLoaded: false })
             },
 
-            ensureImagesLoaded: async () => {
-                if (get()._imagesLoaded) return
+            ensureImagesLoaded: async (requiredIds) => {
                 console.log('[CharacterStore] Loading images from files...')
                 const state = get()
+                const required = requiredIds ? new Set(requiredIds) : null
 
-                const loadImage = async (img: ReferenceImage): Promise<ReferenceImage> => {
+                const loadImage = async (img: ReferenceImage, kind: 'character' | 'vibe'): Promise<ReferenceImage> => {
+                    if (required && !required.has(img.id)) return img
+                    referenceAccessOrder.set(img.id, ++referenceAccessCounter)
                     const updates: Partial<ReferenceImage> = {}
-                    // Load base64 from file if missing
-                    if (!img.base64 && img.filePath) {
-                        const data = await loadReferenceImage(img.filePath)
-                        if (data) updates.base64 = data
-                    }
-                    // Load encodedVibe from file if missing
+                    let encodedVibe = img.encodedVibe
                     if (!img.encodedVibe && img.encodedVibePath) {
                         const data = await loadEncodedVibe(img.encodedVibePath)
-                        if (data) updates.encodedVibe = data
+                        if (data) {
+                            updates.encodedVibe = data
+                            encodedVibe = data
+                        }
+                    }
+                    const needsOriginal = kind === 'character' ? !img.cacheKey : !encodedVibe
+                    if (needsOriginal && !img.base64 && img.filePath) {
+                        const data = await loadReferenceImage(img.filePath)
+                        if (data) updates.base64 = data
                     }
                     return Object.keys(updates).length > 0 ? { ...img, ...updates } : img
                 }
 
-                const [charImages, vibeImgs] = await Promise.all([
-                    Promise.all(state.characterImages.map(loadImage)),
-                    Promise.all(state.vibeImages.map(loadImage)),
-                ])
+                const charImages: ReferenceImage[] = []
+                for (const image of state.characterImages) charImages.push(await loadImage(image, 'character'))
+                const vibeImgs: ReferenceImage[] = []
+                for (const image of state.vibeImages) vibeImgs.push(await loadImage(image, 'vibe'))
 
                 set({
                     characterImages: charImages,
@@ -244,7 +271,7 @@ export const useCharacterStore = create<CharacterState>()(
                 console.log('[CharacterStore] Loaded ' + charImages.length + ' char + ' + vibeImgs.length + ' vibe images')
             },
 
-            releaseImageData: () => {
+            releaseImageData: (force = false) => {
                 const state = get()
                 // Only release if images have file paths (can be reloaded)
                 const hasFilePaths = [...state.characterImages, ...state.vibeImages].every(img => img.filePath || !img.base64)
@@ -252,16 +279,34 @@ export const useCharacterStore = create<CharacterState>()(
                     console.log('[CharacterStore] Skipping release - some images have no file path')
                     return
                 }
+                const loaded = [...state.characterImages, ...state.vibeImages]
+                    .filter(image => image.base64 || image.encodedVibe)
+                    .sort((a, b) => (referenceAccessOrder.get(b.id) || 0) - (referenceAccessOrder.get(a.id) || 0))
+                const retained = new Set<string>()
+                let retainedBytes = 0
+                if (!force) {
+                    for (const image of loaded) {
+                        const bytes = estimateRuntimeBytes(image)
+                        if (retainedBytes + bytes > REFERENCE_CACHE_LIMIT_BYTES) continue
+                        retained.add(image.id)
+                        retainedBytes += bytes
+                    }
+                }
+                const evict = (image: ReferenceImage): ReferenceImage => {
+                    if (retained.has(image.id)) return image
+                    referenceAccessOrder.delete(image.id)
+                    return {
+                        ...image,
+                        base64: image.filePath ? '' : image.base64,
+                        encodedVibe: image.encodedVibePath ? undefined : image.encodedVibe,
+                    }
+                }
                 set({
-                    characterImages: state.characterImages.map(img =>
-                        img.filePath ? { ...img, base64: '', encodedVibe: undefined } : img
-                    ),
-                    vibeImages: state.vibeImages.map(img =>
-                        img.filePath ? { ...img, base64: '', encodedVibe: undefined } : img
-                    ),
+                    characterImages: state.characterImages.map(evict),
+                    vibeImages: state.vibeImages.map(evict),
                     _imagesLoaded: false,
                 })
-                console.log('[CharacterStore] Released base64 data from memory')
+                console.log(`[CharacterStore] Reference cache retained ${Math.round(retainedBytes / 1024 / 1024)}MB`)
             },
 
             ensureHighQualityThumbnails: async () => {

@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, useEffect, type ChangeEvent, type DragEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronRight, Database, Eye, EyeOff, Image as ImageIcon, Lock, Pencil, Upload, X, Zap } from 'lucide-react'
+import { ChevronDown, ChevronRight, Database, Eye, EyeOff, Image as ImageIcon, Pencil, Upload, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -131,7 +131,6 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
     const enabledCharacterCount = characterImages.filter(image => image.enabled !== false).length
     const enabledVibeCount = vibeImages.filter(image => image.enabled !== false).length
     const activeCount = activeTab === 'character' ? enabledCharacterCount : enabledVibeCount
-    const vibeBlocked = enabledCharacterCount > 0
     const images = activeTab === 'character' ? characterImages : vibeImages
 
     return (
@@ -177,15 +176,6 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
             </div>
 
             <div className="relative flex-1 min-h-0 overflow-y-auto p-3">
-                {activeTab === 'vibe' && vibeBlocked && (
-                    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background/75 backdrop-blur-[1px]">
-                        <Lock className="mb-2 h-7 w-7 text-muted-foreground" />
-                        <p className="px-6 text-center text-sm text-muted-foreground">
-                            {t('characterDialog.vibeDisabledMsg')}
-                        </p>
-                    </div>
-                )}
-
                 <button
                     type="button"
                     className={cn(
@@ -215,6 +205,7 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                         const isVibe = activeTab === 'vibe'
                         const update = isVibe ? updateVibeImage : updateCharacterImage
                         const remove = isVibe ? removeVibeImage : removeCharacterImage
+                        const enableBlocked = !enabled && (isVibe ? enabledCharacterCount > 0 : enabledVibeCount > 0)
                         const collapsed = collapsedIds.has(image.id)
                         const fallbackName = `${isVibe ? t('characterDialog.tabVibe') : t('characterDialog.tabCharacter')} ${index + 1}`
                         return (
@@ -259,7 +250,11 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                                         <Tip content={enabled ? t('characterDialog.clickToDisable') : t('characterDialog.clickToEnable')}>
                                             <div className="flex items-center gap-1.5">
                                                 {enabled ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                                                <Switch checked={enabled} onChange={event => update(image.id, { enabled: event.target.checked })} />
+                                                <Switch
+                                                    checked={enabled}
+                                                    disabled={enableBlocked}
+                                                    onChange={event => update(image.id, { enabled: event.target.checked })}
+                                                />
                                             </div>
                                         </Tip>
                                         <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => remove(image.id)}>
@@ -268,8 +263,8 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                                     </div>
                                 </div>
 
-                                {!collapsed && <div className={cn('space-y-3 p-3', !enabled && 'pointer-events-none')}>
-                                    <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-md border bg-muted/40">
+                                {!collapsed && <div className="space-y-3 p-3">
+                                    <div className="relative flex aspect-[384/264] w-full items-center justify-center overflow-hidden rounded-md border bg-muted/40">
                                         {image.thumbnail || image.base64 ? (
                                             <img src={image.thumbnail || image.base64} alt="" className="h-full w-full object-cover" />
                                         ) : (
