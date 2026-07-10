@@ -2,6 +2,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
 import { ResolutionSelector, Resolution } from '@/components/ui/ResolutionSelector'
 import {
     ChevronLeft,
@@ -16,7 +23,8 @@ import {
     Star,
     Trash2,
     CheckSquare,
-    Square
+    Square,
+    Shirt
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { AutocompleteTextarea } from "@/components/ui/AutocompleteTextarea";
@@ -53,6 +61,10 @@ export default function SceneDetail() {
         const preset = state.presets.find(p => p.id === state.activePresetId)
         return preset?.scenes.find(s => s.id === sceneId)
     })
+    const sceneCharacterAddition = useSceneStore(state => {
+        if (!state.activePresetId || !sceneId) return null
+        return state.sceneCharacterAdditions[state.activePresetId]?.[sceneId] || null
+    })
 
     const {
         renameScene,
@@ -63,9 +75,28 @@ export default function SceneDetail() {
         decrementQueue,
         validateSceneImages,
         updateSceneSettings,
+        updateSceneCharacterAddition,
     } = useSceneStore()
     const { isGenerating: _isGlobalGenerating } = useSceneGeneration()
-    const { promptFontSize } = useSettingsStore()
+    const promptFontSize = useSettingsStore(state => state.promptFontSize)
+    const expertCharacterPromptLayoutEnabled = useSettingsStore(state => state.expertCharacterPromptLayoutEnabled)
+    const expertCharacterPromptVariantsEnabled = useSettingsStore(state => state.expertCharacterPromptVariantsEnabled)
+    const expertSceneCharacterVariantOverrideEnabled = useSettingsStore(state => state.expertSceneCharacterVariantOverrideEnabled)
+    const expertSceneCharacterCostumeOverrideEnabled = useSettingsStore(state => state.expertSceneCharacterCostumeOverrideEnabled)
+    const sceneVariantOverrideEnabled = expertSceneCharacterVariantOverrideEnabled && expertCharacterPromptVariantsEnabled
+    const sceneCostumeOverrideEnabled = expertSceneCharacterCostumeOverrideEnabled && expertCharacterPromptLayoutEnabled
+    const hasCostumeOverride = sceneCharacterAddition?.characterCostumeEnabled === false
+
+    const updateScenePromptOverride = (updates: { characterVariantIndex?: number; characterCostumeEnabled?: boolean }) => {
+        if (!activePresetId || !sceneId) return
+        updateSceneCharacterAddition(activePresetId, sceneId, {
+            characterPromptIds: sceneCharacterAddition?.characterPromptIds || [],
+            characterReferenceIds: sceneCharacterAddition?.characterReferenceIds || [],
+            vibeReferenceIds: sceneCharacterAddition?.vibeReferenceIds || [],
+            ...sceneCharacterAddition,
+            ...updates,
+        })
+    }
 
     // --- Resolution Logic ---
     const currentWidth = scene?.width || 832
@@ -356,7 +387,6 @@ export default function SceneDetail() {
                                 </Button>
                             </div>
                         )}
-                        <p className="text-muted-foreground text-sm">{t('scene.editPrompt')}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -399,6 +429,52 @@ export default function SceneDetail() {
                     </Button>
                 </div>
             </div >
+
+            {(sceneVariantOverrideEnabled || sceneCostumeOverrideEnabled) && (
+                <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-muted/25 px-3 py-2 shrink-0">
+                    {sceneVariantOverrideEnabled && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">{t('sceneCharacterAddition.stackOverride')}</span>
+                            <Select
+                                value={sceneCharacterAddition?.characterVariantIndex === undefined
+                                    ? 'current'
+                                    : String(sceneCharacterAddition.characterVariantIndex)}
+                                onValueChange={(value) => updateScenePromptOverride({
+                                    characterVariantIndex: value === 'current' ? undefined : Number(value),
+                                })}
+                            >
+                                <SelectTrigger className="h-8 w-[112px] rounded-lg">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="current">{t('sceneCharacterAddition.useCurrentStack')}</SelectItem>
+                                    {[0, 1, 2, 3, 4].map(index => (
+                                        <SelectItem key={index} value={String(index)}>{index + 1}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                    {sceneCostumeOverrideEnabled && (
+                        <Tip content={t('sceneCharacterAddition.disableCostume')}>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className={cn(
+                                    "h-8 rounded-lg",
+                                    hasCostumeOverride && "border-rose-500/50 bg-rose-500/15 text-rose-500 hover:bg-rose-500/25"
+                                )}
+                                onClick={() => updateScenePromptOverride({
+                                    characterCostumeEnabled: hasCostumeOverride ? undefined : false,
+                                })}
+                            >
+                                <Shirt className="mr-2 h-4 w-4" />
+                                {t('sceneCharacterAddition.disableCostume')}
+                            </Button>
+                        </Tip>
+                    )}
+                </div>
+            )}
 
             {/* Scene Prompt - Clean Style like PromptPanel */}
             < div className="flex flex-col min-h-[140px] shrink-0" >

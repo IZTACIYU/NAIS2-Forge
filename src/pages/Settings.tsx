@@ -81,7 +81,7 @@ export default function Settings() {
     const { t, i18n } = useTranslation()
     const { theme, setTheme } = useThemeStore()
     const { token, isVerified, anlas, isLoading, verifyAndSave } = useAuthStore()
-    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
+    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertSceneCharacterVariantOverrideEnabled, setExpertSceneCharacterVariantOverrideEnabled, expertSceneCharacterCostumeOverrideEnabled, setExpertSceneCharacterCostumeOverrideEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
     const { bindings, enabled: shortcutsEnabled, setBinding, resetBinding, resetAllBindings, setEnabled: setShortcutsEnabled } = useShortcutStore()
     const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey)
 
@@ -1123,6 +1123,30 @@ export default function Settings() {
                                     <Switch
                                         checked={expertCharacterPromptVariantsEnabled}
                                         onChange={(e) => setExpertCharacterPromptVariantsEnabled(e.target.checked)}
+                                    />
+                                </div>
+
+                                <div className={cn("flex items-center justify-between gap-4 border-t border-border/30 pt-4", !expertCharacterPromptVariantsEnabled && "opacity-45")}>
+                                    <div>
+                                        <label className="text-sm font-medium">{t('settingsPage.expert.characterPrompt.sceneVariantTitle')}</label>
+                                        <p className="text-xs text-muted-foreground mt-1">{t('settingsPage.expert.characterPrompt.sceneVariantDesc')}</p>
+                                    </div>
+                                    <Switch
+                                        checked={expertSceneCharacterVariantOverrideEnabled}
+                                        onChange={(e) => setExpertSceneCharacterVariantOverrideEnabled(e.target.checked)}
+                                        disabled={!expertCharacterPromptVariantsEnabled}
+                                    />
+                                </div>
+
+                                <div className={cn("flex items-center justify-between gap-4 border-t border-border/30 pt-4", !expertCharacterPromptLayoutEnabled && "opacity-45")}>
+                                    <div>
+                                        <label className="text-sm font-medium">{t('settingsPage.expert.characterPrompt.sceneCostumeTitle')}</label>
+                                        <p className="text-xs text-muted-foreground mt-1">{t('settingsPage.expert.characterPrompt.sceneCostumeDesc')}</p>
+                                    </div>
+                                    <Switch
+                                        checked={expertSceneCharacterCostumeOverrideEnabled}
+                                        onChange={(e) => setExpertSceneCharacterCostumeOverrideEnabled(e.target.checked)}
+                                        disabled={!expertCharacterPromptLayoutEnabled}
                                     />
                                 </div>
 

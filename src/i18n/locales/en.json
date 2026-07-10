@@ -156,6 +156,11 @@
     "vibeBadge": "Vibe"
   },
   "sceneCharacterAddition": {
+    "dynamicControls": "Dynamic character prompt",
+    "stackOverride": "Stack page",
+    "useCurrentStack": "Current",
+    "disableCostume": "Disable costume in this scene",
+    "costumeOffShort": "Costume off",
     "shortTitle": "Scene Characters",
     "toggleTooltip": "Add scene characters",
     "title": "Scene Character Additions",
@@ -611,7 +616,11 @@
         "layoutTitle": "Extended Character Prompt",
         "layoutDesc": "Switch prompt and negative with tabs, and separate costume prompt so each part can be toggled independently.",
         "variantsTitle": "Character Version Stack",
-        "variantsDesc": "Keep up to five versions inside one character card and switch between them like pages."
+        "variantsDesc": "Keep up to five versions inside one character card and switch between them like pages.",
+        "sceneVariantTitle": "Dynamic Scene Stack",
+        "sceneVariantDesc": "Choose a character stack page for each scene during batch generation.",
+        "sceneCostumeTitle": "Dynamic Scene Costume",
+        "sceneCostumeDesc": "Turn off character costume prompts for selected scenes during batch generation."
       },
       "sceneMode": {
         "header": "Scene Mode",

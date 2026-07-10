@@ -164,7 +164,6 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     const [activeId, setActiveId] = useState<string | null>(null)
     const expertCharacterPromptLayoutEnabled = useSettingsStore(state => state.expertCharacterPromptLayoutEnabled)
     const expertCharacterPromptVariantsEnabled = useSettingsStore(state => state.expertCharacterPromptVariantsEnabled)
-    const [activeVariantByStack, setActiveVariantByStack] = useState<Record<string, string>>({})
 
     // DnD sensors
     const sensors = useSensors(
@@ -256,17 +255,21 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     }, [addCharacter, updateCharacter])
 
     const activateVariant = useCallback((id: string) => {
-        const selected = useCharacterPromptStore.getState().characters.find(c => c.id === id)
+        const state = useCharacterPromptStore.getState()
+        const selected = state.characters.find(c => c.id === id)
         if (!selected) return
         const stackKey = getStackKey(selected)
-        setActiveVariantByStack(prev => ({ ...prev, [stackKey]: id }))
-        useCharacterPromptStore.getState().characters.forEach((char) => {
-            if (getStackKey(char) === stackKey) {
-                updateCharacter(char.id, { enabled: char.id === id })
-            }
+        let changed = false
+        const nextCharacters = state.characters.map((char) => {
+            if (getStackKey(char) !== stackKey) return char
+            const enabled = char.id === id
+            if (char.enabled === enabled) return char
+            changed = true
+            return { ...char, enabled }
         })
+        if (changed) useCharacterPromptStore.setState({ characters: nextCharacters })
         setExpandedId(id)
-    }, [updateCharacter])
+    }, [])
 
 
     const handleAddVariant = useCallback((char: CharacterPrompt) => {
@@ -368,10 +371,9 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
             current.push(char)
             stacks.set(key, current)
         }
-        return Array.from(stacks.entries()).map(([key, stack]) => {
+        return Array.from(stacks.values()).map((stack) => {
             const sorted = stack.sort((a, b) => getVariantIndex(a) - getVariantIndex(b))
-            const activeId = activeVariantByStack[key]
-            return sorted.find(c => c.id === activeId) || sorted[0]
+            return sorted.find(c => c.enabled) || sorted[0]
         })
     }
 

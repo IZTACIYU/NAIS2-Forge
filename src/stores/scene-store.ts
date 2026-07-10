@@ -48,6 +48,8 @@ export interface SceneCharacterAddition {
     characterPromptIds: string[]
     characterReferenceIds: string[]
     vibeReferenceIds: string[]
+    characterVariantIndex?: number
+    characterCostumeEnabled?: boolean
 }
 
 type SceneGenerationSource = 'queue' | 'detail'
@@ -803,6 +805,8 @@ export const useSceneStore = create<SceneState>()(
                 const hasAny = addition.characterPromptIds.length > 0
                     || addition.characterReferenceIds.length > 0
                     || addition.vibeReferenceIds.length > 0
+                    || addition.characterVariantIndex !== undefined
+                    || addition.characterCostumeEnabled !== undefined
                 return hasAny ? addition : null
             },
             updateSceneCharacterAddition: (presetId, sceneId, addition) => set(state => ({

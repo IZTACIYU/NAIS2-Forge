@@ -43,6 +43,8 @@ interface SettingsState {
     expertOptionsEnabled: boolean
     expertCharacterPromptLayoutEnabled: boolean
     expertCharacterPromptVariantsEnabled: boolean
+    expertSceneCharacterVariantOverrideEnabled: boolean
+    expertSceneCharacterCostumeOverrideEnabled: boolean
     expertSceneCharacterRepeatEnabled: boolean
     expertSceneCharacterAdditionsEnabled: boolean
     expertR2DirectUploadEnabled: boolean
@@ -74,6 +76,8 @@ interface SettingsState {
     setExpertOptionsEnabled: (enabled: boolean) => void
     setExpertCharacterPromptLayoutEnabled: (enabled: boolean) => void
     setExpertCharacterPromptVariantsEnabled: (enabled: boolean) => void
+    setExpertSceneCharacterVariantOverrideEnabled: (enabled: boolean) => void
+    setExpertSceneCharacterCostumeOverrideEnabled: (enabled: boolean) => void
     setExpertSceneCharacterRepeatEnabled: (enabled: boolean) => void
     setExpertSceneCharacterAdditionsEnabled: (enabled: boolean) => void
     setExpertR2DirectUploadEnabled: (enabled: boolean) => void
@@ -103,6 +107,8 @@ export const useSettingsStore = create<SettingsState>()(
             expertOptionsEnabled: false,
             expertCharacterPromptLayoutEnabled: false,
             expertCharacterPromptVariantsEnabled: false,
+            expertSceneCharacterVariantOverrideEnabled: false,
+            expertSceneCharacterCostumeOverrideEnabled: false,
             expertSceneCharacterRepeatEnabled: false,
             expertSceneCharacterAdditionsEnabled: false,
             expertR2DirectUploadEnabled: false,
@@ -146,6 +152,8 @@ export const useSettingsStore = create<SettingsState>()(
             setExpertOptionsEnabled: (expertOptionsEnabled) => set({ expertOptionsEnabled }),
             setExpertCharacterPromptLayoutEnabled: (expertCharacterPromptLayoutEnabled) => set({ expertCharacterPromptLayoutEnabled }),
             setExpertCharacterPromptVariantsEnabled: (expertCharacterPromptVariantsEnabled) => set({ expertCharacterPromptVariantsEnabled }),
+            setExpertSceneCharacterVariantOverrideEnabled: (expertSceneCharacterVariantOverrideEnabled) => set({ expertSceneCharacterVariantOverrideEnabled }),
+            setExpertSceneCharacterCostumeOverrideEnabled: (expertSceneCharacterCostumeOverrideEnabled) => set({ expertSceneCharacterCostumeOverrideEnabled }),
             setExpertSceneCharacterRepeatEnabled: (expertSceneCharacterRepeatEnabled) => set({ expertSceneCharacterRepeatEnabled }),
             setExpertSceneCharacterAdditionsEnabled: (expertSceneCharacterAdditionsEnabled) => set({ expertSceneCharacterAdditionsEnabled }),
             setExpertR2DirectUploadEnabled: (expertR2DirectUploadEnabled) => set({ expertR2DirectUploadEnabled }),

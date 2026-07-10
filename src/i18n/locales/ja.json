@@ -155,6 +155,11 @@
     "vibeBadge": "Vibe"
   },
   "sceneCharacterAddition": {
+    "dynamicControls": "\u52d5\u7684\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u30d7\u30ed\u30f3\u30d7\u30c8",
+    "stackOverride": "\u30b9\u30bf\u30c3\u30af\u30da\u30fc\u30b8",
+    "useCurrentStack": "\u73fe\u5728\u306e\u30b9\u30bf\u30c3\u30af",
+    "disableCostume": "\u3053\u306e\u30b7\u30fc\u30f3\u3067\u8863\u88c5\u3092\u7121\u52b9\u306b\u3059\u308b",
+    "costumeOffShort": "\u8863\u88c5OFF",
     "shortTitle": "\u30b7\u30fc\u30f3\u30ad\u30e3\u30e9\u30af\u30bf\u30fc",
     "toggleTooltip": "\u30b7\u30fc\u30f3\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u8ffd\u52a0",
     "title": "\u30b7\u30fc\u30f3\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u8ffd\u52a0",
@@ -610,7 +615,11 @@
         "layoutTitle": "拡張キャラクタープロンプト",
         "layoutDesc": "プロンプトとネガティブをタブで切り替え、衣装プロンプトを分離して個別にオン/オフできます。",
         "variantsTitle": "キャラクターバージョンスタック",
-        "variantsDesc": "一つのキャラクターカードに最大5つのバージョンをまとめ、ページのように切り替えます。"
+        "variantsDesc": "一つのキャラクターカードに最大5つのバージョンをまとめ、ページのように切り替えます。",
+        "sceneVariantTitle": "\u30b7\u30fc\u30f3\u5225\u30b9\u30bf\u30c3\u30af\u5236\u5fa1",
+        "sceneVariantDesc": "\u4e00\u62ec\u751f\u6210\u6642\u306b\u30b7\u30fc\u30f3\u3054\u3068\u306e\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u30b9\u30bf\u30c3\u30af\u30da\u30fc\u30b8\u3092\u6307\u5b9a\u3057\u307e\u3059\u3002",
+        "sceneCostumeTitle": "\u30b7\u30fc\u30f3\u5225\u8863\u88c5\u5236\u5fa1",
+        "sceneCostumeDesc": "\u4e00\u62ec\u751f\u6210\u6642\u306b\u9078\u629e\u3057\u305f\u30b7\u30fc\u30f3\u306e\u8863\u88c5\u30d7\u30ed\u30f3\u30d7\u30c8\u3092\u7121\u52b9\u306b\u3057\u307e\u3059\u3002"
       },
       "sceneMode": {
         "header": "\u30b7\u30fc\u30f3\u30e2\u30fc\u30c9",

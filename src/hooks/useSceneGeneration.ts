@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from '@/components/ui/use-toast'
 import { useSceneStore } from '@/stores/scene-store'
 import { useGenerationStore } from '@/stores/generation-store'
-import { useCharacterPromptStore } from '@/stores/character-prompt-store'
+import { useCharacterPromptStore, CharacterPrompt } from '@/stores/character-prompt-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { useAuthStore } from '@/stores/auth-store'
 import { generateImage, generateImageStream, GenerationParams } from '@/services/novelai-api'
@@ -15,6 +15,57 @@ import { useCharacterStore } from '@/stores/character-store'
 
 // Module-level variable to prevent concurrent processing
 let isProcessing = false
+
+const VARIANT_NAME_PATTERN = /\s-\s([a-z0-9]{6})\s-\s(\d+)$/i
+const LEGACY_VARIANT_HASH_PATTERN = /\s-\s([a-z0-9]{6})$/i
+
+const getVariantParts = (name?: string) => {
+    const rawName = name?.trim() || ''
+    const match = rawName.match(VARIANT_NAME_PATTERN)
+    if (match) return { hash: match[1], index: Number(match[2]) }
+    const legacy = rawName.match(LEGACY_VARIANT_HASH_PATTERN)
+    if (legacy) return { hash: legacy[1], index: 0 }
+    return { hash: '', index: 0 }
+}
+
+const getVariantStackKey = (character: CharacterPrompt) => {
+    const { hash } = getVariantParts(character.name)
+    return hash ? `${character.groupId || 'root'}:${hash}` : character.id
+}
+
+const buildVariantStacks = (characters: CharacterPrompt[]) => {
+    const stacks = new Map<string, CharacterPrompt[]>()
+    for (const character of characters) {
+        const key = getVariantStackKey(character)
+        const stack = stacks.get(key)
+        if (stack) stack.push(character)
+        else stacks.set(key, [character])
+    }
+    for (const stack of stacks.values()) {
+        if (stack.length > 1) stack.sort((a, b) => getVariantParts(a.name).index - getVariantParts(b.name).index)
+    }
+    return stacks
+}
+
+const splitCharacterCostumePrompt = (prompt: string) => {
+    const normalized = prompt.replace(/\r\n/g, '\n')
+    const marker = '#!-\uc758\uc0c1\ud504\ub86c'
+    const index = normalized.indexOf(marker)
+    if (index === -1) return { characterPrompt: prompt, costumePrompt: '' }
+    return {
+        characterPrompt: normalized.slice(0, index).replace(/\n+$/g, ''),
+        costumePrompt: normalized.slice(index + marker.length).replace(/^\n+/g, ''),
+    }
+}
+
+const buildSceneCharacterPrompt = (character: CharacterPrompt, costumeOverride?: boolean) => {
+    const { characterPrompt, costumePrompt } = splitCharacterCostumePrompt(character.prompt)
+    const parts: string[] = []
+    if (character.promptEnabled !== false && characterPrompt.trim()) parts.push(characterPrompt)
+    const costumeEnabled = costumeOverride ?? (character.costumeEnabled !== false)
+    if (costumeEnabled && costumePrompt.trim()) parts.push(costumePrompt)
+    return parts.join('\n')
+}
 
 export function useSceneGeneration() {
     const { t } = useTranslation()
@@ -152,8 +203,9 @@ export function useSceneGeneration() {
                 const latestSceneStore = useSceneStore.getState()
                 const latestSettingsStore = useSettingsStore.getState()
                 const sequenceMode = !!sequenceEntry
+                const sceneConfig = latestSceneStore.sceneCharacterAdditions[activePresetId]?.[scene.id] || null
                 const sceneAddition = latestSettingsStore.expertSceneCharacterAdditionsEnabled && latestSceneStore.sceneCharacterAdditionsEnabled
-                    ? latestSceneStore.sceneCharacterAdditions[activePresetId]?.[scene.id]
+                    ? sceneConfig
                     : null
                 const uniqueIds = (ids: string[]) => Array.from(new Set(ids))
                 const characterReferenceIds = sequenceMode
@@ -179,15 +231,54 @@ export function useSceneGeneration() {
                 ])
                 const characterImages = latestCharStore.characterImages.filter(img => finalCharacterReferenceIds.includes(img.id) && img.base64)
                 const vibeImages = latestCharStore.vibeImages.filter(img => finalVibeReferenceIds.includes(img.id) && img.base64)
-                const characterPrompts = finalCharacterPromptIds.length > 0
-                    ? latestPromptStore.characters.filter(character => finalCharacterPromptIds.includes(character.id))
-                    : []
+                const requestedVariantIndex = latestSettingsStore.expertSceneCharacterVariantOverrideEnabled
+                    && latestSettingsStore.expertCharacterPromptVariantsEnabled
+                    ? sceneConfig?.characterVariantIndex
+                    : undefined
+                const costumeOverride = latestSettingsStore.expertSceneCharacterCostumeOverrideEnabled
+                    && latestSettingsStore.expertCharacterPromptLayoutEnabled
+                    ? sceneConfig?.characterCostumeEnabled
+                    : undefined
+                const characterById = new Map(latestPromptStore.characters.map(character => [character.id, character]))
+                const variantStacks = requestedVariantIndex === undefined
+                    ? null
+                    : buildVariantStacks(latestPromptStore.characters)
+                const selectedByStack = new Map<string, CharacterPrompt>()
+                for (const id of finalCharacterPromptIds) {
+                    const selected = characterById.get(id)
+                    if (!selected) continue
+                    const stackKey = getVariantStackKey(selected)
+                    if (selectedByStack.has(stackKey)) continue
+                    const variants = variantStacks?.get(stackKey)
+                    selectedByStack.set(stackKey, variants
+                        ? variants[Math.min(requestedVariantIndex!, variants.length - 1)]
+                        : selected)
+                }
+                const characterPrompts = Array.from(selectedByStack.values())
+
+                if (sequenceMode || requestedVariantIndex !== undefined) {
+                    const selectedStackKeys = new Set(selectedByStack.keys())
+                    const activeVariantIds = new Set(characterPrompts.map(character => character.id))
+                    useCharacterPromptStore.setState(state => {
+                        let changed = false
+                        const characters = state.characters.map(character => {
+                            if (!selectedStackKeys.has(getVariantStackKey(character))) return character
+                            const enabled = activeVariantIds.has(character.id)
+                            if (character.enabled === enabled) return character
+                            changed = true
+                            return { ...character, enabled }
+                        })
+                        return changed ? { characters } : {}
+                    })
+                }
 
                 // Apply fragment/wildcard substitution to character prompts (async)
                 const processedCharacterPrompts = await Promise.all(
                     characterPrompts.map(async c => ({
-                        prompt: await processWildcards(c.prompt),
-                        negative: await processWildcards(c.negative),
+                        prompt: await processWildcards(latestSettingsStore.expertCharacterPromptLayoutEnabled
+                            ? buildSceneCharacterPrompt(c, costumeOverride)
+                            : c.prompt),
+                        negative: await processWildcards(latestSettingsStore.expertCharacterPromptLayoutEnabled && c.negativeEnabled === false ? '' : c.negative),
                         enabled: true,
                         position: c.position
                     }))
