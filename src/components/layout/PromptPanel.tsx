@@ -49,6 +49,7 @@ import { useGenerationStore, AVAILABLE_MODELS } from '@/stores/generation-store'
 import { useSceneStore } from '@/stores/scene-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
+import { useCharacterStore } from '@/stores/character-store'
 import { ResolutionSelector } from '@/components/ui/ResolutionSelector'
 
 const SAMPLERS = [
@@ -141,6 +142,10 @@ export function PromptPanel() {
 
     // Zustand 선택적 구독 - characterPromptStore
     const characterCount = useCharacterPromptStore(state => state.characters.filter(c => c.enabled).length)
+    const activeReferenceCount = useCharacterStore(state =>
+        state.characterImages.filter(image => image.enabled !== false).length
+        + state.vibeImages.filter(image => image.enabled !== false).length
+    )
 
     const [promptGenOpen, setPromptGenOpen] = useState(false)
     const [characterPanelOpen, setCharacterPanelOpen] = useState(false)
@@ -151,8 +156,14 @@ export function PromptPanel() {
     useEffect(() => {
         const handleOpenPromptGen = () => setPromptGenOpen(prev => !prev)
         const handleOpenParameters = () => setParameterDialogOpen(prev => !prev)
-        const handleOpenCharacterPrompt = () => setCharacterPanelOpen(prev => !prev)
-        const handleOpenImageReference = () => setImageRefDialogOpen(prev => !prev)
+        const handleOpenCharacterPrompt = () => {
+            setImageRefDialogOpen(false)
+            setCharacterPanelOpen(prev => !prev)
+        }
+        const handleOpenImageReference = () => {
+            setCharacterPanelOpen(false)
+            setImageRefDialogOpen(prev => !prev)
+        }
 
         window.addEventListener(SHORTCUT_EVENTS.OPEN_PROMPT_GENERATOR, handleOpenPromptGen)
         window.addEventListener(SHORTCUT_EVENTS.OPEN_PARAMETER_SETTINGS, handleOpenParameters)
@@ -212,6 +223,10 @@ export function PromptPanel() {
                 <CharacterPromptPanel
                     open={characterPanelOpen}
                     onOpenChange={setCharacterPanelOpen}
+                />
+                <CharacterSettingsDialog
+                    open={imageRefDialogOpen}
+                    onOpenChange={setImageRefDialogOpen}
                 />
 
                 {/* Base Prompt - Collapsible */}
@@ -349,7 +364,26 @@ export function PromptPanel() {
 
             {/* Quick Actions & Parameters Button */}
             <div className="flex gap-2 mb-3">
-                <CharacterSettingsDialog open={imageRefDialogOpen} onOpenChange={setImageRefDialogOpen} />
+                <Button
+                    variant={imageRefDialogOpen ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1 text-xs rounded-xl h-9 relative"
+                    onClick={() => {
+                        setCharacterPanelOpen(false)
+                        setImageRefDialogOpen(prev => !prev)
+                    }}
+                >
+                    <ImagePlus className="h-3.5 w-3.5 mr-1.5" />
+                    {t('prompt.imageReference')}
+                    {activeReferenceCount > 0 && (
+                        <div className={cn(
+                            "absolute -top-1 -right-1 text-[9px] font-bold rounded-md px-1 py-0.5 min-w-[16px] h-[16px] flex items-center justify-center shadow-sm",
+                            imageRefDialogOpen ? "bg-primary-foreground text-primary" : "bg-red-500 text-white"
+                        )}>
+                            {activeReferenceCount}
+                        </div>
+                    )}
+                </Button>
                 {/* Character Prompt Toggle Button */}
                 <Button
                     variant={characterPanelOpen ? "default" : "outline"}
@@ -358,7 +392,10 @@ export function PromptPanel() {
                         "flex-1 text-xs rounded-xl h-9 relative",
                         characterPanelOpen && "bg-primary text-primary-foreground"
                     )}
-                    onClick={() => setCharacterPanelOpen(!characterPanelOpen)}
+                    onClick={() => {
+                        setImageRefDialogOpen(false)
+                        setCharacterPanelOpen(prev => !prev)
+                    }}
                 >
                     <Users className="h-3.5 w-3.5 mr-1.5" />
                     {t('prompt.character', '캐릭터')}

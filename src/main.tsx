@@ -4,7 +4,6 @@ import App from './App.tsx'
 import './styles/globals.css'
 import './i18n'
 import { cleanupLargeData, migrateFromLocalStorage, migrateIndexedDBKeys, ensureDbReady, isDbInitFailed, indexedDBStorage, exportAllData } from './lib/indexed-db'
-import { useCharacterStore } from './stores/character-store'
 
 // 자동 백업 상수
 const AUTO_BACKUP_KEY = 'nais2-forge-auto-backup'
@@ -251,17 +250,6 @@ async function startApp() {
             <App />
         </React.StrictMode>,
     )
-
-    // Load reference images from files after React mounts
-    // This is non-blocking and runs after the app is visible
-    setTimeout(async () => {
-        try {
-            await useCharacterStore.getState().ensureImagesLoaded()
-            console.log('[Startup] Reference images loaded from files')
-        } catch (err) {
-            console.error('[Startup] Failed to load reference images:', err)
-        }
-    }, 100)
 
     // Delay slightly to ensure app renders, then hide splash
     requestAnimationFrame(() => {
