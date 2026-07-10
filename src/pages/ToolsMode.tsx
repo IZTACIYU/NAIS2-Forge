@@ -16,6 +16,7 @@ import { TagAnalysisDialog } from '@/components/tools/TagAnalysisDialog'
 import { BackgroundRemovalDialog } from '@/components/tools/BackgroundRemovalDialog'
 import { MosaicDialog } from '@/components/tools/MosaicDialog'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
+import { I2IDialog } from '@/components/tools/I2IDialog'
 
 
 export default function ToolsMode() {
@@ -38,6 +39,7 @@ export default function ToolsMode() {
 
     // Mosaic State
     const [isMosaicOpen, setIsMosaicOpen] = useState(false)
+    const [isI2IOpen, setIsI2IOpen] = useState(false)
     const [isInpaintingOpen, setIsInpaintingOpen] = useState(false)  // For mask editing only
     const containerRef = useRef<HTMLDivElement>(null)
     const [isDragOver, setIsDragOver] = useState(false)
@@ -107,7 +109,9 @@ export default function ToolsMode() {
         if (!processedImage) return
         setIsLoading(true)
         try {
-            const result = await smartTools.removeBackground(processedImage)
+            const result = token
+                ? await smartTools.directorTool(processedImage, token, 'bg-removal')
+                : await smartTools.removeBackground(processedImage)
             // Open comparison dialog instead of directly replacing
             setRembgOriginal(processedImage)
             setRembgResult(result)
@@ -382,7 +386,10 @@ export default function ToolsMode() {
             {/* Right: Tools Options */}
             <div className="w-[320px] bg-card rounded-xl border border-border flex flex-col overflow-hidden">
 
-                <div className="p-4 flex-1 overflow-y-auto space-y-6">
+                <div
+                    className="p-4 flex-1 overflow-y-auto overscroll-contain space-y-6"
+                    style={{ scrollbarGutter: 'stable' }}
+                >
                     {/* Background Removal */}
                     <ToolCard
                         icon={Eraser}
@@ -429,10 +436,8 @@ export default function ToolsMode() {
                             variant="secondary"
                             onClick={() => {
                                 if (!processedImage) return
-                                const { setSourceImage, setI2IMode } = useGenerationStore.getState()
-                                setSourceImage(processedImage)
-                                setI2IMode('i2i')
-                                navigate('/')
+                                useGenerationStore.getState().setI2IMode('i2i')
+                                setIsI2IOpen(true)
                             }}
                             disabled={!processedImage || isLoading}
                         >
@@ -452,10 +457,7 @@ export default function ToolsMode() {
                             variant="secondary"
                             onClick={() => {
                                 if (!processedImage) return
-                                const { setSourceImage, setI2IMode } = useGenerationStore.getState()
-                                setSourceImage(processedImage)
-                                setI2IMode('inpaint')
-                                navigate('/')  // Navigate directly, mask editing done from sidebar
+                                setIsInpaintingOpen(true)
                             }}
                             disabled={!processedImage || isLoading}
                         >
@@ -594,6 +596,12 @@ export default function ToolsMode() {
                 onClose={() => setIsMosaicOpen(false)}
             />
 
+            <I2IDialog
+                open={isI2IOpen}
+                onOpenChange={setIsI2IOpen}
+                sourceImage={processedImage}
+            />
+
             <InpaintingDialog
                 open={isInpaintingOpen}
                 onOpenChange={(open) => {
@@ -611,7 +619,10 @@ export default function ToolsMode() {
 
 function ToolCard({ children, icon: Icon, color, title, disabled }: any) {
     return (
-        <div className={cn("p-4 border rounded-xl bg-card hover:border-primary/50 transition-colors", disabled && "opacity-50 pointer-events-none")}>
+        <div
+            className={cn("p-4 border rounded-xl bg-card hover:border-primary/50 transition-colors", disabled && "opacity-50 pointer-events-none")}
+            style={{ contentVisibility: 'auto', containIntrinsicSize: '160px', contain: 'layout paint style' }}
+        >
             <div className="flex items-center gap-3 mb-3">
                 <Icon className={cn("h-5 w-5", color)} />
                 <span className="font-medium">{title}</span>
