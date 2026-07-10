@@ -36,9 +36,9 @@
     },
     "updater": {
       "endpoints": [
-        "https://github.com/sunanakgo/NAIS2/releases/latest/download/latest.json"
+        "https://github.com/IZTACIYU/NAIS2-Forge/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM0NDgxN0Q3MTUyMjQxOTYKUldTV1FTSVYxeGRJeEZpdWFOMlU0K2MvK3QvZHJnbVBtYUY5R1hXVHFsUHRpWFRmU1ZsZW53b0oK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgxODNDMjNDNjcxQzAyOEIKUldTTEFoeG5QTUtEZ1J1bTVxbHFEVkI0bHREOEpDa1liZmZRWVkzT1d5ak9HbEdud1pMTDB3TDEK"
     },
     "deep-link": {
       "mobile": [],
