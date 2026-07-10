@@ -22,7 +22,8 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         setMask,
         setI2IMode,
         resetI2IParams,
-        mask: existingMask
+        mask: existingMask,
+        sourceImage: storedSourceImage
     } = useGenerationStore()
 
     const {
@@ -65,6 +66,10 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     useEffect(() => {
         if (!open || !propSourceImage) return
 
+        const sameSource = storedSourceImage === propSourceImage
+        const maskToRestore = sameSource ? existingMask : null
+        if (!sameSource && existingMask) setMask(null)
+
         const timer = setTimeout(() => {
             const canvas = canvasRef.current
             if (!canvas) return
@@ -76,21 +81,22 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
             img.onload = () => {
                 canvas.width = img.width
                 canvas.height = img.height
+                ctx.clearRect(0, 0, canvas.width, canvas.height)
 
                 // Restore existing mask if present
-                if (existingMask) {
+                if (maskToRestore) {
                     const maskImg = new Image()
                     maskImg.crossOrigin = 'anonymous'
                     maskImg.onload = () => {
                         ctx.drawImage(maskImg, 0, 0, canvas.width, canvas.height)
                     }
-                    maskImg.src = existingMask
+                    maskImg.src = maskToRestore
                 }
             }
             img.src = propSourceImage
         }, 100)
         return () => clearTimeout(timer)
-    }, [open, propSourceImage, existingMask])
+    }, [open, propSourceImage, existingMask, storedSourceImage, setMask])
 
     // Grid cell size (NovelAI uses 8x8 pixel blocks)
     const GRID_SIZE = 8
@@ -100,6 +106,21 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
 
     // Last grid position for continuous drawing
     const lastGridPosRef = useRef<{ gx: number; gy: number } | null>(null)
+
+    useEffect(() => {
+        gridDataRef.current.clear()
+        lastGridPosRef.current = null
+        setIsDrawing(false)
+        setIsErasing(false)
+        setHistory([])
+        setHistoryStep(-1)
+
+        if (!open) {
+            const canvas = canvasRef.current
+            const ctx = canvas?.getContext('2d')
+            if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+        }
+    }, [open, propSourceImage])
 
     // Convert pixel coordinates to grid coordinates
     const pixelToGrid = (pixelX: number, pixelY: number, canvasWidth: number, canvasHeight: number) => {

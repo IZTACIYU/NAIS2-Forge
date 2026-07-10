@@ -32,16 +32,6 @@ import { useExifStore } from '@/stores/exif-store'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 import { processAndSaveExifImage } from '@/lib/exif-actions'
 
-// Convert ArrayBuffer to base64 without stack overflow
-const arrayBufferToBase64 = (buffer: Uint8Array): string => {
-    let binary = ''
-    const len = buffer.byteLength
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(buffer[i])
-    }
-    return btoa(binary)
-}
-
 interface SavedImage {
     name: string
     path: string
@@ -616,22 +606,24 @@ export function HistoryPanel() {
     // For users generating 1000+ images, scanning the entire directory after EVERY generation
     // was the #1 cause of progressive slowdown.
 
+    const getFullImageData = async (image: SavedImage): Promise<string> => {
+        if (image.isTemporary) {
+            const data = imageThumbnails[image.path]
+            if (!data?.startsWith('data:')) throw new Error('Temporary image data not found')
+            return data
+        }
+        const bytes = await readFile(image.path)
+        return bytesToImageDataUrl(bytes, image.name)
+    }
+
 
     const handleImageClick = async (image: SavedImage) => {
-        let finalDataUrl = imageThumbnails[image.path]
-
-        // If we have an asset:// URL or missing data, load as base64 for metadata parsing
-        if (!finalDataUrl || !finalDataUrl.startsWith('data:')) {
-            if (!image.isTemporary) {
-                try {
-                    const data = await readFile(image.path)
-                    const base64 = arrayBufferToBase64(data)
-                    finalDataUrl = `data:image/png;base64,${base64}`
-                } catch (e) {
-                    console.error('Failed to load image:', e)
-                    return
-                }
-            }
+        let finalDataUrl: string
+        try {
+            finalDataUrl = await getFullImageData(image)
+        } catch (e) {
+            console.error('Failed to load image:', e)
+            return
         }
 
         // Set preview
@@ -688,18 +680,8 @@ export function HistoryPanel() {
     }
 
     const handleLoadMetadata = async (image: SavedImage) => {
-        let imageData = imageThumbnails[image.path]
-
-        // Always load as base64 for MetadataDialog (asset:// URLs don't work)
-        if (!imageData || !imageData.startsWith('data:')) {
-            try {
-                const data = await readFile(image.path)
-                const base64 = arrayBufferToBase64(data)
-                imageData = `data:image/png;base64,${base64}`
-            } catch {
-                return
-            }
-        }
+        let imageData: string
+        try { imageData = await getFullImageData(image) } catch { return }
 
         setSelectedImageForMetadata(imageData)
         setMetadataDialogOpen(true)
@@ -729,21 +711,11 @@ export function HistoryPanel() {
 
         // Always load as base64 for metadata parsing (asset:// URLs don't work with parseMetadataFromBase64)
         let finalData: string | undefined
-        if (!image.isTemporary) {
-            try {
-                const data = await readFile(image.path)
-                const base64 = arrayBufferToBase64(data)
-                finalData = `data:image/png;base64,${base64}`
-            } catch (e) {
-                console.error('Failed to load image for regenerate:', e)
-                return
-            }
-        } else {
-            finalData = imageThumbnails[image.path]
-            if (finalData && !finalData.startsWith('data:')) {
-                // Can't regenerate from asset:// URL without file path
-                return
-            }
+        try {
+            finalData = await getFullImageData(image)
+        } catch (e) {
+            console.error('Failed to load image for regenerate:', e)
+            return
         }
 
         if (!finalData) return
@@ -908,13 +880,7 @@ export function HistoryPanel() {
     const handleOpenSmartTools = async (image: SavedImage) => {
         setIsLoading(true)
         try {
-            let base64 = imageThumbnails[image.path]
-
-            if (!base64 && !image.isTemporary) {
-                // Read full image file to pass to tools
-                const data = await readFile(image.path)
-                base64 = `data:image/png;base64,${arrayBufferToBase64(data)}`
-            }
+            const base64 = await getFullImageData(image)
 
             if (base64) {
                 setActiveImage(base64)
@@ -927,9 +893,7 @@ export function HistoryPanel() {
         }
     }
 
-    const getExifSource = (image: SavedImage) => image.isTemporary
-        ? Promise.resolve(imageThumbnails[image.path])
-        : readFile(image.path).then(data => bytesToImageDataUrl(data, image.name))
+    const getExifSource = getFullImageData
 
     const handleOpenExifManager = async (image: SavedImage) => {
         setIsLoading(true)
@@ -991,30 +955,16 @@ export function HistoryPanel() {
     }
 
     const handleAddAsReference = async (image: SavedImage) => {
-        let imageData = imageThumbnails[image.path]
-        if (!imageData && !image.isTemporary) {
-            try {
-                const data = await readFile(image.path)
-                const base64 = arrayBufferToBase64(data)
-                imageData = `data:image/png;base64,${base64}`
-            } catch { return }
-        }
+        let imageData: string
+        try { imageData = await getFullImageData(image) } catch { return }
         setSelectedImageForRef(imageData)
         setImageRefDialogOpen(true)
     }
 
     // Inpainting: Open dialog directly with image (source/mode set when mask is saved)
     const handleInpaint = async (image: SavedImage) => {
-        let imageData = imageThumbnails[image.path]
-        if (!imageData && !image.isTemporary) {
-            try {
-                const data = await readFile(image.path)
-                const base64 = arrayBufferToBase64(data)
-                imageData = `data:image/png;base64,${base64}`
-                // NOT caching full base64 in thumbnails - use directly
-            } catch { return }
-        }
-        if (!imageData) return
+        let imageData: string
+        try { imageData = await getFullImageData(image) } catch { return }
         
         // Only open dialog - source/mode will be set when mask is saved
         setSelectedImageForInpaint(imageData)
@@ -1023,16 +973,8 @@ export function HistoryPanel() {
 
     // I2I: Set source and navigate to main mode
     const handleI2I = async (image: SavedImage) => {
-        let imageData = imageThumbnails[image.path]
-        if (!imageData && !image.isTemporary) {
-            try {
-                const data = await readFile(image.path)
-                const base64 = arrayBufferToBase64(data)
-                imageData = `data:image/png;base64,${base64}`
-                // NOT caching full base64 in thumbnails - use directly
-            } catch { return }
-        }
-        if (!imageData) return
+        let imageData: string
+        try { imageData = await getFullImageData(image) } catch { return }
         
         setSourceImage(imageData)
         setI2IMode('i2i')

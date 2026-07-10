@@ -31,7 +31,7 @@ export function ImageReferenceDialog({ open, onOpenChange, imageBase64 }: ImageR
         if (!imageBase64) return
         setIsProcessing(true)
         try {
-            addVibeImage(imageBase64)
+            await addVibeImage(imageBase64)
             toast({
                 title: t('imageRef.addedVibe', 'Vibe Transfer에 추가됨'),
                 variant: 'success',
@@ -46,7 +46,7 @@ export function ImageReferenceDialog({ open, onOpenChange, imageBase64 }: ImageR
         if (!imageBase64) return
         setIsProcessing(true)
         try {
-            addCharacterImage(imageBase64)
+            await addCharacterImage(imageBase64)
             toast({
                 title: t('imageRef.addedChar', '캐릭터 레퍼런스에 추가됨'),
                 variant: 'success',
