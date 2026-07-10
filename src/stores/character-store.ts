@@ -8,9 +8,11 @@ export type PreciseReferenceType = 'character' | 'style' | 'character&style'
 
 export interface ReferenceImage {
     id: string
+    name?: string
     base64: string              // Runtime only - NOT persisted (loaded from filePath on demand)
     filePath?: string           // Persisted file path (AppData/NAIS2/references/xxx.bin)
     thumbnail?: string          // Small JPEG preview for UI (~10-30KB) - persisted
+    thumbnailVersion?: number
     enabled: boolean
     encodedVibe?: string        // Runtime only - loaded from encodedVibePath
     encodedVibePath?: string    // Persisted file path for encoded vibe data
@@ -27,11 +29,11 @@ interface CharacterState {
     _imagesLoaded: boolean      // Runtime flag: are base64 loaded from files?
 
     // Actions
-    addCharacterImage: (base64: string) => Promise<void>
+    addCharacterImage: (base64: string, name?: string) => Promise<void>
     updateCharacterImage: (id: string, updates: Partial<ReferenceImage>) => void
     removeCharacterImage: (id: string) => void
 
-    addVibeImage: (base64: string, encodedVibe?: string, informationExtracted?: number, strength?: number) => Promise<void>
+    addVibeImage: (base64: string, encodedVibe?: string, informationExtracted?: number, strength?: number, name?: string) => Promise<void>
     updateVibeImage: (id: string, updates: Partial<ReferenceImage>) => void
     removeVibeImage: (id: string) => void
 
@@ -42,13 +44,18 @@ interface CharacterState {
 
     /** Release base64 data from memory (call after generation to free ~30-60MB) */
     releaseImageData: () => void
+
+    /** Upgrade old low-resolution thumbnails without retaining originals in memory. */
+    ensureHighQualityThumbnails: () => Promise<void>
 }
 
 const MAX_CHARACTER_IMAGES = 10
 const MAX_VIBE_IMAGES = 10
+const THUMBNAIL_VERSION = 2
+let thumbnailRefreshPromise: Promise<void> | null = null
 
 /** Create a tiny thumbnail for UI display (~10-30KB instead of 2-5MB) */
-async function makeThumbnail(base64: string, maxSize = 128): Promise<string> {
+async function makeThumbnail(base64: string, size = 384): Promise<string> {
     return new Promise((resolve) => {
         const img = new Image()
         img.onload = () => {
@@ -57,12 +64,15 @@ async function makeThumbnail(base64: string, maxSize = 128): Promise<string> {
                 canvas = document.createElement('canvas')
                 const ctx = canvas.getContext('2d')
                 if (!ctx) { resolve(''); return }
-                let w = img.width, h = img.height
-                if (w > h) { if (w > maxSize) { h = Math.round(h * maxSize / w); w = maxSize } }
-                else { if (h > maxSize) { w = Math.round(w * maxSize / h); h = maxSize } }
-                canvas.width = w; canvas.height = h
-                ctx.drawImage(img, 0, 0, w, h)
-                resolve(canvas.toDataURL('image/jpeg', 0.6))
+                const cropSize = Math.min(img.width, img.height)
+                const sourceX = (img.width - cropSize) / 2
+                const sourceY = (img.height - cropSize) / 2
+                canvas.width = size
+                canvas.height = size
+                ctx.imageSmoothingEnabled = true
+                ctx.imageSmoothingQuality = 'high'
+                ctx.drawImage(img, sourceX, sourceY, cropSize, cropSize, 0, 0, size, size)
+                resolve(canvas.toDataURL('image/webp', 0.82))
             } catch { resolve('') }
             finally {
                 if (canvas) { canvas.width = 0; canvas.height = 0 }
@@ -79,7 +89,11 @@ async function persistImageToFile(id: string, base64: string, store: typeof useC
     try {
         const filePath = await saveReferenceImage(id, base64)
         const thumbnail = await makeThumbnail(base64)
-        store.getState()[field === 'characterImages' ? 'updateCharacterImage' : 'updateVibeImage'](id, { filePath, thumbnail })
+        store.getState()[field === 'characterImages' ? 'updateCharacterImage' : 'updateVibeImage'](id, {
+            filePath,
+            thumbnail,
+            thumbnailVersion: THUMBNAIL_VERSION,
+        })
         console.log('[CharacterStore] Saved ' + field + ' ' + id + ' to file')
     } catch (e) {
         console.error('[CharacterStore] Failed to save ' + id + ' to file:', e)
@@ -104,13 +118,13 @@ export const useCharacterStore = create<CharacterState>()(
             vibeImages: [],
             _imagesLoaded: false,
 
-            addCharacterImage: async (base64) => {
+            addCharacterImage: async (base64, name) => {
                 const id = Date.now().toString()
                 set((state) => {
                     const newImages = [
                         ...state.characterImages,
                         {
-                            id, base64, enabled: true,
+                            id, name, base64, enabled: true,
                             informationExtracted: 1.0, strength: 0.6, fidelity: 0.6,
                             referenceType: 'character&style' as PreciseReferenceType
                         }
@@ -140,13 +154,13 @@ export const useCharacterStore = create<CharacterState>()(
                 }))
             },
 
-            addVibeImage: async (base64, encodedVibe, informationExtracted, strength) => {
+            addVibeImage: async (base64, encodedVibe, informationExtracted, strength, name) => {
                 const id = Date.now().toString()
                 set((state) => {
                     const newImages = [
                         ...state.vibeImages,
                         {
-                            id, base64, enabled: true, encodedVibe,
+                            id, name, base64, enabled: true, encodedVibe,
                             informationExtracted: informationExtracted ?? 1.0,
                             strength: strength ?? 0.6, fidelity: 0.6,
                             referenceType: 'character&style' as PreciseReferenceType
@@ -249,6 +263,33 @@ export const useCharacterStore = create<CharacterState>()(
                 })
                 console.log('[CharacterStore] Released base64 data from memory')
             },
+
+            ensureHighQualityThumbnails: async () => {
+                if (thumbnailRefreshPromise) return thumbnailRefreshPromise
+                thumbnailRefreshPromise = (async () => {
+                    const fields = ['characterImages', 'vibeImages'] as const
+                    for (const field of fields) {
+                        const snapshot = get()[field]
+                        for (const image of snapshot) {
+                            if (image.thumbnail && image.thumbnailVersion === THUMBNAIL_VERSION) continue
+                            if (!image.filePath && !image.base64) continue
+                            const base64 = image.base64 || await loadReferenceImage(image.filePath!)
+                            if (!base64) continue
+                            const thumbnail = await makeThumbnail(base64)
+                            set(state => ({
+                                [field]: state[field].map(item => item.id === image.id
+                                    ? { ...item, thumbnail, thumbnailVersion: THUMBNAIL_VERSION }
+                                    : item),
+                            }))
+                        }
+                    }
+                })()
+                try {
+                    await thumbnailRefreshPromise
+                } finally {
+                    thumbnailRefreshPromise = null
+                }
+            },
         }),
         {
             name: 'nais2-forge-character-store',
@@ -257,9 +298,11 @@ export const useCharacterStore = create<CharacterState>()(
             partialize: (state) => ({
                 characterImages: state.characterImages.map(img => ({
                     id: img.id,
+                    name: img.name,
                     base64: '',
                     filePath: img.filePath,
                     thumbnail: img.thumbnail,
+                    thumbnailVersion: img.thumbnailVersion,
                     enabled: img.enabled,
                     encodedVibePath: img.encodedVibePath,
                     informationExtracted: img.informationExtracted,
@@ -270,9 +313,11 @@ export const useCharacterStore = create<CharacterState>()(
                 })),
                 vibeImages: state.vibeImages.map(img => ({
                     id: img.id,
+                    name: img.name,
                     base64: '',
                     filePath: img.filePath,
                     thumbnail: img.thumbnail,
+                    thumbnailVersion: img.thumbnailVersion,
                     enabled: img.enabled,
                     encodedVibePath: img.encodedVibePath,
                     informationExtracted: img.informationExtracted,

@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState, useEffect, type ChangeEvent, type DragEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Database, Eye, EyeOff, Image as ImageIcon, Lock, Upload, X, Zap } from 'lucide-react'
+import { ChevronDown, ChevronRight, Database, Eye, EyeOff, Image as ImageIcon, Lock, Pencil, Upload, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
@@ -10,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { parseMetadataFromBase64 } from '@/lib/metadata-parser'
-import { PreciseReferenceType, useCharacterStore } from '@/stores/character-store'
+import { PreciseReferenceType, ReferenceImage, useCharacterStore } from '@/stores/character-store'
 
 type ReferenceMode = 'character' | 'vibe'
 
@@ -67,25 +68,33 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
     const addVibeImage = useCharacterStore(state => state.addVibeImage)
     const removeVibeImage = useCharacterStore(state => state.removeVibeImage)
     const updateVibeImage = useCharacterStore(state => state.updateVibeImage)
+    const ensureHighQualityThumbnails = useCharacterStore(state => state.ensureHighQualityThumbnails)
     const inputRef = useRef<HTMLInputElement>(null)
     const [activeTab, setActiveTab] = useState<ReferenceMode>('character')
     const [dragOver, setDragOver] = useState(false)
+    const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const [editingName, setEditingName] = useState('')
+
+    useEffect(() => {
+        if (open) void ensureHighQualityThumbnails()
+    }, [open, ensureHighQualityThumbnails])
 
     const addFiles = useCallback(async (files: FileList | File[], mode: ReferenceMode) => {
         for (const file of Array.from(files)) {
             if (!file.type.startsWith('image/')) continue
             const base64 = await fileToBase64(file)
             if (mode === 'character') {
-                await addCharacterImage(base64)
+                await addCharacterImage(base64, file.name.replace(/\.[^.]+$/, ''))
                 continue
             }
             try {
                 const metadata = await parseMetadataFromBase64(base64)
                 const encoded = metadata?.encodedVibes?.[0]
                 const info = metadata?.vibeTransferInfo?.[0]
-                await addVibeImage(base64, encoded, info?.informationExtracted, info?.strength)
+                await addVibeImage(base64, encoded, info?.informationExtracted, info?.strength, file.name.replace(/\.[^.]+$/, ''))
             } catch {
-                await addVibeImage(base64)
+                await addVibeImage(base64, undefined, undefined, undefined, file.name.replace(/\.[^.]+$/, ''))
             }
         }
     }, [addCharacterImage, addVibeImage])
@@ -100,6 +109,21 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
         event.stopPropagation()
         setDragOver(false)
         await addFiles(event.dataTransfer.files, activeTab)
+    }
+
+    const toggleCollapsed = (id: string) => {
+        setCollapsedIds(current => {
+            const next = new Set(current)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
+    }
+
+    const commitName = (image: ReferenceImage, update: (id: string, updates: Partial<ReferenceImage>) => void) => {
+        const name = editingName.trim()
+        if (name) update(image.id, { name })
+        setEditingId(null)
     }
 
     if (!open) return null
@@ -191,16 +215,47 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                         const isVibe = activeTab === 'vibe'
                         const update = isVibe ? updateVibeImage : updateCharacterImage
                         const remove = isVibe ? removeVibeImage : removeCharacterImage
+                        const collapsed = collapsedIds.has(image.id)
+                        const fallbackName = `${isVibe ? t('characterDialog.tabVibe') : t('characterDialog.tabCharacter')} ${index + 1}`
                         return (
                             <section
                                 key={image.id}
                                 className={cn('overflow-hidden rounded-lg border bg-card', !enabled && 'opacity-55')}
                             >
-                                <div className="flex h-10 items-center justify-between border-b px-3">
-                                    <span className="truncate text-sm font-medium">
-                                        {isVibe ? t('characterDialog.tabVibe') : t('characterDialog.tabCharacter')} {index + 1}
-                                    </span>
+                                <div className="flex min-h-10 items-center justify-between gap-2 border-b px-2 py-1">
+                                    <button type="button" className="flex min-w-0 flex-1 items-center gap-1.5 text-left" onClick={() => toggleCollapsed(image.id)}>
+                                        {collapsed ? <ChevronRight className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+                                        {editingId === image.id ? (
+                                            <Input
+                                                value={editingName}
+                                                className="h-7 min-w-0 text-sm"
+                                                autoFocus
+                                                onClick={event => event.stopPropagation()}
+                                                onChange={event => setEditingName(event.target.value)}
+                                                onBlur={() => commitName(image, update)}
+                                                onKeyDown={event => {
+                                                    if (event.key === 'Enter') commitName(image, update)
+                                                    if (event.key === 'Escape') setEditingId(null)
+                                                }}
+                                            />
+                                        ) : (
+                                            <span className="truncate text-sm font-medium">{image.name || fallbackName}</span>
+                                        )}
+                                    </button>
                                     <div className="flex items-center gap-2">
+                                        <Tip content={t('common.rename')}>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7"
+                                                onClick={() => {
+                                                    setEditingName(image.name || fallbackName)
+                                                    setEditingId(image.id)
+                                                }}
+                                            >
+                                                <Pencil className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </Tip>
                                         <Tip content={enabled ? t('characterDialog.clickToDisable') : t('characterDialog.clickToEnable')}>
                                             <div className="flex items-center gap-1.5">
                                                 {enabled ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
@@ -213,10 +268,10 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                                     </div>
                                 </div>
 
-                                <div className={cn('space-y-3 p-3', !enabled && 'pointer-events-none')}>
-                                    <div className="relative flex h-40 w-full items-center justify-center overflow-hidden rounded-md border bg-muted/40">
+                                {!collapsed && <div className={cn('space-y-3 p-3', !enabled && 'pointer-events-none')}>
+                                    <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-md border bg-muted/40">
                                         {image.thumbnail || image.base64 ? (
-                                            <img src={image.thumbnail || image.base64} alt="" className="h-full w-full object-contain" />
+                                            <img src={image.thumbnail || image.base64} alt="" className="h-full w-full object-cover" />
                                         ) : (
                                             <div className="flex flex-col items-center gap-1 text-muted-foreground">
                                                 <Database className="h-7 w-7 opacity-60" />
@@ -262,7 +317,7 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                                             <SafeSlider label={t('characterDialog.fidelity')} value={image.fidelity ?? 0.6} onValueCommit={value => update(image.id, { fidelity: value })} />
                                         </>
                                     )}
-                                </div>
+                                </div>}
                             </section>
                         )
                     })}
