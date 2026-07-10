@@ -13,6 +13,21 @@ import { stripImageMetadata, StrippedImage, ExifOutputFormat } from '@/lib/exif-
 const isAbsolutePath = (path: string) => /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('/')
 const safeFileName = (name: string) => name.replace(/[<>:"/\\|?*]/g, '_').trim()
 
+const getAvailableFilePath = async (directory: string, fileName: string) => {
+    let candidate = await join(directory, fileName)
+    if (!(await exists(candidate))) return candidate
+
+    const extensionIndex = fileName.lastIndexOf('.')
+    const baseName = extensionIndex > 0 ? fileName.slice(0, extensionIndex) : fileName
+    const extension = extensionIndex > 0 ? fileName.slice(extensionIndex) : ''
+    let index = 1
+    do {
+        candidate = await join(directory, `${baseName} (${index})${extension}`)
+        index++
+    } while (await exists(candidate))
+    return candidate
+}
+
 export default function ExifManager() {
     const { t } = useTranslation()
     const activeImage = useExifStore(state => state.activeImage)
@@ -65,7 +80,7 @@ export default function ExifManager() {
             ? configuredPath
             : await join(await pictureDir(), configuredPath || 'NAIS_EXIF')
         if (!(await exists(directory))) await mkdir(directory, { recursive: true })
-        const filePath = await join(directory, outputName(processed.extension))
+        const filePath = await getAvailableFilePath(directory, outputName(processed.extension))
         await writeResult(processed, filePath)
         toast({ title: t('exif.autoSaved'), description: filePath, variant: 'success' })
     }
