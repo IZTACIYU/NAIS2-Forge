@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/use-toast'
 import { useExifStore } from '@/stores/exif-store'
 import { useSettingsStore } from '@/stores/settings-store'
-import { stripImageMetadata, StrippedImage } from '@/lib/exif-stripper'
+import { stripImageMetadata, StrippedImage, ExifOutputFormat } from '@/lib/exif-stripper'
 
 const isAbsolutePath = (path: string) => /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('/')
 const safeFileName = (name: string) => name.replace(/[<>:"/\\|?*]/g, '_').trim()
@@ -26,6 +26,7 @@ export default function ExifManager() {
     const [result, setResult] = useState<StrippedImage | null>(null)
     const [resultUrl, setResultUrl] = useState<string | null>(null)
     const [processing, setProcessing] = useState(false)
+    const [outputFormat, setOutputFormat] = useState<ExifOutputFormat>('jpeg')
     const [dragging, setDragging] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
 
@@ -73,7 +74,7 @@ export default function ExifManager() {
         if (!activeImage || processing) return
         setProcessing(true)
         try {
-            const processed = await stripImageMetadata(activeImage)
+            const processed = await stripImageMetadata(activeImage, outputFormat)
             const nextUrl = URL.createObjectURL(processed.blob)
             setResultUrl(previous => {
                 if (previous) URL.revokeObjectURL(previous)
@@ -117,6 +118,19 @@ export default function ExifManager() {
                     <p className="text-sm text-muted-foreground mt-1">{t('exif.description')}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <div className="flex items-center rounded-lg border border-border overflow-hidden">
+                        {(['jpeg', 'png', 'webp'] as ExifOutputFormat[]).map(format => (
+                            <Button
+                                key={format}
+                                type="button"
+                                variant={outputFormat === format ? 'secondary' : 'ghost'}
+                                className="h-9 rounded-none px-3 text-xs"
+                                onClick={() => setOutputFormat(format)}
+                            >
+                                {format === 'jpeg' ? 'JPG' : format.toUpperCase()}
+                            </Button>
+                        ))}
+                    </div>
                     <Button variant="outline" onClick={() => inputRef.current?.click()}>
                         <Upload className="h-4 w-4 mr-2" />{t('exif.open')}
                     </Button>

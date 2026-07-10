@@ -6,6 +6,8 @@ export interface StrippedImage {
     height: number
 }
 
+export type ExifOutputFormat = 'jpeg' | 'png' | 'webp'
+
 export const imageMimeFromName = (name: string) => {
     const extension = name.split('.').pop()?.toLowerCase()
     if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg'
@@ -22,14 +24,13 @@ export const bytesToImageDataUrl = (bytes: Uint8Array, name = ''): Promise<strin
         reader.readAsDataURL(new Blob([buffer], { type: imageMimeFromName(name) }))
     })
 
-const outputType = (source: string): Pick<StrippedImage, 'mimeType' | 'extension'> => {
-    const mimeType = source.match(/^data:(image\/(?:png|jpeg|webp));/i)?.[1]?.toLowerCase()
-    if (mimeType === 'image/jpeg') return { mimeType, extension: 'jpg' }
-    if (mimeType === 'image/webp') return { mimeType, extension: 'webp' }
+const outputType = (format: ExifOutputFormat): Pick<StrippedImage, 'mimeType' | 'extension'> => {
+    if (format === 'jpeg') return { mimeType: 'image/jpeg', extension: 'jpg' }
+    if (format === 'webp') return { mimeType: 'image/webp', extension: 'webp' }
     return { mimeType: 'image/png', extension: 'png' }
 }
 
-export const stripImageMetadata = async (source: string): Promise<StrippedImage> => {
+export const stripImageMetadata = async (source: string, outputFormat: ExifOutputFormat): Promise<StrippedImage> => {
     const image = new Image()
     image.decoding = 'async'
     await new Promise<void>((resolve, reject) => {
@@ -38,15 +39,25 @@ export const stripImageMetadata = async (source: string): Promise<StrippedImage>
         image.src = source
     })
 
-    const canvas = document.createElement('canvas')
-    canvas.width = image.naturalWidth
-    canvas.height = image.naturalHeight
-    const context = canvas.getContext('2d')
-    if (!context) throw new Error('Canvas is not available')
-    context.drawImage(image, 0, 0)
+    const width = image.naturalWidth
+    const height = image.naturalHeight
+    const shrinkCanvas = document.createElement('canvas')
+    shrinkCanvas.width = Math.max(1, width - 1)
+    shrinkCanvas.height = Math.max(1, height - 1)
+    const shrinkContext = shrinkCanvas.getContext('2d')
+    if (!shrinkContext) throw new Error('Shrink canvas is not available')
+    shrinkContext.drawImage(image, 0, 0, shrinkCanvas.width, shrinkCanvas.height)
     image.src = ''
 
-    const format = outputType(source)
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Final canvas is not available')
+    context.imageSmoothingEnabled = false
+    context.drawImage(shrinkCanvas, 0, 0, width, height)
+
+    const format = outputType(outputFormat)
     const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(
             result => result ? resolve(result) : reject(new Error('Failed to encode image')),
@@ -54,8 +65,8 @@ export const stripImageMetadata = async (source: string): Promise<StrippedImage>
             1
         )
     })
-    const width = canvas.width
-    const height = canvas.height
+    shrinkCanvas.width = 0
+    shrinkCanvas.height = 0
     canvas.width = 0
     canvas.height = 0
 
