@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, Eraser, ImagePlus, Trash2, Upload } from 'lucide-react'
 import { save } from '@tauri-apps/plugin-dialog'
-import { exists, mkdir, writeFile } from '@tauri-apps/plugin-fs'
+import { exists, mkdir, readDir, writeFile } from '@tauri-apps/plugin-fs'
 import { join, pictureDir } from '@tauri-apps/api/path'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/use-toast'
@@ -14,18 +14,21 @@ const isAbsolutePath = (path: string) => /^[a-zA-Z]:[\\/]/.test(path) || path.st
 const safeFileName = (name: string) => name.replace(/[<>:"/\\|?*]/g, '_').trim()
 
 const getAvailableFilePath = async (directory: string, fileName: string) => {
-    let candidate = await join(directory, fileName)
-    if (!(await exists(candidate))) return candidate
+    const existingNames = new Set(
+        (await readDir(directory)).map(entry => entry.name.toLowerCase())
+    )
+    if (!existingNames.has(fileName.toLowerCase())) return join(directory, fileName)
 
     const extensionIndex = fileName.lastIndexOf('.')
     const baseName = extensionIndex > 0 ? fileName.slice(0, extensionIndex) : fileName
     const extension = extensionIndex > 0 ? fileName.slice(extensionIndex) : ''
     let index = 1
+    let candidateName: string
     do {
-        candidate = await join(directory, `${baseName} (${index})${extension}`)
+        candidateName = `${baseName} (${index})${extension}`
         index++
-    } while (await exists(candidate))
-    return candidate
+    } while (existingNames.has(candidateName.toLowerCase()))
+    return join(directory, candidateName)
 }
 
 export default function ExifManager() {
