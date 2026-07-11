@@ -71,6 +71,12 @@ export function PromptPanel() {
 
     // Zustand 선택적 구독 - sceneStore
     const activePresetId = useSceneStore(state => state.activePresetId)
+    const routeSceneId = location.pathname.match(/^\/scenes\/([^/]+)/)?.[1]
+    const activeScenePrompt = useSceneStore(state => {
+        if (!routeSceneId || !state.activePresetId) return ''
+        return state.presets.find(preset => preset.id === state.activePresetId)
+            ?.scenes.find(scene => scene.id === routeSceneId)?.scenePrompt || ''
+    })
     const getTotalQueueCount = useSceneStore(state => state.getTotalQueueCount)
     const sceneIsGenerating = useSceneStore(state => state.isGenerating)
     const sceneIsCancelling = useSceneStore(state => state.isCancelling)
@@ -142,6 +148,7 @@ export function PromptPanel() {
 
     // Zustand 선택적 구독 - characterPromptStore
     const characterCount = useCharacterPromptStore(state => state.characters.filter(c => c.enabled).length)
+    const characters = useCharacterPromptStore(state => state.characters)
     const activeReferenceCount = useCharacterStore(state =>
         state.characterImages.filter(image => image.enabled !== false).length
         + state.vibeImages.filter(image => image.enabled !== false).length
@@ -151,6 +158,39 @@ export function PromptPanel() {
     const [characterPanelOpen, setCharacterPanelOpen] = useState(false)
     const [imageRefDialogOpen, setImageRefDialogOpen] = useState(false)
     const [parameterDialogOpen, setParameterDialogOpen] = useState(false)
+    const [tokenTotals, setTokenTotals] = useState({ positive: 0, negative: 0 })
+
+    useEffect(() => {
+        const removeComments = (text: string) => text
+            .split('\n')
+            .filter(line => !line.trimStart().startsWith('#'))
+            .join('\n')
+        const positive = [
+            basePrompt,
+            additionalPrompt,
+            detailPrompt,
+            activeScenePrompt,
+            ...characters.filter(character => character.enabled).map(character => character.prompt),
+        ].map(removeComments).filter(text => text.trim()).join(', ')
+        const negative = [
+            negativePrompt,
+            ...characters.filter(character => character.enabled).map(character => character.negative),
+        ].map(removeComments).filter(text => text.trim()).join(', ')
+        if (!positive && !negative) {
+            setTokenTotals({ positive: 0, negative: 0 })
+            return
+        }
+        let cancelled = false
+        const timer = window.setTimeout(() => {
+            void import('@/lib/token-counter').then(({ countTokens }) => {
+                if (!cancelled) setTokenTotals({ positive: countTokens(positive), negative: countTokens(negative) })
+            })
+        }, 250)
+        return () => {
+            cancelled = true
+            window.clearTimeout(timer)
+        }
+    }, [basePrompt, additionalPrompt, detailPrompt, negativePrompt, activeScenePrompt, characters])
 
     // 전역 단축키 이벤트 수신
     useEffect(() => {
@@ -245,6 +285,9 @@ export function PromptPanel() {
                             <ChevronUp className="h-3 w-3" />
                         )}
                         {t('prompt.base')}
+                        <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] text-emerald-500">
+                            + {tokenTotals.positive}
+                        </span>
                         {basePromptCollapsed && basePrompt && (
                             <span className="text-muted-foreground font-normal truncate max-w-[200px]">
                                 - {basePrompt.split(',')[0]}...
@@ -344,6 +387,9 @@ export function PromptPanel() {
                             <ChevronUp className="h-3 w-3" />
                         )}
                         {t('prompt.negative')}
+                        <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-mono text-[10px] text-destructive">
+                            - {tokenTotals.negative}
+                        </span>
                         {negativePromptCollapsed && negativePrompt && (
                             <span className="text-muted-foreground font-normal truncate max-w-[200px]">
                                 - {negativePrompt.split(',')[0]}...
@@ -438,16 +484,16 @@ export function PromptPanel() {
                             <SlidersHorizontal className="h-4 w-4" />
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[480px] max-h-[85vh] overflow-y-auto">
+                    <DialogContent className="sm:max-w-[440px] max-h-[85vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>{t('parameters.title')}</DialogTitle>
                             <DialogDescription>
                                 {t('parameters.description')}
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="grid gap-5 py-4">
+                        <div className="grid gap-4 py-3">
                             {/* Model Selection */}
-                            <div className="space-y-2">
+                            <div className="grid grid-cols-[110px_1fr] items-center gap-4">
                                 <Label className="flex items-center gap-2">
                                     <Cpu className="h-4 w-4" />
                                     {t('parameters.model')}
@@ -466,7 +512,7 @@ export function PromptPanel() {
 
                             {/* Resolution (Moved here) */}
                             {/* Resolution (Moved here) */}
-                            <div className="space-y-2">
+                            <div className="grid grid-cols-[110px_1fr] items-center gap-4">
                                 <Label className="text-sm font-medium">
                                     {t('settingsPage.general.resolution', '해상도')}
                                 </Label>
@@ -478,7 +524,7 @@ export function PromptPanel() {
                             </div>
 
                             {/* Seed (Moved here) */}
-                            <div className="space-y-2">
+                            <div className="grid grid-cols-[110px_1fr] items-center gap-4">
                                 <label className="text-sm font-medium">{t('settings.seed')}</label>
                                 <div className="flex gap-2">
                                     <Input
@@ -509,7 +555,7 @@ export function PromptPanel() {
                             </div>
 
                             {/* Steps */}
-                            <div className="space-y-2">
+                            <div className="grid grid-cols-[110px_1fr] items-center gap-4">
                                 <div className="flex items-center justify-between">
                                     <Label>{t('parameters.steps')}</Label>
                                     <span className="text-sm text-muted-foreground">{steps}</span>
@@ -525,7 +571,7 @@ export function PromptPanel() {
                             </div>
 
                             {/* CFG Scale */}
-                            <div className="space-y-2">
+                            <div className="grid grid-cols-[110px_1fr] items-center gap-4">
                                 <div className="flex items-center justify-between">
                                     <Label>{t('parameters.cfgScale')}</Label>
                                     <span className="text-sm text-muted-foreground">{cfgScale.toFixed(1)}</span>
@@ -541,7 +587,7 @@ export function PromptPanel() {
                             </div>
 
                             {/* CFG Rescale */}
-                            <div className="space-y-2">
+                            <div className="grid grid-cols-[110px_1fr] items-center gap-4">
                                 <div className="flex items-center justify-between">
                                     <Label>{t('parameters.cfgRescale')}</Label>
                                     <span className="text-sm text-muted-foreground">{cfgRescale.toFixed(2)}</span>

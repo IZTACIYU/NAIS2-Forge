@@ -509,6 +509,7 @@ export const useGenerationStore = create<GenerationState>()(
 
                             // Image format (PNG or WebP)
                             imageFormat,
+                            officialPayload: useSettingsStore.getState().expertOfficialPayloadEnabled,
 
                             // NAI UI options (Quality Tags & UC Preset)
                             qualityToggle: get().qualityToggle,

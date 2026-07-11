@@ -361,6 +361,7 @@ export function useSceneGeneration() {
 
                     // Image format from settings
                     imageFormat: useSettingsStore.getState().imageFormat,
+                    officialPayload: useSettingsStore.getState().expertOfficialPayloadEnabled,
                 }
 
                 let result

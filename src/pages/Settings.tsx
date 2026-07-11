@@ -81,7 +81,7 @@ export default function Settings() {
     const { t, i18n } = useTranslation()
     const { theme, setTheme } = useThemeStore()
     const { token, isVerified, anlas, isLoading, verifyAndSave } = useAuthStore()
-    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertSceneCharacterVariantOverrideEnabled, setExpertSceneCharacterVariantOverrideEnabled, expertSceneCharacterCostumeOverrideEnabled, setExpertSceneCharacterCostumeOverrideEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, expertExifDirectActionEnabled, setExpertExifDirectActionEnabled, expertExifManagerEnabled, setExpertExifManagerEnabled, expertExifQuickActionEnabled, setExpertExifQuickActionEnabled, expertExifAutoSaveEnabled, setExpertExifAutoSaveEnabled, exifAutoSaveName, setExifAutoSaveName, exifAutoSavePath, setExifAutoSavePath, exifOutputFormat, setExifOutputFormat, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertR2ExifRemovalEnabled, setExpertR2ExifRemovalEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
+    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertOfficialPayloadEnabled, setExpertOfficialPayloadEnabled, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertSceneCharacterVariantOverrideEnabled, setExpertSceneCharacterVariantOverrideEnabled, expertSceneCharacterCostumeOverrideEnabled, setExpertSceneCharacterCostumeOverrideEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, expertExifDirectActionEnabled, setExpertExifDirectActionEnabled, expertExifManagerEnabled, setExpertExifManagerEnabled, expertExifQuickActionEnabled, setExpertExifQuickActionEnabled, expertExifAutoSaveEnabled, setExpertExifAutoSaveEnabled, exifAutoSaveName, setExifAutoSaveName, exifAutoSavePath, setExifAutoSavePath, exifOutputFormat, setExifOutputFormat, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertR2ExifRemovalEnabled, setExpertR2ExifRemovalEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
     const { bindings, enabled: shortcutsEnabled, setBinding, resetBinding, resetAllBindings, setEnabled: setShortcutsEnabled } = useShortcutStore()
     const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey)
 
@@ -1090,6 +1090,21 @@ export default function Settings() {
                                 <p className="text-sm text-muted-foreground mt-1">
                                     {t('settingsPage.expert.description')}
                                 </p>
+                            </div>
+
+                            <div className="space-y-1">
+                                <h3 className="text-sm font-semibold">{t('settingsPage.expert.generation.header', 'Generation Compatibility')}</h3>
+                                <p className="text-xs text-muted-foreground">{t('settingsPage.expert.generation.description', 'Choose how NovelAI request payloads are assembled.')}</p>
+                            </div>
+
+                            <div className="border border-border/50 rounded-xl p-6 bg-card/30">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <label className="text-sm font-medium">{t('settingsPage.expert.generation.officialTitle', 'NAI Official-Compatible Payload')}</label>
+                                        <p className="text-xs text-muted-foreground mt-1">{t('settingsPage.expert.generation.officialDesc', 'Matches the current NovelAI web payload format. Turn off to use the existing NAIS2 format.')}</p>
+                                    </div>
+                                    <Switch checked={expertOfficialPayloadEnabled} onChange={(event) => setExpertOfficialPayloadEnabled(event.target.checked)} />
+                                </div>
                             </div>
 
                             <div className="space-y-1">

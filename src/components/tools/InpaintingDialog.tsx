@@ -22,8 +22,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         setMask,
         setI2IMode,
         resetI2IParams,
-        mask: existingMask,
-        sourceImage: storedSourceImage
+        mask: existingMask
     } = useGenerationStore()
 
     const {
@@ -66,10 +65,6 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     useEffect(() => {
         if (!open || !propSourceImage) return
 
-        const sameSource = storedSourceImage === propSourceImage
-        const maskToRestore = sameSource ? existingMask : null
-        if (!sameSource && existingMask) setMask(null)
-
         const timer = setTimeout(() => {
             const canvas = canvasRef.current
             if (!canvas) return
@@ -84,19 +79,19 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                 ctx.clearRect(0, 0, canvas.width, canvas.height)
 
                 // Restore existing mask if present
-                if (maskToRestore) {
+                if (existingMask) {
                     const maskImg = new Image()
                     maskImg.crossOrigin = 'anonymous'
                     maskImg.onload = () => {
                         ctx.drawImage(maskImg, 0, 0, canvas.width, canvas.height)
                     }
-                    maskImg.src = maskToRestore
+                    maskImg.src = existingMask
                 }
             }
             img.src = propSourceImage
         }, 100)
         return () => clearTimeout(timer)
-    }, [open, propSourceImage, existingMask, storedSourceImage, setMask])
+    }, [open, propSourceImage, existingMask])
 
     // Grid cell size (NovelAI uses 8x8 pixel blocks)
     const GRID_SIZE = 8
@@ -304,8 +299,14 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         onOpenChange(false)
     }
 
+    const handleCloseWithoutSaving = () => {
+        setMask(null)
+        setI2IMode(null)
+        onOpenChange(false)
+    }
+
     return (
-        <Dialog open={open} onOpenChange={(open) => !open && onOpenChange(false)}>
+        <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && handleCloseWithoutSaving()}>
             <DialogContent className="flex flex-col p-6 gap-4" style={{ maxWidth: '60vw', maxHeight: '85vh', width: '60vw', height: '85vh' }}>
                 <DialogHeader className="mb-0 shrink-0">
                     <DialogTitle className="flex items-center gap-2 text-xl">
@@ -429,7 +430,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                 </div>
 
                 <DialogFooter className="mt-4 sm:justify-end items-center gap-2">
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>
+                    <Button variant="outline" onClick={handleCloseWithoutSaving}>
                         {t('common.cancel', 'Cancel')}
                     </Button>
                     <Button

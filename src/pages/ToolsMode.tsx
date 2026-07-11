@@ -23,10 +23,31 @@ export default function ToolsMode() {
     const { t } = useTranslation()
     const navigate = useNavigate()
     const { activeImage, setActiveImage } = useToolsStore()
-    const { token } = useAuthStore()
+    const { token, tier } = useAuthStore()
 
     const [processedImage, setProcessedImage] = useState<string | null>(activeImage)
     const [isLoading, setIsLoading] = useState(false)
+    const [toolCosts, setToolCosts] = useState<{ upscale: number; background: number; standard: number } | null>(null)
+
+    useEffect(() => {
+        if (!processedImage) {
+            setToolCosts(null)
+            return
+        }
+        const image = new Image()
+        image.onload = () => {
+            const isOpus = tier?.toLowerCase() === 'opus'
+            setToolCosts({
+                upscale: directorToolCost(image.width, image.height, isOpus),
+                background: directorAugmentCost(image.width, image.height, false, true),
+                standard: directorAugmentCost(image.width, image.height, isOpus, false),
+            })
+            image.src = ''
+        }
+        image.onerror = () => { image.src = ''; setToolCosts(null) }
+        image.src = processedImage
+        return () => { image.src = '' }
+    }, [processedImage, tier])
 
     // Style Analysis State
     const [isAnalysisOpen, setIsAnalysisOpen] = useState(false)
@@ -390,6 +411,20 @@ export default function ToolsMode() {
                     className="p-4 flex-1 overflow-y-auto overscroll-contain space-y-6"
                     style={{ scrollbarGutter: 'stable' }}
                 >
+                    {toolCosts && (
+                        <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
+                            <div className="flex items-center justify-between">
+                                <span className="font-medium">{t('smartTools.freeTools', 'Free Tools')}</span>
+                                <CostChip cost={0} />
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                                <CostChip label={t('smartTools.rembg')} cost={toolCosts.background} />
+                                <CostChip label={t('smartTools.upscale')} cost={toolCosts.upscale} />
+                                <CostChip label={t('smartTools.directorTools', 'Director Tools')} cost={toolCosts.standard} />
+                            </div>
+                        </div>
+                    )}
+                    <ToolSectionLabel>{t('smartTools.paidTools', 'Anlas Tools')}</ToolSectionLabel>
                     {/* Background Removal */}
                     <ToolCard
                         icon={Eraser}
@@ -407,6 +442,7 @@ export default function ToolsMode() {
                         </Button>
                     </ToolCard>
 
+                    <ToolSectionLabel>{t('smartTools.freeTools', 'Free Tools')}</ToolSectionLabel>
                     {/* Style Analysis (Kaloscope) */}
                     <ToolCard
                         icon={Palette}
@@ -482,6 +518,7 @@ export default function ToolsMode() {
                         </Button>
                     </ToolCard>
 
+                    <ToolSectionLabel>{t('smartTools.paidTools', 'Anlas Tools')}</ToolSectionLabel>
                     {/* Upscale (4K) */}
                     <ToolCard
                         icon={Maximize2}
@@ -489,7 +526,7 @@ export default function ToolsMode() {
                         title={
                             <span className="flex items-center gap-2">
                                 {t('smartTools.upscale', '4K 업스케일')}
-                                <span className="text-orange-400 text-xs font-medium">-7 Anlas</span>
+                                <CostChip cost={toolCosts?.upscale ?? null} />
                             </span>
                         }
                         disabled={!processedImage || isLoading}
@@ -615,6 +652,40 @@ export default function ToolsMode() {
             />
         </div>
     )
+}
+
+function ToolSectionLabel({ children }: { children: React.ReactNode }) {
+    return <div className="border-b border-border/50 pb-1 text-[11px] font-semibold uppercase text-muted-foreground">{children}</div>
+}
+
+function CostChip({ cost, label }: { cost: number | null | undefined; label?: React.ReactNode }) {
+    if (cost == null) return null
+    return (
+        <span className={cn(
+            "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
+            cost === 0 ? "bg-emerald-500/15 text-emerald-500" : "bg-destructive/15 text-destructive"
+        )}>
+            {label && <span>{label}</span>}
+            <span>{cost === 0 ? '0' : `-${cost}`}</span>
+        </span>
+    )
+}
+
+function directorToolCost(width: number, height: number, isOpus: boolean): number {
+    const pixels = width * height
+    if (isOpus && pixels <= 409600) return 0
+    if (pixels <= 262144) return 1
+    if (pixels <= 409600) return 2
+    if (pixels <= 524288) return 3
+    if (pixels <= 786432) return 5
+    return 7
+}
+
+function directorAugmentCost(width: number, height: number, isOpus: boolean, background: boolean): number {
+    const pixels = Math.max(1048576, Math.min(width * height, 3145728))
+    const base = Math.max(Math.ceil(2.951823174884865e-6 * pixels + 5.753298233447344e-7 * pixels * 28), 2)
+    if (background) return base * 3 + 5
+    return isOpus && pixels <= 1048576 ? 0 : base
 }
 
 function ToolCard({ children, icon: Icon, color, title, disabled }: any) {
