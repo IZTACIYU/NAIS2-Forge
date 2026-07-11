@@ -285,9 +285,6 @@ export function PromptPanel() {
                             <ChevronUp className="h-3 w-3" />
                         )}
                         {t('prompt.base')}
-                        <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] text-emerald-500">
-                            + {tokenTotals.positive}
-                        </span>
                         {basePromptCollapsed && basePrompt && (
                             <span className="text-muted-foreground font-normal truncate max-w-[200px]">
                                 - {basePrompt.split(',')[0]}...
@@ -295,13 +292,16 @@ export function PromptPanel() {
                         )}
                     </button>
                     {!basePromptCollapsed && (
-                        <AutocompleteTextarea
-                            placeholder={t('prompt.basePlaceholder')}
-                            value={basePrompt}
-                            onChange={(e) => setBasePrompt(e.target.value)}
-                            className="flex-1 min-h-0 resize-none rounded-xl"
-                            style={{ fontSize: `${promptFontSize}px` }}
-                        />
+                        <div className="relative flex-1 min-h-0">
+                            <AutocompleteTextarea
+                                placeholder={t('prompt.basePlaceholder')}
+                                value={basePrompt}
+                                onChange={(e) => setBasePrompt(e.target.value)}
+                                className="h-full min-h-0 resize-none rounded-xl"
+                                style={{ fontSize: `${promptFontSize}px` }}
+                            />
+                            <TokenCountOverlay count={tokenTotals.positive} />
+                        </div>
                     )}
                 </div>
 
@@ -387,9 +387,6 @@ export function PromptPanel() {
                             <ChevronUp className="h-3 w-3" />
                         )}
                         {t('prompt.negative')}
-                        <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-mono text-[10px] text-destructive">
-                            - {tokenTotals.negative}
-                        </span>
                         {negativePromptCollapsed && negativePrompt && (
                             <span className="text-muted-foreground font-normal truncate max-w-[200px]">
                                 - {negativePrompt.split(',')[0]}...
@@ -397,13 +394,16 @@ export function PromptPanel() {
                         )}
                     </button>
                     {!negativePromptCollapsed && (
-                        <AutocompleteTextarea
-                            placeholder={t('prompt.negativePlaceholder')}
-                            value={negativePrompt}
-                            onChange={(e) => setNegativePrompt(e.target.value)}
-                            className="flex-1 min-h-0 resize-none rounded-xl border-destructive/20"
-                            style={{ fontSize: `${promptFontSize}px` }}
-                        />
+                        <div className="relative flex-1 min-h-0">
+                            <AutocompleteTextarea
+                                placeholder={t('prompt.negativePlaceholder')}
+                                value={negativePrompt}
+                                onChange={(e) => setNegativePrompt(e.target.value)}
+                                className="h-full min-h-0 resize-none rounded-xl border-destructive/20"
+                                style={{ fontSize: `${promptFontSize}px` }}
+                            />
+                            <TokenCountOverlay count={tokenTotals.negative} />
+                        </div>
                     )}
                 </div>
             </div>
@@ -792,5 +792,19 @@ export function PromptPanel() {
                 </div>
             </div>
         </div>
+    )
+}
+
+function TokenCountOverlay({ count }: { count: number }) {
+    const exceeded = count > 512
+    return (
+        <span className={cn(
+            "pointer-events-none absolute bottom-2 right-3 z-10 rounded border px-1.5 py-0.5 font-mono text-[10px] shadow-sm backdrop-blur-sm",
+            exceeded
+                ? "border-destructive/70 bg-destructive/90 text-destructive-foreground"
+                : "border-border/60 bg-background/70 text-muted-foreground"
+        )}>
+            {count}/512
+        </span>
     )
 }

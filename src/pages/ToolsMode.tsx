@@ -408,28 +408,16 @@ export default function ToolsMode() {
             <div className="w-[320px] bg-card rounded-xl border border-border flex flex-col overflow-hidden">
 
                 <div
-                    className="p-4 flex-1 overflow-y-auto overscroll-contain space-y-6"
+                    className="p-4 flex-1 overflow-y-auto overscroll-contain flex flex-col gap-6"
                     style={{ scrollbarGutter: 'stable' }}
                 >
-                    {toolCosts && (
-                        <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
-                            <div className="flex items-center justify-between">
-                                <span className="font-medium">{t('smartTools.freeTools', 'Free Tools')}</span>
-                                <CostChip cost={0} />
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                                <CostChip label={t('smartTools.rembg')} cost={toolCosts.background} />
-                                <CostChip label={t('smartTools.upscale')} cost={toolCosts.upscale} />
-                                <CostChip label={t('smartTools.directorTools', 'Director Tools')} cost={toolCosts.standard} />
-                            </div>
-                        </div>
-                    )}
-                    <ToolSectionLabel>{t('smartTools.paidTools', 'Anlas Tools')}</ToolSectionLabel>
                     {/* Background Removal */}
                     <ToolCard
+                        order={4}
                         icon={Eraser}
                         color="text-rose-400"
                         title={t('smartTools.rembg', '배경 제거')}
+                        cost={toolCosts?.background}
                         disabled={!processedImage || isLoading}
                     >
                         <Button
@@ -442,9 +430,9 @@ export default function ToolsMode() {
                         </Button>
                     </ToolCard>
 
-                    <ToolSectionLabel>{t('smartTools.freeTools', 'Free Tools')}</ToolSectionLabel>
                     {/* Style Analysis (Kaloscope) */}
                     <ToolCard
+                        order={10}
                         icon={Palette}
                         color="text-purple-400"
                         title={t('smartTools.kaloscopeStyle', '스타일 분석')}
@@ -462,6 +450,7 @@ export default function ToolsMode() {
 
                     {/* Image to Image */}
                     <ToolCard
+                        order={1}
                         icon={ImageIcon}
                         color="text-indigo-400"
                         title={t('tools.i2i.title', 'Image to Image')}
@@ -483,6 +472,7 @@ export default function ToolsMode() {
 
                     {/* Inpainting */}
                     <ToolCard
+                        order={2}
                         icon={Paintbrush}
                         color="text-pink-400"
                         title={t('tools.inpainting.title', 'Inpainting')}
@@ -501,8 +491,11 @@ export default function ToolsMode() {
                         </Button>
                     </ToolCard>
 
+                    <div className="h-px bg-border" style={{ order: 2 }} />
+
                     {/* Mosaic */}
                     <ToolCard
+                        order={11}
                         icon={Grid3X3}
                         color="text-amber-400"
                         title={t('smartTools.mosaic', '모자이크')}
@@ -518,17 +511,13 @@ export default function ToolsMode() {
                         </Button>
                     </ToolCard>
 
-                    <ToolSectionLabel>{t('smartTools.paidTools', 'Anlas Tools')}</ToolSectionLabel>
                     {/* Upscale (4K) */}
                     <ToolCard
+                        order={3}
                         icon={Maximize2}
                         color="text-purple-400"
-                        title={
-                            <span className="flex items-center gap-2">
-                                {t('smartTools.upscale', '4K 업스케일')}
-                                <CostChip cost={toolCosts?.upscale ?? null} />
-                            </span>
-                        }
+                        title={t('smartTools.upscale', '4K 업스케일')}
+                        cost={toolCosts?.upscale}
                         disabled={!processedImage || isLoading}
                     >
                         <Button
@@ -543,9 +532,11 @@ export default function ToolsMode() {
 
                     {/* Line Art */}
                     <ToolCard
+                        order={5}
                         icon={PenTool}
                         color="text-slate-400"
                         title={t('smartTools.lineart', '라인아트 추출')}
+                        cost={toolCosts?.standard}
                         disabled={!processedImage || isLoading || !token}
                     >
                         <Button className="w-full" variant="secondary" onClick={() => handleDirectorTool('lineart')} disabled={!processedImage || isLoading || !token}>
@@ -555,9 +546,11 @@ export default function ToolsMode() {
 
                     {/* Sketch */}
                     <ToolCard
+                        order={6}
                         icon={Pencil}
                         color="text-gray-400"
                         title={t('smartTools.sketch', '스케치 변환')}
+                        cost={toolCosts?.standard}
                         disabled={!processedImage || isLoading || !token}
                     >
                         <Button className="w-full" variant="secondary" onClick={() => handleDirectorTool('sketch')} disabled={!processedImage || isLoading || !token}>
@@ -567,9 +560,11 @@ export default function ToolsMode() {
 
                     {/* Colorize */}
                     <ToolCard
+                        order={7}
                         icon={Droplets}
                         color="text-cyan-400"
                         title={t('smartTools.colorize', '색칠하기')}
+                        cost={toolCosts?.standard}
                         disabled={!processedImage || isLoading || !token}
                     >
                         <DirectorToolWithOptions
@@ -584,9 +579,11 @@ export default function ToolsMode() {
 
                     {/* Emotion */}
                     <ToolCard
+                        order={8}
                         icon={Smile}
                         color="text-yellow-400"
                         title={t('smartTools.emotion', '표정 변경')}
+                        cost={toolCosts?.standard}
                         disabled={!processedImage || isLoading || !token}
                     >
                         <DirectorToolWithOptions
@@ -602,15 +599,18 @@ export default function ToolsMode() {
 
                     {/* Declutter */}
                     <ToolCard
+                        order={9}
                         icon={Sparkles}
                         color="text-emerald-400"
                         title={t('smartTools.declutter', '이미지 정리')}
+                        cost={toolCosts?.standard}
                         disabled={!processedImage || isLoading || !token}
                     >
                         <Button className="w-full" variant="secondary" onClick={() => handleDirectorTool('declutter')} disabled={!processedImage || isLoading || !token}>
                             {t('smartTools.runDeclutter', '정리 실행')}
                         </Button>
                     </ToolCard>
+                    <div className="h-px bg-border" style={{ order: 9 }} />
                 </div>
             </div>
 
@@ -654,18 +654,13 @@ export default function ToolsMode() {
     )
 }
 
-function ToolSectionLabel({ children }: { children: React.ReactNode }) {
-    return <div className="border-b border-border/50 pb-1 text-[11px] font-semibold uppercase text-muted-foreground">{children}</div>
-}
-
-function CostChip({ cost, label }: { cost: number | null | undefined; label?: React.ReactNode }) {
+function CostChip({ cost }: { cost: number | null | undefined }) {
     if (cost == null) return null
     return (
         <span className={cn(
             "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
             cost === 0 ? "bg-emerald-500/15 text-emerald-500" : "bg-destructive/15 text-destructive"
         )}>
-            {label && <span>{label}</span>}
             <span>{cost === 0 ? '0' : `-${cost}`}</span>
         </span>
     )
@@ -688,15 +683,16 @@ function directorAugmentCost(width: number, height: number, isOpus: boolean, bac
     return isOpus && pixels <= 1048576 ? 0 : base
 }
 
-function ToolCard({ children, icon: Icon, color, title, disabled }: any) {
+function ToolCard({ children, icon: Icon, color, title, disabled, cost, order }: any) {
     return (
         <div
             className={cn("p-4 border rounded-xl bg-card hover:border-primary/50 transition-colors", disabled && "opacity-50 pointer-events-none")}
-            style={{ contentVisibility: 'auto', containIntrinsicSize: '160px', contain: 'layout paint style' }}
+            style={{ contentVisibility: 'auto', containIntrinsicSize: '160px', contain: 'layout paint style', order }}
         >
             <div className="flex items-center gap-3 mb-3">
                 <Icon className={cn("h-5 w-5", color)} />
-                <span className="font-medium">{title}</span>
+                <span className="min-w-0 flex-1 font-medium">{title}</span>
+                <CostChip cost={cost} />
             </div>
             {children}
         </div>
