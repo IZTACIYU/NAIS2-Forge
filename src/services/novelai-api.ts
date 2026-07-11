@@ -769,7 +769,6 @@ export async function augmentImage(
         // Response is a ZIP file containing the image
         const zipBlob = await response.blob()
         const zipData = await zipBlob.arrayBuffer()
-        const JSZip = (await import('jszip')).default
         const zip = await JSZip.loadAsync(zipData)
         const files = Object.keys(zip.files)
 

@@ -1,6 +1,3 @@
-// @ts-ignore
-import { Client } from "@gradio/client";
-
 /**
  * Singleton class to manage Smart Tools
  */
@@ -26,6 +23,7 @@ class SmartToolsService {
     ): Promise<string> {
         const response = await fetch(imageUrl);
         const blob = await response.blob();
+        const { Client } = await import('@gradio/client')
 
         // Step 1: Try BRIA-RMBG-2.0 (best quality)
         try {

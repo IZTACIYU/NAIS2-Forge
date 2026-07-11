@@ -29,7 +29,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useSettingsStore } from '@/stores/settings-store'
 import { generateTagsFromPrompt, GEMINI_MODELS, type GeminiModel, type TokenUsage } from '@/services/gemini-service'
-import { parseAndMatchTags, type TagMatchResult } from '@/lib/tag-matcher'
+import { matchTags, type TagMatchResult } from '@/lib/tag-search-client'
 import { toast } from '@/components/ui/use-toast'
 
 interface PromptGeneratorDialogProps {
@@ -87,8 +87,7 @@ export function PromptGeneratorDialog({ open, onOpenChange, onApply }: PromptGen
             }
 
             // Match tags with our database
-            const rawTags = result.tags.join(', ')
-            const matchResults = parseAndMatchTags(rawTags)
+            const matchResults = await matchTags(result.tags)
             setResults(matchResults)
 
             // Initialize selected tags with matched ones

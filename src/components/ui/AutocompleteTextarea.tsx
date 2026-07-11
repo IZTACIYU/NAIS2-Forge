@@ -3,17 +3,10 @@ import { createPortal } from 'react-dom'
 import Editor from 'react-simple-code-editor'
 import { getCaretCoordinates } from '@/utils/caret-coords'
 import { cn } from '@/lib/utils'
-import tagsData from '@/assets/tags.json'
+import { searchTags } from '@/lib/tag-search-client'
 import { useFragmentStore } from '@/stores/fragment-store'
 
 // --- Types ---
-interface Tag {
-    label: string
-    value: string
-    count: number
-    type: string
-}
-
 interface SuggestionItem {
     label: string
     value: string
@@ -31,23 +24,6 @@ interface AutocompleteTextareaProps {
     placeholder?: string
     disabled?: boolean
     readOnly?: boolean
-}
-
-// --- Constants ---
-const ALL_TAGS = tagsData as Tag[]
-
-// ?ъ쟾 泥섎━: ?뚮Ц??蹂?섎맂 label 罹먯떛 (理쒖큹 1?뚮쭔)
-const TAGS_WITH_LOWER = ALL_TAGS.map(tag => ({
-    ...tag,
-    _lower: tag.label.toLowerCase()
-}))
-
-// 泥?湲?먮퀎 ?몃뜳???앹꽦 (O(1) ?묎렐)
-const TAG_INDEX: Record<string, typeof TAGS_WITH_LOWER> = {}
-for (const tag of TAGS_WITH_LOWER) {
-    const firstChar = tag._lower[0] || '_'
-    if (!TAG_INDEX[firstChar]) TAG_INDEX[firstChar] = []
-    TAG_INDEX[firstChar].push(tag)
 }
 
 // Single source of truth for Typography to ensure Textarea and Pre match perfectly.
@@ -75,6 +51,7 @@ export function AutocompleteTextarea({
 
     // onChange ?붾컮?댁뒪瑜??꾪븳 ??대㉧ ref
     const onChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const autocompleteRequestRef = useRef(0)
 
     // Fragment Store 援щ룆 (議곌컖 ?꾨＼?꾪듃 紐⑸줉)
     const fragmentFiles = useFragmentStore(state => state.files)
@@ -119,7 +96,8 @@ export function AutocompleteTextarea({
     }
 
     // --- Autocomplete Logic ---
-    const checkAutocomplete = useCallback((val: string, el: HTMLTextAreaElement) => {
+    const checkAutocomplete = useCallback(async (val: string, el: HTMLTextAreaElement) => {
+        const requestId = ++autocompleteRequestRef.current
 
         const pos = el.selectionEnd || val.length
 
@@ -176,29 +154,14 @@ export function AutocompleteTextarea({
 
         // 利됱떆 寃??(?붾컮?댁뒪 ?놁쓬 - 鍮좊Ⅸ 諛섏쓳??
         const lower = word.toLowerCase()
-        const firstChar = lower[0] || ''
-
-        // ?몃뜳??湲곕컲 寃??(?대떦 泥?湲???쒓렇留?寃??
-        const indexedTags = TAG_INDEX[firstChar] || []
-        const matches: SuggestionItem[] = []
-
-        // 1?④퀎: ?몃뜳?ㅻ맂 ?쒓렇?먯꽌 startsWith 留ㅼ묶
-        for (const tag of indexedTags) {
-            if (matches.length >= maxSuggestions) break
-            if (tag._lower.startsWith(lower)) {
-                matches.push(tag)
-            }
+        let matches: SuggestionItem[] = []
+        try {
+            matches = await searchTags(lower, maxSuggestions)
+        } catch {
+            if (requestId === autocompleteRequestRef.current) setIsVisible(false)
+            return
         }
-
-        // 2?④퀎: 遺議깊븯硫??꾩껜?먯꽌 includes 寃??(?먮━吏留?fallback)
-        if (matches.length < maxSuggestions) {
-            for (const tag of TAGS_WITH_LOWER) {
-                if (matches.length >= maxSuggestions) break
-                if (!tag._lower.startsWith(lower) && tag._lower.includes(lower)) {
-                    matches.push(tag)
-                }
-            }
-        }
+        if (requestId !== autocompleteRequestRef.current) return
 
         if (matches.length > 0) {
             setSuggestions(matches)
@@ -384,6 +347,7 @@ export function AutocompleteTextarea({
     // ??대㉧ ?뺣━ (而댄룷?뚰듃 ?몃쭏?댄듃 ??
     useEffect(() => {
         return () => {
+            autocompleteRequestRef.current++
             if (onChangeTimerRef.current) clearTimeout(onChangeTimerRef.current)
         }
     }, [])

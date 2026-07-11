@@ -1,12 +1,13 @@
-import { useState, useCallback, useEffect } from 'react'
+import { lazy, Suspense, useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { SourceImagePanel } from '@/components/layout/SourceImagePanel'
 import { CharacterSettingsDialog } from '@/components/character/CharacterSettingsDialog'
 import { CharacterPromptPanel } from '@/components/character/CharacterPromptPanel'
-import { PromptGeneratorDialog } from '@/components/prompt/PromptGeneratorDialog'
 import { AutocompleteTextarea } from '@/components/ui/AutocompleteTextarea'
+
+const PromptGeneratorDialog = lazy(() => import('@/components/prompt/PromptGeneratorDialog').then(module => ({ default: module.PromptGeneratorDialog })))
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -713,7 +714,7 @@ export function PromptPanel() {
             </div>
 
             {/* AI Prompt Generator Dialog */}
-            <PromptGeneratorDialog
+            {promptGenOpen && <Suspense fallback={null}><PromptGeneratorDialog
                 open={promptGenOpen}
                 onOpenChange={setPromptGenOpen}
                 onApply={(tags) => {
@@ -722,7 +723,7 @@ export function PromptPanel() {
                     const newValue = current ? `${current}, ${tags}` : tags
                     setAdditionalPrompt(newValue)
                 }}
-            />
+            /></Suspense>}
 
             {/* Bottom Generate Button Area */}
             <div className="p-0">

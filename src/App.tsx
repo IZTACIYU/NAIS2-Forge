@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { ThreeColumnLayout } from '@/components/layout/ThreeColumnLayout'
 import { Toaster } from '@/components/ui/toaster'
@@ -8,14 +8,15 @@ import { useSceneGeneration } from '@/hooks/useSceneGeneration'
 import { useUpdateChecker } from '@/hooks/useUpdateChecker'
 import { useShortcuts } from '@/hooks/useShortcuts'
 import MainMode from '@/pages/MainMode'
-import SceneMode from '@/pages/SceneMode'
-import SceneDetail from '@/pages/SceneDetail'
-import WebView from '@/pages/WebView'
-import Library from '@/pages/Library'
-import CloudR2 from '@/pages/CloudR2'
-import Settings from '@/pages/Settings'
-import ToolsMode from '@/pages/ToolsMode'
-import ExifManager from '@/pages/ExifManager'
+
+const SceneMode = lazy(() => import('@/pages/SceneMode'))
+const SceneDetail = lazy(() => import('@/pages/SceneDetail'))
+const WebView = lazy(() => import('@/pages/WebView'))
+const Library = lazy(() => import('@/pages/Library'))
+const CloudR2 = lazy(() => import('@/pages/CloudR2'))
+const Settings = lazy(() => import('@/pages/Settings'))
+const ToolsMode = lazy(() => import('@/pages/ToolsMode'))
+const ExifManager = lazy(() => import('@/pages/ExifManager'))
 
 function AppContent() {
     // Scene generation hook at App level - persists across page navigation
@@ -44,17 +45,19 @@ function AppContent() {
 
     return (
         <ThreeColumnLayout>
-            <Routes>
-                <Route path="/" element={<MainMode />} />
-                <Route path="/scenes" element={<SceneMode />} />
-                <Route path="/scenes/:id" element={<SceneDetail />} />
-                <Route path="/tools" element={<ToolsMode />} />
-                <Route path="/exif" element={<ExifManager />} />
-                <Route path="/web" element={<WebView />} />
-                <Route path="/library" element={<Library />} />
-                <Route path="/cloud-r2" element={<CloudR2 />} />
-                <Route path="/settings" element={<Settings />} />
-            </Routes>
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading...</div>}>
+                <Routes>
+                    <Route path="/" element={<MainMode />} />
+                    <Route path="/scenes" element={<SceneMode />} />
+                    <Route path="/scenes/:id" element={<SceneDetail />} />
+                    <Route path="/tools" element={<ToolsMode />} />
+                    <Route path="/exif" element={<ExifManager />} />
+                    <Route path="/web" element={<WebView />} />
+                    <Route path="/library" element={<Library />} />
+                    <Route path="/cloud-r2" element={<CloudR2 />} />
+                    <Route path="/settings" element={<Settings />} />
+                </Routes>
+            </Suspense>
         </ThreeColumnLayout>
     )
 }
