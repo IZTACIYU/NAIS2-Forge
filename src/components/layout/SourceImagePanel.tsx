@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, Image as ImageIcon, Paintbrush, Minus, Plus, Edit3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,11 @@ export function SourceImagePanel() {
 
     const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false)
     const [isAnimating, setIsAnimating] = useState(false)
+    const cancelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    useEffect(() => () => {
+        if (cancelTimerRef.current) clearTimeout(cancelTimerRef.current)
+    }, [])
 
     // Don't show if no source image or no mode
     if (!sourceImage || !i2iMode) return null
@@ -30,7 +35,9 @@ export function SourceImagePanel() {
 
     const handleCancel = () => {
         setIsAnimating(true)
-        setTimeout(() => {
+        if (cancelTimerRef.current) clearTimeout(cancelTimerRef.current)
+        cancelTimerRef.current = setTimeout(() => {
+            cancelTimerRef.current = null
             resetI2IParams()
             setIsAnimating(false)
         }, 200)

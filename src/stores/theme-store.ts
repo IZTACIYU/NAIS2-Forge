@@ -32,7 +32,7 @@ export const useThemeStore = create<ThemeState>()(
 
 function applyTheme(theme: ThemeMode) {
     const root = document.documentElement
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const systemDark = systemThemeQuery.matches
 
     if (theme === 'system') {
         root.classList.toggle('dark', systemDark)
@@ -41,12 +41,14 @@ function applyTheme(theme: ThemeMode) {
     }
 }
 
-// Listen for system theme changes
-if (typeof window !== 'undefined') {
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-        const { theme } = useThemeStore.getState()
-        if (theme === 'system') {
-            document.documentElement.classList.toggle('dark', e.matches)
-        }
-    })
+const systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)')
+const handleSystemThemeChange = (event: MediaQueryListEvent) => {
+    if (useThemeStore.getState().theme === 'system') {
+        document.documentElement.classList.toggle('dark', event.matches)
+    }
 }
+
+systemThemeQuery.addEventListener('change', handleSystemThemeChange)
+import.meta.hot?.dispose(() => {
+    systemThemeQuery.removeEventListener('change', handleSystemThemeChange)
+})

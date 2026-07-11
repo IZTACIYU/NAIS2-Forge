@@ -21,11 +21,19 @@ export function AnimatedNavBar({ items }: AnimatedNavBarProps) {
     const [isCompact, setIsCompact] = useState(window.innerWidth < 1382)
 
     useEffect(() => {
+        let frameId: number | null = null
         const handleResize = () => {
-            setIsCompact(window.innerWidth < 1382)
+            if (frameId !== null) return
+            frameId = window.requestAnimationFrame(() => {
+                frameId = null
+                setIsCompact(window.innerWidth < 1382)
+            })
         }
         window.addEventListener('resize', handleResize)
-        return () => window.removeEventListener('resize', handleResize)
+        return () => {
+            window.removeEventListener('resize', handleResize)
+            if (frameId !== null) window.cancelAnimationFrame(frameId)
+        }
     }, [])
 
     return (
