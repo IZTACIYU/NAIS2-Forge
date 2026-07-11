@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
 import { X, Image as ImageIcon, Paintbrush, Minus, Plus, Edit3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -18,7 +19,16 @@ export function SourceImagePanel() {
         strength, setStrength,
         noise, setNoise,
         resetI2IParams
-    } = useGenerationStore()
+    } = useGenerationStore(useShallow(state => ({
+        sourceImage: state.sourceImage,
+        mask: state.mask,
+        i2iMode: state.i2iMode,
+        strength: state.strength,
+        setStrength: state.setStrength,
+        noise: state.noise,
+        setNoise: state.setNoise,
+        resetI2IParams: state.resetI2IParams,
+    })))
 
     const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false)
     const [isAnimating, setIsAnimating] = useState(false)

@@ -1,5 +1,6 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useToolsStore } from '@/stores/tools-store'
@@ -21,8 +22,14 @@ import { I2IDialog } from '@/components/tools/I2IDialog'
 export default function ToolsMode() {
     const { t } = useTranslation()
     const navigate = useNavigate()
-    const { activeImage, setActiveImage } = useToolsStore()
-    const { token, tier } = useAuthStore()
+    const { activeImage, setActiveImage } = useToolsStore(useShallow(state => ({
+        activeImage: state.activeImage,
+        setActiveImage: state.setActiveImage,
+    })))
+    const { token, tier } = useAuthStore(useShallow(state => ({
+        token: state.token,
+        tier: state.tier,
+    })))
 
     const [processedImage, setProcessedImage] = useState<string | null>(activeImage)
     const [isLoading, setIsLoading] = useState(false)

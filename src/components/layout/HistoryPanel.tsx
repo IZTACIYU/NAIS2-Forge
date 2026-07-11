@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState, useCallback, memo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { Clock, Trash2, FolderOpen, RefreshCw, FileSearch, Copy, RotateCcw, Save, Users, Image as ImageIcon, Paintbrush, Maximize2, Film, Zap, PenTool, Pencil, Droplets, Smile, Sparkles, Cloud, Eraser } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGenerationStore } from '@/stores/generation-store'
@@ -239,8 +240,20 @@ const HistoryImageItem = memo(function HistoryImageItem({
 
 export function HistoryPanel() {
     const { t } = useTranslation()
-    const { setPreviewImage, isGenerating, setIsGenerating, setSourceImage, setI2IMode } = useGenerationStore()
-    const { savePath, useAbsolutePath, expertExifDirectActionEnabled, expertExifManagerEnabled, expertExifQuickActionEnabled } = useSettingsStore()
+    const { setPreviewImage, isGenerating, setIsGenerating, setSourceImage, setI2IMode } = useGenerationStore(useShallow(state => ({
+        setPreviewImage: state.setPreviewImage,
+        isGenerating: state.isGenerating,
+        setIsGenerating: state.setIsGenerating,
+        setSourceImage: state.setSourceImage,
+        setI2IMode: state.setI2IMode,
+    })))
+    const { savePath, useAbsolutePath, expertExifDirectActionEnabled, expertExifManagerEnabled, expertExifQuickActionEnabled } = useSettingsStore(useShallow(state => ({
+        savePath: state.savePath,
+        useAbsolutePath: state.useAbsolutePath,
+        expertExifDirectActionEnabled: state.expertExifDirectActionEnabled,
+        expertExifManagerEnabled: state.expertExifManagerEnabled,
+        expertExifQuickActionEnabled: state.expertExifQuickActionEnabled,
+    })))
     const [savedImages, setSavedImages] = useState<SavedImage[]>([])
     const [imageThumbnails, setImageThumbnails] = useState<Record<string, string>>({})
     const [isLoading, setIsLoading] = useState(false)
@@ -254,7 +267,7 @@ export function HistoryPanel() {
     const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false)
     const [selectedImageForInpaint, setSelectedImageForInpaint] = useState<string | null>(null)
     const navigate = useNavigate()
-    const { setActiveImage } = useToolsStore()
+    const setActiveImage = useToolsStore(state => state.setActiveImage)
 
 
 
