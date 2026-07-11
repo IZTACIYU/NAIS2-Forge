@@ -1,7 +1,6 @@
 import JSZip from 'jszip'
 import { decode as msgpackDecode } from '@msgpack/msgpack'
 import { embedNais2Params } from '@/lib/nais2-png-meta'
-import { mergeQualityTags, mergeUcPreset, officialVarietySigma } from '@/lib/nai-official-presets'
 
 // TESTING: Always use native window.fetch
 // Tauri's plugin-http causes 500 errors - the webview may handle CORS differently
@@ -95,7 +94,6 @@ export interface GenerationParams {
     // NAI UI options
     qualityToggle?: boolean // Add Quality Tags
     ucPreset?: number       // Undesired Content Preset (0=Heavy, 1=Light, 2=Furry, 3=Human, 4=None)
-    officialPayload?: boolean
 
     // Pre-merge prompt sections. Only used for embedding into the image's
     // nais2-params chunk; NAI itself receives the merged `prompt` above.
@@ -387,13 +385,6 @@ export async function generateImage(
     }
 
     try {
-        if (params.officialPayload) {
-            params = {
-                ...params,
-                prompt: mergeQualityTags(removeComments(params.prompt), params.qualityToggle ?? false),
-                negative_prompt: mergeUcPreset(removeComments(params.negative_prompt), params.ucPreset ?? 0),
-            }
-        }
         // Process Vibe Images
         const processedVibeImages: string[] = []
         const newlyEncodedVibes: (string | null)[] = []  // Track which vibes were newly encoded
@@ -467,13 +458,11 @@ export async function generateImage(
 
             // Skip CFG settings (Variety+)
             // NAI uses 58 for variety boost when enabled
-            skip_cfg_above_sigma: params.officialPayload
-                ? officialVarietySigma(params.model, params.variety ?? false, params.width, params.height)
-                : (params.variety ? 58 : null),
+            skip_cfg_above_sigma: params.variety ? 58 : null,
 
             // V4 specific
             add_original_image: true,
-            ...(params.officialPayload ? {} : { legacy_uc: false }),
+            legacy_uc: false,
             prefer_brownian: true,
             ucPreset: params.ucPreset ?? 0,
             use_coords: false,
@@ -538,7 +527,7 @@ export async function generateImage(
                     base_caption: removeComments(params.negative_prompt),
                     char_captions: [] as { char_caption: string, centers: { x: number, y: number }[] }[],
                 },
-                ...(params.officialPayload ? {} : { legacy_uc: false }),
+                legacy_uc: false,
             },
         }
 
@@ -599,7 +588,7 @@ export async function generateImage(
 
                 // Switch to Inpainting Model
                 // Confirmed by NAI-Auto-Generator-V4 and NAIA2.0: append -inpainting suffix
-                if (!params.officialPayload && !requestModel.includes('inpainting')) {
+                if (!requestModel.includes('inpainting')) {
                     requestModel = requestModel + '-inpainting'
                 }
 
@@ -639,7 +628,7 @@ export async function generateImage(
                 // @ts-ignore
                 apiParameters.mask = grayscaleMask
                 // @ts-ignore - infill uses add_original_image: false
-                apiParameters.add_original_image = params.officialPayload ? true : false
+                apiParameters.add_original_image = false
 
                 // Note: Inpainting now supports director reference images (Feb 2026 update)
                 // No need to delete director_reference_* parameters
@@ -651,12 +640,6 @@ export async function generateImage(
                 apiParameters.strength = params.strength ?? 0.7
                 // @ts-ignore
                 apiParameters.noise = params.noise ?? 0.0
-                if (params.officialPayload) {
-                    // @ts-ignore
-                    apiParameters.extra_noise_seed = Math.max(0, params.seed - 1)
-                    // @ts-ignore
-                    apiParameters.color_correct = false
-                }
             }
         }
 
@@ -856,13 +839,6 @@ export async function generateImageStream(
     }
 
     try {
-        if (params.officialPayload) {
-            params = {
-                ...params,
-                prompt: mergeQualityTags(removeComments(params.prompt), params.qualityToggle ?? false),
-                negative_prompt: mergeUcPreset(removeComments(params.negative_prompt), params.ucPreset ?? 0),
-            }
-        }
         // Use the streaming endpoint
         const endpoint = API_ENDPOINTS.IMAGE_GENERATE_STREAM
 
@@ -948,13 +924,11 @@ export async function generateImageStream(
 
             // Skip CFG settings (Variety+)
             // NAI uses 58 for variety boost when enabled
-            skip_cfg_above_sigma: params.officialPayload
-                ? officialVarietySigma(params.model, params.variety ?? false, params.width, params.height)
-                : (params.variety ? 58 : null),
+            skip_cfg_above_sigma: params.variety ? 58 : null,
 
             // V4 specific
             add_original_image: true,
-            ...(params.officialPayload ? {} : { legacy_uc: false }),
+            legacy_uc: false,
             prefer_brownian: true,
             ucPreset: params.ucPreset ?? 0,
             use_coords: false,
@@ -992,7 +966,7 @@ export async function generateImageStream(
                     base_caption: removeComments(params.negative_prompt),
                     char_captions: [] as { char_caption: string, centers: { x: number, y: number }[] }[],
                 },
-                ...(params.officialPayload ? {} : { legacy_uc: false }),
+                legacy_uc: false,
             },
         }
 
@@ -1080,7 +1054,7 @@ export async function generateImageStream(
                 action = 'infill'
 
                 // Switch to Inpainting Model
-                if (!params.officialPayload && !finalModel.includes('inpainting')) {
+                if (!finalModel.includes('inpainting')) {
                     finalModel = finalModel + '-inpainting'
                 }
 
@@ -1121,7 +1095,7 @@ export async function generateImageStream(
                 }
 
                 // infill uses add_original_image: false
-                apiParameters.add_original_image = params.officialPayload ? true : false
+                apiParameters.add_original_image = false
 
                 // Note: Inpainting now supports director reference images (Feb 2026 update)
                 // No need to delete director_reference_* parameters
@@ -1131,10 +1105,6 @@ export async function generateImageStream(
                 action = 'img2img'
                 apiParameters.strength = params.strength ?? 0.7
                 apiParameters.noise = params.noise ?? 0.0
-                if (params.officialPayload) {
-                    apiParameters.extra_noise_seed = Math.max(0, params.seed - 1)
-                    apiParameters.color_correct = false
-                }
             }
         }
 

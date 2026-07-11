@@ -672,12 +672,6 @@
     "expert": {
       "title": "숙련자 옵션",
       "description": "기본 동작은 유지하면서 필요한 고급 기능만 개별로 켜고 끄세요.",
-      "generation": {
-        "header": "\uc774\ubbf8\uc9c0 \uc0dd\uc131 \ud638\ud658\uc131",
-        "description": "NovelAI\uc5d0 \uc804\uc1a1\ud560 \uc0dd\uc131 \uc694\uccad \ud615\uc2dd\uc744 \uc120\ud0dd\ud569\ub2c8\ub2e4.",
-        "officialTitle": "NAI \uacf5\uc2dd \ud638\ud658 \ud398\uc774\ub85c\ub4dc",
-        "officialDesc": "\ud604\uc7ac NovelAI \uc6f9\uacfc \uac19\uc740 \uc694\uccad \ud615\uc2dd\uc744 \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \ub044\uba74 \uae30\uc874 NAIS2 \ubc29\uc2dd\uc744 \uc0ac\uc6a9\ud569\ub2c8\ub2e4."
-      },
       "characterPrompt": {
         "header": "캐릭터 프롬프트",
         "description": "캐릭터 프롬프트 카드의 입력 구조와 버전 관리 방식을 변경합니다.",

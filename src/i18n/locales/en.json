@@ -642,12 +642,6 @@
     "expert": {
       "title": "Expert Options",
       "description": "Enable only the advanced features you want while keeping the default behavior available.",
-      "generation": {
-        "header": "Generation Compatibility",
-        "description": "Choose how NovelAI request payloads are assembled.",
-        "officialTitle": "NAI Official-Compatible Payload",
-        "officialDesc": "Matches the current NovelAI web payload format. Turn off to use the existing NAIS2 format."
-      },
       "characterPrompt": {
         "header": "Character Prompt",
         "description": "Change the input layout and version handling for character prompt cards.",
