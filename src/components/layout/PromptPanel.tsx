@@ -799,7 +799,7 @@ function TokenCountOverlay({ count }: { count: number }) {
     const exceeded = count > 512
     return (
         <span className={cn(
-            "pointer-events-none absolute bottom-2 right-3 z-10 rounded border px-1.5 py-0.5 font-mono text-[10px] shadow-sm backdrop-blur-sm",
+            "pointer-events-none absolute bottom-2 right-3 z-[1] rounded border px-1.5 py-0.5 font-mono text-[10px] shadow-sm backdrop-blur-sm",
             exceeded
                 ? "border-destructive/70 bg-destructive/90 text-destructive-foreground"
                 : "border-border/60 bg-background/70 text-muted-foreground"
