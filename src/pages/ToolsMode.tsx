@@ -529,8 +529,8 @@ function ToolCard({ children, icon: Icon, color, title, description, disabled, c
             <div className={cn("flex items-center gap-2.5", children && "mb-2")}>
                 <Icon className={cn("h-[18px] w-[18px] shrink-0", color)} />
                 <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-medium text-foreground">{title}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">{description}</p>
+                    <p className="text-sm font-medium text-foreground">{title}</p>
+                    <p className="truncate text-xs text-muted-foreground">{description}</p>
                 </div>
                 <CostChip cost={cost} />
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />

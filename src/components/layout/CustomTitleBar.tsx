@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { PanelLeft, PanelRight, Minus, Square, X, Maximize2 } from 'lucide-react'
@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { useLayoutStore } from '@/stores/layout-store'
 import { Tip } from '@/components/ui/tooltip'
 
-export function CustomTitleBar() {
+export function CustomTitleBar({ navigation }: { navigation?: ReactNode }) {
     const { t } = useTranslation()
     const [isMaximized, setIsMaximized] = useState(false)
     const appWindow = getCurrentWindow()
@@ -54,9 +54,10 @@ export function CustomTitleBar() {
     }
 
     return (
-        <div
-            className="h-8 flex items-center justify-between bg-background select-none shrink-0"
-        >
+        <div className="relative h-12 flex items-center justify-between bg-background select-none shrink-0 border-b border-border/40">
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                <div className="pointer-events-auto">{navigation}</div>
+            </div>
             {/* Drag Region */}
             <div
                 className="flex-1 h-full cursor-default"
@@ -65,7 +66,7 @@ export function CustomTitleBar() {
             />
 
             {/* Controls */}
-            <div className="flex h-full">
+            <div className="relative z-20 flex h-full">
                 {/* Left Sidebar Toggle */}
                 <Tip content={t('layout.toggleLeftSidebar', 'Toggle Left Sidebar')} side="bottom">
                     <button

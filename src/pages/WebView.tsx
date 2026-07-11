@@ -294,17 +294,16 @@ export default function WebView() {
     }
 
     return (
-        <div className="flex flex-col h-full gap-3 p-4">
+        <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
             {/* Browser Controls */}
-            <Card glass>
-                <CardContent className="p-3">
-                    <form onSubmit={handleNavigate} className="flex items-center gap-2">
+            <div className="shrink-0 border-b border-border px-2 py-1.5">
+                    <form onSubmit={handleNavigate} className="flex items-center gap-1">
                         <div className="flex gap-1">
                             <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-9 w-9 rounded-lg"
+                                className="h-8 w-8 rounded-md"
                                 onClick={() => {
                                     setUrl('https://hijiribe.donmai.us')
                                     setInputUrl('https://hijiribe.donmai.us')
@@ -317,7 +316,7 @@ export default function WebView() {
                                     type="button"
                                     variant="ghost"
                                     size="icon"
-                                    className="h-9 w-9 rounded-lg text-destructive"
+                                    className="h-8 w-8 rounded-md text-destructive"
                                     onClick={closeBrowser}
                                 >
                                     <X className="h-4 w-4" />
@@ -331,14 +330,14 @@ export default function WebView() {
                                 value={inputUrl}
                                 onChange={(e) => setInputUrl(e.target.value)}
                                 placeholder={t('web.urlPlaceholder')}
-                                className="pl-10 h-9 text-sm rounded-xl"
+                                className="pl-9 h-8 font-mono text-xs rounded-md"
                             />
                         </div>
 
                         <Button
                             type="submit"
                             size="sm"
-                            className="rounded-xl px-4"
+                            className="h-8 rounded-md px-3"
                             disabled={isLoading}
                         >
                             {isLoading ? (
@@ -351,17 +350,16 @@ export default function WebView() {
                             )}
                         </Button>
                     </form>
-                </CardContent>
-            </Card>
+            </div>
 
             {/* Quick Links */}
-            <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-1 border-b border-border px-2 py-1.5">
                 {quickLinks.map((link, index) => (
                     <div key={`${link.name}-${index}`} className="relative group">
                         <Button
                             variant="outline"
                             size="sm"
-                            className={`text-sm rounded-xl ${isEditMode ? 'pr-8' : ''}`}
+                            className={`h-7 rounded-full px-2.5 text-xs ${isEditMode ? 'pr-8' : ''}`}
                             onClick={() => handleQuickLink(link.url)}
                             disabled={isLoading}
                         >
@@ -385,7 +383,7 @@ export default function WebView() {
                 <Button
                     variant="outline"
                     size="sm"
-                    className="text-sm rounded-xl"
+                    className="h-7 rounded-md px-2 text-xs"
                     onClick={() => setIsAddDialogOpen(true)}
                 >
                     <Plus className="h-3 w-3 mr-1" />
@@ -396,7 +394,7 @@ export default function WebView() {
                 <Button
                     variant={isEditMode ? "destructive" : "ghost"}
                     size="sm"
-                    className="text-sm rounded-xl"
+                    className="h-7 rounded-md px-2 text-xs"
                     onClick={() => setIsEditMode(!isEditMode)}
                 >
                     <Edit className="h-3 w-3 mr-1" />
@@ -438,7 +436,7 @@ export default function WebView() {
                         <Button
                             variant="destructive"
                             size="sm"
-                            className="text-sm rounded-xl"
+                            className="h-7 rounded-md px-2 text-xs"
                             onClick={closeBrowser}
                         >
                             <X className="h-3 w-3 mr-1.5" />
@@ -451,11 +449,11 @@ export default function WebView() {
             {/* Browser Area */}
             <div
                 ref={browserAreaRef}
-                className="flex-1 rounded-xl overflow-hidden relative min-h-[400px]"
+                className="relative min-h-0 flex-1 overflow-hidden"
                 style={{ backgroundColor: isBrowserOpen ? 'transparent' : undefined }}
             >
                 {!isBrowserOpen && (
-                    <Card glass className="h-full">
+                    <Card glass className="h-full rounded-none border-0">
                         <CardContent className="p-6 h-full flex flex-col items-center justify-center text-center">
                             <Globe className="h-16 w-16 text-muted-foreground/50 mb-4" />
                             <h2 className="text-xl font-semibold mb-2">

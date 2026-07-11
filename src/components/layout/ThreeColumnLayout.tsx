@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -45,7 +45,12 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const { t } = useTranslation()
     const location = useLocation()
     const { anlas, isVerified, refreshAnlas } = useAuthStore()
-    const { leftSidebarVisible, rightSidebarVisible, toggleLeftSidebar, toggleRightSidebar } = useLayoutStore()
+    const { leftSidebarVisible, rightSidebarVisible, toggleLeftSidebar, toggleRightSidebar, leftSidebarWidth, rightSidebarWidth, setLeftSidebarWidth, setRightSidebarWidth } = useLayoutStore()
+    const [displayLeftWidth, setDisplayLeftWidth] = useState(leftSidebarWidth)
+    const [displayRightWidth, setDisplayRightWidth] = useState(rightSidebarWidth)
+    const [resizingSide, setResizingSide] = useState<'left' | 'right' | null>(null)
+    const leftWidthRef = useRef(leftSidebarWidth)
+    const rightWidthRef = useRef(rightSidebarWidth)
     const expertCloudR2Enabled = useSettingsStore(state => state.expertCloudR2Enabled)
     const expertExifManagerEnabled = useSettingsStore(state => state.expertExifManagerEnabled)
 
@@ -59,6 +64,49 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     // Preset dialog state (for shortcut support)
     const [presetDialogOpen, setPresetDialogOpen] = useState(false)
     const [fragmentPanelOpen, setFragmentPanelOpen] = useState(false)
+
+    useEffect(() => {
+        if (!resizingSide) {
+            leftWidthRef.current = leftSidebarWidth
+            rightWidthRef.current = rightSidebarWidth
+            setDisplayLeftWidth(leftSidebarWidth)
+            setDisplayRightWidth(rightSidebarWidth)
+        }
+    }, [leftSidebarWidth, rightSidebarWidth, resizingSide])
+
+    const startPanelResize = (side: 'left' | 'right', event: React.MouseEvent) => {
+        event.preventDefault()
+        const startX = event.clientX
+        const startWidth = side === 'left' ? displayLeftWidth : displayRightWidth
+        setResizingSide(side)
+        document.body.style.cursor = 'col-resize'
+        document.body.style.userSelect = 'none'
+
+        const onMove = (moveEvent: MouseEvent) => {
+            const delta = moveEvent.clientX - startX
+            if (side === 'left') {
+                const width = Math.min(680, Math.max(340, startWidth + delta))
+                leftWidthRef.current = width
+                setDisplayLeftWidth(width)
+            } else {
+                const width = Math.min(480, Math.max(220, startWidth - delta))
+                rightWidthRef.current = width
+                setDisplayRightWidth(width)
+            }
+        }
+        const onUp = () => {
+            const currentWidth = side === 'left' ? leftWidthRef.current : rightWidthRef.current
+            if (side === 'left') setLeftSidebarWidth(currentWidth)
+            else setRightSidebarWidth(currentWidth)
+            setResizingSide(null)
+            document.body.style.cursor = ''
+            document.body.style.userSelect = ''
+            window.removeEventListener('mousemove', onMove)
+            window.removeEventListener('mouseup', onUp)
+        }
+        window.addEventListener('mousemove', onMove)
+        window.addEventListener('mouseup', onUp)
+    }
 
     // 프리셋 다이얼로그 단축키 이벤트 수신
     useEffect(() => {
@@ -113,15 +161,15 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     return (
         <div className="flex flex-col h-screen bg-background overflow-hidden">
             {/* Custom Title Bar - Only show on Windows (Mac uses native decorations) */}
-            {!isMac && <CustomTitleBar />}
+            {!isMac && <CustomTitleBar navigation={<AnimatedNavBar items={navItems} />} />}
 
             {/* Main Layout */}
             <div className="flex flex-1 p-3 gap-3 overflow-hidden">
                 {/* Left Panel - Prompt Input (Fixed, Rounded Box) */}
                 <aside className={cn(
-                    "w-[420px] xl:w-[460px] 2xl:w-[500px] flex-shrink-0 flex flex-col bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg transition-all duration-200",
+                    "relative flex-shrink-0 flex flex-col bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg",
                     !leftSidebarVisible && "hidden"
-                )}>
+                )} style={{ width: displayLeftWidth }}>
                     {/* Header - Preset Title & Anlas Display */}
                     <div className="h-14 flex items-center justify-between px-4">
                         {/* Preset Title + Dialog Trigger */}
@@ -167,12 +215,13 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
 
                     {/* Prompt Panel */}
                     <PromptPanel />
+                    <div className="absolute inset-y-0 right-0 z-30 w-1.5 cursor-col-resize transition-colors hover:bg-primary/30" onMouseDown={(event) => startPanelResize('left', event)} />
                 </aside>
 
                 {/* Center Panel - Page Content (Rounded Box) */}
                 <div className="flex-1 flex flex-col min-w-0 bg-card/30 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg">
                     {/* Tab Navigation (Glass Surface) */}
-                    <div className="shrink-0 flex items-center justify-center py-3 z-10 gap-2">
+                    {isMac && <div className="shrink-0 flex items-center justify-center py-2 z-10 gap-2">
                         {/* Mac: Left sidebar toggle */}
                         {isMac && (
                             <Tip content={t('layout.toggleLeftSidebar', 'Toggle Left Sidebar')}>
@@ -214,12 +263,12 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                                 </button>
                             </Tip>
                         )}
-                    </div>
+                    </div>}
 
                     {/* Page Content */}
                     <main className={cn(
                         "flex-1 relative",
-                        (location.pathname === '/' || location.pathname === '/library') ? "p-0 overflow-hidden" : "p-4 overflow-y-auto"
+                        (location.pathname === '/' || location.pathname === '/library' || location.pathname === '/web') ? "p-0 overflow-hidden" : "p-4 overflow-y-auto"
                     )}>
                         {children}
                         {fragmentPanelOpen && (
@@ -236,9 +285,10 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
 
                 {/* Right Panel - History Only (Rounded Box) */}
                 <aside className={cn(
-                    "w-[280px] flex-shrink-0 bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg transition-all duration-200",
+                    "relative flex-shrink-0 bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg",
                     !rightSidebarVisible && "hidden"
-                )}>
+                )} style={{ width: displayRightWidth }}>
+                    <div className="absolute inset-y-0 left-0 z-30 w-1.5 cursor-col-resize transition-colors hover:bg-primary/30" onMouseDown={(event) => startPanelResize('right', event)} />
                     <HistoryPanel />
                 </aside>
             </div>

@@ -504,60 +504,60 @@ export default function MainMode() {
                         </ContextMenuTrigger>
                         <ContextMenuContent>
                             <ContextMenuItem onClick={handleSaveAs}>
-                                <Save className="h-4 w-4 mr-2" />
+                                <Save className="h-4 w-4 mr-2 text-cyan-400" />
                                 {t('actions.saveAs', '저장')}
                             </ContextMenuItem>
                             <ContextMenuItem onClick={handleCopy}>
-                                <Copy className="h-4 w-4 mr-2" />
+                                <Copy className="h-4 w-4 mr-2 text-blue-400" />
                                 {t('actions.copy', '복사')}
                             </ContextMenuItem>
                             <ContextMenuItem onClick={handleRegenerateWithMetadata} disabled={isGenerating}>
-                                <RotateCcw className="h-4 w-4 mr-2" />
+                                <RotateCcw className="h-4 w-4 mr-2 text-amber-400" />
                                 {t('actions.regenerate', '재생성')}
                             </ContextMenuItem>
                             {expertExifDirectActionEnabled && (
                                 <ContextMenuItem onClick={handleExifDirectAction}>
-                                    <Eraser className="h-4 w-4 mr-2" />
+                                    <Eraser className="h-4 w-4 mr-2 text-rose-400" />
                                     {t('exif.directAction')}
                                 </ContextMenuItem>
                             )}
                             {expertExifQuickActionEnabled && (
                                 <ContextMenuItem onClick={handleOpenExifManager}>
-                                    <Eraser className="h-4 w-4 mr-2" />
+                                    <Eraser className="h-4 w-4 mr-2 text-rose-400" />
                                     {t('exif.quickAction')}
                                 </ContextMenuItem>
                             )}
                             <ContextMenuItem onClick={handleOpenSmartTools}>
-                                <Wand2 className="h-4 w-4 mr-2" />
+                                <Wand2 className="h-4 w-4 mr-2 text-purple-400" />
                                 {t('smartTools.title', '스마트 툴')}
                             </ContextMenuItem>
                             <ContextMenuSeparator />
                             <ContextMenuItem onClick={handleInpaint}>
-                                <Paintbrush className="h-4 w-4 mr-2" />
+                                <Paintbrush className="h-4 w-4 mr-2 text-pink-400" />
                                 {t('tools.inpainting.title', '인페인팅')}
                             </ContextMenuItem>
                             <ContextMenuItem onClick={handleI2I}>
-                                <ImageIcon className="h-4 w-4 mr-2" />
+                                <ImageIcon className="h-4 w-4 mr-2 text-indigo-400" />
                                 {t('tools.i2i.title', 'Image to Image')}
                             </ContextMenuItem>
                             <ContextMenuSeparator />
                             <ContextMenuItem onClick={handleAddAsReference}>
-                                <Users className="h-4 w-4 mr-2" />
+                                <Users className="h-4 w-4 mr-2 text-emerald-400" />
                                 {t('actions.addAsRef', '이미지 참조')}
                             </ContextMenuItem>
                             <ContextMenuItem onClick={handleLoadMetadata}>
-                                <ImageIcon className="h-4 w-4 mr-2" />
+                                <ImageIcon className="h-4 w-4 mr-2 text-yellow-400" />
                                 {t('metadata.loadFromImage', '메타데이터 불러오기')}
                             </ContextMenuItem>
                             <ContextMenuItem onClick={handleOpenFolder}>
-                                <FolderOpen className="h-4 w-4 mr-2" />
+                                <FolderOpen className="h-4 w-4 mr-2 text-orange-400" />
                                 {t('actions.openFolder', '폴더 열기')}
                             </ContextMenuItem>
                             {expertR2DirectUploadEnabled && (
                                 <>
                                     <ContextMenuSeparator />
                                     <ContextMenuItem onClick={() => setR2DirectUploadOpen(true)}>
-                                        <Cloud className="h-4 w-4 mr-2" />
+                                        <Cloud className="h-4 w-4 mr-2 text-sky-400" />
                                         {t('scene.r2DirectUpload.title', 'R2 Direct Upload')}
                                     </ContextMenuItem>
                                 </>

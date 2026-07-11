@@ -214,57 +214,57 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
             </ContextMenuTrigger>
             <ContextMenuContent className="w-64">
                 <ContextMenuItem onClick={handleSaveAs}>
-                    <Save className="h-4 w-4 mr-2" />
+                    <Save className="h-4 w-4 mr-2 text-cyan-400" />
                     {t('actions.saveAs', '다른 이름으로 저장')}
                 </ContextMenuItem>
                 <ContextMenuItem onClick={handleCopy}>
-                    <Copy className="h-4 w-4 mr-2" />
+                    <Copy className="h-4 w-4 mr-2 text-blue-400" />
                     {t('actions.copy', '복사')}
                 </ContextMenuItem>
                 {showExifDirectAction && (
                     <ContextMenuItem onClick={handleExifDirectAction}>
-                        <Eraser className="h-4 w-4 mr-2" />
+                        <Eraser className="h-4 w-4 mr-2 text-rose-400" />
                         {t('exif.directAction')}
                     </ContextMenuItem>
                 )}
                 {showExifQuickAction && (
                     <ContextMenuItem onClick={handleExifManager}>
-                        <Eraser className="h-4 w-4 mr-2" />
+                        <Eraser className="h-4 w-4 mr-2 text-rose-400" />
                         {t('exif.quickAction')}
                     </ContextMenuItem>
                 )}
                 <ContextMenuItem onClick={handleSmartTools}>
-                    <Wand2 className="h-4 w-4 mr-2" />
+                    <Wand2 className="h-4 w-4 mr-2 text-purple-400" />
                     {t('smartTools.title', '스마트 툴')}
                 </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem onClick={handleInpaint} disabled={!onInpaint}>
-                    <Paintbrush className="h-4 w-4 mr-2" />
+                    <Paintbrush className="h-4 w-4 mr-2 text-pink-400" />
                     {t('tools.inpainting.title', '인페인팅')}
                 </ContextMenuItem>
                 <ContextMenuItem onClick={handleI2I}>
-                    <ImageIcon className="h-4 w-4 mr-2" />
+                    <ImageIcon className="h-4 w-4 mr-2 text-indigo-400" />
                     {t('tools.i2i.title', 'Image to Image')}
                 </ContextMenuItem>
                 <ContextMenuSeparator />
 
                 {onAddRef && (
                     <ContextMenuItem onClick={onAddRef}>
-                        <Users className="h-4 w-4 mr-2" />
+                        <Users className="h-4 w-4 mr-2 text-emerald-400" />
                         {t('actions.addAsRef', '이미지 참조')}
                     </ContextMenuItem>
                 )}
 
                 {onLoadMetadata && (
                     <ContextMenuItem onClick={onLoadMetadata}>
-                        <FileSearch className="h-4 w-4 mr-2" />
+                        <FileSearch className="h-4 w-4 mr-2 text-yellow-400" />
                         {t('metadata.loadFromImage', '메타데이터 불러오기')}
                     </ContextMenuItem>
                 )}
 
                 {isFile && (
                     <ContextMenuItem onClick={handleOpenFolder}>
-                        <FolderOpen className="h-4 w-4 mr-2" />
+                        <FolderOpen className="h-4 w-4 mr-2 text-orange-400" />
                         {t('actions.openFolder', '탐색기에서 열기')}
                     </ContextMenuItem>
                 )}
@@ -273,14 +273,14 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
                     <>
                         <ContextMenuSeparator />
                         <ContextMenuItem onClick={() => setR2DirectUploadOpen(true)}>
-                            <Cloud className="h-4 w-4 mr-2" />
+                            <Cloud className="h-4 w-4 mr-2 text-sky-400" />
                             {t('scene.r2DirectUpload.title', 'R2 Direct Upload')}
                         </ContextMenuItem>
                     </>
                 )}
 
                 <ContextMenuItem onClick={handleDelete} className="text-red-500 focus:text-red-500">
-                    <Trash2 className="h-4 w-4 mr-2" />
+                    <Trash2 className="h-4 w-4 mr-2 text-red-500" />
                     {t('actions.delete', '삭제')}
                 </ContextMenuItem>
             </ContextMenuContent>
