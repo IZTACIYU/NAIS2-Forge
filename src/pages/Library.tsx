@@ -13,7 +13,6 @@ import {
     MeasuringStrategy
 } from '@dnd-kit/core'
 import {
-    arrayMove,
     SortableContext,
     sortableKeyboardCoordinates,
     rectSortingStrategy,
@@ -69,6 +68,8 @@ export default function Library() {
         lastSelectedItemId,
         // Stack
         createStackFromSelected,
+        moveItemToStack,
+        reorderItems,
         currentStackId,
         setCurrentStackId,
         unstack
@@ -188,9 +189,13 @@ export default function Library() {
         const { active, over } = event
 
         if (over && active.id !== over.id) {
-            const oldIndex = items.findIndex((item) => item.id === active.id)
-            const newIndex = items.findIndex((item) => item.id === over.id)
-            setItems(arrayMove(items, oldIndex, newIndex))
+            const activeItem = items.find(item => item.id === active.id)
+            const overItem = items.find(item => item.id === over.id)
+            if (!currentStackId && activeItem && !activeItem.isStack && overItem?.isStack) {
+                moveItemToStack(String(active.id), String(over.id))
+            } else {
+                reorderItems(String(active.id), String(over.id))
+            }
         }
 
         setActiveId(null)

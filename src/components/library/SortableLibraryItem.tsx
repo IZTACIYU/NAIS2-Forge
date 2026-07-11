@@ -22,7 +22,8 @@ export function SortableLibraryItem({ item, onRename, onAddRef, onLoadMetadata, 
         setNodeRef,
         transform,
         transition,
-        isDragging
+        isDragging,
+        isOver
     } = useSortable({ id: item.id, disabled })
 
     const style = {
@@ -42,6 +43,7 @@ export function SortableLibraryItem({ item, onRename, onAddRef, onLoadMetadata, 
                 isEditMode={isEditMode}
                 isSelected={isSelected}
                 onSelectionClick={onSelectionClick}
+                isDropTarget={item.isStack && isOver}
             />
         </div>
     )

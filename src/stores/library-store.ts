@@ -44,6 +44,8 @@ interface LibraryState {
 
     // Stack Actions
     createStackFromSelected: () => void
+    moveItemToStack: (itemId: string, stackId: string) => void
+    reorderItems: (activeId: string, overId: string) => void
     unstack: (stackId: string) => void
     getStackItems: (stackId: string) => LibraryItem[]
 
@@ -70,7 +72,11 @@ export const useLibraryStore = create<LibraryState>()(
             setGridColumns: (columns) => set({ gridColumns: columns }),
 
             addItem: (item) => set((state) => ({
-                items: [item, ...state.items]
+                items: state.currentStackId
+                    ? state.items.map(stack => stack.id === state.currentStackId
+                        ? { ...stack, stackItems: [...(stack.stackItems || []), item] }
+                        : stack)
+                    : [item, ...state.items]
             })),
 
             removeItem: (id) => set((state) => ({
@@ -213,6 +219,44 @@ export const useLibraryStore = create<LibraryState>()(
                     selectedItemIds: [],
                     isEditMode: false
                 })
+            },
+
+            moveItemToStack: (itemId, stackId) => {
+                const { items } = get()
+                const item = items.find(candidate => candidate.id === itemId)
+                const stack = items.find(candidate => candidate.id === stackId)
+                if (!item || item.isStack || !stack?.isStack || itemId === stackId) return
+
+                set({
+                    items: items
+                        .filter(candidate => candidate.id !== itemId)
+                        .map(candidate => candidate.id === stackId
+                            ? { ...candidate, stackItems: [...(candidate.stackItems || []), item] }
+                            : candidate)
+                })
+            },
+
+            reorderItems: (activeId, overId) => {
+                const { items, currentStackId } = get()
+                const move = (source: LibraryItem[]) => {
+                    const from = source.findIndex(item => item.id === activeId)
+                    const to = source.findIndex(item => item.id === overId)
+                    if (from < 0 || to < 0 || from === to) return source
+                    const reordered = [...source]
+                    const [moved] = reordered.splice(from, 1)
+                    reordered.splice(to, 0, moved)
+                    return reordered
+                }
+
+                if (currentStackId) {
+                    set({
+                        items: items.map(item => item.id === currentStackId
+                            ? { ...item, stackItems: move(item.stackItems || []) }
+                            : item)
+                    })
+                } else {
+                    set({ items: move(items) })
+                }
             },
 
             unstack: (stackId) => {
