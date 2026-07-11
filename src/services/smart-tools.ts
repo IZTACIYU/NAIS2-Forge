@@ -1,11 +1,6 @@
 // @ts-ignore
 import { Client } from "@gradio/client";
 
-export interface TagResult {
-    label: string
-    score: number
-}
-
 /**
  * Singleton class to manage Smart Tools
  */
@@ -19,49 +14,6 @@ class SmartToolsService {
             SmartToolsService.instance = new SmartToolsService()
         }
         return SmartToolsService.instance
-    }
-
-    /**
-     * Analyze Artist/Style using Kaloscope (Hugging Face Space API)
-     */
-    public async analyzeStyle(imageUrl: string, _progressCallback?: (progress: number) => void): Promise<TagResult[]> {
-        try {
-            const response = await fetch(imageUrl);
-            const blob = await response.blob();
-
-            console.log("SmartTools: Connecting to Kaloscope API...");
-            const client = await Client.connect("DraconicDragon/Kaloscope-artist-style-classifier");
-
-            const result = await client.predict("/predict", {
-                image: blob
-            });
-
-            console.log("Kaloscope raw result:", result);
-
-            const dataArray = result.data as any[];
-            const rawData = dataArray?.[0];
-
-            if (typeof rawData === 'string') {
-                const artists = rawData.split(',').map(a => a.trim()).filter(a => a.length > 0);
-                return artists.map((artist, index) => ({
-                    label: `artist:${artist}`,
-                    score: 1 - (index * 0.05)
-                }));
-            }
-
-            if (typeof rawData === 'object' && rawData !== null) {
-                const entries = Object.entries(rawData as Record<string, number>);
-                return entries
-                    .map(([label, score]) => ({ label: `artist:${label}`, score }))
-                    .sort((a, b) => b.score - a.score);
-            }
-
-            console.warn("Kaloscope: Unexpected result format", rawData);
-            return [];
-        } catch (e) {
-            console.error("Kaloscope API Error:", e);
-            throw new Error("Failed to connect to Kaloscope API. Internet connection required.");
-        }
     }
 
     /**
@@ -195,7 +147,7 @@ class SmartToolsService {
     /**
      * Upscale image using NovelAI's upscale API (4x)
      */
-    public async upscale(imageInput: string, token: string): Promise<string> {
+    public async upscale(imageInput: string, token: string, scale: number = 4): Promise<string> {
         const { upscaleImage } = await import('@/services/novelai-api')
 
         // Convert URL to base64 data URL if needed
@@ -217,7 +169,7 @@ class SmartToolsService {
         const height = img.height
         img.src = ''
 
-        const result = await upscaleImage(token, imageBase64, width, height)
+        const result = await upscaleImage(token, imageBase64, width, height, scale)
 
         if (!result.success || !result.imageData) {
             throw new Error(result.error || 'Upscale failed')

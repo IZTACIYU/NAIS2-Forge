@@ -1,5 +1,5 @@
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useToolsStore } from '@/stores/tools-store'
@@ -9,10 +9,9 @@ import { useGenerationStore } from '@/stores/generation-store'
 import { smartTools } from '@/services/smart-tools'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/use-toast'
-import { Eraser, Palette, Grid3X3, Upload, RefreshCw, Download, X, Maximize2, Image as ImageIcon, Paintbrush, ImagePlus, PenTool, Pencil, Droplets, Smile, Sparkles } from 'lucide-react'
+import { Eraser, Grid3X3, Upload, RefreshCw, Download, X, Maximize2, Image as ImageIcon, Paintbrush, ImagePlus, PenTool, Pencil, Droplets, Smile, Sparkles, ChevronRight } from 'lucide-react'
 import { writeFile, BaseDirectory, exists, mkdir } from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
-import { TagAnalysisDialog } from '@/components/tools/TagAnalysisDialog'
 import { BackgroundRemovalDialog } from '@/components/tools/BackgroundRemovalDialog'
 import { MosaicDialog } from '@/components/tools/MosaicDialog'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
@@ -27,30 +26,17 @@ export default function ToolsMode() {
 
     const [processedImage, setProcessedImage] = useState<string | null>(activeImage)
     const [isLoading, setIsLoading] = useState(false)
-    const [toolCosts, setToolCosts] = useState<{ upscale: number; background: number; standard: number } | null>(null)
-
-    useEffect(() => {
-        if (!processedImage) {
-            setToolCosts(null)
-            return
+    const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null)
+    const [upscaleScale, setUpscaleScale] = useState(2)
+    const toolCosts = useMemo(() => {
+        if (!imageDimensions) return null
+        const isOpus = tier?.toLowerCase() === 'opus'
+        return {
+            upscale: directorToolCost(imageDimensions.width, imageDimensions.height, isOpus),
+            background: directorAugmentCost('bg-removal', imageDimensions.width, imageDimensions.height, isOpus),
+            standard: directorAugmentCost('lineart', imageDimensions.width, imageDimensions.height, isOpus),
         }
-        const image = new Image()
-        image.onload = () => {
-            const isOpus = tier?.toLowerCase() === 'opus'
-            setToolCosts({
-                upscale: directorToolCost(image.width, image.height, isOpus),
-                background: directorAugmentCost(image.width, image.height, false, true),
-                standard: directorAugmentCost(image.width, image.height, isOpus, false),
-            })
-            image.src = ''
-        }
-        image.onerror = () => { image.src = ''; setToolCosts(null) }
-        image.src = processedImage
-        return () => { image.src = '' }
-    }, [processedImage, tier])
-
-    // Style Analysis State
-    const [isAnalysisOpen, setIsAnalysisOpen] = useState(false)
+    }, [imageDimensions, tier])
 
     // Background Removal State
     const [isRembgOpen, setIsRembgOpen] = useState(false)
@@ -62,6 +48,8 @@ export default function ToolsMode() {
     const [isMosaicOpen, setIsMosaicOpen] = useState(false)
     const [isI2IOpen, setIsI2IOpen] = useState(false)
     const [isInpaintingOpen, setIsInpaintingOpen] = useState(false)  // For mask editing only
+    const [colorizeOptions, setColorizeOptions] = useState({ defry: 0, prompt: '' })
+    const [emotionOptions, setEmotionOptions] = useState({ defry: 0, prompt: '', emotion: 'neutral' })
     const containerRef = useRef<HTMLDivElement>(null)
     const [isDragOver, setIsDragOver] = useState(false)
     const dragCounter = useRef(0)
@@ -69,6 +57,7 @@ export default function ToolsMode() {
     // Sync store to local state
     useEffect(() => {
         setProcessedImage(activeImage)
+        setImageDimensions(null)
     }, [activeImage])
 
     // Handle File Upload
@@ -156,7 +145,7 @@ export default function ToolsMode() {
 
         setIsLoading(true)
         try {
-            const result = await smartTools.upscale(processedImage, token)
+            const result = await smartTools.upscale(processedImage, token, upscaleScale)
 
             // Save to configured save path with UPSCALE prefix
             const { savePath, useAbsolutePath } = useSettingsStore.getState()
@@ -204,7 +193,7 @@ export default function ToolsMode() {
             const { setPreviewImage } = useGenerationStore.getState()
             setPreviewImage(result)
 
-            toast({ title: t('smartTools.upscaleComplete', '업스케일 완료'), description: t('smartTools.upscaleCompleteDesc', '이미지가 4배 확대되었습니다.'), variant: 'success' })
+            toast({ title: t('smartTools.upscaleComplete', '업스케일 완료'), description: `${upscaleScale}x`, variant: 'success' })
 
             // Navigate to main mode
             navigate('/')
@@ -350,6 +339,10 @@ export default function ToolsMode() {
                     <div className="flex-1 flex items-center justify-center p-4 overflow-hidden relative">
                         <img
                             src={processedImage}
+                            onLoad={(event) => {
+                                const image = event.currentTarget
+                                setImageDimensions({ width: image.naturalWidth, height: image.naturalHeight })
+                            }}
                             className="max-w-full max-h-full object-contain shadow-lg"
                             alt="Workspace"
                         />
@@ -408,217 +401,40 @@ export default function ToolsMode() {
             <div className="w-[320px] bg-card rounded-xl border border-border flex flex-col overflow-hidden">
 
                 <div
-                    className="p-4 flex-1 overflow-y-auto overscroll-contain flex flex-col gap-6"
+                    className="p-3 flex-1 overflow-y-auto overscroll-contain flex flex-col gap-2.5"
                     style={{ scrollbarGutter: 'stable' }}
                 >
-                    {/* Background Removal */}
-                    <ToolCard
-                        order={4}
-                        icon={Eraser}
-                        color="text-rose-400"
-                        title={t('smartTools.rembg', '배경 제거')}
-                        cost={toolCosts?.background}
-                        disabled={!processedImage || isLoading}
-                    >
-                        <Button
-                            className="w-full"
-                            variant="secondary"
-                            onClick={handleRemoveBackground}
-                            disabled={!processedImage || isLoading}
-                        >
-                            {t('smartTools.runRembg', '배경 제거 실행')}
-                        </Button>
-                    </ToolCard>
+                    <ToolCard icon={ImageIcon} color="text-indigo-400" title={t('tools.i2i.title', 'I2I')} description={t('tools.i2i.open', '이 이미지로 img2img')} disabled={!processedImage || isLoading} onRun={() => {
+                        useGenerationStore.getState().setI2IMode('i2i')
+                        setIsI2IOpen(true)
+                    }} />
+                    <ToolCard icon={Paintbrush} color="text-pink-400" title={t('tools.inpainting.title', '인페인트')} description={t('tools.inpainting.open', '마스크 칠해 부분 재생성')} disabled={!processedImage || isLoading} onRun={() => setIsInpaintingOpen(true)} />
 
-                    {/* Style Analysis (Kaloscope) */}
-                    <ToolCard
-                        order={10}
-                        icon={Palette}
-                        color="text-purple-400"
-                        title={t('smartTools.kaloscopeStyle', '스타일 분석')}
-                        disabled={!processedImage || isLoading}
-                    >
-                        <Button
-                            className="w-full"
-                            variant="secondary"
-                            onClick={() => setIsAnalysisOpen(true)}
-                            disabled={!processedImage || isLoading}
-                        >
-                            {t('smartTools.runStyle', '스타일 분석 실행')}
-                        </Button>
-                    </ToolCard>
+                    <div className="my-0.5 h-px shrink-0 bg-border" />
 
-                    {/* Image to Image */}
-                    <ToolCard
-                        order={1}
-                        icon={ImageIcon}
-                        color="text-indigo-400"
-                        title={t('tools.i2i.title', 'Image to Image')}
-                        disabled={!processedImage || isLoading}
-                    >
-                        <Button
-                            className="w-full"
-                            variant="secondary"
-                            onClick={() => {
-                                if (!processedImage) return
-                                useGenerationStore.getState().setI2IMode('i2i')
-                                setIsI2IOpen(true)
-                            }}
-                            disabled={!processedImage || isLoading}
-                        >
-                            {t('tools.i2i.open', 'I2I 모드로 이동')}
-                        </Button>
+                    <ToolCard icon={Maximize2} color="text-cyan-400" title={t('smartTools.upscale', '업스케일')} description={t('smartTools.upscaleDesc', '해상도를 배수로 키움')} cost={toolCosts?.upscale} disabled={!processedImage || isLoading || !token} onRun={handleUpscale}>
+                        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                            {[2, 4].map((scale) => (
+                                <button key={scale} type="button" onClick={() => setUpscaleScale(scale)} className={cn('flex-1 rounded-md border py-1 text-xs font-medium transition-colors', upscaleScale === scale ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground')}>{scale}x</button>
+                            ))}
+                        </div>
                     </ToolCard>
-
-                    {/* Inpainting */}
-                    <ToolCard
-                        order={2}
-                        icon={Paintbrush}
-                        color="text-pink-400"
-                        title={t('tools.inpainting.title', 'Inpainting')}
-                        disabled={!processedImage || isLoading}
-                    >
-                        <Button
-                            className="w-full"
-                            variant="secondary"
-                            onClick={() => {
-                                if (!processedImage) return
-                                setIsInpaintingOpen(true)
-                            }}
-                            disabled={!processedImage || isLoading}
-                        >
-                            {t('tools.inpainting.open', '인페인팅 모드로 이동')}
-                        </Button>
+                    <ToolCard icon={Eraser} color="text-rose-400" title={t('smartTools.rembg', '배경 제거')} description={t('smartTools.rembgDesc', '캐릭터만 남기고 배경을 투명하게')} cost={token ? toolCosts?.background : processedImage ? 0 : null} disabled={!processedImage || isLoading} onRun={handleRemoveBackground} />
+                    <ToolCard icon={PenTool} color="text-sky-400" title={t('smartTools.lineart', '라인아트')} description={t('smartTools.lineartDesc', '선화 추출')} cost={toolCosts?.standard} disabled={!processedImage || isLoading || !token} onRun={() => handleDirectorTool('lineart')} />
+                    <ToolCard icon={Pencil} color="text-amber-400" title={t('smartTools.sketch', '스케치')} description={t('smartTools.sketchDesc', '스케치풍으로 변환')} cost={toolCosts?.standard} disabled={!processedImage || isLoading || !token} onRun={() => handleDirectorTool('sketch')} />
+                    <ToolCard icon={Droplets} color="text-emerald-400" title={t('smartTools.colorize', '색칠')} description={t('smartTools.colorizeDesc', '선화를 채색')} cost={toolCosts?.standard} disabled={!processedImage || isLoading || !token} onRun={() => handleDirectorTool('colorize', { defry: colorizeOptions.defry, prompt: colorizeOptions.prompt })}>
+                        <DirectorToolOptions value={colorizeOptions} onChange={setColorizeOptions} promptPlaceholder={t('smartTools.colorizePrompt', '색 유도 프롬프트 (선택)')} t={t} />
                     </ToolCard>
-
-                    <div className="h-px bg-border" style={{ order: 2 }} />
-
-                    {/* Mosaic */}
-                    <ToolCard
-                        order={11}
-                        icon={Grid3X3}
-                        color="text-amber-400"
-                        title={t('smartTools.mosaic', '모자이크')}
-                        disabled={!processedImage || isLoading}
-                    >
-                        <Button
-                            className="w-full"
-                            variant="secondary"
-                            onClick={() => setIsMosaicOpen(true)}
-                            disabled={!processedImage || isLoading}
-                        >
-                            {t('smartTools.startMosaic', '모자이크 편집기 열기')}
-                        </Button>
+                    <ToolCard icon={Smile} color="text-fuchsia-400" title={t('smartTools.emotion', '표정 변경')} description={t('smartTools.emotionDesc', '얼굴 표정을 교체')} cost={toolCosts?.standard} disabled={!processedImage || isLoading || !token} onRun={() => handleDirectorTool('emotion', emotionOptions)}>
+                        <DirectorToolOptions value={emotionOptions} onChange={setEmotionOptions} promptPlaceholder={t('smartTools.emotionPrompt', '추가 프롬프트 (선택)')} showEmotion t={t} />
                     </ToolCard>
+                    <ToolCard icon={Sparkles} color="text-violet-400" title={t('smartTools.declutter', '이미지 정리')} description={t('smartTools.declutterDesc', '불필요한 요소 제거')} cost={toolCosts?.standard} disabled={!processedImage || isLoading || !token} onRun={() => handleDirectorTool('declutter')} />
 
-                    {/* Upscale (4K) */}
-                    <ToolCard
-                        order={3}
-                        icon={Maximize2}
-                        color="text-purple-400"
-                        title={t('smartTools.upscale', '4K 업스케일')}
-                        cost={toolCosts?.upscale}
-                        disabled={!processedImage || isLoading}
-                    >
-                        <Button
-                            className="w-full"
-                            variant="secondary"
-                            onClick={handleUpscale}
-                            disabled={!processedImage || isLoading}
-                        >
-                            {t('smartTools.startUpscale', '4배 업스케일 시작')}
-                        </Button>
-                    </ToolCard>
+                    <div className="my-0.5 h-px shrink-0 bg-border" />
 
-                    {/* Line Art */}
-                    <ToolCard
-                        order={5}
-                        icon={PenTool}
-                        color="text-slate-400"
-                        title={t('smartTools.lineart', '라인아트 추출')}
-                        cost={toolCosts?.standard}
-                        disabled={!processedImage || isLoading || !token}
-                    >
-                        <Button className="w-full" variant="secondary" onClick={() => handleDirectorTool('lineart')} disabled={!processedImage || isLoading || !token}>
-                            {t('smartTools.runLineart', '라인아트 추출')}
-                        </Button>
-                    </ToolCard>
-
-                    {/* Sketch */}
-                    <ToolCard
-                        order={6}
-                        icon={Pencil}
-                        color="text-gray-400"
-                        title={t('smartTools.sketch', '스케치 변환')}
-                        cost={toolCosts?.standard}
-                        disabled={!processedImage || isLoading || !token}
-                    >
-                        <Button className="w-full" variant="secondary" onClick={() => handleDirectorTool('sketch')} disabled={!processedImage || isLoading || !token}>
-                            {t('smartTools.runSketch', '스케치 변환')}
-                        </Button>
-                    </ToolCard>
-
-                    {/* Colorize */}
-                    <ToolCard
-                        order={7}
-                        icon={Droplets}
-                        color="text-cyan-400"
-                        title={t('smartTools.colorize', '색칠하기')}
-                        cost={toolCosts?.standard}
-                        disabled={!processedImage || isLoading || !token}
-                    >
-                        <DirectorToolWithOptions
-                            onRun={(defry, prompt) => handleDirectorTool('colorize', { defry, prompt })}
-                            disabled={!processedImage || isLoading || !token}
-                            showPrompt
-                            promptPlaceholder={t('smartTools.colorizePrompt', '색상 힌트 (예: red hair, blue eyes)')}
-                            buttonLabel={t('smartTools.runColorize', '색칠 실행')}
-                            t={t}
-                        />
-                    </ToolCard>
-
-                    {/* Emotion */}
-                    <ToolCard
-                        order={8}
-                        icon={Smile}
-                        color="text-yellow-400"
-                        title={t('smartTools.emotion', '표정 변경')}
-                        cost={toolCosts?.standard}
-                        disabled={!processedImage || isLoading || !token}
-                    >
-                        <DirectorToolWithOptions
-                            onRun={(defry, prompt, emotion) => handleDirectorTool('emotion', { defry, prompt, emotion })}
-                            disabled={!processedImage || isLoading || !token}
-                            showEmotion
-                            showPrompt
-                            promptPlaceholder={t('smartTools.emotionPrompt', '추가 프롬프트 (선택)')}
-                            buttonLabel={t('smartTools.runEmotion', '표정 변경')}
-                            t={t}
-                        />
-                    </ToolCard>
-
-                    {/* Declutter */}
-                    <ToolCard
-                        order={9}
-                        icon={Sparkles}
-                        color="text-emerald-400"
-                        title={t('smartTools.declutter', '이미지 정리')}
-                        cost={toolCosts?.standard}
-                        disabled={!processedImage || isLoading || !token}
-                    >
-                        <Button className="w-full" variant="secondary" onClick={() => handleDirectorTool('declutter')} disabled={!processedImage || isLoading || !token}>
-                            {t('smartTools.runDeclutter', '정리 실행')}
-                        </Button>
-                    </ToolCard>
-                    <div className="h-px bg-border" style={{ order: 9 }} />
+                    <ToolCard icon={Grid3X3} color="text-orange-400" title={t('smartTools.mosaic', '모자이크')} description={t('smartTools.mosaicDesc', '브러시로 칠해 가리기')} disabled={!processedImage || isLoading} onRun={() => setIsMosaicOpen(true)} />
                 </div>
             </div>
-
-            <TagAnalysisDialog
-                imageUrl={processedImage}
-                isOpen={isAnalysisOpen}
-                onClose={() => setIsAnalysisOpen(false)}
-            />
 
             <BackgroundRemovalDialog
                 originalImage={rembgOriginal}
@@ -655,13 +471,14 @@ export default function ToolsMode() {
 }
 
 function CostChip({ cost }: { cost: number | null | undefined }) {
+    const { t } = useTranslation()
     if (cost == null) return null
     return (
         <span className={cn(
             "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
             cost === 0 ? "bg-emerald-500/15 text-emerald-500" : "bg-destructive/15 text-destructive"
         )}>
-            <span>{cost === 0 ? '0' : `-${cost}`}</span>
+            <span>{cost === 0 ? t('smartTools.freeCost', '무료') : `-${cost}`}</span>
         </span>
     )
 }
@@ -676,23 +493,47 @@ function directorToolCost(width: number, height: number, isOpus: boolean): numbe
     return 7
 }
 
-function directorAugmentCost(width: number, height: number, isOpus: boolean, background: boolean): number {
-    const pixels = Math.max(1048576, Math.min(width * height, 3145728))
-    const base = Math.max(Math.ceil(2.951823174884865e-6 * pixels + 5.753298233447344e-7 * pixels * 28), 2)
-    if (background) return base * 3 + 5
-    return isOpus && pixels <= 1048576 ? 0 : base
+function directorAugmentCost(method: 'bg-removal' | 'lineart', width: number, height: number, isOpus: boolean): number {
+    if (width <= 0 || height <= 0) return 0
+    let normalizedWidth = width
+    let normalizedHeight = height
+    const pixels = width * height
+    const targetPixels = pixels > 3_145_728 ? 3_145_728 : pixels < 1_048_576 ? 1_048_576 : pixels
+    if (targetPixels !== pixels) {
+        const ratio = Math.sqrt(targetPixels / pixels)
+        normalizedWidth = Math.floor(width * ratio)
+        normalizedHeight = Math.floor(height * ratio)
+    }
+    const normalizedPixels = Math.max(normalizedWidth * normalizedHeight, 65_536)
+    const perImage = Math.max(Math.ceil(2.951823174884865e-6 * normalizedPixels + 5.753298233447344e-7 * normalizedPixels * 28), 2)
+    if (method === 'bg-removal') return perImage * 3 + 5
+    return isOpus && normalizedPixels <= 1_048_576 ? 0 : perImage
 }
 
-function ToolCard({ children, icon: Icon, color, title, disabled, cost, order }: any) {
+function ToolCard({ children, icon: Icon, color, title, description, disabled, cost, onRun }: any) {
     return (
         <div
-            className={cn("p-4 border rounded-xl bg-card hover:border-primary/50 transition-colors", disabled && "opacity-50 pointer-events-none")}
-            style={{ contentVisibility: 'auto', containIntrinsicSize: '160px', contain: 'layout paint style', order }}
+            role="button"
+            tabIndex={disabled ? -1 : 0}
+            aria-disabled={disabled}
+            onClick={() => !disabled && onRun?.()}
+            onKeyDown={(event) => {
+                if (!disabled && (event.key === 'Enter' || event.key === ' ')) onRun?.()
+            }}
+            className={cn(
+                "group shrink-0 rounded-xl border border-border bg-card/60 p-3 transition-colors",
+                disabled ? "opacity-55" : "cursor-pointer hover:bg-muted/45 hover:border-primary/40"
+            )}
+            style={{ contain: 'layout paint style' }}
         >
-            <div className="flex items-center gap-3 mb-3">
-                <Icon className={cn("h-5 w-5", color)} />
-                <span className="min-w-0 flex-1 font-medium">{title}</span>
+            <div className={cn("flex items-center gap-2.5", children && "mb-2")}>
+                <Icon className={cn("h-[18px] w-[18px] shrink-0", color)} />
+                <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-medium text-foreground">{title}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">{description}</p>
+                </div>
                 <CostChip cost={cost} />
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
             </div>
             {children}
         </div>
@@ -703,7 +544,6 @@ import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
-import { Label } from '@/components/ui/label'
 
 const EMOTIONS = [
     'neutral', 'happy', 'sad', 'angry', 'scared', 'surprised',
@@ -712,26 +552,18 @@ const EMOTIONS = [
     'crying', 'tsundere', 'yandere', 'kuudere', 'blushing',
 ] as const
 
-function DirectorToolWithOptions({ onRun, disabled, showPrompt, showEmotion, promptPlaceholder, buttonLabel, t }: {
-    onRun: (defry: number, prompt: string, emotion?: string) => void
-    disabled: boolean
-    showPrompt?: boolean
+function DirectorToolOptions({ value, onChange, showEmotion, promptPlaceholder, t }: {
+    value: { defry: number; prompt: string; emotion?: string }
+    onChange: (value: any) => void
     showEmotion?: boolean
     promptPlaceholder?: string
-    buttonLabel: string
     t: any
 }) {
-    const [defry, setDefry] = useState(0)
-    const [prompt, setPrompt] = useState('')
-    const [emotion, setEmotion] = useState('happy')
-
     return (
-        <div className="space-y-3">
+        <div className="grid gap-1.5" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
             {showEmotion && (
-                <div>
-                    <Label className="text-xs text-muted-foreground mb-1 block">{t('smartTools.emotionType', '표정')}</Label>
-                    <Select value={emotion} onValueChange={setEmotion}>
-                        <SelectTrigger className="h-8 text-sm">
+                    <Select value={value.emotion ?? 'neutral'} onValueChange={(emotion) => onChange({ ...value, emotion })}>
+                        <SelectTrigger className="h-8 w-full text-sm">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="max-h-[200px]">
@@ -740,32 +572,19 @@ function DirectorToolWithOptions({ onRun, disabled, showPrompt, showEmotion, pro
                             ))}
                         </SelectContent>
                     </Select>
-                </div>
             )}
-            {showPrompt && (
-                <Input
-                    value={prompt}
-                    onChange={e => setPrompt(e.target.value)}
-                    placeholder={promptPlaceholder}
-                    className="h-8 text-sm"
-                />
-            )}
-            <div>
-                <Label className="text-xs text-muted-foreground mb-1 block">
-                    {t('smartTools.defry', '원본 유지도')}: {defry}
-                </Label>
+            <Input value={value.prompt} onChange={(event) => onChange({ ...value, prompt: event.target.value })} placeholder={promptPlaceholder} className="h-8 text-sm" />
+            <div className="flex items-center gap-2 px-0.5">
+                <span className="shrink-0 text-[11px] text-muted-foreground">{t('smartTools.defry', '약화')} {value.defry}</span>
                 <Slider
-                    value={[defry]}
-                    onValueChange={([v]) => setDefry(v)}
+                    value={[value.defry]}
+                    onValueChange={([defry]) => onChange({ ...value, defry })}
                     min={0}
                     max={5}
                     step={1}
-                    className="w-full"
+                    className="flex-1"
                 />
             </div>
-            <Button className="w-full" variant="secondary" onClick={() => onRun(defry, prompt, emotion)} disabled={disabled}>
-                {buttonLabel}
-            </Button>
         </div>
     )
 }
