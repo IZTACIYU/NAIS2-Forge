@@ -1,6 +1,6 @@
 {
   "name": "nais2-forge",
-  "version": "2.7.4",
+  "version": "1.0.0",
   "license": "GPL-3.0",
   "private": true,
   "type": "module",
