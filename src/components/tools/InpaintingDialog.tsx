@@ -1,5 +1,5 @@
 
-import { useState, useRef, useEffect, MouseEvent } from 'react'
+import { useState, useRef, useEffect, type PointerEvent as ReactPointerEvent } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
@@ -13,9 +13,10 @@ interface InpaintingDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     sourceImage: string | null
+    onMaskSaved?: () => void
 }
 
-export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceImage }: InpaintingDialogProps) {
+export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceImage, onMaskSaved }: InpaintingDialogProps) {
     const { t } = useTranslation()
     const {
         setSourceImage,
@@ -38,6 +39,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     // Canvas & State
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
+    const maskSavedRef = useRef(false)
     const [isDrawing, setIsDrawing] = useState(false)
     const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null)
 
@@ -49,6 +51,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     // Reset when dialog closes - but only if we're NOT in the new sidebar workflow
     // (i.e., only reset if i2iMode is null, meaning dialog was opened for standalone generation)
     useEffect(() => {
+        if (open) maskSavedRef.current = false
         if (!open) {
             // Check if we're in sidebar workflow mode - if so, don't reset
             const currentI2IMode = useGenerationStore.getState().i2iMode
@@ -195,10 +198,12 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         }
     }
 
-    const startDrawing = (e: MouseEvent<HTMLCanvasElement>) => {
+    const startDrawing = (e: ReactPointerEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current
         const ctx = canvas?.getContext('2d')
         if (!canvas || !ctx) return
+
+        e.currentTarget.setPointerCapture(e.pointerId)
 
         const rect = canvas.getBoundingClientRect()
         const scaleX = canvas.width / rect.width
@@ -212,7 +217,10 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         setIsDrawing(true)
     }
 
-    const stopDrawing = () => {
+    const stopDrawing = (e?: ReactPointerEvent<HTMLCanvasElement>) => {
+        if (e?.currentTarget.hasPointerCapture(e.pointerId)) {
+            e.currentTarget.releasePointerCapture(e.pointerId)
+        }
         if (isDrawing) {
             setIsDrawing(false)
             saveHistory()
@@ -220,7 +228,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         lastGridPosRef.current = null
     }
 
-    const draw = (e: MouseEvent<HTMLCanvasElement>) => {
+    const draw = (e: ReactPointerEvent<HTMLCanvasElement>) => {
         if (!isDrawing || !lastGridPosRef.current) return
 
         const canvas = canvasRef.current
@@ -294,9 +302,11 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         setSourceImage(propSourceImage)
         setMask(maskDataUrl)
         setI2IMode('inpaint')
+        maskSavedRef.current = true
 
         // Close dialog - mask is now saved in store
         onOpenChange(false)
+        onMaskSaved?.()
     }
 
     const handleCloseWithoutSaving = () => {
@@ -306,7 +316,15 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     }
 
     return (
-        <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && handleCloseWithoutSaving()}>
+        <Dialog open={open} onOpenChange={(nextOpen) => {
+            if (nextOpen) return
+            if (maskSavedRef.current) {
+                maskSavedRef.current = false
+                onOpenChange(false)
+                return
+            }
+            handleCloseWithoutSaving()
+        }}>
             <DialogContent className="flex flex-col p-6 gap-4" style={{ maxWidth: '60vw', maxHeight: '85vh', width: '60vw', height: '85vh' }}>
                 <DialogHeader className="mb-0 shrink-0">
                     <DialogTitle className="flex items-center gap-2 text-xl">
@@ -382,9 +400,10 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                                 <div
                                     className="relative flex justify-center items-center"
                                     style={{
-                                        maxWidth: '100%',
                                         maxHeight: '100%',
-                                        aspectRatio: imageSize ? `${imageSize.width} / ${imageSize.height}` : 'auto'
+                                        maxWidth: '100%',
+                                        aspectRatio: imageSize ? `${imageSize.width} / ${imageSize.height}` : 'auto',
+                                        width: imageSize ? `min(100%, calc((85vh - 210px) * ${imageSize.width / imageSize.height}))` : '100%'
                                     }}
                                 >
                                     <img
@@ -418,10 +437,10 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                                     <canvas
                                         ref={canvasRef}
                                         className="absolute top-0 left-0 w-full h-full touch-none cursor-crosshair opacity-50"
-                                        onMouseDown={startDrawing}
-                                        onMouseMove={draw}
-                                        onMouseUp={stopDrawing}
-                                        onMouseLeave={stopDrawing}
+                                        onPointerDown={startDrawing}
+                                        onPointerMove={draw}
+                                        onPointerUp={stopDrawing}
+                                        onPointerCancel={stopDrawing}
                                     />
                                 </div>
                             )}

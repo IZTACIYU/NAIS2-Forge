@@ -16,7 +16,6 @@ import { pictureDir, join } from '@tauri-apps/api/path'
 import { BackgroundRemovalDialog } from '@/components/tools/BackgroundRemovalDialog'
 import { MosaicDialog } from '@/components/tools/MosaicDialog'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
-import { I2IDialog } from '@/components/tools/I2IDialog'
 import { DrawOverDialog } from '@/components/tools/DrawOverDialog'
 
 
@@ -55,7 +54,6 @@ export default function ToolsMode() {
     // Mosaic State
     const [isMosaicOpen, setIsMosaicOpen] = useState(false)
     const [isDrawOverOpen, setIsDrawOverOpen] = useState(false)
-    const [isI2IOpen, setIsI2IOpen] = useState(false)
     const [isInpaintingOpen, setIsInpaintingOpen] = useState(false)  // For mask editing only
     const [colorizeOptions, setColorizeOptions] = useState({ defry: 0, prompt: '' })
     const [emotionOptions, setEmotionOptions] = useState({ defry: 0, prompt: '', emotion: 'neutral' })
@@ -131,11 +129,19 @@ export default function ToolsMode() {
 
         const generation = useGenerationStore.getState()
         generation.setMask(null)
+        generation.setSourceImage(image)
         generation.setI2IMode(target === 'i2i' ? 'i2i' : null)
-        window.setTimeout(() => {
-            if (target === 'i2i') setIsI2IOpen(true)
-            else setIsInpaintingOpen(true)
-        }, 0)
+        if (target === 'i2i') navigate('/')
+        else window.setTimeout(() => setIsInpaintingOpen(true), 0)
+    }
+
+    const handleOpenI2I = () => {
+        if (!processedImage) return
+        const generation = useGenerationStore.getState()
+        generation.setMask(null)
+        generation.setSourceImage(processedImage)
+        generation.setI2IMode('i2i')
+        navigate('/')
     }
 
     const handleRemoveBackground = async () => {
@@ -427,10 +433,7 @@ export default function ToolsMode() {
                     className="p-3 flex-1 overflow-y-auto overscroll-contain flex flex-col gap-2.5"
                     style={{ scrollbarGutter: 'stable' }}
                 >
-                    <ToolCard icon={ImageIcon} color="text-indigo-400" title={t('tools.i2i.title', 'I2I')} description={t('tools.i2i.open', '이 이미지로 img2img')} disabled={!processedImage || isLoading} onRun={() => {
-                        useGenerationStore.getState().setI2IMode('i2i')
-                        setIsI2IOpen(true)
-                    }} />
+                    <ToolCard icon={ImageIcon} color="text-indigo-400" title={t('tools.i2i.title', 'I2I')} description={t('tools.i2i.open', '이 이미지로 img2img')} disabled={!processedImage || isLoading} onRun={handleOpenI2I} />
                     <ToolCard icon={Paintbrush} color="text-pink-400" title={t('tools.inpainting.title', '인페인트')} description={t('tools.inpainting.open', '마스크 칠해 부분 재생성')} disabled={!processedImage || isLoading} onRun={() => setIsInpaintingOpen(true)} />
 
                     <ToolCard icon={Brush} color="text-lime-400" title={t('smartTools.drawOver')} description={t('smartTools.drawOverDesc')} disabled={!processedImage || isLoading} onRun={() => setIsDrawOverOpen(true)} />
@@ -481,21 +484,10 @@ export default function ToolsMode() {
                 onTransfer={handleDrawTransfer}
             />
 
-            <I2IDialog
-                open={isI2IOpen}
-                onOpenChange={setIsI2IOpen}
-                sourceImage={processedImage}
-            />
-
             <InpaintingDialog
                 open={isInpaintingOpen}
-                onOpenChange={(open) => {
-                    setIsInpaintingOpen(open)
-                    // Navigate to main mode after mask editing is done
-                    if (!open && useGenerationStore.getState().i2iMode === 'inpaint') {
-                        navigate('/')
-                    }
-                }}
+                onOpenChange={setIsInpaintingOpen}
+                onMaskSaved={() => navigate('/')}
                 sourceImage={processedImage}
             />
         </div>
