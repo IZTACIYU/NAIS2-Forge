@@ -10,13 +10,14 @@ import { useGenerationStore } from '@/stores/generation-store'
 import { smartTools } from '@/services/smart-tools'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/use-toast'
-import { Eraser, Grid3X3, Upload, RefreshCw, Download, X, Maximize2, Image as ImageIcon, Paintbrush, ImagePlus, PenTool, Pencil, Droplets, Smile, Sparkles, ChevronRight } from 'lucide-react'
+import { Eraser, Grid3X3, Upload, RefreshCw, Download, X, Maximize2, Image as ImageIcon, Paintbrush, ImagePlus, PenTool, Pencil, Droplets, Smile, Sparkles, ChevronRight, Brush } from 'lucide-react'
 import { writeFile, BaseDirectory, exists, mkdir } from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { BackgroundRemovalDialog } from '@/components/tools/BackgroundRemovalDialog'
 import { MosaicDialog } from '@/components/tools/MosaicDialog'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { I2IDialog } from '@/components/tools/I2IDialog'
+import { DrawOverDialog } from '@/components/tools/DrawOverDialog'
 
 
 export default function ToolsMode() {
@@ -53,6 +54,7 @@ export default function ToolsMode() {
 
     // Mosaic State
     const [isMosaicOpen, setIsMosaicOpen] = useState(false)
+    const [isDrawOverOpen, setIsDrawOverOpen] = useState(false)
     const [isI2IOpen, setIsI2IOpen] = useState(false)
     const [isInpaintingOpen, setIsInpaintingOpen] = useState(false)  // For mask editing only
     const [colorizeOptions, setColorizeOptions] = useState({ defry: 0, prompt: '' })
@@ -120,6 +122,20 @@ export default function ToolsMode() {
             }
             reader.readAsDataURL(file)
         }
+    }
+
+    const handleDrawTransfer = (image: string, target: 'i2i' | 'inpaint') => {
+        setProcessedImage(image)
+        setActiveImage(image)
+        setIsDrawOverOpen(false)
+
+        const generation = useGenerationStore.getState()
+        generation.setMask(null)
+        generation.setI2IMode(target === 'i2i' ? 'i2i' : null)
+        window.setTimeout(() => {
+            if (target === 'i2i') setIsI2IOpen(true)
+            else setIsInpaintingOpen(true)
+        }, 0)
     }
 
     const handleRemoveBackground = async () => {
@@ -417,6 +433,8 @@ export default function ToolsMode() {
                     }} />
                     <ToolCard icon={Paintbrush} color="text-pink-400" title={t('tools.inpainting.title', '인페인트')} description={t('tools.inpainting.open', '마스크 칠해 부분 재생성')} disabled={!processedImage || isLoading} onRun={() => setIsInpaintingOpen(true)} />
 
+                    <ToolCard icon={Brush} color="text-lime-400" title={t('smartTools.drawOver')} description={t('smartTools.drawOverDesc')} disabled={!processedImage || isLoading} onRun={() => setIsDrawOverOpen(true)} />
+
                     <div className="my-0.5 h-px shrink-0 bg-border" />
 
                     <ToolCard icon={Maximize2} color="text-cyan-400" title={t('smartTools.upscale', '업스케일')} description={t('smartTools.upscaleDesc', '해상도를 배수로 키움')} cost={toolCosts?.upscale} disabled={!processedImage || isLoading || !token} onRun={handleUpscale}>
@@ -454,6 +472,13 @@ export default function ToolsMode() {
                 sourceImage={processedImage}
                 isOpen={isMosaicOpen}
                 onClose={() => setIsMosaicOpen(false)}
+            />
+
+            <DrawOverDialog
+                open={isDrawOverOpen}
+                sourceImage={processedImage}
+                onOpenChange={setIsDrawOverOpen}
+                onTransfer={handleDrawTransfer}
             />
 
             <I2IDialog

@@ -403,7 +403,18 @@
     "startUpscale": "Start 4x Upscale",
     "upscaleComplete": "Upscale Complete",
     "upscaleCompleteDesc": "Image has been upscaled 4x.",
-    "dropToLoad": "Drop to Load"
+    "dropToLoad": "Drop to Load",
+    "drawOver": "Draw Over",
+    "drawOverDesc": "Edit with a solid pen, blur brush, and eraser",
+    "drawOverEditor": "Draw Over Image",
+    "drawOverEditorDesc": "Draw or blur directly over the image, and erase edited areas.",
+    "solidPen": "Solid Pen",
+    "blurBrush": "Blur",
+    "color": "Color",
+    "opacity": "Opacity",
+    "blurAmount": "Blur Amount",
+    "sendToI2I": "Send to I2I",
+    "sendToInpaint": "Send to Inpaint"
   },
   "generate": {
     "button": "Generate Image",

@@ -402,7 +402,18 @@
     "startUpscale": "4倍アップスケール開始",
     "upscaleComplete": "アップスケール完了",
     "upscaleCompleteDesc": "画像が4倍に拡大されました。",
-    "dropToLoad": "ドロップして読み込み"
+    "dropToLoad": "ドロップして読み込み",
+    "drawOver": "描き込み",
+    "drawOverDesc": "ソリッドペン、ぼかし、消しゴムで画像を編集",
+    "drawOverEditor": "画像に描き込み",
+    "drawOverEditorDesc": "画像の上に直接描画やぼかしを加え、編集部分を消去できます。",
+    "solidPen": "ソリッドペン",
+    "blurBrush": "ぼかし",
+    "color": "色",
+    "opacity": "不透明度",
+    "blurAmount": "ぼかし強度",
+    "sendToI2I": "I2Iへ送る",
+    "sendToInpaint": "インペイントへ送る"
   },
   "generate": {
     "button": "画像生成",

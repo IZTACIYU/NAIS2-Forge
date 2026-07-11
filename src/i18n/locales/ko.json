@@ -405,7 +405,18 @@
     "startUpscale": "4배 업스케일 시작",
     "upscaleComplete": "업스케일 완료",
     "upscaleCompleteDesc": "이미지가 4배 확대되었습니다.",
-    "dropToLoad": "이미지를 드롭하여 열기"
+    "dropToLoad": "이미지를 드롭하여 열기",
+    "drawOver": "\ub367\uadf8\ub9ac\uae30",
+    "drawOverDesc": "\uc194\ub9ac\ub4dc \ud39c, \ube14\ub7ec, \uc9c0\uc6b0\uac1c\ub85c \uc774\ubbf8\uc9c0 \ud3b8\uc9d1",
+    "drawOverEditor": "\uc774\ubbf8\uc9c0 \ub367\uadf8\ub9ac\uae30",
+    "drawOverEditorDesc": "\uc774\ubbf8\uc9c0 \uc704\uc5d0 \uc9c1\uc811 \uadf8\ub9ac\uac70\ub098 \ube14\ub7ec\ud558\uace0, \ud3b8\uc9d1\ud55c \ubd80\ubd84\uc744 \uc9c0\uc6b0\uc138\uc694.",
+    "solidPen": "\uc194\ub9ac\ub4dc \ud39c",
+    "blurBrush": "\ube14\ub7ec",
+    "color": "\uc0c9\uc0c1",
+    "opacity": "\ubd88\ud22c\uba85\ub3c4",
+    "blurAmount": "\ube14\ub7ec \uac15\ub3c4",
+    "sendToI2I": "I2I\ub85c \ubcf4\ub0b4\uae30",
+    "sendToInpaint": "\uc778\ud398\uc778\ud2b8\ub85c \ubcf4\ub0b4\uae30"
   },
   "tools": {
     "i2i": {
