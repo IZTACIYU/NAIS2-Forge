@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "NovelAI Image Studio"
 authors = ["sunakgo"]
 license = "GPL-3.0"
-repository = "https://github.com/sunakgo/NAIS2"
+repository = "https://github.com/IZTACIYU/NAIS2-Forge"
 edition = "2021"
 rust-version = "1.77.2"
 
