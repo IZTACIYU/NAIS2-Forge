@@ -9,6 +9,8 @@ export interface LibraryItem {
     width: number
     height: number
     createdAt: number
+    thumbnailPath?: string
+    thumbnailVersion?: number
     // Stack support
     isStack?: boolean
     stackItems?: LibraryItem[]  // Items inside this stack (only if isStack=true)
@@ -94,6 +96,8 @@ export const useLibraryStore = create<LibraryState>()(
                         path: thumbnail.path,
                         width: thumbnail.width,
                         height: thumbnail.height,
+                        thumbnailPath: thumbnail.thumbnailPath,
+                        thumbnailVersion: thumbnail.thumbnailVersion,
                         stackItems,
                     }]
                 })
@@ -106,9 +110,27 @@ export const useLibraryStore = create<LibraryState>()(
             setItems: (items) => set({ items }),
 
             updateItem: (id, updates) => set((state) => ({
-                items: state.items.map((item) =>
-                    item.id === id ? { ...item, ...updates } : item
-                )
+                items: state.items.map((item) => {
+                    if (item.id === id) return { ...item, ...updates }
+                    if (!item.isStack || !item.stackItems) return item
+
+                    const stackItems = item.stackItems.map(stackItem =>
+                        stackItem.id === id ? { ...stackItem, ...updates } : stackItem
+                    )
+                    const changed = stackItems.some((stackItem, index) => stackItem !== item.stackItems?.[index])
+                    if (!changed) return item
+
+                    const firstItem = stackItems[0]
+                    const updatesThumbnail = 'thumbnailPath' in updates || 'thumbnailVersion' in updates
+                    return firstItem?.id === id && updatesThumbnail
+                        ? {
+                            ...item,
+                            thumbnailPath: firstItem.thumbnailPath,
+                            thumbnailVersion: firstItem.thumbnailVersion,
+                            stackItems,
+                        }
+                        : { ...item, stackItems }
+                })
             })),
 
             setDraggedSource: (source) => set({ draggedSource: source }),
@@ -215,6 +237,8 @@ export const useLibraryStore = create<LibraryState>()(
                     width: firstSelected.width,
                     height: firstSelected.height,
                     createdAt: Date.now(),
+                    thumbnailPath: firstSelected.thumbnailPath,
+                    thumbnailVersion: firstSelected.thumbnailVersion,
                     isStack: true,
                     stackItems: selectedItems
                 }
@@ -266,9 +290,22 @@ export const useLibraryStore = create<LibraryState>()(
 
                 if (currentStackId) {
                     set({
-                        items: items.map(item => item.id === currentStackId
-                            ? { ...item, stackItems: move(item.stackItems || []) }
-                            : item)
+                        items: items.map(item => {
+                            if (item.id !== currentStackId) return item
+                            const stackItems = move(item.stackItems || [])
+                            const thumbnail = stackItems[0]
+                            return thumbnail
+                                ? {
+                                    ...item,
+                                    path: thumbnail.path,
+                                    width: thumbnail.width,
+                                    height: thumbnail.height,
+                                    thumbnailPath: thumbnail.thumbnailPath,
+                                    thumbnailVersion: thumbnail.thumbnailVersion,
+                                    stackItems,
+                                }
+                                : item
+                        })
                     })
                 } else {
                     set({ items: move(items) })

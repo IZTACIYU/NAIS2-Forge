@@ -1,10 +1,11 @@
 import { memo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { LibraryItem as LibraryItemType } from '@/stores/library-store'
+import { LibraryItem as LibraryItemType, useLibraryStore } from '@/stores/library-store'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { LibraryContextMenu } from './LibraryContextMenu'
 import { cn } from '@/lib/utils'
 import { Check, Square, Layers } from 'lucide-react'
+import { ensureLibraryThumbnail, LIBRARY_THUMBNAIL_VERSION } from '@/lib/library-thumbnail'
 
 interface LibraryItemProps {
     item: LibraryItemType
@@ -25,25 +26,59 @@ export const LibraryItem = memo(function LibraryItem({ item, className, isOverla
     const [imageUrl, setImageUrl] = useState<string>('')
     const [isLoading, setIsLoading] = useState(true)
 
+    const hasCurrentThumbnail = Boolean(
+        item.thumbnailPath && item.thumbnailVersion === LIBRARY_THUMBNAIL_VERSION
+    )
+
     useEffect(() => {
-        // Keep originals on disk and let the webview decode only near-visible images.
         setIsLoading(true)
         try {
-            setImageUrl(convertFileSrc(item.path))
+            setImageUrl(convertFileSrc(hasCurrentThumbnail ? item.thumbnailPath! : item.path))
         } catch (e) {
             console.error('Failed to create asset URL:', e)
             setImageUrl('')
             setIsLoading(false)
         }
-    }, [item.path])
+    }, [hasCurrentThumbnail, item.path, item.thumbnailPath])
+
+    const handleImageLoad = () => {
+        setIsLoading(false)
+        if (isOverlay || hasCurrentThumbnail) return
+
+        const thumbnailSource = item.isStack && item.stackItems?.[0]
+            ? item.stackItems[0]
+            : item
+
+        void ensureLibraryThumbnail(thumbnailSource.id, thumbnailSource.path)
+            .then(thumbnailPath => {
+                useLibraryStore.getState().updateItem(thumbnailSource.id, {
+                    thumbnailPath,
+                    thumbnailVersion: LIBRARY_THUMBNAIL_VERSION,
+                })
+            })
+            .catch(error => console.warn('Failed to create library thumbnail:', error))
+    }
+
+    const handleImageError = () => {
+        if (hasCurrentThumbnail) {
+            useLibraryStore.getState().updateItem(item.id, {
+                thumbnailPath: undefined,
+                thumbnailVersion: undefined,
+            })
+            setIsLoading(true)
+            setImageUrl(convertFileSrc(item.path))
+            return
+        }
+        setIsLoading(false)
+    }
 
     const handleClick = (e: React.MouseEvent) => {
         if (isEditMode && onSelectionClick) {
             e.preventDefault()
             e.stopPropagation()
             onSelectionClick(e)
-        } else if (imageUrl && onImageClick) {
-            onImageClick(imageUrl)
+        } else if (onImageClick) {
+            onImageClick(convertFileSrc(item.path))
         }
     }
 
@@ -70,8 +105,8 @@ export const LibraryItem = memo(function LibraryItem({ item, className, isOverla
                     loading={isOverlay ? 'eager' : 'lazy'}
                     decoding="async"
                     fetchPriority={isOverlay ? 'high' : 'low'}
-                    onLoad={() => setIsLoading(false)}
-                    onError={() => setIsLoading(false)}
+                    onLoad={handleImageLoad}
+                    onError={handleImageError}
                     className={cn(
                         "w-full h-full object-cover transition-[opacity,transform] duration-200 group-hover:scale-105",
                         isLoading && "opacity-0"

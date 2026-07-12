@@ -112,18 +112,22 @@ export function LibraryContextMenu({ item, children, onRename, onAddRef, onLoadM
     }
 
     const handleDelete = async () => {
-        const paths = item.isStack
-            ? (item.stackItems || []).map(stackItem => stackItem.path)
-            : [item.path]
+        const sourceItems = item.isStack ? (item.stackItems || []) : [item]
+        const originalPaths = sourceItems.map(sourceItem => sourceItem.path)
+        const thumbnailPaths = [
+            item.thumbnailPath,
+            ...sourceItems.map(sourceItem => sourceItem.thumbnailPath),
+        ].filter((path): path is string => Boolean(path))
+        const pathsToDelete = [...new Set([...originalPaths, ...thumbnailPaths])]
 
-        const results = await Promise.allSettled(paths.map(path => remove(path)))
+        const results = await Promise.allSettled(pathsToDelete.map(path => remove(path)))
         const failed = results.filter(result => result.status === 'rejected')
         if (failed.length > 0) {
             console.error('Delete failed for some library files:', failed)
         }
 
         window.dispatchEvent(new CustomEvent('imageDeleted', {
-            detail: { paths }
+            detail: { paths: originalPaths }
         }))
         removeItem(item.id)
         toast({ title: t('actions.deleted', '삭제 완료'), variant: 'success' })

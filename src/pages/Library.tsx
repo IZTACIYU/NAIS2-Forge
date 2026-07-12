@@ -179,6 +179,8 @@ export default function Library() {
                                 path: thumbnail.path,
                                 width: thumbnail.width,
                                 height: thumbnail.height,
+                                thumbnailPath: thumbnail.thumbnailPath,
+                                thumbnailVersion: thumbnail.thumbnailVersion,
                                 stackItems: validStackItems,
                             }
                         }
@@ -219,14 +221,19 @@ export default function Library() {
             ? (items.find(item => item.id === currentStackId)?.stackItems || [])
             : items
         const selectedItems = sourceItems.filter(item => selectedItemIds.includes(item.id))
-        const paths = selectedItems.flatMap(item =>
-            item.isStack ? (item.stackItems || []).map(stackItem => stackItem.path) : [item.path]
+        const expandedItems = selectedItems.flatMap(item =>
+            item.isStack ? (item.stackItems || []) : [item]
         )
+        const originalPaths = expandedItems.map(item => item.path)
+        const thumbnailPaths = selectedItems
+            .flatMap(item => [item.thumbnailPath, ...(item.stackItems || []).map(stackItem => stackItem.thumbnailPath)])
+            .filter((path): path is string => Boolean(path))
+        const pathsToDelete = [...new Set([...originalPaths, ...thumbnailPaths])]
 
-        await Promise.allSettled(paths.map(path => remove(path)))
-        if (paths.length > 0) {
+        await Promise.allSettled(pathsToDelete.map(path => remove(path)))
+        if (originalPaths.length > 0) {
             window.dispatchEvent(new CustomEvent('imageDeleted', {
-                detail: { paths }
+                detail: { paths: originalPaths }
             }))
         }
         deleteSelectedItems()
