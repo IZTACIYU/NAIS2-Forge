@@ -30,7 +30,6 @@ export function SortableLibraryItem({ item, onRename, onAddRef, onLoadMetadata, 
         transform: CSS.Transform.toString(transform),
         transition: isDragging ? undefined : transition,
         opacity: isDragging ? 0.2 : 1,
-        willChange: transform ? 'transform' : undefined,
     }
 
     return (

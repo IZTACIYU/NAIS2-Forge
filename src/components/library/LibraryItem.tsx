@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { memo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { LibraryItem as LibraryItemType } from '@/stores/library-store'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -20,7 +20,7 @@ interface LibraryItemProps {
     isDropTarget?: boolean
 }
 
-export function LibraryItem({ item, className, isOverlay, onRename, onAddRef, onLoadMetadata, onImageClick, isEditMode, isSelected, onSelectionClick, isDropTarget }: LibraryItemProps) {
+export const LibraryItem = memo(function LibraryItem({ item, className, isOverlay, onRename, onAddRef, onLoadMetadata, onImageClick, isEditMode, isSelected, onSelectionClick, isDropTarget }: LibraryItemProps) {
     const { t } = useTranslation()
     const [imageUrl, setImageUrl] = useState<string>('')
     const [isLoading, setIsLoading] = useState(true)
@@ -118,4 +118,4 @@ export function LibraryItem({ item, className, isOverlay, onRename, onAddRef, on
             {content}
         </LibraryContextMenu>
     )
-}
+})
