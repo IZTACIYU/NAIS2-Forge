@@ -112,17 +112,21 @@ export function LibraryContextMenu({ item, children, onRename, onAddRef, onLoadM
     }
 
     const handleDelete = async () => {
-        try {
-            // Optional: Ask for confirmation or just delete? 
-            // Usually direct delete in context menu is fine if there's no undo, but let's just delete for now as per requirement.
-            // Requirement didn't specify confirmation dialog.
-            await remove(item.path)
-            removeItem(item.id)
-            toast({ title: t('actions.deleted', '삭제 완료'), variant: 'success' })
-        } catch (e) {
-            console.error('Delete failed:', e)
-            removeItem(item.id) // Still remove from store if file not found
+        const paths = item.isStack
+            ? (item.stackItems || []).map(stackItem => stackItem.path)
+            : [item.path]
+
+        const results = await Promise.allSettled(paths.map(path => remove(path)))
+        const failed = results.filter(result => result.status === 'rejected')
+        if (failed.length > 0) {
+            console.error('Delete failed for some library files:', failed)
         }
+
+        window.dispatchEvent(new CustomEvent('imageDeleted', {
+            detail: { paths }
+        }))
+        removeItem(item.id)
+        toast({ title: t('actions.deleted', '삭제 완료'), variant: 'success' })
     }
 
     return (

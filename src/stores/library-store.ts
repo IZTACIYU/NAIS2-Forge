@@ -80,7 +80,23 @@ export const useLibraryStore = create<LibraryState>()(
             })),
 
             removeItem: (id) => set((state) => ({
-                items: state.items.filter((item) => item.id !== id)
+                items: state.items.flatMap((item) => {
+                    if (item.id === id) return []
+                    if (!item.isStack || !item.stackItems) return [item]
+
+                    const stackItems = item.stackItems.filter(stackItem => stackItem.id !== id)
+                    if (stackItems.length === item.stackItems.length) return [item]
+                    if (stackItems.length === 0) return []
+
+                    const thumbnail = stackItems[0]
+                    return [{
+                        ...item,
+                        path: thumbnail.path,
+                        width: thumbnail.width,
+                        height: thumbnail.height,
+                        stackItems,
+                    }]
+                })
             })),
 
             removeItems: (ids) => set((state) => ({

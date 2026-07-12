@@ -22,7 +22,7 @@ import { useLibraryStore, LibraryItem } from '@/stores/library-store'
 import { SortableLibraryItem } from '@/components/library/SortableLibraryItem'
 import { LibraryItem as LibraryItemComponent } from '@/components/library/LibraryItem'
 import { useTranslation } from 'react-i18next'
-import { mkdir, exists, writeFile, BaseDirectory } from '@tauri-apps/plugin-fs'
+import { mkdir, exists, writeFile, remove, BaseDirectory } from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { toast } from '@/components/ui/use-toast'
 import { ImagePlus, X, Grid3x3, Edit3, Trash2, Layers, ArrowLeft, CheckSquare, FolderOpen, Upload } from 'lucide-react'
@@ -146,32 +146,65 @@ export default function Library() {
 
                 const currentItems = useLibraryStore.getState().items
                 const validItems: LibraryItem[] = []
-                let removedCount = 0
+                let changed = false
 
-                for (const item of currentItems) {
-                    try {
-                        const fileExists = await exists(item.path)
-                        if (fileExists) {
-                            validItems.push(item)
-                        } else {
-                            removedCount++
+                const validateItem = async (item: LibraryItem): Promise<LibraryItem | null> => {
+                    if (item.isStack && item.stackItems) {
+                        const validStackItems: LibraryItem[] = []
+                        const batchSize = 16
+
+                        for (let index = 0; index < item.stackItems.length; index += batchSize) {
+                            const batch = item.stackItems.slice(index, index + batchSize)
+                            const results = await Promise.all(batch.map(async stackItem => {
+                                try {
+                                    return await exists(stackItem.path) ? stackItem : null
+                                } catch (error) {
+                                    console.warn('Failed to check file existence for ' + stackItem.name + ':', error)
+                                    return stackItem
+                                }
+                            }))
+                            validStackItems.push(...results.filter((entry): entry is LibraryItem => entry !== null))
                         }
-                    } catch (e) {
-                        // If checking existence fails (e.g. permission), assume valid to be safe? 
-                        // Or assume invalid? 'exists' usually returns false on error or file not found.
-                        // But tauri v2 exists might throw.
-                        // Let's assume if we can't verify it, we keep it, OR we remove it.
-                        // Safest is to keep if uncertain, but if file is surely gone, remove.
-                        // If error is "file not found", it's gone.
-                        console.warn(`Failed to check file existence for ${item.name}:`, e)
-                        // For now, keep it to avoid accidental deletion on IO errors.
-                        validItems.push(item)
+
+                        if (validStackItems.length === 0) {
+                            changed = true
+                            return null
+                        }
+
+                        const thumbnail = validStackItems[0]
+                        if (validStackItems.length !== item.stackItems.length || item.path !== thumbnail.path) {
+                            changed = true
+                            return {
+                                ...item,
+                                path: thumbnail.path,
+                                width: thumbnail.width,
+                                height: thumbnail.height,
+                                stackItems: validStackItems,
+                            }
+                        }
+                        return item
+                    }
+
+                    try {
+                        if (await exists(item.path)) return item
+                        changed = true
+                        return null
+                    } catch (error) {
+                        console.warn('Failed to check file existence for ' + item.name + ':', error)
+                        return item
                     }
                 }
 
-                if (removedCount > 0) {
+                const batchSize = 16
+                for (let index = 0; index < currentItems.length; index += batchSize) {
+                    const batch = currentItems.slice(index, index + batchSize)
+                    const results = await Promise.all(batch.map(validateItem))
+                    validItems.push(...results.filter((entry): entry is LibraryItem => entry !== null))
+                }
+
+                if (changed) {
                     setItems(validItems)
-                    console.log(`[Library] Synced: Removed ${removedCount} missing items.`)
+                    console.log('[Library] Synced missing files and repaired stack thumbnails.')
                 }
 
             } catch (e) {
@@ -180,6 +213,24 @@ export default function Library() {
         }
         initDir()
     }, [setItems, libraryPath, useAbsoluteLibraryPath])
+
+    const handleDeleteSelected = useCallback(async () => {
+        const sourceItems = currentStackId
+            ? (items.find(item => item.id === currentStackId)?.stackItems || [])
+            : items
+        const selectedItems = sourceItems.filter(item => selectedItemIds.includes(item.id))
+        const paths = selectedItems.flatMap(item =>
+            item.isStack ? (item.stackItems || []).map(stackItem => stackItem.path) : [item.path]
+        )
+
+        await Promise.allSettled(paths.map(path => remove(path)))
+        if (paths.length > 0) {
+            window.dispatchEvent(new CustomEvent('imageDeleted', {
+                detail: { paths }
+            }))
+        }
+        deleteSelectedItems()
+    }, [currentStackId, deleteSelectedItems, items, selectedItemIds])
 
     const handleDragStart = (event: DragStartEvent) => {
         setActiveId(event.active.id as string)
@@ -292,7 +343,7 @@ export default function Library() {
         }
     }, [addItem, t])
 
-    const activeItem = activeId ? items.find(i => i.id === activeId) : null
+    const activeItem = activeId ? viewItems.find(i => i.id === activeId) : null
 
     // Helper
     const arrayBufferToBase64 = (buffer: Uint8Array): string => {
@@ -479,7 +530,7 @@ export default function Library() {
                                 variant="ghost" 
                                 size="sm" 
                                 className="h-9 text-destructive hover:text-destructive hover:bg-destructive/10" 
-                                onClick={deleteSelectedItems}
+                                onClick={handleDeleteSelected}
                                 disabled={selectedItemIds.length === 0}
                             >
                                 <Trash2 className="h-4 w-4 mr-2" /> {t('actions.delete', '삭제')}
@@ -566,7 +617,7 @@ export default function Library() {
                     onDragEnd={handleDragEnd}
                     measuring={{
                         droppable: {
-                            strategy: MeasuringStrategy.Always,
+                            strategy: MeasuringStrategy.BeforeDragging,
                         },
                     }}
                 >

@@ -26,13 +26,13 @@ export function LibraryItem({ item, className, isOverlay, onRename, onAddRef, on
     const [isLoading, setIsLoading] = useState(true)
 
     useEffect(() => {
-        // Use convertFileSrc for efficient native asset URL (no Base64 memory overhead)
+        // Keep originals on disk and let the webview decode only near-visible images.
+        setIsLoading(true)
         try {
-            const assetUrl = convertFileSrc(item.path)
-            setImageUrl(assetUrl)
-            setIsLoading(false)
+            setImageUrl(convertFileSrc(item.path))
         } catch (e) {
             console.error('Failed to create asset URL:', e)
+            setImageUrl('')
             setIsLoading(false)
         }
     }, [item.path])
@@ -58,16 +58,25 @@ export function LibraryItem({ item, className, isOverlay, onRename, onAddRef, on
             )}
             onClick={handleClick}
         >
-            {isLoading ? (
-                <div className="w-full h-full flex items-center justify-center animate-pulse bg-muted">
+            {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center animate-pulse bg-muted">
                     <span className="sr-only">Loading...</span>
                 </div>
-            ) : (
+            )}
+            {imageUrl && (
                 <img
                     src={imageUrl}
                     alt={item.name}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    draggable={false} // Prevent native drag
+                    loading={isOverlay ? 'eager' : 'lazy'}
+                    decoding="async"
+                    fetchPriority={isOverlay ? 'high' : 'low'}
+                    onLoad={() => setIsLoading(false)}
+                    onError={() => setIsLoading(false)}
+                    className={cn(
+                        "w-full h-full object-cover transition-[opacity,transform] duration-200 group-hover:scale-105",
+                        isLoading && "opacity-0"
+                    )}
+                    draggable={false}
                 />
             )}
 
