@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { useEffect, useState, useCallback, memo } from 'react'
+import { useEffect, useState, useCallback, memo, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { Clock, Trash2, FolderOpen, RefreshCw, FileSearch, Copy, RotateCcw, Save, Users, Image as ImageIcon, Paintbrush, Maximize2, Film, Zap, PenTool, Pencil, Droplets, Smile, Sparkles, Cloud, Eraser } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -39,6 +39,13 @@ interface SavedImage {
     timestamp: number
     type: 'main' | 'i2i' | 'inpaint' | 'upscale' | 'scene' | 'lineart' | 'sketch' | 'colorize' | 'emotion' | 'declutter'
     isTemporary?: boolean
+}
+
+const appendPathParts = (base: string, ...parts: string[]) => {
+    const separator = base.includes('\\') ? '\\' : '/'
+    const cleanBase = base.replace(/[\\/]+$/, '')
+    const cleanParts = parts.map(part => part.replace(/^[\\/]+|[\\/]+$/g, ''))
+    return [cleanBase, ...cleanParts].join(separator)
 }
 
 // Memoized HistoryImageItem - 불필요한 리렌더링 방지
@@ -269,7 +276,10 @@ export function HistoryPanel() {
     const navigate = useNavigate()
     const setActiveImage = useToolsStore(state => state.setActiveImage)
 
-
+    const historyScanIdRef = useRef(0)
+    const historyScanActiveRef = useRef(false)
+    const deletedPathsDuringScanRef = useRef<Set<string>>(new Set())
+    const addedPathsDuringScanRef = useRef<Set<string>>(new Set())
 
     // LRU cache limit for imageThumbnails to prevent memory bloat
     const MAX_THUMBNAIL_CACHE = 20
@@ -300,6 +310,10 @@ export function HistoryPanel() {
     // Add new image instantly to history
     // Memory optimization: Use convertFileSrc for file-based images, only cache Base64 for temporary (memory://) images
     const addNewImage = useCallback((imagePath: string, imageData?: string) => {
+        if (historyScanActiveRef.current) {
+            addedPathsDuringScanRef.current.add(imagePath)
+        }
+
         const timestamp = Date.now()
         const isTemporary = imagePath.startsWith('memory://')
         const name = imagePath.split(/[/\\]/).pop() || `NAIS_${timestamp}.png`
@@ -386,9 +400,20 @@ export function HistoryPanel() {
 
     // Load images from save path
     const loadSavedImages = async () => {
+        const scanId = ++historyScanIdRef.current
+        historyScanActiveRef.current = true
+        deletedPathsDuringScanRef.current.clear()
+        addedPathsDuringScanRef.current.clear()
         setIsLoading(true)
+
         try {
             const images: SavedImage[] = []
+            const imagePaths = new Set<string>()
+            const addDiscoveredImage = (image: SavedImage) => {
+                if (imagePaths.has(image.path)) return
+                imagePaths.add(image.path)
+                images.push(image)
+            }
             const picturePath = await pictureDir()
 
             // 1. Load Main Output Images - Always load from Pictures/NAIS_Output first
@@ -401,10 +426,10 @@ export function HistoryPanel() {
 
                     for (const entry of entries) {
                         if (entry.name && (entry.name.toLowerCase().endsWith('.png') || entry.name.toLowerCase().endsWith('.jpg') || entry.name.toLowerCase().endsWith('.webp'))) {
-                            const fullPath = await join(picturePath, defaultOutputDir, entry.name)
+                            const fullPath = appendPathParts(picturePath, defaultOutputDir, entry.name)
                             const match = entry.name.match(/_(\d+)\.[^.]+$/)
                             const timestamp = match ? parseInt(match[1]) : 0
-                            images.push({
+                            addDiscoveredImage({
                                 name: entry.name,
                                 path: fullPath,
                                 timestamp,
@@ -425,14 +450,11 @@ export function HistoryPanel() {
 
                         for (const entry of entries) {
                             if (entry.name && (entry.name.toLowerCase().endsWith('.png') || entry.name.toLowerCase().endsWith('.jpg') || entry.name.toLowerCase().endsWith('.webp'))) {
-                                const fullPath = await join(savePath, entry.name)
-
-                                // Skip duplicates
-                                if (images.some(img => img.path === fullPath)) continue
+                                const fullPath = appendPathParts(savePath, entry.name)
 
                                 const match = entry.name.match(/_(\d+)\.[^.]+$/)
                                 const timestamp = match ? parseInt(match[1]) : 0
-                                images.push({
+                                addDiscoveredImage({
                                     name: entry.name,
                                     path: fullPath,
                                     timestamp,
@@ -479,7 +501,7 @@ export function HistoryPanel() {
                                         // This is the sceneName folder (new structure: presetName/sceneName/)
                                         const sceneFolderPath = useBaseDir
                                             ? `${presetFolderPath}/${item.name}`
-                                            : await join(presetFolderPath, item.name)
+                                            : appendPathParts(presetFolderPath, item.name)
 
                                         const sceneFiles = useBaseDir
                                             ? await readDir(sceneFolderPath, { baseDir: BaseDirectory.Picture })
@@ -488,15 +510,13 @@ export function HistoryPanel() {
                                         for (const file of sceneFiles) {
                                             if (file.name && (file.name.toLowerCase().endsWith('.png') || file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.webp'))) {
                                                 const fullPath = useBaseDir
-                                                    ? await join(scenePicturePath, sceneBaseDir, presetOrSceneDir.name, item.name, file.name)
-                                                    : await join(sceneFolderPath, file.name)
-
-                                                if (images.some(img => img.path === fullPath)) continue
+                                                    ? appendPathParts(scenePicturePath, sceneBaseDir, presetOrSceneDir.name, item.name, file.name)
+                                                    : appendPathParts(sceneFolderPath, file.name)
 
                                                 const match = file.name.match(/_(\d+)\.[^.]+$/)
                                                 const timestamp = match ? parseInt(match[1]) : 0
 
-                                                images.push({
+                                                addDiscoveredImage({
                                                     name: file.name,
                                                     path: fullPath,
                                                     timestamp,
@@ -507,15 +527,13 @@ export function HistoryPanel() {
                                     } else if (item.name && (item.name.toLowerCase().endsWith('.png') || item.name.toLowerCase().endsWith('.jpg') || item.name.toLowerCase().endsWith('.webp'))) {
                                         // This is a direct image file (old structure: sceneName/image.png)
                                         const fullPath = useBaseDir
-                                            ? await join(scenePicturePath, sceneBaseDir, presetOrSceneDir.name, item.name)
-                                            : await join(presetFolderPath, item.name)
-
-                                        if (images.some(img => img.path === fullPath)) continue
+                                            ? appendPathParts(scenePicturePath, sceneBaseDir, presetOrSceneDir.name, item.name)
+                                            : appendPathParts(presetFolderPath, item.name)
 
                                         const match = item.name.match(/_(\d+)\.[^.]+$/)
                                         const timestamp = match ? parseInt(match[1]) : 0
 
-                                        images.push({
+                                        addDiscoveredImage({
                                             name: item.name,
                                             path: fullPath,
                                             timestamp,
@@ -542,28 +560,46 @@ export function HistoryPanel() {
                 await loadSceneImagesFromDir(absoluteSceneDir, false)
             }
 
+            if (scanId !== historyScanIdRef.current) return
+
             images.sort((a, b) => b.timestamp - a.timestamp)
 
             // MEMORY OPTIMIZATION: Limit total file entries to prevent large state
             const MAX_HISTORY_FILES = 200
-            const limitedImages = images.slice(0, MAX_HISTORY_FILES)
+            const deletedPaths = new Set(deletedPathsDuringScanRef.current)
+            const addedPaths = new Set(addedPathsDuringScanRef.current)
+            const limitedImages = images
+                .filter(image => !deletedPaths.has(image.path))
+                .slice(0, MAX_HISTORY_FILES)
 
-            // Merge with existing temporary images
+            // Merge scan results with images created while the scan was running.
             setSavedImages(prev => {
                 const tempImages = prev.filter(img => img.isTemporary)
                 const sortedTemp = tempImages.sort((a, b) => b.timestamp - a.timestamp).slice(0, 10)
+                const liveAddedImages = prev.filter(img =>
+                    addedPaths.has(img.path) && !deletedPaths.has(img.path)
+                )
 
-                const combined = [...limitedImages, ...sortedTemp]
-                return combined.sort((a, b) => b.timestamp - a.timestamp)
+                const unique = new Map<string, SavedImage>()
+                for (const image of [...liveAddedImages, ...limitedImages, ...sortedTemp]) {
+                    if (!unique.has(image.path)) unique.set(image.path, image)
+                }
+                return [...unique.values()].sort((a, b) => b.timestamp - a.timestamp)
             })
 
             // NOTE: Removed pre-loading of thumbnails using readFile to prevent UI lag.
             // Using convertFileSrc in the render loop is much more efficient as it uses native asset handling.
         } catch (error) {
             console.error('Failed to load history:', error)
-            setSavedImages([])
+            if (scanId === historyScanIdRef.current) setSavedImages([])
         }
-        setIsLoading(false)
+
+        if (scanId === historyScanIdRef.current) {
+            historyScanActiveRef.current = false
+            deletedPathsDuringScanRef.current.clear()
+            addedPathsDuringScanRef.current.clear()
+            setIsLoading(false)
+        }
     }
 
     useEffect(() => {
@@ -587,6 +623,11 @@ export function HistoryPanel() {
         const handler = (e: CustomEvent<{ path?: string; paths?: string[] }>) => {
             const paths = e.detail.paths ?? (e.detail.path ? [e.detail.path] : [])
             if (paths.length === 0) return
+
+            if (historyScanActiveRef.current) {
+                for (const path of paths) deletedPathsDuringScanRef.current.add(path)
+            }
+
             const deleted = new Set(paths)
 
             setSavedImages(prev => prev.filter(img => !deleted.has(img.path)))
