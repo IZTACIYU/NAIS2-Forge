@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
-import { check, Update } from '@tauri-apps/plugin-updater'
+import { type Update } from '@tauri-apps/plugin-updater'
+import { checkForAppUpdate } from '@/lib/app-updater'
 import { getVersion } from '@tauri-apps/api/app'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/components/ui/use-toast'
@@ -126,7 +127,7 @@ export function useUpdateChecker() {
                     }
                 }
 
-                const update = await check()
+                const update = await checkForAppUpdate()
                 if (update) {
                     // Check if we already have this version downloaded
                     if (pendingUpdate && pendingUpdate.version === update.version) {

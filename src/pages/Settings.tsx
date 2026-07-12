@@ -51,12 +51,13 @@ import { toast } from '@/components/ui/use-toast'
 import NovelAILogo from '@/assets/novelai_logo.svg'
 import GeminiIcon from '@/assets/gemini-color.svg'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { check } from '@tauri-apps/plugin-updater'
+import { checkForAppUpdate } from '@/lib/app-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { getVersion } from '@tauri-apps/api/app'
 import { useUpdateStore, setCurrentUpdateObject, installPendingUpdate } from '@/stores/update-store'
 import { exportAllData, importAllData, getStoreSizes } from '@/lib/indexed-db'
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 const LANGUAGES = [
     { code: 'ko', name: '한국어' },
@@ -106,6 +107,8 @@ export default function Settings() {
     const [isImporting, setIsImporting] = useState(false)
     const [storeSizes, setStoreSizes] = useState<{ [key: string]: number }>({})
     const [lastBackupTime, setLastBackupTime] = useState<string | null>(null)
+    const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
+    const [pendingRestore, setPendingRestore] = useState<Record<string, unknown> | null>(null)
 
     useEffect(() => {
         getVersion().then(setAppVersion).catch(() => setAppVersion('dev'))
@@ -243,27 +246,14 @@ export default function Settings() {
     // 백업 복원
     const handleImportBackup = async () => {
         try {
-            // 파일 선택 다이얼로그
             const filePath = await open({
                 title: t('settingsPage.backup.import'),
                 filters: [{ name: 'JSON', extensions: ['json'] }],
                 multiple: false,
             })
-            
             if (!filePath || typeof filePath !== 'string') return
-            
-            // 확인 다이얼로그
-            const confirmed = window.confirm(
-                `${t('settingsPage.backup.confirmRestoreDesc')}\n\n${t('settingsPage.backup.restoreWarning')}`
-            )
-            if (!confirmed) return
-            
-            setIsImporting(true)
-            
-            const content = await readTextFile(filePath)
-            const backup = JSON.parse(content)
-            
-            // 유효성 검증
+
+            const backup = JSON.parse(await readTextFile(filePath)) as Record<string, unknown>
             if (!backup._exportedAt || !backup._version) {
                 toast({
                     title: t('settingsPage.backup.importFailed'),
@@ -272,20 +262,9 @@ export default function Settings() {
                 })
                 return
             }
-            
-            const result = await importAllData(backup, true)
-            
-            toast({
-                title: t('settingsPage.backup.imported'),
-                description: t('settingsPage.backup.importedDesc', { success: result.success.length }),
-                variant: 'success',
-            })
-            
-            // 앱 재시작
-            setTimeout(() => {
-                relaunch()
-            }, 1500)
-            
+
+            setPendingRestore(backup)
+            setRestoreDialogOpen(true)
         } catch (err) {
             console.error('Backup import failed:', err)
             toast({
@@ -293,12 +272,38 @@ export default function Settings() {
                 description: String(err),
                 variant: 'destructive',
             })
-        } finally {
-            setIsImporting(false)
         }
     }
-    
-    // 데이터 크기 포맷팅
+
+    const confirmImportBackup = async () => {
+        if (!pendingRestore) return
+        const backup = pendingRestore
+        setRestoreDialogOpen(false)
+        setPendingRestore(null)
+        setIsImporting(true)
+
+        try {
+            const result = await importAllData(backup, true)
+            if (result.failed.length > 0 || result.success.length === 0) {
+                throw new Error(`Restore verification failed (${result.failed.length} failed)`)
+            }
+
+            toast({
+                title: t('settingsPage.backup.imported'),
+                description: t('settingsPage.backup.importedDesc', { success: result.success.length }),
+                variant: 'success',
+            })
+            await relaunch()
+        } catch (err) {
+            console.error('Backup import failed:', err)
+            setIsImporting(false)
+            toast({
+                title: t('settingsPage.backup.importFailed'),
+                description: String(err),
+                variant: 'destructive',
+            })
+        }
+    }
     const formatSize = (bytes: number) => {
         if (bytes < 0) return 'Error'
         if (bytes === 0) return '0 B'
@@ -311,6 +316,31 @@ export default function Settings() {
 
     return (
         <div className="flex h-full">
+            <Dialog open={restoreDialogOpen} onOpenChange={(open) => {
+                setRestoreDialogOpen(open)
+                if (!open) setPendingRestore(null)
+            }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                            {t('settingsPage.backup.confirmRestore')}
+                        </DialogTitle>
+                        <DialogDescription className="space-y-2 pt-2">
+                            <span className="block">{t('settingsPage.backup.confirmRestoreDesc')}</span>
+                            <span className="block font-medium text-yellow-600 dark:text-yellow-400">{t('settingsPage.backup.restoreWarning')}</span>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setRestoreDialogOpen(false)}>
+                            {t('common.cancel')}
+                        </Button>
+                        <Button type="button" variant="destructive" onClick={confirmImportBackup}>
+                            {t('settingsPage.backup.import')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
             {/* Sidebar */}
             <aside className="w-56 border-r border-border/50 p-4 space-y-1">
                 <h2 className="text-lg font-semibold mb-4 px-2">{t('settingsPage.title')}</h2>
@@ -426,7 +456,7 @@ export default function Settings() {
                                             onClick={async () => {
                                                 setIsCheckingUpdate(true)
                                                 try {
-                                                    const update = await check()
+                                                    const update = await checkForAppUpdate()
                                                     if (update) {
                                                         // Store the update object
                                                         setCurrentUpdateObject(update)
@@ -494,7 +524,8 @@ export default function Settings() {
                                                         toast({ title: t('update.upToDate', '최신 버전입니다'), variant: 'success' })
                                                     }
                                                 } catch (e) {
-                                                    toast({ title: t('update.checkFailed', '업데이트 확인 실패'), variant: 'destructive' })
+                                                    console.error('Update check failed:', e)
+                                                    toast({ title: t('update.checkFailed', '업데이트 확인 실패'), description: String(e), variant: 'destructive' })
                                                 } finally {
                                                     setIsCheckingUpdate(false)
                                                 }

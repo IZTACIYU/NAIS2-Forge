@@ -205,6 +205,19 @@ export async function flushAllPendingWrites(): Promise<void> {
     }
 }
 
+/** Write and verify data immediately before relaunching the app. */
+export async function setStorageItemImmediately(name: string, value: string): Promise<void> {
+    const timer = pendingWriteTimers.get(name)
+    if (timer) clearTimeout(timer)
+    pendingWriteTimers.delete(name)
+    pendingWriteValues.delete(name)
+    lastWriteTime.set(name, Date.now())
+
+    await rawSetItem(name, value)
+    const stored = await indexedDBStorage.getItem(name)
+    if (stored !== value) throw new Error(`Failed to verify restored store: ${name}`)
+}
+
 // Flush pending writes on app close
 if (typeof window !== 'undefined') {
     window.addEventListener('beforeunload', () => {
@@ -788,7 +801,7 @@ export async function importAllData(backup: { [key: string]: unknown }, overwrit
                 }
             }
             
-            await indexedDBStorage.setItem(key, JSON.stringify(value))
+            await setStorageItemImmediately(key, JSON.stringify(value))
             result.success.push(key)
             console.log(`[Restore] ${key}: Restored`)
         } catch (err) {

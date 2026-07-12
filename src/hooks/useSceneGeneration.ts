@@ -12,6 +12,7 @@ import { pictureDir, join } from '@tauri-apps/api/path'
 import { processWildcards } from '@/lib/fragment-processor'
 import { createThumbnail } from '@/lib/image-utils'
 import { useCharacterStore } from '@/stores/character-store'
+import { sendSystemNotification } from '@/lib/system-notification'
 
 // Module-level variable to prevent concurrent processing
 let isProcessing = false
@@ -163,6 +164,7 @@ export function useSceneGeneration() {
                 // Release character/vibe base64 from memory after all scene generation completes
                 useCharacterStore.getState().releaseImageData(true)
                 toast({ title: t('generate.complete', '생성 완료'), description: t('generate.allComplete', '모든 예약된 작업이 완료되었습니다.'), variant: 'success' })
+                void sendSystemNotification(t('generate.complete', '생성 완료'), t('generate.allComplete', '모든 예약된 작업이 완료되었습니다.'))
                 return
             }
 
