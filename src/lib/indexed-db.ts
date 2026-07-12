@@ -777,8 +777,22 @@ async function importWildcardContent(content: { [id: string]: string[] }): Promi
 export async function importAllData(backup: { [key: string]: unknown }, overwrite = false): Promise<{ success: string[], failed: string[] }> {
     const result = { success: [] as string[], failed: [] as string[] }
     
-    for (const [key, value] of Object.entries(backup)) {
-        if (key.startsWith('_')) continue // 메타데이터 스킵
+    const entries = new Map<string, unknown>()
+    for (const [sourceKey, value] of Object.entries(backup)) {
+        if (sourceKey.startsWith('_')) continue
+        const key = sourceKey.startsWith('nais2-forge-')
+            ? sourceKey
+            : sourceKey.startsWith('nais2-')
+                ? `nais2-forge-${sourceKey.slice('nais2-'.length)}`
+                : sourceKey
+
+        // Prefer native Forge data when a mixed backup contains both key formats.
+        if (!entries.has(key) || sourceKey.startsWith('nais2-forge-')) {
+            entries.set(key, value)
+        }
+    }
+
+    for (const [key, value] of entries) {
         
         // Handle wildcard-content separately (stored in separate IndexedDB)
         if (key === 'nais2-forge-wildcard-content') {
