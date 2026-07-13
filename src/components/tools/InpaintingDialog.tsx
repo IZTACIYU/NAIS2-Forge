@@ -16,6 +16,14 @@ interface InpaintingDialogProps {
     onMaskSaved?: () => void
 }
 
+const GRID_SIZE = 8
+const MAX_UNDO_STEPS = 50
+
+interface MaskHistoryAction {
+    painted: boolean
+    cells: number[]
+}
+
 export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceImage, onMaskSaved }: InpaintingDialogProps) {
     const { t } = useTranslation()
     const {
@@ -40,13 +48,35 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const maskSavedRef = useRef(false)
-    const [isDrawing, setIsDrawing] = useState(false)
+    const isDrawingRef = useRef(false)
     const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null)
 
+    // The mask is an 8x8 grid, so undo stores only changed cells instead of
+    // retaining a full RGBA canvas snapshot for every brush stroke.
+    const gridDataRef = useRef<Set<number>>(new Set())
+    const currentStrokeCellsRef = useRef<Set<number>>(new Set())
+    const currentStrokePaintedRef = useRef(true)
+    const historyRef = useRef<MaskHistoryAction[]>([])
+    const historyStepRef = useRef(0)
+    const [historyStep, setHistoryStep] = useState(0)
 
-    // History
-    const [history, setHistory] = useState<ImageData[]>([])
-    const [historyStep, setHistoryStep] = useState(-1)
+    const rebuildGridDataFromCanvas = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
+        const nextGrid = new Set<number>()
+        const columns = Math.ceil(canvas.width / GRID_SIZE)
+        const rows = Math.ceil(canvas.height / GRID_SIZE)
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+
+        for (let gy = 0; gy < rows; gy++) {
+            const sampleY = Math.min(gy * GRID_SIZE + Math.floor(GRID_SIZE / 2), canvas.height - 1)
+            for (let gx = 0; gx < columns; gx++) {
+                const sampleX = Math.min(gx * GRID_SIZE + Math.floor(GRID_SIZE / 2), canvas.width - 1)
+                const alpha = pixels[(sampleY * canvas.width + sampleX) * 4 + 3]
+                if (alpha > 10) nextGrid.add(gy * columns + gx)
+            }
+        }
+
+        gridDataRef.current = nextGrid
+    }
 
     // Reset when dialog closes - but only if we're NOT in the new sidebar workflow
     // (i.e., only reset if i2iMode is null, meaning dialog was opened for standalone generation)
@@ -58,8 +88,10 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
             if (!currentI2IMode) {
                 resetI2IParams()
             }
-            setHistory([])
-            setHistoryStep(-1)
+            historyRef.current = []
+            historyStepRef.current = 0
+            currentStrokeCellsRef.current = new Set()
+            setHistoryStep(0)
             setImageSize(null)
         }
     }, [open, propSourceImage, resetI2IParams, setSourceImage])
@@ -87,8 +119,11 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                     maskImg.crossOrigin = 'anonymous'
                     maskImg.onload = () => {
                         ctx.drawImage(maskImg, 0, 0, canvas.width, canvas.height)
+                        rebuildGridDataFromCanvas(canvas, ctx)
                     }
                     maskImg.src = existingMask
+                } else {
+                    gridDataRef.current = new Set()
                 }
             }
             img.src = propSourceImage
@@ -96,22 +131,18 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         return () => clearTimeout(timer)
     }, [open, propSourceImage, existingMask])
 
-    // Grid cell size (NovelAI uses 8x8 pixel blocks)
-    const GRID_SIZE = 8
-
-    // Track which grid cells are painted (for display overlay)
-    const gridDataRef = useRef<Set<string>>(new Set())
-
     // Last grid position for continuous drawing
     const lastGridPosRef = useRef<{ gx: number; gy: number } | null>(null)
 
     useEffect(() => {
         gridDataRef.current.clear()
+        currentStrokeCellsRef.current = new Set()
         lastGridPosRef.current = null
-        setIsDrawing(false)
+        isDrawingRef.current = false
         setIsErasing(false)
-        setHistory([])
-        setHistoryStep(-1)
+        historyRef.current = []
+        historyStepRef.current = 0
+        setHistoryStep(0)
 
         if (!open) {
             const canvas = canvasRef.current
@@ -133,23 +164,34 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         }
     }
 
-    // Fill a single grid cell (8x8 block)
-    const fillGridCell = (ctx: CanvasRenderingContext2D, gx: number, gy: number, erase: boolean) => {
-        const cellKey = `${gx},${gy}`
+    const setGridCellState = (ctx: CanvasRenderingContext2D, gx: number, gy: number, painted: boolean) => {
+        const canvas = ctx.canvas
+        const columns = Math.ceil(canvas.width / GRID_SIZE)
+        const rows = Math.ceil(canvas.height / GRID_SIZE)
+        if (gx < 0 || gy < 0 || gx >= columns || gy >= rows) return false
 
-        if (erase) {
-            // Erase: clear the cell
-            ctx.clearRect(gx * GRID_SIZE, gy * GRID_SIZE, GRID_SIZE, GRID_SIZE)
-            gridDataRef.current.delete(cellKey)
-        } else {
-            // Paint: fill with semi-transparent sky blue for visibility
-            // Skip if already painted
-            if (gridDataRef.current.has(cellKey)) return
+        const cellId = gy * columns + gx
+        const wasPainted = gridDataRef.current.has(cellId)
+        if (wasPainted === painted) return false
 
-            ctx.fillStyle = 'rgba(99, 102, 241, 0.7)'  // Vibrant indigo (better visibility)
+        if (painted) {
+            ctx.fillStyle = 'rgba(99, 102, 241, 0.7)'
             ctx.fillRect(gx * GRID_SIZE, gy * GRID_SIZE, GRID_SIZE, GRID_SIZE)
-            gridDataRef.current.add(cellKey)
+            gridDataRef.current.add(cellId)
+        } else {
+            ctx.clearRect(gx * GRID_SIZE, gy * GRID_SIZE, GRID_SIZE, GRID_SIZE)
+            gridDataRef.current.delete(cellId)
         }
+        return true
+    }
+
+    // Fill a single grid cell and remember it once for the current stroke.
+    const fillGridCell = (ctx: CanvasRenderingContext2D, gx: number, gy: number, erase: boolean) => {
+        const painted = !erase
+        if (!setGridCellState(ctx, gx, gy, painted)) return
+
+        const columns = Math.ceil(ctx.canvas.width / GRID_SIZE)
+        currentStrokeCellsRef.current.add(gy * columns + gx)
     }
 
     // Fill brush area (multiple grid cells based on brush size)
@@ -212,24 +254,30 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         const y = (e.clientY - rect.top) * scaleY
 
         const { gx, gy } = pixelToGrid(x, y, canvas.width, canvas.height)
+        currentStrokeCellsRef.current = new Set()
+        currentStrokePaintedRef.current = !isErasing
         lastGridPosRef.current = { gx, gy }
         fillBrushArea(ctx, gx, gy, isErasing)
-        setIsDrawing(true)
+        isDrawingRef.current = true
     }
 
     const stopDrawing = (e?: ReactPointerEvent<HTMLCanvasElement>) => {
         if (e?.currentTarget.hasPointerCapture(e.pointerId)) {
             e.currentTarget.releasePointerCapture(e.pointerId)
         }
-        if (isDrawing) {
-            setIsDrawing(false)
-            saveHistory()
+        if (isDrawingRef.current) {
+            isDrawingRef.current = false
+            commitHistory({
+                painted: currentStrokePaintedRef.current,
+                cells: [...currentStrokeCellsRef.current],
+            })
+            currentStrokeCellsRef.current = new Set()
         }
         lastGridPosRef.current = null
     }
 
     const draw = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-        if (!isDrawing || !lastGridPosRef.current) return
+        if (!isDrawingRef.current || !lastGridPosRef.current) return
 
         const canvas = canvasRef.current
         const ctx = canvas?.getContext('2d')
@@ -251,31 +299,38 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         }
     }
 
-    // Save current canvas state to history
-    const saveHistory = () => {
-        const canvas = canvasRef.current
-        if (!canvas) return
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
+    const commitHistory = (action: MaskHistoryAction) => {
+        if (action.cells.length === 0) return
 
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        const newHistory = history.slice(0, historyStep + 1)
-        setHistory([...newHistory, imageData])
-        setHistoryStep(newHistory.length)
+        const appliedHistory = historyRef.current.slice(0, historyStepRef.current)
+        appliedHistory.push(action)
+        const nextHistory = appliedHistory.length > MAX_UNDO_STEPS
+            ? appliedHistory.slice(-MAX_UNDO_STEPS)
+            : appliedHistory
+
+        historyRef.current = nextHistory
+        historyStepRef.current = nextHistory.length
+        setHistoryStep(nextHistory.length)
     }
 
     // Undo last action
     const undo = () => {
-        if (historyStep > 0) {
-            const canvas = canvasRef.current
-            if (!canvas) return
-            const ctx = canvas.getContext('2d')
-            if (!ctx) return
+        const canvas = canvasRef.current
+        const ctx = canvas?.getContext('2d')
+        const currentStep = historyStepRef.current
+        if (!canvas || !ctx || currentStep <= 0) return
 
-            const prevImageData = history[historyStep - 1]
-            ctx.putImageData(prevImageData, 0, 0)
-            setHistoryStep(historyStep - 1)
+        const action = historyRef.current[currentStep - 1]
+        const columns = Math.ceil(canvas.width / GRID_SIZE)
+        for (const cellId of action.cells) {
+            const gx = cellId % columns
+            const gy = Math.floor(cellId / columns)
+            setGridCellState(ctx, gx, gy, !action.painted)
         }
+
+        const nextStep = currentStep - 1
+        historyStepRef.current = nextStep
+        setHistoryStep(nextStep)
     }
 
     // Clear canvas
@@ -285,9 +340,12 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         const ctx = canvas.getContext('2d')
         if (!ctx) return
 
+        const paintedCells = [...gridDataRef.current]
+        if (paintedCells.length === 0) return
+
         ctx.clearRect(0, 0, canvas.width, canvas.height)
-        gridDataRef.current.clear()  // Clear grid data tracking
-        saveHistory() // Save empty canvas to history
+        gridDataRef.current = new Set()
+        commitHistory({ painted: false, cells: paintedCells })
     }
 
     // Handle save mask button click - saves mask and sets up inpaint mode
@@ -382,7 +440,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                             <div className="h-6 w-px bg-border mx-2" />
 
                             <div className="flex items-center gap-1">
-                                <Button variant="ghost" size="icon" onClick={undo} disabled={historyStep < 0}>
+                                <Button variant="ghost" size="icon" onClick={undo} disabled={historyStep <= 0}>
                                     <Undo className="w-4 h-4" />
                                 </Button>
                                 <Button variant="ghost" size="icon" onClick={clearCanvas}>
@@ -426,7 +484,10 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                                                         const maskImg = new Image()
                                                         maskImg.crossOrigin = 'anonymous'
                                                         maskImg.onload = () => {
-                                                            ctx.drawImage(maskImg, 0, 0, canvasRef.current!.width, canvasRef.current!.height)
+                                                            const canvas = canvasRef.current
+                                                            if (!canvas) return
+                                                            ctx.drawImage(maskImg, 0, 0, canvas.width, canvas.height)
+                                                            rebuildGridDataFromCanvas(canvas, ctx)
                                                         }
                                                         maskImg.src = existingMask
                                                     }
