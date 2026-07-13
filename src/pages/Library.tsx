@@ -508,9 +508,6 @@ export default function Library() {
                     /* Edit Mode Header */
                     <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-3">
-                            <Button variant="ghost" size="sm" className="h-9 hover:bg-white/10" onClick={() => setEditMode(false)}>
-                                <X className="h-4 w-4 mr-2" /> {t('actions.cancel', '취소')}
-                            </Button>
                             <span className="text-sm text-muted-foreground">
                                 {selectedItemIds.length} {t('library.selected', '개 선택')}
                             </span>
@@ -518,6 +515,9 @@ export default function Library() {
                         <div className="flex items-center gap-2">
                             <Button variant="ghost" size="sm" className="h-9 hover:bg-white/10" onClick={selectAllItems}>
                                 <CheckSquare className="h-4 w-4 mr-2" /> {t('scene.selectAll', '전체 선택')}
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-9 hover:bg-white/10" onClick={() => setEditMode(false)}>
+                                <X className="h-4 w-4 mr-2" /> {t('actions.cancel', '취소')}
                             </Button>
                             <div className="w-px h-5 bg-white/10" />
                             {!currentStackId && (
