@@ -1,6 +1,6 @@
 import { memo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { LibraryItem as LibraryItemType, useLibraryStore } from '@/stores/library-store'
+import { getFirstLibraryLeaf, LibraryItem as LibraryItemType, useLibraryStore } from '@/stores/library-store'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { LibraryContextMenu } from './LibraryContextMenu'
 import { cn } from '@/lib/utils'
@@ -45,9 +45,7 @@ export const LibraryItem = memo(function LibraryItem({ item, className, isOverla
         setIsLoading(false)
         if (isOverlay || hasCurrentThumbnail) return
 
-        const thumbnailSource = item.isStack && item.stackItems?.[0]
-            ? item.stackItems[0]
-            : item
+        const thumbnailSource = getFirstLibraryLeaf(item)
 
         void ensureLibraryThumbnail(thumbnailSource.id, thumbnailSource.path)
             .then(thumbnailPath => {

@@ -10,6 +10,7 @@ import {
     defaultDropAnimationSideEffects,
     DragStartEvent,
     DragEndEvent,
+    DragOverEvent,
     MeasuringStrategy
 } from '@dnd-kit/core'
 import {
@@ -18,7 +19,15 @@ import {
     rectSortingStrategy,
 } from '@dnd-kit/sortable'
 import { snapCenterToCursor } from '@dnd-kit/modifiers'
-import { useLibraryStore, LibraryItem } from '@/stores/library-store'
+import {
+    useLibraryStore,
+    LibraryItem,
+    findLibraryItem,
+    findLibraryParentStackId,
+    flattenLibraryItems,
+    flattenLibraryLeaves,
+    getFirstLibraryLeaf,
+} from '@/stores/library-store'
 import { SortableLibraryItem } from '@/components/library/SortableLibraryItem'
 import { LibraryItem as LibraryItemComponent } from '@/components/library/LibraryItem'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +38,8 @@ import { ImagePlus, X, Grid3x3, Edit3, Trash2, Layers, ArrowLeft, CheckSquare, F
 import { Button } from '@/components/ui/button'
 import { Tip } from '@/components/ui/tooltip'
 import { useSettingsStore } from '@/stores/settings-store'
+
+const STACK_DROP_HOVER_MS = 500
 
 const dropAnimation = {
     sideEffects: defaultDropAnimationSideEffects({
@@ -76,12 +87,15 @@ export default function Library() {
     } = useLibraryStore()
     const { libraryPath, useAbsoluteLibraryPath } = useSettingsStore()
     const [activeId, setActiveId] = useState<string | null>(null)
+    const [stackDropTargetId, setStackDropTargetId] = useState<string | null>(null)
+    const stackDropCandidateRef = useRef<string | null>(null)
+    const stackDropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const [isDraggingFile, setIsDraggingFile] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Get current view items (main library or inside a stack)
-    const currentStack = currentStackId ? items.find(item => item.id === currentStackId) : null
-    const viewItems = currentStack?.stackItems || items.filter(() => !currentStackId)
+    const currentStack = currentStackId ? findLibraryItem(items, currentStackId) : null
+    const viewItems = currentStack?.stackItems || (currentStackId ? [] : items)
 
     // Dialog States
     const [renameDialogOpen, setRenameDialogOpen] = useState(false)
@@ -104,6 +118,15 @@ export default function Library() {
             coordinateGetter: sortableKeyboardCoordinates,
         })
     )
+
+    const clearStackDropTarget = useCallback(() => {
+        if (stackDropTimerRef.current) clearTimeout(stackDropTimerRef.current)
+        stackDropTimerRef.current = null
+        stackDropCandidateRef.current = null
+        setStackDropTargetId(null)
+    }, [])
+
+    useEffect(() => clearStackDropTarget, [clearStackDropTarget])
 
     // ESC key handler for closing viewer
     useEffect(() => {
@@ -155,14 +178,7 @@ export default function Library() {
 
                         for (let index = 0; index < item.stackItems.length; index += batchSize) {
                             const batch = item.stackItems.slice(index, index + batchSize)
-                            const results = await Promise.all(batch.map(async stackItem => {
-                                try {
-                                    return await exists(stackItem.path) ? stackItem : null
-                                } catch (error) {
-                                    console.warn('Failed to check file existence for ' + stackItem.name + ':', error)
-                                    return stackItem
-                                }
-                            }))
+                            const results = await Promise.all(batch.map(validateItem))
                             validStackItems.push(...results.filter((entry): entry is LibraryItem => entry !== null))
                         }
 
@@ -171,8 +187,13 @@ export default function Library() {
                             return null
                         }
 
-                        const thumbnail = validStackItems[0]
-                        if (validStackItems.length !== item.stackItems.length || item.path !== thumbnail.path) {
+                        const thumbnail = getFirstLibraryLeaf(validStackItems[0])
+                        const stackChanged = validStackItems.length !== item.stackItems.length
+                            || validStackItems.some((entry, index) => entry !== item.stackItems?.[index])
+                            || item.path !== thumbnail.path
+                            || item.thumbnailPath !== thumbnail.thumbnailPath
+                            || item.thumbnailVersion !== thumbnail.thumbnailVersion
+                        if (stackChanged) {
                             changed = true
                             return {
                                 ...item,
@@ -218,15 +239,13 @@ export default function Library() {
 
     const handleDeleteSelected = useCallback(async () => {
         const sourceItems = currentStackId
-            ? (items.find(item => item.id === currentStackId)?.stackItems || [])
+            ? (findLibraryItem(items, currentStackId)?.stackItems || [])
             : items
         const selectedItems = sourceItems.filter(item => selectedItemIds.includes(item.id))
-        const expandedItems = selectedItems.flatMap(item =>
-            item.isStack ? (item.stackItems || []) : [item]
-        )
+        const expandedItems = flattenLibraryLeaves(selectedItems)
         const originalPaths = expandedItems.map(item => item.path)
-        const thumbnailPaths = selectedItems
-            .flatMap(item => [item.thumbnailPath, ...(item.stackItems || []).map(stackItem => stackItem.thumbnailPath)])
+        const thumbnailPaths = flattenLibraryItems(selectedItems)
+            .map(item => item.thumbnailPath)
             .filter((path): path is string => Boolean(path))
         const pathsToDelete = [...new Set([...originalPaths, ...thumbnailPaths])]
 
@@ -240,22 +259,51 @@ export default function Library() {
     }, [currentStackId, deleteSelectedItems, items, selectedItemIds])
 
     const handleDragStart = (event: DragStartEvent) => {
+        clearStackDropTarget()
         setActiveId(event.active.id as string)
+    }
+
+    const handleDragOver = (event: DragOverEvent) => {
+        const activeItem = findLibraryItem(items, String(event.active.id))
+        const overId = event.over ? String(event.over.id) : null
+        const overItem = overId ? findLibraryItem(items, overId) : null
+        const createsCycle = Boolean(
+            activeItem?.isStack && overId && findLibraryItem(activeItem.stackItems || [], overId)
+        )
+
+        if (!activeItem || !overId || activeItem.id === overId || !overItem?.isStack || createsCycle) {
+            clearStackDropTarget()
+            return
+        }
+        if (stackDropCandidateRef.current === overId) return
+
+        clearStackDropTarget()
+        stackDropCandidateRef.current = overId
+        stackDropTimerRef.current = setTimeout(() => {
+            stackDropTimerRef.current = null
+            setStackDropTargetId(overId)
+        }, STACK_DROP_HOVER_MS)
     }
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event
 
         if (over && active.id !== over.id) {
-            const activeItem = items.find(item => item.id === active.id)
-            const overItem = items.find(item => item.id === over.id)
-            if (!currentStackId && activeItem && !activeItem.isStack && overItem?.isStack) {
+            const activeItem = findLibraryItem(items, String(active.id))
+            const overItem = findLibraryItem(items, String(over.id))
+            if (activeItem && overItem?.isStack && stackDropTargetId === String(over.id)) {
                 moveItemToStack(String(active.id), String(over.id))
             } else {
                 reorderItems(String(active.id), String(over.id))
             }
         }
 
+        clearStackDropTarget()
+        setActiveId(null)
+    }
+
+    const handleDragCancel = () => {
+        clearStackDropTarget()
         setActiveId(null)
     }
 
@@ -520,19 +568,17 @@ export default function Library() {
                                 <X className="h-4 w-4 mr-2" /> {t('actions.cancel', '취소')}
                             </Button>
                             <div className="w-px h-5 bg-white/10" />
-                            {!currentStackId && (
-                                <Tip content={t('library.createStackDesc', '선택한 이미지를 하나의 스택으로 묶음')}>
-                                    <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        className="h-9 hover:bg-white/10" 
-                                        onClick={createStackFromSelected}
-                                        disabled={selectedItemIds.length < 2}
-                                    >
-                                        <Layers className="h-4 w-4 mr-2" /> {t('library.createStack', '스택 만들기')}
-                                    </Button>
-                                </Tip>
-                            )}
+                            <Tip content={t('library.createStackDesc', '선택한 이미지를 하나의 스택으로 묶음')}>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-9 hover:bg-white/10"
+                                    onClick={createStackFromSelected}
+                                    disabled={selectedItemIds.length < 2}
+                                >
+                                    <Layers className="h-4 w-4 mr-2" /> {t('library.createStack', '스택 만들기')}
+                                </Button>
+                            </Tip>
                             <Button 
                                 variant="ghost" 
                                 size="sm" 
@@ -550,7 +596,12 @@ export default function Library() {
                         <div className="flex items-center gap-3">
                             {currentStackId ? (
                                 <>
-                                    <Button variant="ghost" size="sm" className="h-9 hover:bg-white/10" onClick={() => setCurrentStackId(null)}>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-9 hover:bg-white/10"
+                                        onClick={() => setCurrentStackId(findLibraryParentStackId(items, currentStackId))}
+                                    >
                                         <ArrowLeft className="h-4 w-4 mr-2" /> {t('actions.back', '뒤로')}
                                     </Button>
                                     <h2 className="text-lg font-semibold tracking-tight">{currentStack?.name}</h2>
@@ -621,7 +672,9 @@ export default function Library() {
                     sensors={sensors}
                     collisionDetection={pointerWithin}
                     onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
                     onDragEnd={handleDragEnd}
+                    onDragCancel={handleDragCancel}
                     measuring={{
                         droppable: {
                             strategy: MeasuringStrategy.BeforeDragging,
@@ -657,6 +710,7 @@ export default function Library() {
                                     }}
                                     isEditMode={isEditMode}
                                     isSelected={selectedItemIds.includes(item.id)}
+                                    isStackDropTarget={stackDropTargetId === item.id}
                                     onSelectionClick={(e: React.MouseEvent) => {
                                         if (item.isStack) return // Stacks cannot be selected
                                         if (e.shiftKey && lastSelectedItemId) {

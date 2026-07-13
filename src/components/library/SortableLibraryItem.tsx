@@ -12,18 +12,18 @@ interface SortableLibraryItemProps {
     isEditMode?: boolean
     isSelected?: boolean
     onSelectionClick?: (e: React.MouseEvent) => void
+    isStackDropTarget?: boolean
     disabled?: boolean
 }
 
-export function SortableLibraryItem({ item, onRename, onAddRef, onLoadMetadata, onImageClick, isEditMode, isSelected, onSelectionClick, disabled }: SortableLibraryItemProps) {
+export function SortableLibraryItem({ item, onRename, onAddRef, onLoadMetadata, onImageClick, isEditMode, isSelected, onSelectionClick, isStackDropTarget, disabled }: SortableLibraryItemProps) {
     const {
         attributes,
         listeners,
         setNodeRef,
         transform,
         transition,
-        isDragging,
-        isOver
+        isDragging
     } = useSortable({ id: item.id, disabled })
 
     const style = {
@@ -43,7 +43,7 @@ export function SortableLibraryItem({ item, onRename, onAddRef, onLoadMetadata, 
                 isEditMode={isEditMode}
                 isSelected={isSelected}
                 onSelectionClick={onSelectionClick}
-                isDropTarget={item.isStack && isOver}
+                isDropTarget={item.isStack && isStackDropTarget}
             />
         </div>
     )

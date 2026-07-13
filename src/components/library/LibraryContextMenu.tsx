@@ -4,7 +4,7 @@ import {
     ContextMenuItem,
     ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { LibraryItem, useLibraryStore } from '@/stores/library-store'
+import { flattenLibraryItems, flattenLibraryLeaves, LibraryItem, useLibraryStore } from '@/stores/library-store'
 import { Copy, FolderOpen, Save, Trash2, Wand2, Users, Pencil, FileSearch, Eraser } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/components/ui/use-toast'
@@ -112,12 +112,11 @@ export function LibraryContextMenu({ item, children, onRename, onAddRef, onLoadM
     }
 
     const handleDelete = async () => {
-        const sourceItems = item.isStack ? (item.stackItems || []) : [item]
+        const sourceItems = flattenLibraryLeaves([item])
         const originalPaths = sourceItems.map(sourceItem => sourceItem.path)
-        const thumbnailPaths = [
-            item.thumbnailPath,
-            ...sourceItems.map(sourceItem => sourceItem.thumbnailPath),
-        ].filter((path): path is string => Boolean(path))
+        const thumbnailPaths = flattenLibraryItems([item])
+            .map(sourceItem => sourceItem.thumbnailPath)
+            .filter((path): path is string => Boolean(path))
         const pathsToDelete = [...new Set([...originalPaths, ...thumbnailPaths])]
 
         const results = await Promise.allSettled(pathsToDelete.map(path => remove(path)))

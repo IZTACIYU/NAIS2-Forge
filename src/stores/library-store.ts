@@ -11,31 +11,201 @@ export interface LibraryItem {
     createdAt: number
     thumbnailPath?: string
     thumbnailVersion?: number
-    // Stack support
     isStack?: boolean
-    stackItems?: LibraryItem[]  // Items inside this stack (only if isStack=true)
+    stackItems?: LibraryItem[]
+}
+
+export function findLibraryItem(items: LibraryItem[], id: string): LibraryItem | undefined {
+    for (const item of items) {
+        if (item.id === id) return item
+        if (item.isStack && item.stackItems) {
+            const nested = findLibraryItem(item.stackItems, id)
+            if (nested) return nested
+        }
+    }
+    return undefined
+}
+
+export function findLibraryParentStackId(
+    items: LibraryItem[],
+    id: string,
+    parentStackId: string | null = null
+): string | null {
+    for (const item of items) {
+        if (item.id === id) return parentStackId
+        if (item.isStack && item.stackItems) {
+            const parent = findLibraryParentStackId(item.stackItems, id, item.id)
+            if (parent !== null || item.stackItems.some(child => child.id === id)) return parent
+        }
+    }
+    return null
+}
+
+export function flattenLibraryLeaves(items: LibraryItem[]): LibraryItem[] {
+    return items.flatMap(item => item.isStack
+        ? flattenLibraryLeaves(item.stackItems || [])
+        : [item]
+    )
+}
+
+export function flattenLibraryItems(items: LibraryItem[]): LibraryItem[] {
+    return items.flatMap(item => [item, ...flattenLibraryItems(item.stackItems || [])])
+}
+
+export function getFirstLibraryLeaf(item: LibraryItem): LibraryItem {
+    let current = item
+    while (current.isStack && current.stackItems?.length) {
+        current = current.stackItems[0]
+    }
+    return current
+}
+
+function containsLibraryItem(item: LibraryItem, id: string): boolean {
+    return item.id === id || Boolean(item.stackItems?.some(child => containsLibraryItem(child, id)))
+}
+
+function refreshStack(stack: LibraryItem, stackItems: LibraryItem[]): LibraryItem {
+    const thumbnail = getFirstLibraryLeaf(stackItems[0])
+    return {
+        ...stack,
+        path: thumbnail.path,
+        width: thumbnail.width,
+        height: thumbnail.height,
+        thumbnailPath: thumbnail.thumbnailPath,
+        thumbnailVersion: thumbnail.thumbnailVersion,
+        stackItems,
+    }
+}
+
+function updateTree(
+    items: LibraryItem[],
+    id: string,
+    updater: (item: LibraryItem) => LibraryItem | null
+): { items: LibraryItem[], changed: boolean } {
+    let changed = false
+    const nextItems: LibraryItem[] = []
+
+    for (const item of items) {
+        if (item.id === id) {
+            const updated = updater(item)
+            if (updated) nextItems.push(updated)
+            changed = true
+            continue
+        }
+
+        if (item.isStack && item.stackItems) {
+            const nested = updateTree(item.stackItems, id, updater)
+            if (nested.changed) {
+                changed = true
+                if (nested.items.length > 0) nextItems.push(refreshStack(item, nested.items))
+                continue
+            }
+        }
+
+        nextItems.push(item)
+    }
+
+    return { items: changed ? nextItems : items, changed }
+}
+
+function replaceTreeItem(
+    items: LibraryItem[],
+    id: string,
+    replacements: LibraryItem[]
+): { items: LibraryItem[], changed: boolean } {
+    let changed = false
+    const nextItems: LibraryItem[] = []
+
+    for (const item of items) {
+        if (item.id === id) {
+            nextItems.push(...replacements)
+            changed = true
+            continue
+        }
+
+        if (item.isStack && item.stackItems) {
+            const nested = replaceTreeItem(item.stackItems, id, replacements)
+            if (nested.changed) {
+                changed = true
+                if (nested.items.length > 0) nextItems.push(refreshStack(item, nested.items))
+                continue
+            }
+        }
+
+        nextItems.push(item)
+    }
+
+    return { items: changed ? nextItems : items, changed }
+}
+
+function removeIdsFromTree(items: LibraryItem[], ids: Set<string>): LibraryItem[] {
+    const nextItems: LibraryItem[] = []
+    for (const item of items) {
+        if (ids.has(item.id)) continue
+        if (item.isStack && item.stackItems) {
+            const stackItems = removeIdsFromTree(item.stackItems, ids)
+            if (stackItems.length === 0) continue
+            nextItems.push(stackItems === item.stackItems ? item : refreshStack(item, stackItems))
+        } else {
+            nextItems.push(item)
+        }
+    }
+    return nextItems
+}
+
+function createStackItem(selectedItems: LibraryItem[]): LibraryItem {
+    const thumbnail = getFirstLibraryLeaf(selectedItems[0])
+    return {
+        id: crypto.randomUUID(),
+        name: selectedItems[0].name,
+        path: thumbnail.path,
+        width: thumbnail.width,
+        height: thumbnail.height,
+        createdAt: Date.now(),
+        thumbnailPath: thumbnail.thumbnailPath,
+        thumbnailVersion: thumbnail.thumbnailVersion,
+        isStack: true,
+        stackItems: selectedItems,
+    }
+}
+
+function stackSelectedItems(source: LibraryItem[], selectedIds: Set<string>): LibraryItem[] {
+    const selectedItems = source.filter(item => selectedIds.has(item.id))
+    if (selectedItems.length < 2) return source
+
+    const firstIndex = source.findIndex(item => selectedIds.has(item.id))
+    const remaining = source.filter(item => !selectedIds.has(item.id))
+    remaining.splice(firstIndex, 0, createStackItem(selectedItems))
+    return remaining
+}
+
+function reorder(source: LibraryItem[], activeId: string, overId: string): LibraryItem[] {
+    const from = source.findIndex(item => item.id === activeId)
+    const to = source.findIndex(item => item.id === overId)
+    if (from < 0 || to < 0 || from === to) return source
+
+    const reordered = [...source]
+    const [moved] = reordered.splice(from, 1)
+    reordered.splice(to, 0, moved)
+    return reordered
 }
 
 interface LibraryState {
     items: LibraryItem[]
     draggedSource: { name: string, path: string } | null
     gridColumns: number
-
-    // Edit Mode (Multi-Select)
     isEditMode: boolean
     selectedItemIds: string[]
     lastSelectedItemId: string | null
+    currentStackId: string | null
 
     setGridColumns: (columns: number) => void
-
     addItem: (item: LibraryItem) => void
     removeItem: (id: string) => void
     removeItems: (ids: string[]) => void
     setItems: (items: LibraryItem[]) => void
     updateItem: (id: string, updates: Partial<LibraryItem>) => void
     setDraggedSource: (source: { name: string, path: string } | null) => void
-
-    // Edit Mode Actions
     setEditMode: (isEdit: boolean) => void
     toggleItemSelection: (itemId: string, clearOthers?: boolean) => void
     selectItemRange: (fromId: string, toId: string) => void
@@ -43,16 +213,11 @@ interface LibraryState {
     clearSelection: () => void
     deleteSelectedItems: () => void
     setLastSelectedItemId: (id: string | null) => void
-
-    // Stack Actions
     createStackFromSelected: () => void
     moveItemToStack: (itemId: string, stackId: string) => void
     reorderItems: (activeId: string, overId: string) => void
     unstack: (stackId: string) => void
     getStackItems: (stackId: string) => LibraryItem[]
-
-    // Current Stack View (for navigation into a stack)
-    currentStackId: string | null
     setCurrentStackId: (id: string | null) => void
 }
 
@@ -62,286 +227,191 @@ export const useLibraryStore = create<LibraryState>()(
             items: [],
             draggedSource: null,
             gridColumns: 4,
-
-            // Edit Mode State
             isEditMode: false,
             selectedItemIds: [],
             lastSelectedItemId: null,
-
-            // Current Stack View
             currentStackId: null,
 
             setGridColumns: (columns) => set({ gridColumns: columns }),
 
-            addItem: (item) => set((state) => ({
-                items: state.currentStackId
-                    ? state.items.map(stack => stack.id === state.currentStackId
-                        ? { ...stack, stackItems: [...(stack.stackItems || []), item] }
-                        : stack)
-                    : [item, ...state.items]
-            })),
+            addItem: (item) => set(state => {
+                if (!state.currentStackId) return { items: [item, ...state.items] }
+                const updated = updateTree(state.items, state.currentStackId, stack =>
+                    stack.isStack ? refreshStack(stack, [...(stack.stackItems || []), item]) : stack
+                )
+                return { items: updated.changed ? updated.items : [item, ...state.items] }
+            }),
 
-            removeItem: (id) => set((state) => ({
-                items: state.items.flatMap((item) => {
-                    if (item.id === id) return []
-                    if (!item.isStack || !item.stackItems) return [item]
+            removeItem: (id) => set(state => {
+                const parentId = state.currentStackId
+                    ? findLibraryParentStackId(state.items, state.currentStackId)
+                    : null
+                const updated = updateTree(state.items, id, () => null)
+                const currentStackExists = state.currentStackId
+                    ? Boolean(findLibraryItem(updated.items, state.currentStackId))
+                    : true
+                return {
+                    items: updated.items,
+                    currentStackId: currentStackExists ? state.currentStackId : parentId,
+                }
+            }),
 
-                    const stackItems = item.stackItems.filter(stackItem => stackItem.id !== id)
-                    if (stackItems.length === item.stackItems.length) return [item]
-                    if (stackItems.length === 0) return []
-
-                    const thumbnail = stackItems[0]
-                    return [{
-                        ...item,
-                        path: thumbnail.path,
-                        width: thumbnail.width,
-                        height: thumbnail.height,
-                        thumbnailPath: thumbnail.thumbnailPath,
-                        thumbnailVersion: thumbnail.thumbnailVersion,
-                        stackItems,
-                    }]
-                })
-            })),
-
-            removeItems: (ids) => set((state) => ({
-                items: state.items.filter((item) => !ids.includes(item.id))
+            removeItems: (ids) => set(state => ({
+                items: removeIdsFromTree(state.items, new Set(ids))
             })),
 
             setItems: (items) => set({ items }),
 
-            updateItem: (id, updates) => set((state) => ({
-                items: state.items.map((item) => {
-                    if (item.id === id) return { ...item, ...updates }
-                    if (!item.isStack || !item.stackItems) return item
-
-                    const stackItems = item.stackItems.map(stackItem =>
-                        stackItem.id === id ? { ...stackItem, ...updates } : stackItem
-                    )
-                    const changed = stackItems.some((stackItem, index) => stackItem !== item.stackItems?.[index])
-                    if (!changed) return item
-
-                    const firstItem = stackItems[0]
-                    const updatesThumbnail = 'thumbnailPath' in updates || 'thumbnailVersion' in updates
-                    return firstItem?.id === id && updatesThumbnail
-                        ? {
-                            ...item,
-                            thumbnailPath: firstItem.thumbnailPath,
-                            thumbnailVersion: firstItem.thumbnailVersion,
-                            stackItems,
-                        }
-                        : { ...item, stackItems }
-                })
+            updateItem: (id, updates) => set(state => ({
+                items: updateTree(state.items, id, item => ({ ...item, ...updates })).items
             })),
 
             setDraggedSource: (source) => set({ draggedSource: source }),
 
-            // Edit Mode Actions
             setEditMode: (isEdit) => set({
                 isEditMode: isEdit,
-                selectedItemIds: isEdit ? [] : [],
-                lastSelectedItemId: null
+                selectedItemIds: [],
+                lastSelectedItemId: null,
             }),
 
             toggleItemSelection: (itemId, clearOthers = false) => {
                 const { selectedItemIds } = get()
                 if (clearOthers) {
-                    // Single select - toggle only this one
                     set({
                         selectedItemIds: selectedItemIds.includes(itemId) ? [] : [itemId],
-                        lastSelectedItemId: itemId
+                        lastSelectedItemId: itemId,
                     })
-                } else {
-                    // Multi-select toggle
-                    set({
-                        selectedItemIds: selectedItemIds.includes(itemId)
-                            ? selectedItemIds.filter(id => id !== itemId)
-                            : [...selectedItemIds, itemId],
-                        lastSelectedItemId: itemId
-                    })
+                    return
                 }
+                set({
+                    selectedItemIds: selectedItemIds.includes(itemId)
+                        ? selectedItemIds.filter(id => id !== itemId)
+                        : [...selectedItemIds, itemId],
+                    lastSelectedItemId: itemId,
+                })
             },
 
             selectItemRange: (fromId, toId) => {
                 const { items, currentStackId } = get()
-                // Get current view items (either main or inside stack)
                 const viewItems = currentStackId
-                    ? items.find(i => i.id === currentStackId)?.stackItems || []
+                    ? findLibraryItem(items, currentStackId)?.stackItems || []
                     : items
-
-                const fromIndex = viewItems.findIndex(i => i.id === fromId)
-                const toIndex = viewItems.findIndex(i => i.id === toId)
+                const fromIndex = viewItems.findIndex(item => item.id === fromId)
+                const toIndex = viewItems.findIndex(item => item.id === toId)
                 if (fromIndex === -1 || toIndex === -1) return
 
                 const start = Math.min(fromIndex, toIndex)
                 const end = Math.max(fromIndex, toIndex)
-                const rangeIds = viewItems.slice(start, end + 1).map(i => i.id)
-
+                const rangeIds = viewItems.slice(start, end + 1)
+                    .filter(item => !item.isStack)
+                    .map(item => item.id)
                 set({ selectedItemIds: rangeIds, lastSelectedItemId: toId })
             },
 
             selectAllItems: () => {
                 const { items, currentStackId } = get()
                 const viewItems = currentStackId
-                    ? items.find(i => i.id === currentStackId)?.stackItems || []
-                    : items.filter(i => !i.isStack) // Exclude stacks from selection
-                set({ selectedItemIds: viewItems.map(i => i.id) })
+                    ? findLibraryItem(items, currentStackId)?.stackItems || []
+                    : items
+                set({ selectedItemIds: viewItems.filter(item => !item.isStack).map(item => item.id) })
             },
 
             clearSelection: () => set({ selectedItemIds: [], lastSelectedItemId: null }),
 
             deleteSelectedItems: () => {
                 const { items, selectedItemIds, currentStackId } = get()
-                
-                if (currentStackId) {
-                    // Delete from inside a stack
+                const selectedIds = new Set(selectedItemIds)
+                if (!currentStackId) {
                     set({
-                        items: items.map(item =>
-                            item.id === currentStackId
-                                ? {
-                                    ...item,
-                                    stackItems: (item.stackItems || []).filter(si => !selectedItemIds.includes(si.id))
-                                }
-                                : item
-                        ),
+                        items: removeIdsFromTree(items, selectedIds),
                         selectedItemIds: [],
-                        isEditMode: false
+                        isEditMode: false,
                     })
-                } else {
-                    // Delete from main library
-                    set({
-                        items: items.filter(item => !selectedItemIds.includes(item.id)),
-                        selectedItemIds: [],
-                        isEditMode: false
-                    })
+                    return
                 }
+
+                const parentId = findLibraryParentStackId(items, currentStackId)
+                const updated = updateTree(items, currentStackId, stack => {
+                    const stackItems = (stack.stackItems || []).filter(item => !selectedIds.has(item.id))
+                    return stackItems.length > 0 ? refreshStack(stack, stackItems) : null
+                })
+                set({
+                    items: updated.items,
+                    currentStackId: findLibraryItem(updated.items, currentStackId) ? currentStackId : parentId,
+                    selectedItemIds: [],
+                    isEditMode: false,
+                })
             },
 
             setLastSelectedItemId: (id) => set({ lastSelectedItemId: id }),
 
-            // Stack Actions
             createStackFromSelected: () => {
-                const { items, selectedItemIds } = get()
-                if (selectedItemIds.length < 2) return
+                const { items, selectedItemIds, currentStackId } = get()
+                const selectedIds = new Set(selectedItemIds)
+                if (selectedIds.size < 2) return
 
-                // Get the selected items in order
-                const selectedItems = items.filter(i => selectedItemIds.includes(i.id))
-                const firstSelected = selectedItems[0]
+                const nextItems = currentStackId
+                    ? updateTree(items, currentStackId, stack => {
+                        const stackItems = stackSelectedItems(stack.stackItems || [], selectedIds)
+                        return stackItems === stack.stackItems ? stack : refreshStack(stack, stackItems)
+                    }).items
+                    : stackSelectedItems(items, selectedIds)
 
-                // Create a new stack item
-                // Note: Stack name uses first item's name + count format
-                // The display format will be handled by UI components with i18n
-                const stackItem: LibraryItem = {
-                    id: crypto.randomUUID(),
-                    name: firstSelected.name,
-                    path: firstSelected.path, // Use first item's path as thumbnail
-                    width: firstSelected.width,
-                    height: firstSelected.height,
-                    createdAt: Date.now(),
-                    thumbnailPath: firstSelected.thumbnailPath,
-                    thumbnailVersion: firstSelected.thumbnailVersion,
-                    isStack: true,
-                    stackItems: selectedItems
-                }
-
-                // Find the position of the first selected item
-                const firstIndex = items.findIndex(i => i.id === selectedItemIds[0])
-
-                // Remove selected items and insert stack at the first item's position
-                const remainingItems = items.filter(i => !selectedItemIds.includes(i.id))
-                const newItems = [
-                    ...remainingItems.slice(0, firstIndex),
-                    stackItem,
-                    ...remainingItems.slice(firstIndex)
-                ]
-
-                set({
-                    items: newItems,
-                    selectedItemIds: [],
-                    isEditMode: false
-                })
+                set({ items: nextItems, selectedItemIds: [], isEditMode: false })
             },
 
             moveItemToStack: (itemId, stackId) => {
                 const { items } = get()
-                const item = items.find(candidate => candidate.id === itemId)
-                const stack = items.find(candidate => candidate.id === stackId)
-                if (!item || item.isStack || !stack?.isStack || itemId === stackId) return
+                const item = findLibraryItem(items, itemId)
+                const stack = findLibraryItem(items, stackId)
+                if (!item || !stack?.isStack || itemId === stackId) return
+                if (item.isStack && containsLibraryItem(item, stackId)) return
 
-                set({
-                    items: items
-                        .filter(candidate => candidate.id !== itemId)
-                        .map(candidate => candidate.id === stackId
-                            ? { ...candidate, stackItems: [...(candidate.stackItems || []), item] }
-                            : candidate)
-                })
+                const removed = updateTree(items, itemId, () => null)
+                const inserted = updateTree(removed.items, stackId, target =>
+                    target.isStack
+                        ? refreshStack(target, [...(target.stackItems || []), item])
+                        : target
+                )
+                if (inserted.changed) set({ items: inserted.items })
             },
 
             reorderItems: (activeId, overId) => {
                 const { items, currentStackId } = get()
-                const move = (source: LibraryItem[]) => {
-                    const from = source.findIndex(item => item.id === activeId)
-                    const to = source.findIndex(item => item.id === overId)
-                    if (from < 0 || to < 0 || from === to) return source
-                    const reordered = [...source]
-                    const [moved] = reordered.splice(from, 1)
-                    reordered.splice(to, 0, moved)
-                    return reordered
+                if (!currentStackId) {
+                    set({ items: reorder(items, activeId, overId) })
+                    return
                 }
 
-                if (currentStackId) {
-                    set({
-                        items: items.map(item => {
-                            if (item.id !== currentStackId) return item
-                            const stackItems = move(item.stackItems || [])
-                            const thumbnail = stackItems[0]
-                            return thumbnail
-                                ? {
-                                    ...item,
-                                    path: thumbnail.path,
-                                    width: thumbnail.width,
-                                    height: thumbnail.height,
-                                    thumbnailPath: thumbnail.thumbnailPath,
-                                    thumbnailVersion: thumbnail.thumbnailVersion,
-                                    stackItems,
-                                }
-                                : item
-                        })
-                    })
-                } else {
-                    set({ items: move(items) })
-                }
+                const updated = updateTree(items, currentStackId, stack => {
+                    const stackItems = reorder(stack.stackItems || [], activeId, overId)
+                    return stackItems === stack.stackItems ? stack : refreshStack(stack, stackItems)
+                })
+                set({ items: updated.items })
             },
 
             unstack: (stackId) => {
                 const { items } = get()
-                const stackItem = items.find(i => i.id === stackId)
-                if (!stackItem || !stackItem.isStack || !stackItem.stackItems) return
+                const stack = findLibraryItem(items, stackId)
+                if (!stack?.isStack || !stack.stackItems) return
 
-                const stackIndex = items.findIndex(i => i.id === stackId)
-                const newItems = [
-                    ...items.slice(0, stackIndex),
-                    ...stackItem.stackItems,
-                    ...items.slice(stackIndex + 1)
-                ]
-
-                set({ items: newItems, currentStackId: null })
+                const parentId = findLibraryParentStackId(items, stackId)
+                const updated = replaceTreeItem(items, stackId, stack.stackItems)
+                set({ items: updated.items, currentStackId: parentId })
             },
 
-            getStackItems: (stackId) => {
-                const stack = get().items.find(i => i.id === stackId)
-                return stack?.stackItems || []
-            },
+            getStackItems: (stackId) => findLibraryItem(get().items, stackId)?.stackItems || [],
 
             setCurrentStackId: (id) => set({
                 currentStackId: id,
                 isEditMode: false,
-                selectedItemIds: []
+                selectedItemIds: [],
             }),
         }),
         {
             name: 'nais2-forge-library',
             storage: createJSONStorage(() => indexedDBStorage),
-            partialize: (state) => ({ items: state.items, gridColumns: state.gridColumns }), // Don't persist draggedSource, editMode, selection
+            partialize: state => ({ items: state.items, gridColumns: state.gridColumns }),
         }
     )
 )
