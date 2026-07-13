@@ -28,7 +28,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tip } from '@/components/ui/tooltip'
 import { useCharacterPromptStore, CHARACTER_COLORS, CharacterPrompt, CharacterPreset, CharacterGroup } from '@/stores/character-prompt-store'
+import { useGenerationStore } from '@/stores/generation-store'
 import { cn } from '@/lib/utils'
+import {
+    CHARACTER_POSITION_GRID_SIZE,
+    getCharacterPositionBoardAspectRatio,
+    snapCharacterPosition,
+} from '@/lib/character-position-grid'
 
 // --- Position Grid Component ---
 interface PositionGridProps {
@@ -42,6 +48,19 @@ function PositionGrid({ characters, selectedId, onSelect, onPositionChange }: Po
     const { t } = useTranslation()
     const gridRef = useRef<HTMLDivElement>(null)
     const [dragging, setDragging] = useState<string | null>(null)
+    const selectedResolution = useGenerationStore(state => state.selectedResolution)
+    const boardAspectRatio = getCharacterPositionBoardAspectRatio(
+        selectedResolution.width,
+        selectedResolution.height
+    )
+
+    const updatePositionFromPointer = (id: string, clientX: number, clientY: number) => {
+        if (!gridRef.current) return
+        const rect = gridRef.current.getBoundingClientRect()
+        const x = snapCharacterPosition((clientX - rect.left) / rect.width)
+        const y = snapCharacterPosition((clientY - rect.top) / rect.height)
+        onPositionChange(id, x, y)
+    }
 
     const handleMouseDown = (e: MouseEvent, id: string) => {
         e.preventDefault()
@@ -50,11 +69,13 @@ function PositionGrid({ characters, selectedId, onSelect, onPositionChange }: Po
     }
 
     const handleMouseMove = (e: MouseEvent) => {
-        if (!dragging || !gridRef.current) return
-        const rect = gridRef.current.getBoundingClientRect()
-        const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-        const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
-        onPositionChange(dragging, x, y)
+        if (!dragging) return
+        updatePositionFromPointer(dragging, e.clientX, e.clientY)
+    }
+
+    const handleGridMouseDown = (e: MouseEvent<HTMLDivElement>) => {
+        if (e.button !== 0 || e.target !== e.currentTarget || !selectedId) return
+        updatePositionFromPointer(selectedId, e.clientX, e.clientY)
     }
 
     const handleMouseUp = () => {
@@ -67,47 +88,22 @@ function PositionGrid({ characters, selectedId, onSelect, onPositionChange }: Po
         return () => window.removeEventListener('mouseup', handleGlobalMouseUp)
     }, [])
 
-    const zones = [
-        { label: t('characterPromptDialog.position.topLeft', '상단\n왼쪽'), x: 0.17, y: 0.15 },
-        { label: t('characterPromptDialog.position.top', '상단'), x: 0.5, y: 0.15 },
-        { label: t('characterPromptDialog.position.topRight', '상단\n오른쪽'), x: 0.83, y: 0.15 },
-        { label: t('characterPromptDialog.position.left', '왼쪽'), x: 0.17, y: 0.5 },
-        { label: t('characterPromptDialog.position.center', '중앙'), x: 0.5, y: 0.5 },
-        { label: t('characterPromptDialog.position.right', '오른쪽'), x: 0.83, y: 0.5 },
-        { label: t('characterPromptDialog.position.bottomLeft', '하단\n왼쪽'), x: 0.17, y: 0.85 },
-        { label: t('characterPromptDialog.position.bottom', '하단'), x: 0.5, y: 0.85 },
-        { label: t('characterPromptDialog.position.bottomRight', '하단\n오른쪽'), x: 0.83, y: 0.85 },
-    ]
-
     return (
         <div
             ref={gridRef}
-            className="relative w-full aspect-[3/4] bg-muted/30 rounded-lg border cursor-crosshair select-none overflow-hidden shadow-inner"
+            className="relative mx-auto w-full bg-muted/30 rounded-lg border cursor-crosshair select-none overflow-hidden shadow-inner"
+            style={{ aspectRatio: boardAspectRatio }}
+            onMouseDown={handleGridMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
         >
             {/* Grid lines */}
-            <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none">
-                {[...Array(9)].map((_, i) => (
+            <div className="absolute inset-0 grid grid-cols-5 grid-rows-5 pointer-events-none">
+                {Array.from({ length: CHARACTER_POSITION_GRID_SIZE ** 2 }, (_, i) => (
                     <div key={i} className="border border-border/20" />
                 ))}
             </div>
-
-            {/* Zone labels */}
-            {zones.map((zone, i) => (
-                <div
-                    key={i}
-                    className="absolute text-[10px] text-muted-foreground/50 whitespace-pre-line text-center pointer-events-none select-none"
-                    style={{
-                        left: `${zone.x * 100}%`,
-                        top: `${zone.y * 100}%`,
-                        transform: 'translate(-50%, -50%)'
-                    }}
-                >
-                    {zone.label}
-                </div>
-            ))}
 
             {/* Character markers */}
             {characters.filter(c => c.enabled).map((char) => {

@@ -43,8 +43,14 @@ import {
 } from '@/components/ui/context-menu'
 import { useCharacterPromptStore, CHARACTER_COLORS, CharacterPrompt, FOLDER_COLORS } from '@/stores/character-prompt-store'
 import { useSettingsStore } from '@/stores/settings-store'
+import { useGenerationStore } from '@/stores/generation-store'
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import {
+    CHARACTER_POSITION_GRID_SIZE,
+    getCharacterPositionBoardAspectRatio,
+    snapCharacterPosition,
+} from '@/lib/character-position-grid'
 import { toast } from '@/components/ui/use-toast'
 import {
     DndContext,
@@ -1198,6 +1204,19 @@ function PositionDialog({ open, onOpenChange, characters, onPositionChange }: Po
     const gridRef = useRef<HTMLDivElement>(null)
     const [dragging, setDragging] = useState<string | null>(null)
     const [selectedId, setSelectedId] = useState<string | null>(null)
+    const selectedResolution = useGenerationStore(state => state.selectedResolution)
+    const boardAspectRatio = getCharacterPositionBoardAspectRatio(
+        selectedResolution.width,
+        selectedResolution.height
+    )
+
+    const updatePositionFromPointer = (id: string, clientX: number, clientY: number) => {
+        if (!gridRef.current) return
+        const rect = gridRef.current.getBoundingClientRect()
+        const x = snapCharacterPosition((clientX - rect.left) / rect.width)
+        const y = snapCharacterPosition((clientY - rect.top) / rect.height)
+        onPositionChange(id, x, y)
+    }
 
     const handleMouseDown = (e: MouseEvent, id: string) => {
         e.preventDefault()
@@ -1206,11 +1225,13 @@ function PositionDialog({ open, onOpenChange, characters, onPositionChange }: Po
     }
 
     const handleMouseMove = (e: MouseEvent) => {
-        if (!dragging || !gridRef.current) return
-        const rect = gridRef.current.getBoundingClientRect()
-        const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-        const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
-        onPositionChange(dragging, x, y)
+        if (!dragging) return
+        updatePositionFromPointer(dragging, e.clientX, e.clientY)
+    }
+
+    const handleGridMouseDown = (e: MouseEvent<HTMLDivElement>) => {
+        if (e.button !== 0 || e.target !== e.currentTarget || !selectedId) return
+        updatePositionFromPointer(selectedId, e.clientX, e.clientY)
     }
 
     const handleMouseUp = () => {
@@ -1222,18 +1243,6 @@ function PositionDialog({ open, onOpenChange, characters, onPositionChange }: Po
         window.addEventListener('mouseup', handleGlobalMouseUp)
         return () => window.removeEventListener('mouseup', handleGlobalMouseUp)
     }, [])
-
-    const zones = [
-        { label: '↖', x: 0.17, y: 0.15 },
-        { label: '↑', x: 0.5, y: 0.15 },
-        { label: '↗', x: 0.83, y: 0.15 },
-        { label: '←', x: 0.17, y: 0.5 },
-        { label: '●', x: 0.5, y: 0.5 },
-        { label: '→', x: 0.83, y: 0.5 },
-        { label: '↙', x: 0.17, y: 0.85 },
-        { label: '↓', x: 0.5, y: 0.85 },
-        { label: '↘', x: 0.83, y: 0.85 },
-    ]
 
     const enabledCharacters = characters.filter(c => c.enabled)
 
@@ -1249,32 +1258,19 @@ function PositionDialog({ open, onOpenChange, characters, onPositionChange }: Po
 
                 <div
                     ref={gridRef}
-                    className="relative w-full aspect-[3/4] bg-muted/30 rounded-lg border cursor-crosshair select-none overflow-hidden shadow-inner"
+                    className="relative mx-auto w-full bg-muted/30 rounded-lg border cursor-crosshair select-none overflow-hidden shadow-inner"
+                    style={{ aspectRatio: boardAspectRatio }}
+                    onMouseDown={handleGridMouseDown}
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
                     onMouseLeave={handleMouseUp}
                 >
                     {/* Grid lines */}
-                    <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none">
-                        {[...Array(9)].map((_, i) => (
+                    <div className="absolute inset-0 grid grid-cols-5 grid-rows-5 pointer-events-none">
+                        {Array.from({ length: CHARACTER_POSITION_GRID_SIZE ** 2 }, (_, i) => (
                             <div key={i} className="border border-border/20" />
                         ))}
                     </div>
-
-                    {/* Zone labels */}
-                    {zones.map((zone, i) => (
-                        <div
-                            key={i}
-                            className="absolute text-lg text-muted-foreground/30 pointer-events-none select-none"
-                            style={{
-                                left: `${zone.x * 100}%`,
-                                top: `${zone.y * 100}%`,
-                                transform: 'translate(-50%, -50%)'
-                            }}
-                        >
-                            {zone.label}
-                        </div>
-                    ))}
 
                     {/* Character markers */}
                     {enabledCharacters.map((char) => {
