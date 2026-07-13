@@ -5,6 +5,13 @@ import { saveReferenceImage, loadReferenceImage, deleteReferenceImage, saveEncod
 
 // 참조 레퍼런스 타입 (NovelAI 2026년 2월 업데이트)
 export type PreciseReferenceType = 'character' | 'style' | 'character&style'
+export type ReferenceMode = 'character' | 'vibe'
+
+export interface ReferenceFolder {
+    id: string
+    name: string
+    mode: ReferenceMode
+}
 
 export interface ReferenceImage {
     id: string
@@ -21,11 +28,13 @@ export interface ReferenceImage {
     fidelity: number
     referenceType: PreciseReferenceType
     cacheKey?: string
+    folderId?: string
 }
 
 interface CharacterState {
     characterImages: ReferenceImage[]
     vibeImages: ReferenceImage[]
+    referenceFolders: ReferenceFolder[]
     _imagesLoaded: boolean      // Runtime flag: are base64 loaded from files?
 
     // Actions
@@ -36,6 +45,13 @@ interface CharacterState {
     addVibeImage: (base64: string, encodedVibe?: string, informationExtracted?: number, strength?: number, name?: string) => Promise<void>
     updateVibeImage: (id: string, updates: Partial<ReferenceImage>) => void
     removeVibeImage: (id: string) => void
+
+    addReferenceFolder: (mode: ReferenceMode, name: string) => string
+    renameReferenceFolder: (id: string, name: string) => void
+    removeReferenceFolder: (id: string) => void
+    reorderReferenceFolders: (mode: ReferenceMode, activeId: string, overId: string) => void
+    moveReferenceImage: (mode: ReferenceMode, imageId: string, folderId?: string, beforeImageId?: string) => void
+    disableAllReferenceImages: (mode: ReferenceMode) => void
 
     clearAll: () => void
 
@@ -125,6 +141,7 @@ export const useCharacterStore = create<CharacterState>()(
         (set, get) => ({
             characterImages: [],
             vibeImages: [],
+            referenceFolders: [],
             _imagesLoaded: false,
 
             addCharacterImage: async (base64, name) => {
@@ -224,13 +241,65 @@ export const useCharacterStore = create<CharacterState>()(
                 }))
             },
 
+            addReferenceFolder: (mode, name) => {
+                const id = `reference-folder-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+                set(state => ({ referenceFolders: [...state.referenceFolders, { id, name, mode }] }))
+                return id
+            },
+
+            renameReferenceFolder: (id, name) => set(state => ({
+                referenceFolders: state.referenceFolders.map(folder => folder.id === id ? { ...folder, name } : folder),
+            })),
+
+            removeReferenceFolder: (id) => set(state => ({
+                referenceFolders: state.referenceFolders.filter(folder => folder.id !== id),
+                characterImages: state.characterImages.map(image => image.folderId === id ? { ...image, folderId: undefined } : image),
+                vibeImages: state.vibeImages.map(image => image.folderId === id ? { ...image, folderId: undefined } : image),
+            })),
+
+            reorderReferenceFolders: (mode, activeId, overId) => set(state => {
+                if (activeId === overId) return state
+                const modeFolders = state.referenceFolders.filter(folder => folder.mode === mode)
+                const from = modeFolders.findIndex(folder => folder.id === activeId)
+                const to = modeFolders.findIndex(folder => folder.id === overId)
+                if (from < 0 || to < 0) return state
+                const reordered = [...modeFolders]
+                const [moved] = reordered.splice(from, 1)
+                reordered.splice(to, 0, moved)
+                let index = 0
+                return {
+                    referenceFolders: state.referenceFolders.map(folder => folder.mode === mode ? reordered[index++] : folder),
+                }
+            }),
+
+            moveReferenceImage: (mode, imageId, folderId, beforeImageId) => set(state => {
+                const field = mode === 'character' ? 'characterImages' : 'vibeImages'
+                const source = state[field]
+                const sourceIndex = source.findIndex(item => item.id === imageId)
+                const image = source.find(item => item.id === imageId)
+                if (!image) return state
+                const moved = { ...image, folderId }
+                const next = source.filter(item => item.id !== imageId)
+                let targetIndex = beforeImageId ? next.findIndex(item => item.id === beforeImageId) : -1
+                const overSourceIndex = beforeImageId ? source.findIndex(item => item.id === beforeImageId) : -1
+                if (image.folderId === folderId && sourceIndex >= 0 && sourceIndex < overSourceIndex) targetIndex += 1
+                if (targetIndex >= 0) next.splice(targetIndex, 0, moved)
+                else next.push(moved)
+                return { [field]: next }
+            }),
+
+            disableAllReferenceImages: (mode) => set(state => {
+                const field = mode === 'character' ? 'characterImages' : 'vibeImages'
+                return { [field]: state[field].map(image => image.enabled === false ? image : { ...image, enabled: false }) }
+            }),
+
             clearAll: () => {
                 const state = get()
                 for (const img of [...state.characterImages, ...state.vibeImages]) {
                     if (img.filePath) deleteReferenceImage(img.filePath)
                     if (img.encodedVibePath) deleteReferenceImage(img.encodedVibePath)
                 }
-                set({ characterImages: [], vibeImages: [], _imagesLoaded: false })
+                set({ characterImages: [], vibeImages: [], referenceFolders: [], _imagesLoaded: false })
             },
 
             ensureImagesLoaded: async (requiredIds) => {
@@ -355,6 +424,7 @@ export const useCharacterStore = create<CharacterState>()(
                     fidelity: img.fidelity,
                     referenceType: img.referenceType,
                     cacheKey: img.cacheKey,
+                    folderId: img.folderId,
                 })),
                 vibeImages: state.vibeImages.map(img => ({
                     id: img.id,
@@ -370,7 +440,9 @@ export const useCharacterStore = create<CharacterState>()(
                     fidelity: img.fidelity,
                     referenceType: img.referenceType,
                     cacheKey: img.cacheKey,
+                    folderId: img.folderId,
                 })),
+                referenceFolders: state.referenceFolders,
             }),
         }
     )

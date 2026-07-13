@@ -309,6 +309,18 @@
     "importError": "Import failed - check JSON format"
   },
   "characterDialog": {
+    "reorder": "Drag to reorder",
+    "deleteFolder": "Delete folder (images move to Unfiled)",
+    "dropIntoFolder": "Drag images into this folder",
+    "unnamedImage": "Unnamed image",
+    "activeImages": "Currently active",
+    "searchPlaceholder": "Search folders or images...",
+    "createFolder": "Create folder",
+    "disableAll": "Disable all",
+    "folderName": "Folder name",
+    "unfiled": "Unfiled",
+    "noSearchResults": "No search results",
+    "dropHere": "Drop images here",
     "title": "Reference Settings",
     "description": "Reference & Vibe Transfer Settings",
     "tabCharacter": "Reference",
