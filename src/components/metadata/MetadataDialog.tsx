@@ -64,6 +64,15 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
     })
     const [isDragOver, setIsDragOver] = useState(false)
 
+    useEffect(() => {
+        if (!open) return
+        const presetState = usePresetStore.getState()
+        const targetPresetId = presetState.presets.some(preset => preset.id === presetState.activePresetId)
+            ? presetState.activePresetId
+            : presetState.presets[0]?.id || 'default'
+        setSelectedPresetId(targetPresetId)
+    }, [open])
+
     // Load metadata from initial image when dialog opens with an image
     useEffect(() => {
         if (open && initialImage) {
