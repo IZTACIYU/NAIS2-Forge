@@ -852,6 +852,7 @@
   },
   "characterPanel": {
     "title": "Character Prompts",
+    "activeCharacters": "Active characters",
     "position": "Position",
     "add": "Add",
     "empty": "No characters",

@@ -948,6 +948,7 @@
   },
   "characterPanel": {
     "title": "캐릭터 프롬프트",
+    "activeCharacters": "활성 캐릭터",
     "position": "위치",
     "add": "추가",
     "empty": "캐릭터가 없습니다",

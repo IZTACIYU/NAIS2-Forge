@@ -318,6 +318,21 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         setExpandedId(prev => prev === id ? null : id)
     }, [])
 
+    const handleFocusCharacter = useCallback((character: CharacterPrompt) => {
+        setSearchQuery('')
+        if (character.groupId) {
+            const group = groups.find(item => item.id === character.groupId)
+            if (group?.collapsed) updateGroup(group.id, { collapsed: false })
+        }
+        setExpandedId(character.id)
+
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            const card = Array.from(document.querySelectorAll<HTMLElement>('[data-character-prompt-id]'))
+                .find(element => element.dataset.characterPromptId === character.id)
+            card?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }))
+    }, [groups, updateGroup])
+
     const handleCreateGroup = () => {
         const baseName = t('characterPanel.newFolderName', '새폴더')
         const existingNames = groups.map(g => g.name)
@@ -384,7 +399,9 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         })
     }
 
-    const groupIds = new Set(groups.map(g => g.id))
+    const groupById = new Map(groups.map(group => [group.id, group]))
+    const characterIndexById = new Map(characters.map((character, index) => [character.id, index]))
+    const groupIds = new Set(groupById.keys())
     // 미분류: groupId가 없거나, 존재하지 않는 그룹에 속한 캐릭터
     const ungroupedSourceCharacters = characters.filter(c => (!c.groupId || !groupIds.has(c.groupId)) && matchesSearch(c))
     const ungroupedCharacters = getVisibleStackCharacters(ungroupedSourceCharacters)
@@ -396,7 +413,8 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
             chars: getVisibleStackCharacters(sourceChars)
         }
     })
-    const enabledCharacterCount = characters.reduce((count, character) => count + (character.enabled ? 1 : 0), 0)
+    const enabledCharacters = characters.filter(character => character.enabled)
+    const enabledCharacterCount = enabledCharacters.length
 
     if (!open) return null
 
@@ -489,6 +507,49 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                         </Button>
                     </div>
                 </div>
+
+                {enabledCharacters.length > 0 && (
+                    <div className="shrink-0 space-y-1.5 border-b border-border/30 bg-background/25 px-3 py-2">
+                        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1.5 font-medium">
+                                <Eye className="h-3.5 w-3.5 text-primary" />
+                                <span>{t('characterPanel.activeCharacters', 'Active characters')}</span>
+                            </div>
+                            <span>{enabledCharacterCount}</span>
+                        </div>
+                        <div className="flex max-h-[88px] flex-wrap gap-1.5 overflow-y-auto pr-1">
+                            {enabledCharacters.map((character) => {
+                                const index = characterIndexById.get(character.id) ?? 0
+                                const displayName = getVariantBaseName(
+                                    character,
+                                    character.prompt
+                                        ? character.prompt.split(',')[0].trim().substring(0, 30)
+                                        : t('characterPanel.unnamed', 'Character')
+                                )
+                                const groupName = character.groupId ? groupById.get(character.groupId)?.name : undefined
+
+                                return (
+                                    <button
+                                        key={character.id}
+                                        type="button"
+                                        className="flex min-w-0 basis-[140px] flex-1 items-center gap-2 rounded-md border border-border/50 bg-muted/30 px-2 py-1.5 text-left transition-colors hover:border-primary/40 hover:bg-muted/70"
+                                        title={groupName ? `${displayName} / ${groupName}` : displayName}
+                                        onClick={() => handleFocusCharacter(character)}
+                                    >
+                                        <span
+                                            className="h-2 w-2 shrink-0 rounded-full"
+                                            style={{ backgroundColor: CHARACTER_COLORS[index % CHARACTER_COLORS.length] }}
+                                        />
+                                        <span className="min-w-0 flex-1 truncate text-xs font-medium">{displayName}</span>
+                                        {groupName && (
+                                            <span className="max-w-[72px] truncate text-[10px] text-muted-foreground">{groupName}</span>
+                                        )}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 {/* Search */}
                 <div className="px-3 py-2 border-b border-border/30 shrink-0">
@@ -619,7 +680,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                                     >
                                                     <div className={cn("pl-5 border-l-2 ml-2 space-y-1.5 min-h-[32px] pb-2", folderColor.border)}>
                                                         {chars.map((char) => {
-                                                            const index = characters.findIndex(c => c.id === char.id)
+                                                            const index = characterIndexById.get(char.id) ?? 0
                                                             return (
                                                                 <SortableCharacterCard
                                                                     key={char.id}
@@ -668,7 +729,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                                         </div>
                                                     )}
                                                     {ungroupedCharacters.map((char) => {
-                                                        const index = characters.findIndex(c => c.id === char.id)
+                                                        const index = characterIndexById.get(char.id) ?? 0
                                                         return (
                                                             <SortableCharacterCard
                                                                 key={char.id}
@@ -911,6 +972,7 @@ function CharacterCard({
             <ContextMenu>
                 <ContextMenuTrigger asChild>
                     <div
+                        data-character-prompt-id={character.id}
                         className={cn(
                             "w-full min-w-0 max-w-full rounded-xl border border-border/50 bg-background/60 transition-all duration-200 overflow-hidden",
                             !character.enabled && "opacity-50"

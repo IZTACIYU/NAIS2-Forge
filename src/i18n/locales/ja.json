@@ -803,6 +803,7 @@
   },
   "characterPanel": {
     "title": "キャラクタープロンプト",
+    "activeCharacters": "有効なキャラクター",
     "position": "位置",
     "add": "キャラクター追加",
     "empty": "キャラクタープロンプトがありません",
