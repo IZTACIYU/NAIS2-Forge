@@ -79,6 +79,7 @@ import {
     Cloud,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useNearViewport } from '@/hooks/use-near-viewport'
 
 
 const getThumbnailAspectClass = (layout: 'vertical' | 'horizontal' | 'square') => {
@@ -1026,9 +1027,11 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
 
     const thumbnail = getSceneThumbnail(scene)
     const [imageUrl, setImageUrl] = useState<string>('')
+    const [cardRef, isNearViewport] = useNearViewport<HTMLDivElement>()
+    const shouldRenderImage = isOverlay || isNearViewport
 
     useEffect(() => {
-        if (!thumbnail) {
+        if (!shouldRenderImage || !thumbnail) {
             setImageUrl('')
             return
         }
@@ -1038,7 +1041,7 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
         }
         // Use convertFileSrc for efficient native asset loading
         setImageUrl(convertFileSrc(thumbnail))
-    }, [thumbnail])
+    }, [shouldRenderImage, thumbnail])
 
 
     const handleSaveName = () => {
@@ -1085,6 +1088,7 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
         <ContextMenu>
             <ContextMenuTrigger asChild disabled={isOverlay || disabled}>
                 <div
+                    ref={cardRef}
                     style={style}
                     className={cn(
                         "group relative flex flex-col rounded-2xl overflow-hidden",
@@ -1136,10 +1140,10 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
                     )}
 
                     <div className="relative flex-1 bg-zinc-900/50 w-full overflow-hidden">
-                        {isStreaming && streamingImage ? (
-                            <img src={streamingImage} alt="Streaming..." className="w-full h-full object-cover animate-pulse" />
+                        {shouldRenderImage && isStreaming && streamingImage ? (
+                            <img src={streamingImage} alt="Streaming..." className="w-full h-full object-cover animate-pulse" loading="lazy" decoding="async" />
                         ) : imageUrl ? (
-                            <img src={imageUrl} alt={scene.name} className="w-full h-full object-cover" draggable={false} />
+                            <img src={imageUrl} alt={scene.name} className="w-full h-full object-cover" draggable={false} loading="lazy" decoding="async" />
                         ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/30"> <ImageIcon className="h-10 w-10 mb-2" /> <span className="text-xs">No Image</span> </div>
                         )}

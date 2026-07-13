@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input'
 import { AutocompleteTextarea } from "@/components/ui/AutocompleteTextarea";
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useNearViewport } from '@/hooks/use-near-viewport'
 
 
 const getThumbnailAspectClass = (layout: 'vertical' | 'horizontal' | 'square') => {
@@ -630,7 +631,7 @@ export default function SceneDetail() {
                             {/* Streaming Card Slot */}
                             {isStreaming && streamingImage && (
                                 <div className={cn("rounded-xl overflow-hidden bg-muted/30 relative border border-primary/50 shadow-[0_0_15px_rgba(59,130,246,0.5)]", getThumbnailAspectClass(thumbnailLayout))}>
-                                    <img src={streamingImage} alt="Generating..." className="w-full h-full object-cover animate-pulse opacity-80" />
+                                    <img src={streamingImage} alt="Generating..." className="w-full h-full object-cover animate-pulse opacity-80" loading="lazy" decoding="async" />
                                     <div className="absolute inset-x-0 bottom-0 h-1 bg-gray-500/50">
                                         <div className="h-full bg-white transition-all duration-300 shadow-[0_0_8px_rgba(255,255,255,0.8)]" style={{ width: `${streamingProgress * 100}%` }} />
                                     </div>
@@ -852,9 +853,13 @@ function SceneImageCard({
     // I will restore the `loadImage` logic inside SceneImageCard to ensure images display correctly.
 
     const [imgSrc, setImgSrc] = useState<string>('')
+    const [cardRef, isNearViewport] = useNearViewport<HTMLDivElement>()
 
     useEffect(() => {
-        if (!image.url) return
+        if (!isNearViewport || !image.url) {
+            setImgSrc('')
+            return
+        }
         if (image.url.startsWith('data:')) {
             setImgSrc(image.url)
             return
@@ -862,7 +867,7 @@ function SceneImageCard({
         // Use convertFileSrc for efficient native asset loading
         // No need for base64 conversion - directly use the asset protocol
         setImgSrc(convertFileSrc(image.url))
-    }, [image.url])
+    }, [image.url, isNearViewport])
 
     return (
         <SceneImageContextMenu
@@ -873,6 +878,7 @@ function SceneImageCard({
             onInpaint={onInpaint}
         >
             <div
+                ref={cardRef}
                 className={cn(
                     "relative group rounded-xl overflow-hidden bg-muted/30 border-2 transition-all duration-300 shadow-sm cursor-pointer",
                     getThumbnailAspectClass(thumbnailLayout),
@@ -897,6 +903,7 @@ function SceneImageCard({
                         alt="Scene Image"
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         loading="lazy"
+                        decoding="async"
                     />
                 )}
 
