@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDroppable } from '@dnd-kit/core'
-import { ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, Images, Pencil, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, Images, Palette, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -26,6 +26,16 @@ import { cn } from '@/lib/utils'
 export const LIBRARY_ALL_FOLDER_ID = '__all__'
 export const LIBRARY_UNGROUPED_FOLDER_ID = '__ungrouped__'
 export const LIBRARY_FOLDER_DROP_PREFIX = 'library-folder:'
+
+const LIBRARY_FOLDER_COLORS = [
+    'text-amber-500',
+    'text-blue-500',
+    'text-green-500',
+    'text-purple-500',
+    'text-pink-500',
+    'text-cyan-500',
+    'text-red-500',
+] as const
 
 export type LibraryFolderSelection = string
 
@@ -86,6 +96,7 @@ export function LibraryFolderSidebar({
         updateFolder,
         deleteFolder,
         moveFolder,
+        reorderFolder,
         toggleFolderCollapsed,
     } = useLibraryStore()
     const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
@@ -163,8 +174,16 @@ export function LibraryFolderSidebar({
         }
     }
 
+    const handleCycleFolderColor = (folder: LibraryFolder) => {
+        const nextColorIndex = ((folder.colorIndex ?? 0) + 1) % LIBRARY_FOLDER_COLORS.length
+        updateFolder(folder.id, { colorIndex: nextColorIndex })
+    }
+
     const renderFolder = (folder: LibraryFolder, depth = 0): React.ReactNode => {
         const children = childrenByParent.get(folder.id) || []
+        const siblings = childrenByParent.get(folder.parentId || 'root') || []
+        const siblingIndex = siblings.findIndex(candidate => candidate.id === folder.id)
+        const folderColor = LIBRARY_FOLDER_COLORS[(folder.colorIndex ?? 0) % LIBRARY_FOLDER_COLORS.length]
         const descendants = getLibraryFolderDescendantIds(folders, folder.id)
         const moveTargets = folders.filter(target => target.id !== folder.id && !descendants.has(target.id))
         return (
@@ -196,8 +215,8 @@ export function LibraryFolderSidebar({
                                     )}
                                 </button>
                                 {folder.collapsed
-                                    ? <Folder className="h-4 w-4 shrink-0 text-sky-400" />
-                                    : <FolderOpen className="h-4 w-4 shrink-0 text-sky-400" />
+                                    ? <Folder className={cn('h-4 w-4 shrink-0', folderColor)} />
+                                    : <FolderOpen className={cn('h-4 w-4 shrink-0', folderColor)} />
                                 }
                                 {editingFolderId === folder.id ? (
                                     <Input
@@ -233,6 +252,32 @@ export function LibraryFolderSidebar({
                                 <Pencil className="mr-2 h-4 w-4" />
                                 {t('actions.rename', '이름 변경')}
                             </ContextMenuItem>
+                            <ContextMenuItem onClick={() => handleCycleFolderColor(folder)}>
+                                <Palette className="mr-2 h-4 w-4" />
+                                {t('library.changeFolderColor', '폴더 색상 변경')}
+                            </ContextMenuItem>
+                            <ContextMenuSub>
+                                <ContextMenuSubTrigger>
+                                    <ArrowUp className="mr-2 h-4 w-4" />
+                                    {t('library.reorderFolder', '정렬 변경')}
+                                </ContextMenuSubTrigger>
+                                <ContextMenuSubContent>
+                                    <ContextMenuItem
+                                        disabled={siblingIndex <= 0}
+                                        onClick={() => reorderFolder(folder.id, 'up')}
+                                    >
+                                        <ArrowUp className="mr-2 h-4 w-4" />
+                                        {t('library.moveUp', '위로 이동')}
+                                    </ContextMenuItem>
+                                    <ContextMenuItem
+                                        disabled={siblingIndex < 0 || siblingIndex >= siblings.length - 1}
+                                        onClick={() => reorderFolder(folder.id, 'down')}
+                                    >
+                                        <ArrowDown className="mr-2 h-4 w-4" />
+                                        {t('library.moveDown', '아래로 이동')}
+                                    </ContextMenuItem>
+                                </ContextMenuSubContent>
+                            </ContextMenuSub>
                             <ContextMenuSub>
                                 <ContextMenuSubTrigger>
                                     <Folder className="mr-2 h-4 w-4" />

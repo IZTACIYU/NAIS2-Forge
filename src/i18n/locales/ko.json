@@ -553,7 +553,11 @@
     "addSubfolder": "하위 폴더 추가",
     "moveFolder": "폴더 이동",
     "moveToRoot": "최상위로 이동",
-    "toggleFolders": "폴더 패널 열기/닫기"
+    "toggleFolders": "폴더 패널 열기/닫기",
+    "changeFolderColor": "폴더 색상 변경",
+    "reorderFolder": "정렬 변경",
+    "moveUp": "위로 이동",
+    "moveDown": "아래로 이동"
   },
   "settingsPage": {
     "title": "설정",

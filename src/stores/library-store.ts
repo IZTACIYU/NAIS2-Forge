@@ -21,6 +21,7 @@ export interface LibraryFolder {
     name: string
     parentId?: string
     collapsed?: boolean
+    colorIndex?: number
 }
 
 export function getLibraryFolderDescendantIds(folders: LibraryFolder[], folderId: string): Set<string> {
@@ -258,6 +259,7 @@ interface LibraryState {
     updateFolder: (id: string, updates: Partial<Omit<LibraryFolder, 'id'>>) => void
     deleteFolder: (id: string) => void
     moveFolder: (id: string, parentId?: string) => void
+    reorderFolder: (id: string, direction: 'up' | 'down') => void
     toggleFolderCollapsed: (id: string) => void
     moveItemToFolder: (itemId: string, folderId?: string) => void
 }
@@ -459,7 +461,7 @@ export const useLibraryStore = create<LibraryState>()(
             addFolder: (name, parentId) => {
                 const id = crypto.randomUUID()
                 set(state => ({
-                    folders: [...state.folders, { id, name, parentId, collapsed: false }]
+                    folders: [...state.folders, { id, name, parentId, collapsed: false, colorIndex: 0 }]
                 }))
                 return id
             },
@@ -496,6 +498,24 @@ export const useLibraryStore = create<LibraryState>()(
                         : candidate
                     )
                 }
+            }),
+
+            reorderFolder: (id, direction) => set(state => {
+                const folder = state.folders.find(candidate => candidate.id === id)
+                if (!folder) return state
+                const siblingIndices = state.folders
+                    .map((candidate, index) => ({ candidate, index }))
+                    .filter(({ candidate }) => candidate.parentId === folder.parentId)
+                    .map(({ index }) => index)
+                const position = siblingIndices.findIndex(index => state.folders[index].id === id)
+                const targetPosition = direction === 'up' ? position - 1 : position + 1
+                if (position < 0 || targetPosition < 0 || targetPosition >= siblingIndices.length) return state
+
+                const nextFolders = [...state.folders]
+                const currentIndex = siblingIndices[position]
+                const targetIndex = siblingIndices[targetPosition]
+                ;[nextFolders[currentIndex], nextFolders[targetIndex]] = [nextFolders[targetIndex], nextFolders[currentIndex]]
+                return { folders: nextFolders }
             }),
 
             toggleFolderCollapsed: (id) => set(state => ({

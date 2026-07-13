@@ -524,7 +524,11 @@
     "addSubfolder": "Add Subfolder",
     "moveFolder": "Move Folder",
     "moveToRoot": "Move to Top Level",
-    "toggleFolders": "Show or hide folder panel"
+    "toggleFolders": "Show or hide folder panel",
+    "changeFolderColor": "Change Folder Color",
+    "reorderFolder": "Change Order",
+    "moveUp": "Move Up",
+    "moveDown": "Move Down"
   },
   "settingsPage": {
     "title": "Settings",
