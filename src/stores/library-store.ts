@@ -13,6 +13,29 @@ export interface LibraryItem {
     thumbnailVersion?: number
     isStack?: boolean
     stackItems?: LibraryItem[]
+    folderId?: string
+}
+
+export interface LibraryFolder {
+    id: string
+    name: string
+    parentId?: string
+    collapsed?: boolean
+}
+
+export function getLibraryFolderDescendantIds(folders: LibraryFolder[], folderId: string): Set<string> {
+    const descendants = new Set<string>()
+    const pending = [folderId]
+    while (pending.length > 0) {
+        const currentId = pending.pop()!
+        for (const folder of folders) {
+            if (folder.parentId === currentId && !descendants.has(folder.id)) {
+                descendants.add(folder.id)
+                pending.push(folder.id)
+            }
+        }
+    }
+    return descendants
 }
 
 export function findLibraryItem(items: LibraryItem[], id: string): LibraryItem | undefined {
@@ -74,6 +97,15 @@ function refreshStack(stack: LibraryItem, stackItems: LibraryItem[]): LibraryIte
         thumbnailPath: thumbnail.thumbnailPath,
         thumbnailVersion: thumbnail.thumbnailVersion,
         stackItems,
+    }
+}
+
+function assignFolderToTree(item: LibraryItem, folderId?: string): LibraryItem {
+    if (!item.isStack || !item.stackItems) return { ...item, folderId }
+    return {
+        ...item,
+        folderId,
+        stackItems: item.stackItems.map(child => assignFolderToTree(child, folderId)),
     }
 }
 
@@ -155,6 +187,7 @@ function removeIdsFromTree(items: LibraryItem[], ids: Set<string>): LibraryItem[
 
 function createStackItem(selectedItems: LibraryItem[]): LibraryItem {
     const thumbnail = getFirstLibraryLeaf(selectedItems[0])
+    const folderId = selectedItems[0].folderId
     return {
         id: crypto.randomUUID(),
         name: selectedItems[0].name,
@@ -164,8 +197,9 @@ function createStackItem(selectedItems: LibraryItem[]): LibraryItem {
         createdAt: Date.now(),
         thumbnailPath: thumbnail.thumbnailPath,
         thumbnailVersion: thumbnail.thumbnailVersion,
+        folderId,
         isStack: true,
-        stackItems: selectedItems,
+        stackItems: selectedItems.map(item => assignFolderToTree(item, folderId)),
     }
 }
 
@@ -192,6 +226,7 @@ function reorder(source: LibraryItem[], activeId: string, overId: string): Libra
 
 interface LibraryState {
     items: LibraryItem[]
+    folders: LibraryFolder[]
     draggedSource: { name: string, path: string } | null
     gridColumns: number
     isEditMode: boolean
@@ -208,8 +243,8 @@ interface LibraryState {
     setDraggedSource: (source: { name: string, path: string } | null) => void
     setEditMode: (isEdit: boolean) => void
     toggleItemSelection: (itemId: string, clearOthers?: boolean) => void
-    selectItemRange: (fromId: string, toId: string) => void
-    selectAllItems: () => void
+    selectItemRange: (fromId: string, toId: string, visibleIds?: string[]) => void
+    selectAllItems: (visibleIds?: string[]) => void
     clearSelection: () => void
     deleteSelectedItems: () => void
     setLastSelectedItemId: (id: string | null) => void
@@ -219,12 +254,19 @@ interface LibraryState {
     unstack: (stackId: string) => void
     getStackItems: (stackId: string) => LibraryItem[]
     setCurrentStackId: (id: string | null) => void
+    addFolder: (name: string, parentId?: string) => string
+    updateFolder: (id: string, updates: Partial<Omit<LibraryFolder, 'id'>>) => void
+    deleteFolder: (id: string) => void
+    moveFolder: (id: string, parentId?: string) => void
+    toggleFolderCollapsed: (id: string) => void
+    moveItemToFolder: (itemId: string, folderId?: string) => void
 }
 
 export const useLibraryStore = create<LibraryState>()(
     persist(
         (set, get) => ({
             items: [],
+            folders: [],
             draggedSource: null,
             gridColumns: 4,
             isEditMode: false,
@@ -291,29 +333,35 @@ export const useLibraryStore = create<LibraryState>()(
                 })
             },
 
-            selectItemRange: (fromId, toId) => {
+            selectItemRange: (fromId, toId, visibleIds) => {
                 const { items, currentStackId } = get()
                 const viewItems = currentStackId
                     ? findLibraryItem(items, currentStackId)?.stackItems || []
                     : items
-                const fromIndex = viewItems.findIndex(item => item.id === fromId)
-                const toIndex = viewItems.findIndex(item => item.id === toId)
+                const selectableItems = visibleIds
+                    ? visibleIds.map(id => viewItems.find(item => item.id === id)).filter((item): item is LibraryItem => Boolean(item))
+                    : viewItems
+                const fromIndex = selectableItems.findIndex(item => item.id === fromId)
+                const toIndex = selectableItems.findIndex(item => item.id === toId)
                 if (fromIndex === -1 || toIndex === -1) return
 
                 const start = Math.min(fromIndex, toIndex)
                 const end = Math.max(fromIndex, toIndex)
-                const rangeIds = viewItems.slice(start, end + 1)
+                const rangeIds = selectableItems.slice(start, end + 1)
                     .filter(item => !item.isStack)
                     .map(item => item.id)
                 set({ selectedItemIds: rangeIds, lastSelectedItemId: toId })
             },
 
-            selectAllItems: () => {
+            selectAllItems: (visibleIds) => {
                 const { items, currentStackId } = get()
                 const viewItems = currentStackId
                     ? findLibraryItem(items, currentStackId)?.stackItems || []
                     : items
-                set({ selectedItemIds: viewItems.filter(item => !item.isStack).map(item => item.id) })
+                const visibleIdSet = visibleIds ? new Set(visibleIds) : null
+                set({ selectedItemIds: viewItems
+                    .filter(item => !item.isStack && (!visibleIdSet || visibleIdSet.has(item.id)))
+                    .map(item => item.id) })
             },
 
             clearSelection: () => set({ selectedItemIds: [], lastSelectedItemId: null }),
@@ -407,11 +455,68 @@ export const useLibraryStore = create<LibraryState>()(
                 isEditMode: false,
                 selectedItemIds: [],
             }),
+
+            addFolder: (name, parentId) => {
+                const id = crypto.randomUUID()
+                set(state => ({
+                    folders: [...state.folders, { id, name, parentId, collapsed: false }]
+                }))
+                return id
+            },
+
+            updateFolder: (id, updates) => set(state => ({
+                folders: state.folders.map(folder => folder.id === id ? { ...folder, ...updates } : folder)
+            })),
+
+            deleteFolder: (id) => set(state => {
+                const folder = state.folders.find(candidate => candidate.id === id)
+                if (!folder) return state
+                return {
+                    folders: state.folders
+                        .filter(candidate => candidate.id !== id)
+                        .map(candidate => candidate.parentId === id
+                            ? { ...candidate, parentId: folder.parentId }
+                            : candidate
+                        ),
+                    items: state.items.map(item => item.folderId === id
+                        ? assignFolderToTree(item, folder.parentId)
+                        : item
+                    ),
+                }
+            }),
+
+            moveFolder: (id, parentId) => set(state => {
+                const folder = state.folders.find(candidate => candidate.id === id)
+                if (!folder || folder.parentId === parentId) return state
+                if (parentId && !state.folders.some(candidate => candidate.id === parentId)) return state
+                if (parentId && getLibraryFolderDescendantIds(state.folders, id).has(parentId)) return state
+                return {
+                    folders: state.folders.map(candidate => candidate.id === id
+                        ? { ...candidate, parentId }
+                        : candidate
+                    )
+                }
+            }),
+
+            toggleFolderCollapsed: (id) => set(state => ({
+                folders: state.folders.map(folder => folder.id === id
+                    ? { ...folder, collapsed: !folder.collapsed }
+                    : folder
+                )
+            })),
+
+            moveItemToFolder: (itemId, folderId) => set(state => {
+                if (folderId && !state.folders.some(folder => folder.id === folderId)) return state
+                const item = findLibraryItem(state.items, itemId)
+                if (!item || item.folderId === folderId) return state
+                const updated = updateTree(state.items, itemId, item => assignFolderToTree(item, folderId))
+                return updated.changed ? { items: updated.items } : state
+            }),
         }),
         {
             name: 'nais2-forge-library',
             storage: createJSONStorage(() => indexedDBStorage),
-            partialize: state => ({ items: state.items, gridColumns: state.gridColumns }),
+            partialize: state => ({ items: state.items, folders: state.folders, gridColumns: state.gridColumns }),
         }
     )
 )

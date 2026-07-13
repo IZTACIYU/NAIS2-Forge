@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import {
     DndContext,
     pointerWithin,
@@ -33,8 +33,9 @@ import { LibraryItem as LibraryItemComponent } from '@/components/library/Librar
 import { useTranslation } from 'react-i18next'
 import { mkdir, exists, writeFile, remove, BaseDirectory } from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
+import { Command } from '@tauri-apps/plugin-shell'
 import { toast } from '@/components/ui/use-toast'
-import { ImagePlus, X, Grid3x3, Edit3, Trash2, Layers, ArrowLeft, CheckSquare, FolderOpen, Upload } from 'lucide-react'
+import { ImagePlus, X, Grid3x3, Edit3, Trash2, Layers, ArrowLeft, CheckSquare, FolderOpen, Upload, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tip } from '@/components/ui/tooltip'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -52,6 +53,13 @@ const dropAnimation = {
 }
 
 import { LibraryRenameDialog } from '@/components/library/LibraryRenameDialog'
+import {
+    LIBRARY_ALL_FOLDER_ID,
+    LIBRARY_FOLDER_DROP_PREFIX,
+    LIBRARY_UNGROUPED_FOLDER_ID,
+    LibraryFolderSelection,
+    LibraryFolderSidebar,
+} from '@/components/library/LibraryFolderSidebar'
 import { ImageReferenceDialog } from '@/components/metadata/ImageReferenceDialog'
 import { MetadataDialog } from '@/components/metadata/MetadataDialog'
 import { readFile } from '@tauri-apps/plugin-fs'
@@ -61,7 +69,8 @@ import { readFile } from '@tauri-apps/plugin-fs'
 export default function Library() {
     const { t } = useTranslation()
     const { 
-        items, 
+        items,
+        folders,
         addItem, 
         setItems, 
         updateItem, 
@@ -83,19 +92,41 @@ export default function Library() {
         reorderItems,
         currentStackId,
         setCurrentStackId,
-        unstack
+        unstack,
+        moveItemToFolder,
     } = useLibraryStore()
-    const { libraryPath, useAbsoluteLibraryPath } = useSettingsStore()
+    const { libraryPath, useAbsoluteLibraryPath, expertLibraryFolderBrowserEnabled } = useSettingsStore()
     const [activeId, setActiveId] = useState<string | null>(null)
     const [stackDropTargetId, setStackDropTargetId] = useState<string | null>(null)
     const stackDropCandidateRef = useRef<string | null>(null)
     const stackDropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const [isDraggingFile, setIsDraggingFile] = useState(false)
+    const [folderPanelOpen, setFolderPanelOpen] = useState(true)
+    const [selectedFolderId, setSelectedFolderId] = useState<LibraryFolderSelection>(LIBRARY_ALL_FOLDER_ID)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Get current view items (main library or inside a stack)
     const currentStack = currentStackId ? findLibraryItem(items, currentStackId) : null
-    const viewItems = currentStack?.stackItems || (currentStackId ? [] : items)
+    const folderIds = useMemo(() => new Set(folders.map(folder => folder.id)), [folders])
+    const viewItems = useMemo(() => {
+        if (currentStackId) return currentStack?.stackItems || []
+        if (!expertLibraryFolderBrowserEnabled || selectedFolderId === LIBRARY_ALL_FOLDER_ID) return items
+        if (selectedFolderId === LIBRARY_UNGROUPED_FOLDER_ID) {
+            return items.filter(item => !item.folderId || !folderIds.has(item.folderId))
+        }
+        return items.filter(item => item.folderId === selectedFolderId)
+    }, [currentStack, currentStackId, expertLibraryFolderBrowserEnabled, folderIds, items, selectedFolderId])
+    const viewItemIds = useMemo(() => viewItems.map(item => item.id), [viewItems])
+
+    useEffect(() => {
+        if (
+            selectedFolderId !== LIBRARY_ALL_FOLDER_ID
+            && selectedFolderId !== LIBRARY_UNGROUPED_FOLDER_ID
+            && !folderIds.has(selectedFolderId)
+        ) {
+            setSelectedFolderId(LIBRARY_ALL_FOLDER_ID)
+        }
+    }, [folderIds, selectedFolderId])
 
     // Dialog States
     const [renameDialogOpen, setRenameDialogOpen] = useState(false)
@@ -289,12 +320,23 @@ export default function Library() {
         const { active, over } = event
 
         if (over && active.id !== over.id) {
+            const overId = String(over.id)
+            if (overId.startsWith(LIBRARY_FOLDER_DROP_PREFIX)) {
+                const folderId = overId.slice(LIBRARY_FOLDER_DROP_PREFIX.length)
+                moveItemToFolder(
+                    String(active.id),
+                    folderId === LIBRARY_UNGROUPED_FOLDER_ID ? undefined : folderId
+                )
+                clearStackDropTarget()
+                setActiveId(null)
+                return
+            }
             const activeItem = findLibraryItem(items, String(active.id))
-            const overItem = findLibraryItem(items, String(over.id))
-            if (activeItem && overItem?.isStack && stackDropTargetId === String(over.id)) {
-                moveItemToStack(String(active.id), String(over.id))
+            const overItem = findLibraryItem(items, overId)
+            if (activeItem && overItem?.isStack && stackDropTargetId === overId) {
+                moveItemToStack(String(active.id), overId)
             } else {
-                reorderItems(String(active.id), String(over.id))
+                reorderItems(String(active.id), overId)
             }
         }
 
@@ -374,7 +416,11 @@ export default function Library() {
                         path: newPath,
                         width: 0,
                         height: 0,
-                        createdAt: Date.now()
+                        createdAt: Date.now(),
+                        folderId: currentStack?.folderId
+                            || (expertLibraryFolderBrowserEnabled && folderIds.has(selectedFolderId)
+                                ? selectedFolderId
+                                : undefined),
                     }
 
                     addItem(newItem)
@@ -396,7 +442,7 @@ export default function Library() {
                 })
             }
         }
-    }, [addItem, t])
+    }, [addItem, currentStack?.folderId, expertLibraryFolderBrowserEnabled, folderIds, libraryPath, selectedFolderId, t, useAbsoluteLibraryPath])
 
     const activeItem = activeId ? viewItems.find(i => i.id === activeId) : null
 
@@ -458,6 +504,18 @@ export default function Library() {
         setGridColumns(next)
     }
 
+    const handleOpenLibraryFolder = async () => {
+        try {
+            const folderPath = useAbsoluteLibraryPath && libraryPath
+                ? libraryPath
+                : await join(await pictureDir(), libraryPath || 'NAIS_Library')
+            if (!(await exists(folderPath))) await mkdir(folderPath, { recursive: true })
+            await Command.create('explorer', [folderPath]).execute()
+        } catch (error) {
+            console.error('Failed to open library folder:', error)
+        }
+    }
+
     // File import handler
     const handleImportClick = () => {
         fileInputRef.current?.click()
@@ -511,7 +569,11 @@ export default function Library() {
                     path: newPath,
                     width: 0,
                     height: 0,
-                    createdAt: Date.now()
+                    createdAt: Date.now(),
+                    folderId: currentStack?.folderId
+                        || (expertLibraryFolderBrowserEnabled && folderIds.has(selectedFolderId)
+                            ? selectedFolderId
+                            : undefined),
                 }
                 addItem(newItem)
                 addedCount++
@@ -561,7 +623,7 @@ export default function Library() {
                             </span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="sm" className="h-9 hover:bg-white/10" onClick={selectAllItems}>
+                            <Button variant="ghost" size="sm" className="h-9 hover:bg-white/10" onClick={() => selectAllItems(viewItemIds)}>
                                 <CheckSquare className="h-4 w-4 mr-2" /> {t('scene.selectAll', '전체 선택')}
                             </Button>
                             <Button variant="ghost" size="sm" className="h-9 hover:bg-white/10" onClick={() => setEditMode(false)}>
@@ -607,7 +669,31 @@ export default function Library() {
                                     <h2 className="text-lg font-semibold tracking-tight">{currentStack?.name}</h2>
                                 </>
                             ) : (
-                                <h2 className="text-lg font-semibold tracking-tight">{t('library.title', '라이브러리')}</h2>
+                                <>
+                                    <Tip content={t('library.openFolder', '폴더 열기')}>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                            onClick={handleOpenLibraryFolder}
+                                        >
+                                            <FolderOpen className="h-4 w-4" />
+                                        </Button>
+                                    </Tip>
+                                    <h2 className="text-lg font-semibold tracking-tight">{t('library.title', '라이브러리')}</h2>
+                                    {expertLibraryFolderBrowserEnabled && (
+                                        <Tip content={t('library.toggleFolders', '폴더 패널 열기/닫기')}>
+                                            <Button
+                                                variant={folderPanelOpen ? 'secondary' : 'ghost'}
+                                                size="icon"
+                                                className="h-8 w-8"
+                                                onClick={() => setFolderPanelOpen(open => !open)}
+                                            >
+                                                <Menu className="h-4 w-4" />
+                                            </Button>
+                                        </Tip>
+                                    )}
+                                </>
                             )}
                         </div>
                         <div className="flex items-center gap-3">
@@ -667,22 +753,31 @@ export default function Library() {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar w-full">
-                <DndContext
-                    sensors={sensors}
-                    collisionDetection={pointerWithin}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleDragOver}
-                    onDragEnd={handleDragEnd}
-                    onDragCancel={handleDragCancel}
-                    measuring={{
-                        droppable: {
-                            strategy: MeasuringStrategy.BeforeDragging,
-                        },
-                    }}
-                >
+            <DndContext
+                sensors={sensors}
+                collisionDetection={pointerWithin}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+                onDragCancel={handleDragCancel}
+                measuring={{
+                    droppable: {
+                        strategy: MeasuringStrategy.BeforeDragging,
+                    },
+                }}
+            >
+                <div className="flex min-h-0 flex-1">
+                    {expertLibraryFolderBrowserEnabled && folderPanelOpen && !currentStackId && (
+                        <LibraryFolderSidebar
+                            items={items}
+                            selectedFolderId={selectedFolderId}
+                            onSelectFolder={setSelectedFolderId}
+                            isDraggingItem={activeId !== null}
+                        />
+                    )}
+                    <div className="relative min-w-0 flex-1 overflow-y-auto p-6 custom-scrollbar">
                     <SortableContext
-                        items={viewItems.map(i => i.id)}
+                        items={viewItemIds}
                         strategy={rectSortingStrategy}
                     >
                         <div
@@ -714,7 +809,7 @@ export default function Library() {
                                     onSelectionClick={(e: React.MouseEvent) => {
                                         if (item.isStack) return // Stacks cannot be selected
                                         if (e.shiftKey && lastSelectedItemId) {
-                                            selectItemRange(lastSelectedItemId, item.id)
+                                            selectItemRange(lastSelectedItemId, item.id, viewItemIds)
                                         } else if (e.ctrlKey || e.metaKey) {
                                             toggleItemSelection(item.id, false)
                                         } else {
@@ -726,28 +821,28 @@ export default function Library() {
                             ))}
                         </div>
                     </SortableContext>
-
-                    <DragOverlay dropAnimation={dropAnimation} modifiers={[snapCenterToCursor]}>
-                        {activeItem ? (
-                            <LibraryItemComponent item={activeItem} isOverlay />
-                        ) : null}
-                    </DragOverlay>
-                </DndContext>
-
-                {viewItems.length === 0 && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-40">
-                        <div className="w-24 h-24 rounded-full bg-muted/30 flex items-center justify-center mb-6 animate-pulse">
-                            <ImagePlus className="h-10 w-10 text-muted-foreground" />
-                        </div>
-                        <h3 className="text-xl font-semibold mb-2 text-foreground/80">
-                            {t('library.emptyTitle', '라이브러리가 비어있습니다')}
-                        </h3>
-                        <p className="text-sm text-muted-foreground text-center max-w-sm px-4 leading-relaxed">
-                            {t('library.emptyDesc', '이미지를 드래그하여 컬렉션을 만들어보세요')}
-                        </p>
+                        {viewItems.length === 0 && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-40">
+                                <div className="w-24 h-24 rounded-full bg-muted/30 flex items-center justify-center mb-6 animate-pulse">
+                                    <ImagePlus className="h-10 w-10 text-muted-foreground" />
+                                </div>
+                                <h3 className="text-xl font-semibold mb-2 text-foreground/80">
+                                    {t('library.emptyTitle', '라이브러리가 비어있습니다')}
+                                </h3>
+                                <p className="text-sm text-muted-foreground text-center max-w-sm px-4 leading-relaxed">
+                                    {t('library.emptyDesc', '이미지를 드래그하여 컬렉션을 만들어보세요')}
+                                </p>
+                            </div>
+                        )}
                     </div>
-                )}
-            </div>
+                </div>
+
+                <DragOverlay dropAnimation={dropAnimation} modifiers={[snapCenterToCursor]}>
+                    {activeItem ? (
+                        <LibraryItemComponent item={activeItem} isOverlay />
+                    ) : null}
+                </DragOverlay>
+            </DndContext>
 
             {/* File Drop Overlay - Modern Style from MainMode */}
             {isDraggingFile && (

@@ -516,7 +516,15 @@
     "import": "Import Images",
     "importDesc": "Import image files",
     "editModeDesc": "Select multiple images for batch editing",
-    "gridColumnsDesc": "Change grid column count"
+    "gridColumnsDesc": "Change grid column count",
+    "folders": "Folders",
+    "allView": "All Images",
+    "ungrouped": "Uncategorized",
+    "newFolderName": "New Folder",
+    "addSubfolder": "Add Subfolder",
+    "moveFolder": "Move Folder",
+    "moveToRoot": "Move to Top Level",
+    "toggleFolders": "Show or hide folder panel"
   },
   "settingsPage": {
     "title": "Settings",
@@ -666,6 +674,12 @@
         "sceneVariantDesc": "Choose a character stack page for each scene during batch generation.",
         "sceneCostumeTitle": "Dynamic Scene Costume",
         "sceneCostumeDesc": "Turn off character costume prompts for selected scenes during batch generation."
+      },
+      "library": {
+        "header": "Library",
+        "description": "Change how library images are organized and browsed.",
+        "folderBrowserTitle": "Virtual Folder Browser",
+        "folderBrowserDesc": "Switch between the original library and a split view with All Images and nested virtual folders."
       },
       "sceneMode": {
         "header": "Scene Mode",

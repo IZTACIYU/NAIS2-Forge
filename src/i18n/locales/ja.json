@@ -515,7 +515,15 @@
     "import": "画像インポート",
     "importDesc": "画像ファイルを読み込み",
     "editModeDesc": "複数画像を選択して一括編集",
-    "gridColumnsDesc": "グリッド列数変更"
+    "gridColumnsDesc": "グリッド列数変更",
+    "folders": "フォルダー",
+    "allView": "すべて表示",
+    "ungrouped": "未分類",
+    "newFolderName": "新しいフォルダー",
+    "addSubfolder": "サブフォルダーを追加",
+    "moveFolder": "フォルダーを移動",
+    "moveToRoot": "最上位へ移動",
+    "toggleFolders": "フォルダーパネルを表示・非表示"
   },
   "settingsPage": {
     "title": "設定",
@@ -665,6 +673,12 @@
         "sceneVariantDesc": "\u4e00\u62ec\u751f\u6210\u6642\u306b\u30b7\u30fc\u30f3\u3054\u3068\u306e\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u30b9\u30bf\u30c3\u30af\u30da\u30fc\u30b8\u3092\u6307\u5b9a\u3057\u307e\u3059\u3002",
         "sceneCostumeTitle": "\u30b7\u30fc\u30f3\u5225\u8863\u88c5\u5236\u5fa1",
         "sceneCostumeDesc": "\u4e00\u62ec\u751f\u6210\u6642\u306b\u9078\u629e\u3057\u305f\u30b7\u30fc\u30f3\u306e\u8863\u88c5\u30d7\u30ed\u30f3\u30d7\u30c8\u3092\u7121\u52b9\u306b\u3057\u307e\u3059\u3002"
+      },
+      "library": {
+        "header": "ライブラリ",
+        "description": "ライブラリ画像の分類と閲覧方法を変更します。",
+        "folderBrowserTitle": "仮想フォルダーブラウザー",
+        "folderBrowserDesc": "従来のライブラリ表示と、すべて表示および入れ子仮想フォルダーを備えた分割表示を切り替えます。"
       },
       "sceneMode": {
         "header": "\u30b7\u30fc\u30f3\u30e2\u30fc\u30c9",
