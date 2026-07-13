@@ -17,6 +17,7 @@ interface SearchResponse {
     kind: 'search' | 'match'
     matches?: TagSearchResult[]
     results?: TagMatchResult[]
+    error?: string
 }
 
 let worker: Worker | null = null
@@ -33,6 +34,10 @@ function getWorker(): Worker {
         const request = pending.get(event.data.id)
         if (!request) return
         pending.delete(event.data.id)
+        if (event.data.error) {
+            request.reject(new Error(event.data.error))
+            return
+        }
         request.resolve(event.data.kind === 'match' ? (event.data.results || []) : (event.data.matches || []))
     }
     worker.onerror = () => {

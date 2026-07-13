@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-import tagsData from '@/assets/tags.json'
+import tagsBinaryUrl from '@/assets/tags.bin?url'
 import Fuse from 'fuse.js'
 
 interface Tag {
@@ -30,11 +30,17 @@ interface TagMatchResult {
     status: 'matched' | 'fuzzy' | 'unmatched'
 }
 
-const tags = tagsData as Tag[]
-const lowerLabels = tags.map(tag => tag.label.toLowerCase())
-const prefixIndex: Record<string, number[]> = {}
-const exactTags = new Map<string, Tag>()
-let fuse: Fuse<Tag> | null = null
+interface TagIndex {
+    labels: string[]
+    counts: Uint32Array
+    types: Uint8Array
+    prefixIndex: Record<string, Uint32Array>
+    exactTags: Map<string, number>
+}
+
+const BINARY_MAGIC = 'NAITAG01'
+const TYPE_NAMES = ['general', 'copyright', 'character', 'artist'] as const
+const EMPTY_INDEXES = new Uint32Array(0)
 const synonyms: Record<string, string> = {
     naked: 'nude',
     blonde: 'blonde_hair',
@@ -48,81 +54,162 @@ const synonyms: Record<string, string> = {
     long: 'long_hair',
 }
 
-for (let index = 0; index < lowerLabels.length; index++) {
-    const first = lowerLabels[index][0] || '_'
-    ;(prefixIndex[first] ||= []).push(index)
-    if (!exactTags.has(lowerLabels[index])) exactTags.set(lowerLabels[index], tags[index])
+let tagIndexPromise: Promise<TagIndex> | null = null
+let fuse: Fuse<string> | null = null
+
+async function loadTagIndex(): Promise<TagIndex> {
+    const response = await fetch(tagsBinaryUrl)
+    if (!response.ok) throw new Error(`Tag index load failed: ${response.status}`)
+
+    const buffer = await response.arrayBuffer()
+    if (buffer.byteLength < 16) throw new Error('Tag index is truncated')
+
+    const decoder = new TextDecoder()
+    const magic = decoder.decode(new Uint8Array(buffer, 0, 8))
+    if (magic !== BINARY_MAGIC) throw new Error('Unsupported tag index format')
+
+    const view = new DataView(buffer)
+    const count = view.getUint32(8, true)
+    const labelBytesLength = view.getUint32(12, true)
+    const countsOffset = 16
+    const typesOffset = countsOffset + count * 4
+    const labelsOffset = typesOffset + count
+    if (labelsOffset + labelBytesLength !== buffer.byteLength) throw new Error('Invalid tag index size')
+
+    const counts = new Uint32Array(count)
+    for (let index = 0; index < count; index++) {
+        counts[index] = view.getUint32(countsOffset + index * 4, true)
+    }
+
+    const types = new Uint8Array(count)
+    types.set(new Uint8Array(buffer, typesOffset, count))
+
+    const labelsText = decoder.decode(new Uint8Array(buffer, labelsOffset, labelBytesLength))
+    const labels = labelsText.split('\n')
+    if (labels.length !== count) throw new Error('Invalid tag label count')
+
+    const buckets: Record<string, number[]> = {}
+    const exactTags = new Map<string, number>()
+    for (let index = 0; index < labels.length; index++) {
+        const normalized = labels[index].toLowerCase()
+        const first = normalized[0] || '_'
+        ;(buckets[first] ||= []).push(index)
+        if (!exactTags.has(normalized)) exactTags.set(normalized, index)
+    }
+
+    const prefixIndex: Record<string, Uint32Array> = {}
+    for (const [key, indexes] of Object.entries(buckets)) {
+        prefixIndex[key] = Uint32Array.from(indexes)
+    }
+
+    return { labels, counts, types, prefixIndex, exactTags }
 }
 
-const scope = self as unknown as DedicatedWorkerGlobalScope
+function getTagIndex(): Promise<TagIndex> {
+    tagIndexPromise ||= loadTagIndex()
+    return tagIndexPromise
+}
 
-function matchSingleTag(tag: string): TagMatchResult {
+function toTag(index: TagIndex, tagIndex: number): Tag {
+    const label = index.labels[tagIndex]
+    return {
+        label,
+        value: label,
+        count: index.counts[tagIndex],
+        type: TYPE_NAMES[index.types[tagIndex]] || 'general',
+    }
+}
+
+function matchSingleTag(index: TagIndex, tag: string): TagMatchResult {
     const normalized = tag.trim().toLowerCase().replace(/_/g, ' ')
     if (!normalized) return { original: tag, matched: null, alternatives: [], status: 'unmatched' }
 
-    const exact = exactTags.get(normalized)
-    if (exact) return { original: tag, matched: exact, alternatives: [], status: 'matched' }
+    const exactIndex = index.exactTags.get(normalized)
+    if (exactIndex !== undefined) {
+        return { original: tag, matched: toTag(index, exactIndex), alternatives: [], status: 'matched' }
+    }
 
     const synonym = synonyms[normalized]
     if (synonym && !synonym.includes(',')) {
-        const synonymMatch = exactTags.get(synonym.toLowerCase())
-        if (synonymMatch) return { original: tag, matched: synonymMatch, alternatives: [], status: 'matched' }
+        const synonymIndex = index.exactTags.get(synonym.toLowerCase())
+        if (synonymIndex !== undefined) {
+            return { original: tag, matched: toTag(index, synonymIndex), alternatives: [], status: 'matched' }
+        }
     }
 
-    const alternatives = (prefixIndex[normalized[0] || '_'] || [])
-        .filter(index => lowerLabels[index].startsWith(normalized))
-        .map(index => tags[index])
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5)
-    if (alternatives.length) return { original: tag, matched: null, alternatives, status: 'fuzzy' }
+    const alternatives: Tag[] = []
+    for (const tagIndex of index.prefixIndex[normalized[0] || '_'] || EMPTY_INDEXES) {
+        if (index.labels[tagIndex].toLowerCase().startsWith(normalized)) alternatives.push(toTag(index, tagIndex))
+    }
+    alternatives.sort((a, b) => b.count - a.count)
+    if (alternatives.length) {
+        return { original: tag, matched: null, alternatives: alternatives.slice(0, 5), status: 'fuzzy' }
+    }
 
-    fuse ||= new Fuse(tags, {
-        keys: ['label'],
+    fuse ||= new Fuse(index.labels, {
         threshold: 0.3,
         distance: 50,
         includeScore: true,
         minMatchCharLength: 2,
     })
-    const fuzzy = fuse.search(normalized, { limit: 5 }).map(result => result.item).sort((a, b) => b.count - a.count)
+    const fuzzy = fuse.search(normalized, { limit: 5 })
+        .map(result => toTag(index, result.refIndex))
+        .sort((a, b) => b.count - a.count)
     return fuzzy.length
         ? { original: tag, matched: null, alternatives: fuzzy, status: 'fuzzy' }
         : { original: tag, matched: null, alternatives: [], status: 'unmatched' }
 }
 
-scope.onmessage = (event: MessageEvent<SearchRequest | MatchRequest>) => {
-    if (event.data.kind === 'match') {
+const scope = self as unknown as DedicatedWorkerGlobalScope
+
+async function handleMessage(data: SearchRequest | MatchRequest): Promise<void> {
+    const index = await getTagIndex()
+
+    if (data.kind === 'match') {
         const results: TagMatchResult[] = []
-        for (const original of event.data.tags) {
+        for (const original of data.tags) {
             const normalized = original.trim().toLowerCase()
             const synonym = synonyms[normalized]
             const expanded = synonym
                 ? (synonym.includes(',') ? synonym.split(',').map(tag => tag.trim()) : [synonym])
                 : [normalized]
-            for (const tag of expanded) results.push(matchSingleTag(tag))
+            for (const tag of expanded) results.push(matchSingleTag(index, tag))
         }
-        scope.postMessage({ id: event.data.id, kind: 'match', results })
+        scope.postMessage({ id: data.id, kind: 'match', results })
         return
     }
 
-    const { id, query, limit } = event.data
+    const query = data.query.toLowerCase()
     const matches: Tag[] = []
     const matchedIndexes = new Set<number>()
 
-    for (const index of prefixIndex[query[0] || '_'] || []) {
-        if (matches.length >= limit) break
-        if (lowerLabels[index].startsWith(query)) {
-            matches.push(tags[index])
-            matchedIndexes.add(index)
+    for (const tagIndex of index.prefixIndex[query[0] || '_'] || EMPTY_INDEXES) {
+        if (matches.length >= data.limit) break
+        if (index.labels[tagIndex].toLowerCase().startsWith(query)) {
+            matches.push(toTag(index, tagIndex))
+            matchedIndexes.add(tagIndex)
         }
     }
 
-    if (matches.length < limit) {
-        for (let index = 0; index < lowerLabels.length && matches.length < limit; index++) {
-            if (!matchedIndexes.has(index) && lowerLabels[index].includes(query)) matches.push(tags[index])
+    if (matches.length < data.limit) {
+        for (let tagIndex = 0; tagIndex < index.labels.length && matches.length < data.limit; tagIndex++) {
+            if (!matchedIndexes.has(tagIndex) && index.labels[tagIndex].toLowerCase().includes(query)) {
+                matches.push(toTag(index, tagIndex))
+            }
         }
     }
 
-    scope.postMessage({ id, kind: 'search', matches })
+    scope.postMessage({ id: data.id, kind: 'search', matches })
+}
+
+scope.onmessage = (event: MessageEvent<SearchRequest | MatchRequest>) => {
+    handleMessage(event.data).catch(error => {
+        scope.postMessage({
+            id: event.data.id,
+            kind: event.data.kind,
+            error: error instanceof Error ? error.message : String(error),
+        })
+    })
 }
 
 export {}
