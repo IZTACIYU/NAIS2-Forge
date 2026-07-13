@@ -254,7 +254,7 @@ export function PromptPanel() {
     }, [isConflict, isSceneMode, sceneIsGenerating, sceneIsCancelling, cancelSceneGeneration, startNewGenerationSession, isGenerating, cancelGeneration, generate])
 
     return (
-        <div className="flex-1 flex flex-col h-full overflow-hidden p-2">
+        <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden p-2">
             {/* Source Image Panel (I2I/Inpaint Mode) */}
             <SourceImagePanel />
 
@@ -410,18 +410,18 @@ export function PromptPanel() {
             </div>
 
             {/* Quick Actions & Parameters Button */}
-            <div className="flex gap-2 mb-3">
+            <div className="flex min-w-0 gap-2 mb-3">
                 <Button
                     variant={imageRefDialogOpen ? "default" : "outline"}
                     size="sm"
-                    className="flex-1 text-xs rounded-xl h-9 relative"
+                    className="min-w-0 flex-1 overflow-hidden px-2 text-xs rounded-xl h-9 relative"
                     onClick={() => {
                         setCharacterPanelOpen(false)
                         setImageRefDialogOpen(prev => !prev)
                     }}
                 >
-                    <ImagePlus className="h-3.5 w-3.5 mr-1.5" />
-                    {t('prompt.imageReference')}
+                    <ImagePlus className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                    <span className="min-w-0 truncate">{t('prompt.imageReference')}</span>
                     {activeReferenceCount > 0 && (
                         <div className={cn(
                             "absolute -top-1 -right-1 text-[9px] font-bold rounded-md px-1 py-0.5 min-w-[16px] h-[16px] flex items-center justify-center shadow-sm",
@@ -436,7 +436,7 @@ export function PromptPanel() {
                     variant={characterPanelOpen ? "default" : "outline"}
                     size="sm"
                     className={cn(
-                        "flex-1 text-xs rounded-xl h-9 relative",
+                        "min-w-0 flex-1 overflow-hidden px-2 text-xs rounded-xl h-9 relative",
                         characterPanelOpen && "bg-primary text-primary-foreground"
                     )}
                     onClick={() => {
@@ -444,8 +444,8 @@ export function PromptPanel() {
                         setCharacterPanelOpen(prev => !prev)
                     }}
                 >
-                    <Users className="h-3.5 w-3.5 mr-1.5" />
-                    {t('prompt.character', '캐릭터')}
+                    <Users className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                    <span className="min-w-0 truncate">{t('prompt.character', '캐릭터')}</span>
                     {characterCount > 0 && (
                         <div className={cn(
                             "absolute -top-1 -right-1 text-[9px] font-bold rounded-md px-1 py-0.5 min-w-[16px] h-[16px] flex items-center justify-center shadow-sm",
@@ -461,11 +461,11 @@ export function PromptPanel() {
                 <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1 text-xs rounded-xl h-9"
+                    className="min-w-0 flex-1 overflow-hidden px-2 text-xs rounded-xl h-9"
                     onClick={() => window.dispatchEvent(new Event(SHORTCUT_EVENTS.OPEN_FRAGMENT_DIALOG))}
                 >
-                    <Puzzle className="h-3.5 w-3.5 mr-1.5" />
-                    {t('prompt.fragment')}
+                    <Puzzle className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                    <span className="min-w-0 truncate">{t('prompt.fragment')}</span>
                 </Button>
                 {/* AI Prompt Generator Button */}
                 <Tip content={t('promptGenerator.desc', 'Gemini AI로 프롬프트 생성')}>

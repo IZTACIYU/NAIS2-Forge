@@ -820,22 +820,22 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
             {/* 패널 - absolute로 프롬프트 영역 위에 오버레이 */}
             <div
                 className={cn(
-                    "absolute inset-0 z-10 flex flex-col bg-muted/95 backdrop-blur-sm rounded-xl border border-border/50",
+                    "absolute inset-0 z-10 min-w-0 overflow-hidden flex flex-col bg-muted/95 backdrop-blur-sm rounded-xl border border-border/50",
                     "animate-in slide-in-from-bottom-4 duration-200"
                 )}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b border-border/30 shrink-0">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                        <Users className="h-4 w-4 text-primary" />
-                        <span>{t('characterPanel.title', '캐릭터 프롬프트')}</span>
+                <div className="flex min-w-0 items-center justify-between gap-1 px-3 py-2 bg-muted/50 border-b border-border/30 shrink-0">
+                    <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium">
+                        <Users className="h-4 w-4 shrink-0 text-primary" />
+                        <span className="min-w-0 truncate">{t('characterPanel.title', '캐릭터 프롬프트')}</span>
                         {enabledCharacterCount > 0 && (
-                            <span className="text-xs text-muted-foreground">
+                            <span className="shrink-0 text-xs text-muted-foreground">
                                 ({enabledCharacterCount})
                             </span>
                         )}
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                         {/* 위치 설정 다이얼로그 (활성화 시에만) - 왼쪽에 배치 */}
                         {positionEnabled && (
                             <Tip content={t('characterPanel.positionTitle', '이미지 내 캐릭터 위치 지정')}>

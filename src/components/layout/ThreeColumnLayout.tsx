@@ -167,22 +167,22 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
             <div className="flex flex-1 p-3 gap-3 overflow-hidden">
                 {/* Left Panel - Prompt Input (Fixed, Rounded Box) */}
                 <aside className={cn(
-                    "relative flex-shrink-0 flex flex-col bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg",
+                    "relative min-w-0 flex-shrink-0 flex flex-col bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg",
                     !leftSidebarVisible && "hidden"
                 )} style={{ width: displayLeftWidth }}>
                     {/* Header - Preset Title & Anlas Display */}
-                    <div className="h-14 flex items-center justify-between px-4">
+                    <div className="h-14 min-w-0 flex items-center justify-between gap-2 px-4">
                         {/* Preset Title + Dialog Trigger */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
                             <PresetDropdown open={presetDialogOpen} onOpenChange={setPresetDialogOpen} />
-                            <h2 className="text-base font-semibold truncate max-w-[180px]">
+                            <h2 className="min-w-0 flex-1 truncate text-base font-semibold max-w-[180px]">
                                 {activePreset?.name || t('preset.default', '기본')}
                             </h2>
                         </div>
 
                         {/* Anlas Display */}
                         {isVerified && anlas ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex shrink-0 items-center gap-2">
                                 <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 rounded-full border border-amber-500/30">
                                     <Coins className="h-4 w-4 text-amber-500" />
                                     <span className="text-sm font-semibold text-amber-500">
@@ -204,9 +204,9 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                                 )}
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-full">
+                            <div className="flex min-w-0 shrink items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-full">
                                 <Coins className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm text-muted-foreground">
+                                <span className="min-w-0 truncate text-sm text-muted-foreground">
                                     {t('settingsPage.api.token')}
                                 </span>
                             </div>
