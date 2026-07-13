@@ -84,7 +84,7 @@ export const LibraryItem = memo(function LibraryItem({ item, className, isOverla
         <div
             className={cn(
                 "relative group aspect-[2/3] rounded-xl overflow-hidden bg-muted/30 border border-border/50 shadow-sm transition-all hover:ring-2 hover:ring-primary/50",
-                isOverlay && "ring-2 ring-primary shadow-xl cursor-grabbing z-50",
+                isOverlay && "pointer-events-none opacity-50 ring-2 ring-primary shadow-xl cursor-grabbing z-50",
                 isEditMode && isSelected && "ring-2 ring-orange-500",
                 isDropTarget && "ring-2 ring-purple-400 bg-purple-500/15",
                 className
