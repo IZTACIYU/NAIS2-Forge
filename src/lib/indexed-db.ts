@@ -1,4 +1,4 @@
-import { StateStorage } from 'zustand/middleware'
+import type { PersistStorage, StateStorage, StorageValue } from 'zustand/middleware'
 // Since I cannot install packages, I will implement a minimal wrapper similar to idb-keyval logic
 // or I can implement a raw IndexedDB wrapper.
 // Given constraints, raw IndexedDB is safer as strict dependency rules apply.
@@ -114,9 +114,8 @@ const OPERATION_TIMEOUT_MS = 5000 // 개별 작업 타임아웃
 
 // ============================================
 // Debounced Write System
-// Zustand persist calls setItem on EVERY state change.
-// Without debouncing, typing a single character triggers full JSON.stringify + IndexedDB write.
-// With thousands of scene images, each write serializes megabytes of data.
+// String writes are debounced for every store. Large stores can additionally use
+// createDeferredJSONStorage so JSON serialization itself is also deferred.
 // ============================================
 const WRITE_DEBOUNCE_MS: Record<string, number> = {
     'nais2-forge-scenes': 3000,           // Largest store (scene images), debounce aggressively
@@ -132,6 +131,79 @@ const MAX_WRITE_INTERVAL = 10000   // Force write at least every 10 seconds even
 const pendingWriteTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const pendingWriteValues = new Map<string, string>()
 const lastWriteTime = new Map<string, number>()
+
+interface DeferredJSONWrite {
+    value: StorageValue<unknown>
+    timer: ReturnType<typeof setTimeout> | null
+    queuedAt: number
+}
+
+const deferredJSONWrites = new Map<string, DeferredJSONWrite>()
+
+function cancelDeferredJSONWrite(name: string): void {
+    const pending = deferredJSONWrites.get(name)
+    if (pending?.timer) clearTimeout(pending.timer)
+    deferredJSONWrites.delete(name)
+}
+
+async function flushDeferredJSONWrite(name: string): Promise<void> {
+    const pending = deferredJSONWrites.get(name)
+    if (!pending) return
+
+    if (pending.timer) clearTimeout(pending.timer)
+    deferredJSONWrites.delete(name)
+    await indexedDBStorage.setItem(name, JSON.stringify(pending.value))
+}
+
+async function flushAllDeferredJSONWrites(): Promise<void> {
+    const keys = [...deferredJSONWrites.keys()]
+    for (const key of keys) await flushDeferredJSONWrite(key)
+}
+
+export function createDeferredJSONStorage<S>(debounceMs = 3000, maxWaitMs = 10000): PersistStorage<S, Promise<void>> {
+    return {
+        getItem: async (name) => {
+            const pending = deferredJSONWrites.get(name)
+            if (pending) return pending.value as StorageValue<S>
+
+            const raw = await indexedDBStorage.getItem(name)
+            return raw ? JSON.parse(raw) as StorageValue<S> : null
+        },
+        setItem: async (name, value) => {
+            const now = Date.now()
+            const previous = deferredJSONWrites.get(name)
+            if (previous?.timer) clearTimeout(previous.timer)
+
+            const queuedAt = previous?.queuedAt ?? now
+            if (now - queuedAt >= maxWaitMs) {
+                deferredJSONWrites.set(name, {
+                    value: value as StorageValue<unknown>,
+                    timer: null,
+                    queuedAt,
+                })
+                await flushDeferredJSONWrite(name)
+                return
+            }
+
+            const waitMs = Math.min(debounceMs, maxWaitMs - (now - queuedAt))
+            const timer = setTimeout(() => {
+                flushDeferredJSONWrite(name).catch(error => {
+                    console.error(`[IndexedDB] Deferred JSON write failed for ${name}:`, error)
+                })
+            }, waitMs)
+
+            deferredJSONWrites.set(name, {
+                value: value as StorageValue<unknown>,
+                timer,
+                queuedAt,
+            })
+        },
+        removeItem: async (name) => {
+            cancelDeferredJSONWrite(name)
+            await indexedDBStorage.removeItem(name)
+        },
+    }
+}
 
 /** Write directly to IndexedDB (no debounce) */
 async function rawSetItem(name: string, value: string): Promise<void> {
@@ -199,7 +271,8 @@ async function flushKey(name: string): Promise<void> {
 
 /** Flush ALL pending writes (called on app close) */
 export async function flushAllPendingWrites(): Promise<void> {
-    const keys = [...pendingWriteTimers.keys()]
+    await flushAllDeferredJSONWrites()
+    const keys = [...new Set([...pendingWriteTimers.keys(), ...pendingWriteValues.keys()])]
     for (const key of keys) {
         await flushKey(key)
     }
@@ -207,6 +280,7 @@ export async function flushAllPendingWrites(): Promise<void> {
 
 /** Write and verify data immediately before relaunching the app. */
 export async function setStorageItemImmediately(name: string, value: string): Promise<void> {
+    cancelDeferredJSONWrite(name)
     const timer = pendingWriteTimers.get(name)
     if (timer) clearTimeout(timer)
     pendingWriteTimers.delete(name)
@@ -221,20 +295,26 @@ export async function setStorageItemImmediately(name: string, value: string): Pr
 // Flush pending writes on app close
 if (typeof window !== 'undefined') {
     window.addEventListener('beforeunload', () => {
-        for (const [name, timer] of pendingWriteTimers.entries()) {
-            clearTimeout(timer)
-            const val = pendingWriteValues.get(name)
-            if (val !== undefined) {
-                rawSetItem(name, val).catch(() => {})
-            }
+        for (const [name, pending] of deferredJSONWrites.entries()) {
+            if (pending.timer) clearTimeout(pending.timer)
+            pendingWriteValues.set(name, JSON.stringify(pending.value))
         }
+        deferredJSONWrites.clear()
+
+        for (const timer of pendingWriteTimers.values()) clearTimeout(timer)
         pendingWriteTimers.clear()
+        for (const [name, value] of pendingWriteValues.entries()) {
+            rawSetItem(name, value).catch(() => {})
+        }
         pendingWriteValues.clear()
     })
 }
 
 export const indexedDBStorage: StateStorage = {
     getItem: async (name: string): Promise<string | null> => {
+        const pendingJSON = deferredJSONWrites.get(name)
+        if (pendingJSON) return JSON.stringify(pendingJSON.value)
+
         // Return pending value if exists (debounced write hasn't flushed yet)
         const pendingVal = pendingWriteValues.get(name)
         if (pendingVal !== undefined) return pendingVal
@@ -339,6 +419,12 @@ export const indexedDBStorage: StateStorage = {
     },
     
     removeItem: async (name: string): Promise<void> => {
+        cancelDeferredJSONWrite(name)
+        const pendingTimer = pendingWriteTimers.get(name)
+        if (pendingTimer) clearTimeout(pendingTimer)
+        pendingWriteTimers.delete(name)
+        pendingWriteValues.delete(name)
+
         if (dbInitFailed) {
             console.warn(`[IndexedDB] removeItem(${name}): DB init failed, skipping`)
             return

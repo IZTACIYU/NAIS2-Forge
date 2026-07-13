@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
-import { indexedDBStorage } from '@/lib/indexed-db'
+import { persist } from 'zustand/middleware'
+import { createDeferredJSONStorage } from '@/lib/indexed-db'
 import { rename, exists} from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { useSettingsStore } from './settings-store'
@@ -177,6 +177,17 @@ interface SceneState {
     scrollPosition: number
     setScrollPosition: (position: number) => void
 }
+
+type PersistedSceneState = Pick<SceneState,
+    | 'presets'
+    | 'activePresetId'
+    | 'characterSequenceEnabled'
+    | 'characterSequenceEntries'
+    | 'sceneCharacterAdditionsEnabled'
+    | 'sceneCharacterAdditions'
+    | 'gridColumns'
+    | 'thumbnailLayout'
+>
 
 const DEFAULT_PRESET_ID = 'scene-default'
 
@@ -1193,8 +1204,8 @@ export const useSceneStore = create<SceneState>()(
         }),
         {
             name: 'nais2-forge-scenes',
-            storage: createJSONStorage(() => indexedDBStorage),
-            partialize: (state) => {
+            storage: createDeferredJSONStorage<PersistedSceneState>(3000),
+            partialize: (state): PersistedSceneState => {
                 // Images are stored as file paths, not base64 - storage is minimal per entry
                 const MAX_IMAGES_PERSIST = 2000
 
