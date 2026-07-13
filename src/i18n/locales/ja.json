@@ -830,6 +830,7 @@
     "emptyFolder": "空のフォルダ",
     "ungrouped": "未分類",
     "toggleAll": "フォルダ内全体有効/無効化",
+    "disableAll": "すべてのキャラクターを無効化",
     "saveAsPreset": "プリセットとして保存",
     "savedAsPreset": "プリセットとして保存しました",
     "moveToFolder": "フォルダに移動",

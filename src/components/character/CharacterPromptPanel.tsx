@@ -145,6 +145,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         removeCharacter,
         setPosition,
         toggleEnabled,
+        disableAll,
         positionEnabled,
         setPositionEnabled,
         addGroup,
@@ -389,6 +390,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
             chars: getVisibleStackCharacters(sourceChars)
         }
     })
+    const enabledCharacterCount = characters.reduce((count, character) => count + (character.enabled ? 1 : 0), 0)
 
     if (!open) return null
 
@@ -406,9 +408,9 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                     <div className="flex items-center gap-2 text-sm font-medium">
                         <Users className="h-4 w-4 text-primary" />
                         <span>{t('characterPanel.title', '캐릭터 프롬프트')}</span>
-                        {characters.filter(c => c.enabled).length > 0 && (
+                        {enabledCharacterCount > 0 && (
                             <span className="text-xs text-muted-foreground">
-                                ({characters.filter(c => c.enabled).length})
+                                ({enabledCharacterCount})
                             </span>
                         )}
                     </div>
@@ -426,6 +428,17 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                 </Button>
                             </Tip>
                         )}
+                        <Tip content={t('characterPanel.disableAll', 'Disable all characters')}>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={disableAll}
+                                disabled={enabledCharacterCount === 0}
+                            >
+                                <EyeOff className="h-3.5 w-3.5" />
+                            </Button>
+                        </Tip>
                         {/* 위치 활성화 토글 */}
                         <Tip content={t('characterPanel.positionDesc', '캐릭터 위치 기능 활성화')}>
                             <Button

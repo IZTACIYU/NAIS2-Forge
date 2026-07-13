@@ -879,6 +879,7 @@
     "emptyFolder": "Empty folder",
     "ungrouped": "Ungrouped",
     "toggleAll": "Enable/disable all in folder",
+    "disableAll": "Disable all characters",
     "saveAsPreset": "Save as Preset",
     "savedAsPreset": "Saved as Preset",
     "moveToFolder": "Move to Folder",

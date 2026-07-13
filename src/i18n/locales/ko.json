@@ -975,6 +975,7 @@
     "emptyFolder": "빈 폴더",
     "ungrouped": "미분류",
     "toggleAll": "폴더 내 전체 활성화/비활성화",
+    "disableAll": "모든 캐릭터 끄기",
     "saveAsPreset": "프리셋으로 저장",
     "savedAsPreset": "프리셋으로 저장됨",
     "moveToFolder": "폴더로 이동",

@@ -21,6 +21,7 @@ interface CharacterPromptState {
     removeCharacter: (id: string) => void
     setPosition: (id: string, x: number, y: number) => void
     toggleEnabled: (id: string) => void
+    disableAll: () => void
     clearAll: () => void
 }
 
@@ -87,6 +88,7 @@ interface CharacterPromptState {
     removeCharacter: (id: string) => void
     setPosition: (id: string, x: number, y: number) => void
     toggleEnabled: (id: string) => void
+    disableAll: () => void
     clearAll: () => void
     setPositionEnabled: (enabled: boolean) => void
     reorderCharacters: (oldIndex: number, newIndex: number) => void
@@ -167,6 +169,17 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
                         char.id === id ? { ...char, enabled: !char.enabled } : char
                     )
                 }))
+            },
+
+            disableAll: () => {
+                set(state => {
+                    if (!state.characters.some(char => char.enabled)) return state
+                    return {
+                        characters: state.characters.map(char =>
+                            char.enabled ? { ...char, enabled: false } : char
+                        )
+                    }
+                })
             },
 
             clearAll: () => set({ characters: [] }),
@@ -328,11 +341,21 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
             },
 
             moveCharacterToGroup: (characterId, groupId) => {
-                set(state => ({
-                    characters: state.characters.map(c =>
-                        c.id === characterId ? { ...c, groupId } : c
-                    )
-                }))
+                set(state => {
+                    const target = state.characters.find(character => character.id === characterId)
+                    if (!target) return state
+
+                    const stackHash = target.name?.match(/\s-\s([a-z0-9]{6})\s-\s\d+$/i)?.[1]
+                    return {
+                        characters: state.characters.map(character => {
+                            const characterHash = character.name?.match(/\s-\s([a-z0-9]{6})\s-\s\d+$/i)?.[1]
+                            const belongsToStack = Boolean(stackHash && characterHash === stackHash)
+                            return character.id === characterId || belongsToStack
+                                ? { ...character, groupId }
+                                : character
+                        })
+                    }
+                })
             },
 
             saveCharacterAsPreset: (characterId) => {
