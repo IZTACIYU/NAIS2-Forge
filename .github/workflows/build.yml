@@ -67,3 +67,4 @@ jobs:
           releaseBody: 'See the release notes and assets for this version.'
           releaseDraft: false
           prerelease: false
+          args: '--bundles nsis'
