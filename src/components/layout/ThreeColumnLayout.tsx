@@ -174,10 +174,10 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                     <div className="h-14 flex items-center justify-between px-4">
                         {/* Preset Title + Dialog Trigger */}
                         <div className="flex items-center gap-2">
+                            <PresetDropdown open={presetDialogOpen} onOpenChange={setPresetDialogOpen} />
                             <h2 className="text-base font-semibold truncate max-w-[180px]">
                                 {activePreset?.name || t('preset.default', '기본')}
                             </h2>
-                            <PresetDropdown open={presetDialogOpen} onOpenChange={setPresetDialogOpen} />
                         </div>
 
                         {/* Anlas Display */}

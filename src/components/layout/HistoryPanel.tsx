@@ -9,7 +9,7 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { readDir, readFile, remove, writeFile, mkdir, exists, BaseDirectory } from '@tauri-apps/plugin-fs'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { pictureDir, join } from '@tauri-apps/api/path'
-import { revealItemInDir } from '@tauri-apps/plugin-opener'
+import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener'
 import { save } from '@tauri-apps/plugin-dialog'
 import { MetadataDialog } from '@/components/metadata/MetadataDialog'
 import { ImageReferenceDialog } from '@/components/metadata/ImageReferenceDialog'
@@ -983,6 +983,19 @@ export function HistoryPanel() {
         }
     }
 
+    const handleOpenSaveFolder = async () => {
+        try {
+            const configuredPath = savePath || 'NAIS_Output'
+            const folderPath = useAbsolutePath
+                ? configuredPath
+                : await join(await pictureDir(), configuredPath)
+            if (!(await exists(folderPath))) await mkdir(folderPath, { recursive: true })
+            await openPath(folderPath)
+        } catch (error) {
+            console.error('Failed to open save folder:', error)
+        }
+    }
+
     // Open folder containing saved images
     const handleOpenFolder = async (image: SavedImage) => {
         if (image.isTemporary) return
@@ -1117,10 +1130,18 @@ export function HistoryPanel() {
         <div className="flex flex-col h-full">
             {/* Header */}
             <div className="h-12 flex items-center justify-between px-4">
-                <span className="text-sm font-medium flex items-center gap-2">
-                    <FolderOpen className="h-4 w-4 text-amber-400" />
+                <div className="text-sm font-medium flex items-center gap-1">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        title={t('actions.openFolder', '폴더 열기')}
+                        onClick={handleOpenSaveFolder}
+                    >
+                        <FolderOpen className="h-4 w-4 text-amber-400" />
+                    </Button>
                     {t('history.title')}
-                </span>
+                </div>
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">
                         {t('history.count', { count: savedImages.length })}
