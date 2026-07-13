@@ -60,6 +60,34 @@ export interface CharacterGroup {
     name: string
     collapsed: boolean // 폴더 접기 상태
     colorIndex: number // 폴더 색상 인덱스 (FOLDER_COLORS)
+    parentId?: string // 상위 폴더 ID (없으면 최상위)
+}
+
+export function getCharacterGroupDescendantIds(groups: CharacterGroup[], groupId: string): Set<string> {
+    const result = new Set<string>()
+    const pending = [groupId]
+    while (pending.length > 0) {
+        const currentId = pending.pop()!
+        if (result.has(currentId)) continue
+        result.add(currentId)
+        for (const group of groups) {
+            if (group.parentId === currentId) pending.push(group.id)
+        }
+    }
+    return result
+}
+
+export function getCharacterGroupPath(groups: CharacterGroup[], groupId: string): string {
+    const groupById = new Map(groups.map(group => [group.id, group]))
+    const path: string[] = []
+    const visited = new Set<string>()
+    let current = groupById.get(groupId)
+    while (current && !visited.has(current.id)) {
+        visited.add(current.id)
+        path.unshift(current.name)
+        current = current.parentId ? groupById.get(current.parentId) : undefined
+    }
+    return path.join(' / ')
 }
 
 export interface CharacterPrompt {
@@ -101,9 +129,10 @@ interface CharacterPromptState {
     importFromStart: (presetId: string) => void // Add preset to stage
 
     // Groups (Folders)
-    addGroup: (name: string) => void
+    addGroup: (name: string, parentId?: string) => string
     updateGroup: (id: string, data: Partial<CharacterGroup>) => void
     deleteGroup: (id: string) => void
+    moveGroup: (id: string, parentId?: string) => void
     toggleGroupCollapsed: (id: string) => void
     toggleGroupEnabled: (groupId: string) => void // 그룹 내 모든 캐릭터 활성화/비활성화
     moveCharacterToGroup: (characterId: string, groupId: string | undefined) => void
@@ -286,11 +315,12 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
             },
 
             // Group Actions
-            addGroup: (name) => {
+            addGroup: (name, parentId) => {
                 const newId = Date.now().toString() + Math.random().toString(36).substr(2, 9)
                 set(state => ({
-                    groups: [...state.groups, { id: newId, name, collapsed: false, colorIndex: 0 }]
+                    groups: [...state.groups, { id: newId, name, collapsed: false, colorIndex: 0, parentId }]
                 }))
+                return newId
             },
 
             updateGroup: (id, data) => {
@@ -302,16 +332,42 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
             },
 
             deleteGroup: (id) => {
-                set(state => ({
-                    // Remove group and unassign characters/presets from the group
-                    groups: state.groups.filter(g => g.id !== id),
+                set(state => {
+                    const parentId = state.groups.find(group => group.id === id)?.parentId
+                    return {
+                    // Preserve contents by promoting them to the deleted folder's parent.
                     characters: state.characters.map(c =>
-                        c.groupId === id ? { ...c, groupId: undefined } : c
+                        c.groupId === id
+                            ? { ...c, groupId: parentId }
+                            : c
                     ),
                     presets: state.presets.map(p =>
-                        p.groupId === id ? { ...p, groupId: undefined } : p
-                    )
-                }))
+                        p.groupId === id
+                            ? { ...p, groupId: parentId }
+                            : p
+                    ),
+                    groups: state.groups
+                        .filter(g => g.id !== id)
+                        .map(g => g.parentId === id
+                            ? { ...g, parentId }
+                            : g
+                        ),
+                    }
+                })
+            },
+
+            moveGroup: (id, parentId) => {
+                set(state => {
+                    const group = state.groups.find(candidate => candidate.id === id)
+                    if (!group || group.parentId === parentId) return state
+                    if (parentId && !state.groups.some(candidate => candidate.id === parentId)) return state
+                    if (parentId && getCharacterGroupDescendantIds(state.groups, id).has(parentId)) return state
+                    return {
+                        groups: state.groups.map(candidate =>
+                            candidate.id === id ? { ...candidate, parentId } : candidate
+                        )
+                    }
+                })
             },
 
             toggleGroupCollapsed: (id) => {
@@ -327,13 +383,14 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
                 const { characters } = get()
                 
                 // 그룹 내 캐릭터들 중 하나라도 활성화되어 있으면 전부 비활성화, 아니면 전부 활성화
-                const groupCharacters = characters.filter(c => c.groupId === groupId)
+                const groupIds = getCharacterGroupDescendantIds(get().groups, groupId)
+                const groupCharacters = characters.filter(c => c.groupId && groupIds.has(c.groupId))
                 const allEnabled = groupCharacters.length > 0 && groupCharacters.every(c => c.enabled)
                 const newEnabled = !allEnabled
 
                 set(state => ({
                     characters: state.characters.map(c =>
-                        c.groupId === groupId
+                        c.groupId && groupIds.has(c.groupId)
                             ? { ...c, enabled: newEnabled }
                             : c
                     )

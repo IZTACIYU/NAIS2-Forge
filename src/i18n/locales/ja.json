@@ -837,6 +837,12 @@
     "moveToFolder": "フォルダに移動",
     "removeFromFolder": "フォルダから削除",
     "addFolder": "フォルダを追加",
+    "folders": "フォルダ",
+    "addSubfolder": "サブフォルダを追加",
+    "moveFolder": "フォルダを移動",
+    "moveToRoot": "最上位へ移動",
+    "changeFolderColor": "フォルダの色を変更",
+    "searchResults": "検索結果",
     "newFolderName": "新規フォルダ",
     "costume": "衣装",
     "costumePlaceholder": "衣装プロンプト..."

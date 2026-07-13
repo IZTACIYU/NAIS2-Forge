@@ -982,6 +982,12 @@
     "moveToFolder": "폴더로 이동",
     "removeFromFolder": "폴더에서 제거",
     "addFolder": "폴더 추가",
+    "folders": "폴더",
+    "addSubfolder": "하위 폴더 추가",
+    "moveFolder": "폴더 이동",
+    "moveToRoot": "최상위로 이동",
+    "changeFolderColor": "폴더 색상 변경",
+    "searchResults": "검색 결과",
     "newFolderName": "새폴더",
     "costume": "의상",
     "costumePlaceholder": "의상 프롬프트..."

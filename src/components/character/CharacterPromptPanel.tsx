@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, MouseEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     X,
@@ -20,6 +20,7 @@ import {
     FolderPlus,
     ChevronRight,
     Save,
+    Palette,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,7 +42,15 @@ import {
     ContextMenuSubContent,
     ContextMenuSeparator,
 } from '@/components/ui/context-menu'
-import { useCharacterPromptStore, CHARACTER_COLORS, CharacterPrompt, FOLDER_COLORS } from '@/stores/character-prompt-store'
+import {
+    useCharacterPromptStore,
+    CHARACTER_COLORS,
+    CharacterPrompt,
+    CharacterGroup,
+    FOLDER_COLORS,
+    getCharacterGroupDescendantIds,
+    getCharacterGroupPath,
+} from '@/stores/character-prompt-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { Tip } from '@/components/ui/tooltip'
@@ -68,7 +77,6 @@ import {
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 
 interface CharacterPromptPanelProps {
     open: boolean
@@ -157,6 +165,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         addGroup,
         updateGroup,
         deleteGroup,
+        moveGroup,
         toggleGroupCollapsed,
         toggleGroupEnabled,
         moveCharacterToGroup,
@@ -169,6 +178,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
     const [editingGroupName, setEditingGroupName] = useState('')
     const [activeId, setActiveId] = useState<string | null>(null)
+    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
     const expertCharacterPromptLayoutEnabled = useSettingsStore(state => state.expertCharacterPromptLayoutEnabled)
     const expertCharacterPromptVariantsEnabled = useSettingsStore(state => state.expertCharacterPromptVariantsEnabled)
 
@@ -236,7 +246,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     }, [open, characters.length])
 
     const handleAddCharacter = () => {
-        addCharacter()
+        addCharacter(selectedGroupId ? { groupId: selectedGroupId } : undefined)
         // 새 캐릭터 자동 확장
         setTimeout(() => {
             const newChar = useCharacterPromptStore.getState().characters.slice(-1)[0]
@@ -320,9 +330,22 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
 
     const handleFocusCharacter = useCallback((character: CharacterPrompt) => {
         setSearchQuery('')
+        setSelectedGroupId(character.groupId && groups.some(group => group.id === character.groupId)
+            ? character.groupId
+            : null
+        )
         if (character.groupId) {
-            const group = groups.find(item => item.id === character.groupId)
-            if (group?.collapsed) updateGroup(group.id, { collapsed: false })
+            const expandedIds = new Set<string>()
+            let current = groups.find(group => group.id === character.groupId)
+            while (current) {
+                expandedIds.add(current.id)
+                current = current.parentId ? groups.find(group => group.id === current?.parentId) : undefined
+            }
+            useCharacterPromptStore.setState(state => ({
+                groups: state.groups.map(group =>
+                    expandedIds.has(group.id) && group.collapsed ? { ...group, collapsed: false } : group
+                )
+            }))
         }
         setExpandedId(character.id)
 
@@ -331,9 +354,9 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                 .find(element => element.dataset.characterPromptId === character.id)
             card?.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }))
-    }, [groups, updateGroup])
+    }, [groups])
 
-    const handleCreateGroup = () => {
+    const handleCreateGroup = (parentId: string | undefined = selectedGroupId || undefined) => {
         const baseName = t('characterPanel.newFolderName', '새폴더')
         const existingNames = groups.map(g => g.name)
         
@@ -345,7 +368,11 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
             counter++
         }
         
-        addGroup(newName)
+        const newGroupId = addGroup(newName, parentId)
+        if (parentId) updateGroup(parentId, { collapsed: false })
+        setSelectedGroupId(newGroupId)
+        setEditingGroupId(newGroupId)
+        setEditingGroupName(newName)
     }
 
     const handleSaveGroupName = (groupId: string) => {
@@ -356,13 +383,18 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         setEditingGroupName('')
     }
 
-    const handleCycleFolderColor = (e: React.MouseEvent, groupId: string) => {
-        e.preventDefault()
+    const handleCycleFolderColor = (groupId: string) => {
         const group = groups.find(g => g.id === groupId)
         if (!group) return
         const currentIndex = group.colorIndex ?? 0
         const nextIndex = (currentIndex + 1) % FOLDER_COLORS.length
         updateGroup(groupId, { colorIndex: nextIndex })
+    }
+
+    const handleDeleteGroup = (groupId: string) => {
+        const parentId = groups.find(group => group.id === groupId)?.parentId || null
+        deleteGroup(groupId)
+        if (selectedGroupId === groupId) setSelectedGroupId(parentId)
     }
 
     const handleSaveAsPreset = (char: CharacterPrompt) => {
@@ -373,18 +405,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         })
     }
 
-    // 검색 필터링
-    const matchesSearch = (char: CharacterPrompt) => {
-        if (!searchQuery.trim()) return true
-        const query = searchQuery.toLowerCase()
-        const name = char.name?.toLowerCase() || ''
-        const promptPreview = char.prompt?.split(',')[0]?.trim().toLowerCase() || ''
-        return name.includes(query) || promptPreview.includes(query)
-    }
-
-    // 폴더별로 그룹화
-
-    const getVisibleStackCharacters = (list: CharacterPrompt[]) => {
+    const getVisibleStackCharacters = useCallback((list: CharacterPrompt[]) => {
         if (!expertCharacterPromptVariantsEnabled) return list
         const stacks = new Map<string, CharacterPrompt[]>()
         for (const char of list) {
@@ -397,24 +418,230 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
             const sorted = stack.sort((a, b) => getVariantIndex(a) - getVariantIndex(b))
             return sorted.find(c => c.enabled) || sorted[0]
         })
+    }, [expertCharacterPromptVariantsEnabled])
+
+    const normalizedSearch = searchQuery.trim().toLowerCase()
+    const groupById = useMemo(() => new Map(groups.map(group => [group.id, group])), [groups])
+    const groupIds = useMemo(() => new Set(groupById.keys()), [groupById])
+    const characterIndexById = useMemo(
+        () => new Map(characters.map((character, index) => [character.id, index])),
+        [characters]
+    )
+    const groupChildren = useMemo(() => {
+        const children = new Map<string, CharacterGroup[]>()
+        for (const group of groups) {
+            const parentId = group.parentId && groupIds.has(group.parentId) ? group.parentId : 'root'
+            const current = children.get(parentId) || []
+            current.push(group)
+            children.set(parentId, current)
+        }
+        return children
+    }, [groupIds, groups])
+    const selectedGroup = selectedGroupId ? groupById.get(selectedGroupId) : undefined
+
+    useEffect(() => {
+        if (selectedGroupId && !groupIds.has(selectedGroupId)) setSelectedGroupId(null)
+    }, [groupIds, selectedGroupId])
+
+    const visibleCharacters = useMemo(() => {
+        const source = characters.filter(character => {
+            if (normalizedSearch) {
+                const name = character.name?.toLowerCase() || ''
+                const promptPreview = character.prompt?.split(',')[0]?.trim().toLowerCase() || ''
+                return name.includes(normalizedSearch) || promptPreview.includes(normalizedSearch)
+            }
+            return selectedGroupId
+                ? character.groupId === selectedGroupId
+                : !character.groupId || !groupIds.has(character.groupId)
+        })
+        return getVisibleStackCharacters(source)
+    }, [characters, getVisibleStackCharacters, groupIds, normalizedSearch, selectedGroupId])
+
+    const groupCharacterCounts = useMemo(() => {
+        const directCounts = new Map<string, number>()
+        for (const character of getVisibleStackCharacters(characters)) {
+            if (character.groupId && groupIds.has(character.groupId)) {
+                directCounts.set(character.groupId, (directCounts.get(character.groupId) || 0) + 1)
+            }
+        }
+        const totals = new Map<string, number>()
+        const countGroup = (groupId: string, visited: Set<string>): number => {
+            if (totals.has(groupId)) return totals.get(groupId)!
+            if (visited.has(groupId)) return 0
+            const nextVisited = new Set(visited).add(groupId)
+            const total = (directCounts.get(groupId) || 0)
+                + (groupChildren.get(groupId) || []).reduce(
+                    (sum, child) => sum + countGroup(child.id, nextVisited),
+                    0
+                )
+            totals.set(groupId, total)
+            return total
+        }
+        for (const group of groups) countGroup(group.id, new Set())
+        return totals
+    }, [characters, getVisibleStackCharacters, groupChildren, groupIds, groups])
+
+    const ungroupedCount = useMemo(() => getVisibleStackCharacters(
+        characters.filter(character => !character.groupId || !groupIds.has(character.groupId))
+    ).length, [characters, getVisibleStackCharacters, groupIds])
+    const enabledCharacters = useMemo(
+        () => characters.filter(character => character.enabled),
+        [characters]
+    )
+    const enabledCharacterCount = enabledCharacters.length
+
+    const renderCharacterCard = (char: CharacterPrompt) => {
+        const index = characterIndexById.get(char.id) ?? 0
+        return (
+            <SortableCharacterCard
+                key={char.id}
+                character={char}
+                index={index}
+                isExpanded={expandedId === char.id}
+                onToggleExpand={() => handleToggleExpand(char.id)}
+                onUpdate={(data) => updateCharacter(char.id, data)}
+                updateCharacterDirect={updateCharacter}
+                onRemove={() => removeCharacter(char.id)}
+                onToggleEnabled={() => toggleEnabled(char.id)}
+                onDuplicate={() => handleDuplicate(char)}
+                onSaveAsPreset={() => handleSaveAsPreset(char)}
+                onMoveToGroup={moveCharacterToGroup}
+                positionEnabled={positionEnabled}
+                groups={groups}
+                allCharacters={characters}
+                expertCharacterPromptLayoutEnabled={expertCharacterPromptLayoutEnabled}
+                onAddVariant={() => handleAddVariant(char)}
+                expertCharacterPromptVariantsEnabled={expertCharacterPromptVariantsEnabled}
+                onSelectVariant={activateVariant}
+            />
+        )
     }
 
-    const groupById = new Map(groups.map(group => [group.id, group]))
-    const characterIndexById = new Map(characters.map((character, index) => [character.id, index]))
-    const groupIds = new Set(groupById.keys())
-    // 미분류: groupId가 없거나, 존재하지 않는 그룹에 속한 캐릭터
-    const ungroupedSourceCharacters = characters.filter(c => (!c.groupId || !groupIds.has(c.groupId)) && matchesSearch(c))
-    const ungroupedCharacters = getVisibleStackCharacters(ungroupedSourceCharacters)
-    const groupedCharacters = groups.map(group => {
-        const sourceChars = characters.filter(c => c.groupId === group.id && matchesSearch(c))
-        return {
-            group,
-            sourceCount: sourceChars.length,
-            chars: getVisibleStackCharacters(sourceChars)
-        }
-    })
-    const enabledCharacters = characters.filter(character => character.enabled)
-    const enabledCharacterCount = enabledCharacters.length
+    const renderFolderTree = (group: CharacterGroup, depth = 0): React.ReactNode => {
+        const folderColor = FOLDER_COLORS[group.colorIndex ?? 0]
+        const children = groupChildren.get(group.id) || []
+        const descendants = getCharacterGroupDescendantIds(groups, group.id)
+        const moveTargets = groups.filter(target => !descendants.has(target.id))
+
+        return (
+            <div key={group.id}>
+                <DroppableFolder
+                    folderId={group.id}
+                    isActive={activeId !== null}
+                    isCollapsed={group.collapsed}
+                    colorClass={folderColor.bg}
+                >
+                <ContextMenu>
+                    <ContextMenuTrigger asChild>
+                        <div
+                            className={cn(
+                                "group/folder flex h-8 cursor-pointer items-center gap-1 rounded-md pr-1 text-xs transition-colors",
+                                selectedGroupId === group.id
+                                    ? "bg-primary/15 text-foreground"
+                                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                            )}
+                            style={{ paddingLeft: `${4 + depth * 12}px` }}
+                            onClick={() => setSelectedGroupId(group.id)}
+                        >
+                            <button
+                                type="button"
+                                className="flex h-6 w-5 shrink-0 items-center justify-center"
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    if (children.length > 0) toggleGroupCollapsed(group.id)
+                                }}
+                            >
+                                {children.length > 0 && (group.collapsed
+                                    ? <ChevronRight className="h-3.5 w-3.5" />
+                                    : <ChevronDown className="h-3.5 w-3.5" />
+                                )}
+                            </button>
+                            {group.collapsed
+                                ? <Folder className={cn("h-4 w-4 shrink-0", folderColor.icon)} />
+                                : <FolderOpen className={cn("h-4 w-4 shrink-0", folderColor.icon)} />
+                            }
+                            {editingGroupId === group.id ? (
+                                <Input
+                                    autoFocus
+                                    value={editingGroupName}
+                                    onChange={(event) => setEditingGroupName(event.target.value)}
+                                    onBlur={() => handleSaveGroupName(group.id)}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter') handleSaveGroupName(group.id)
+                                        if (event.key === 'Escape') {
+                                            setEditingGroupId(null)
+                                            setEditingGroupName('')
+                                        }
+                                    }}
+                                    onClick={(event) => event.stopPropagation()}
+                                    className="h-6 min-w-0 flex-1 px-1 text-xs"
+                                />
+                            ) : (
+                                <span className="min-w-0 flex-1 truncate">{group.name}</span>
+                            )}
+                            <span className="shrink-0 text-[10px] opacity-50">
+                                {groupCharacterCounts.get(group.id) || 0}
+                            </span>
+                        </div>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="w-56">
+                        <ContextMenuItem onClick={() => handleCreateGroup(group.id)}>
+                            <FolderPlus className="mr-2 h-4 w-4" />
+                            {t('characterPanel.addSubfolder', '하위 폴더 추가')}
+                        </ContextMenuItem>
+                        <ContextMenuItem onClick={() => {
+                            setEditingGroupId(group.id)
+                            setEditingGroupName(group.name)
+                        }}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            {t('characterPanel.rename', '이름 변경')}
+                        </ContextMenuItem>
+                        <ContextMenuItem onClick={() => toggleGroupEnabled(group.id)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            {t('characterPanel.toggleAll', '폴더 내 전체 활성화/비활성화')}
+                        </ContextMenuItem>
+                        <ContextMenuItem onClick={() => handleCycleFolderColor(group.id)}>
+                            <Palette className="mr-2 h-4 w-4" />
+                            {t('characterPanel.changeFolderColor', '폴더 색상 변경')}
+                        </ContextMenuItem>
+                        <ContextMenuSub>
+                            <ContextMenuSubTrigger>
+                                <Folder className="mr-2 h-4 w-4" />
+                                {t('characterPanel.moveFolder', '폴더 이동')}
+                            </ContextMenuSubTrigger>
+                            <ContextMenuSubContent className="max-h-72 overflow-y-auto">
+                                <ContextMenuItem
+                                    disabled={!group.parentId}
+                                    onClick={() => moveGroup(group.id, undefined)}
+                                >
+                                    {t('characterPanel.moveToRoot', '최상위로 이동')}
+                                </ContextMenuItem>
+                                {moveTargets.map(target => (
+                                    <ContextMenuItem
+                                        key={target.id}
+                                        disabled={group.parentId === target.id}
+                                        onClick={() => moveGroup(group.id, target.id)}
+                                    >
+                                        <span className="max-w-48 truncate">{getCharacterGroupPath(groups, target.id)}</span>
+                                    </ContextMenuItem>
+                                ))}
+                            </ContextMenuSubContent>
+                        </ContextMenuSub>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => handleDeleteGroup(group.id)}
+                        >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            {t('common.delete', '삭제')}
+                        </ContextMenuItem>
+                    </ContextMenuContent>
+                </ContextMenu>
+                </DroppableFolder>
+                {!group.collapsed && children.map(child => renderFolderTree(child, depth + 1))}
+            </div>
+        )
+    }
 
     if (!open) return null
 
@@ -492,7 +719,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7"
-                                onClick={handleCreateGroup}
+                                onClick={() => handleCreateGroup()}
                             >
                                 <FolderPlus className="h-3.5 w-3.5" />
                             </Button>
@@ -526,7 +753,9 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                         ? character.prompt.split(',')[0].trim().substring(0, 30)
                                         : t('characterPanel.unnamed', 'Character')
                                 )
-                                const groupName = character.groupId ? groupById.get(character.groupId)?.name : undefined
+                                const groupName = character.groupId && groupById.has(character.groupId)
+                                    ? getCharacterGroupPath(groups, character.groupId)
+                                    : undefined
 
                                 return (
                                     <button
@@ -564,221 +793,115 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                     </div>
                 </div>
 
-                {/* Character Cards - Grouped by Folders */}
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
-                    modifiers={[restrictToVerticalAxis]}
                 >
-                <ScrollArea className="flex-1 min-h-0">
-                            <div className="flex flex-col gap-2 p-3">
-                                {characters.length === 0 ? (
-                                    <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm py-12">
-                                        <div className="text-center">
-                                            <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                                            <p>{t('characterPanel.empty', '캐릭터가 없습니다')}</p>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="mt-2"
-                                                onClick={handleAddCharacter}
-                                            >
-                                                <Plus className="h-3.5 w-3.5 mr-1" />
-                                                {t('characterPanel.addFirst', '첫 캐릭터 추가')}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <>
-                                        {/* Grouped Characters */}
-                                        {groupedCharacters.map(({ group, chars, sourceCount }) => {
-                                            const folderColor = FOLDER_COLORS[group.colorIndex ?? 0]
-                                            return (
-                                            <DroppableFolder key={group.id} folderId={group.id} isActive={activeId !== null} isCollapsed={group.collapsed} colorClass={folderColor.bg}>
-                                                {/* Folder Header */}
-                                                <div 
-                                                    className="flex items-center gap-2 group/folder bg-muted/40 rounded-t-lg px-2 py-1.5 cursor-pointer"
-                                                    onContextMenu={(e) => handleCycleFolderColor(e, group.id)}
-                                                >
-                                                    <button
-                                                        className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex-1 text-left"
-                                                        onClick={() => toggleGroupCollapsed(group.id)}
-                                                    >
-                                                        {group.collapsed ? (
-                                                            <ChevronRight className="w-4 h-4" />
-                                                        ) : (
-                                                            <ChevronDown className="w-4 h-4" />
-                                                        )}
-                                                        {group.collapsed ? (
-                                                            <Folder className={cn("w-5 h-5", folderColor.icon)} />
-                                                        ) : (
-                                                            <FolderOpen className={cn("w-5 h-5", folderColor.icon)} />
-                                                        )}
-                                                        {editingGroupId === group.id ? (
-                                                            <Input
-                                                                autoFocus
-                                                                value={editingGroupName}
-                                                                onChange={(e) => setEditingGroupName(e.target.value)}
-                                                                onBlur={() => handleSaveGroupName(group.id)}
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter') handleSaveGroupName(group.id)
-                                                                    if (e.key === 'Escape') {
-                                                                        setEditingGroupId(null)
-                                                                        setEditingGroupName('')
-                                                                    }
-                                                                }}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                className="h-6 text-sm px-1.5 py-0 w-28"
-                                                            />
-                                                        ) : (
-                                                            <span className="font-medium">{group.name}</span>
-                                                        )}
-                                                        <span className="text-xs opacity-50">
-                                                            ({expertCharacterPromptVariantsEnabled ? chars.length : sourceCount})
-                                                        </span>
-                                                    </button>
-                                                    <div className="opacity-0 group-hover/folder:opacity-100 transition-opacity flex gap-1">
-                                                        <Tip content={t('characterPanel.toggleAll', '폴더 내 전체 활성화/비활성화')}>
-                                                            <Button
-                                                                size="icon"
-                                                                variant="ghost"
-                                                                className="h-7 w-7"
-                                                                onClick={() => toggleGroupEnabled(group.id)}
-                                                            >
-                                                                <Eye className="w-4 h-4" />
-                                                            </Button>
-                                                        </Tip>
-                                                        <Button
-                                                            size="icon"
-                                                            variant="ghost"
-                                                            className="h-7 w-7"
-                                                            onClick={() => {
-                                                                setEditingGroupId(group.id)
-                                                                setEditingGroupName(group.name)
-                                                            }}
-                                                        >
-                                                            <Pencil className="w-4 h-4" />
-                                                        </Button>
-                                                        <Button
-                                                            size="icon"
-                                                            variant="ghost"
-                                                            className="h-7 w-7 text-destructive hover:text-destructive"
-                                                            onClick={() => deleteGroup(group.id)}
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </Button>
-                                                    </div>
-                                                </div>
+                    <div className="flex min-h-0 flex-1">
+                        <div className="flex w-[34%] min-w-[120px] max-w-[180px] shrink-0 flex-col border-r border-border/30 bg-background/20">
+                            <div className="flex h-8 shrink-0 items-center justify-between border-b border-border/20 px-2 text-[11px] font-medium text-muted-foreground">
+                                <span>{t('characterPanel.folders', '폴더')}</span>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={() => handleCreateGroup()}
+                                >
+                                    <FolderPlus className="h-3.5 w-3.5" />
+                                </Button>
+                            </div>
+                            <ScrollArea className="min-h-0 flex-1">
+                                <div className="space-y-0.5 p-1.5">
+                                    <DroppableUngrouped isActive={activeId !== null}>
+                                        <button
+                                            type="button"
+                                            className={cn(
+                                                "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs transition-colors",
+                                                !selectedGroupId
+                                                    ? "bg-primary/15 text-foreground"
+                                                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                                            )}
+                                            onClick={() => setSelectedGroupId(null)}
+                                        >
+                                            <Users className="h-4 w-4 shrink-0" />
+                                            <span className="min-w-0 flex-1 truncate">{t('characterPanel.ungrouped', '미분류')}</span>
+                                            <span className="text-[10px] opacity-50">{ungroupedCount}</span>
+                                        </button>
+                                    </DroppableUngrouped>
+                                    {(groupChildren.get('root') || []).map(group => renderFolderTree(group))}
+                                </div>
+                            </ScrollArea>
+                        </div>
 
-                                                {/* Folder Contents */}
-                                                {!group.collapsed && (
-                                                    <SortableContext
-                                                        items={chars.map(c => c.id)}
-                                                        strategy={verticalListSortingStrategy}
-                                                    >
-                                                    <div className={cn("pl-5 border-l-2 ml-2 space-y-1.5 min-h-[32px] pb-2", folderColor.border)}>
-                                                        {chars.map((char) => {
-                                                            const index = characterIndexById.get(char.id) ?? 0
-                                                            return (
-                                                                <SortableCharacterCard
-                                                                    key={char.id}
-                                                                    character={char}
-                                                                    index={index}
-                                                                    isExpanded={expandedId === char.id}
-                                                                    onToggleExpand={() => handleToggleExpand(char.id)}
-                                                                    onUpdate={(data) => updateCharacter(char.id, data)}
-                                                                    updateCharacterDirect={updateCharacter}
-                                                                    onRemove={() => removeCharacter(char.id)}
-                                                                    onToggleEnabled={() => toggleEnabled(char.id)}
-                                                                    onDuplicate={() => handleDuplicate(char)}
-                                                                    onSaveAsPreset={() => handleSaveAsPreset(char)}
-                                                                    onMoveToGroup={moveCharacterToGroup}
-                                                                    positionEnabled={positionEnabled}
-                                                                    groups={groups}
-                                                                allCharacters={characters}
-                                                                expertCharacterPromptLayoutEnabled={expertCharacterPromptLayoutEnabled}
-                                                                onAddVariant={() => handleAddVariant(char)}
-                                                                expertCharacterPromptVariantsEnabled={expertCharacterPromptVariantsEnabled}
-                                                                        onSelectVariant={activateVariant}
-                                                                />
-                                                            )
-                                                        })}
-                                                    </div>
-                                                    </SortableContext>
-                                                )}
-                                            </DroppableFolder>
-                                        )})}   
-
-                                        {/* Ungrouped Characters */}
-                                        <DroppableUngrouped isActive={activeId !== null} hasGroups={groups.length > 0}>
-                                            <SortableContext
-                                                items={ungroupedCharacters.map(c => c.id)}
-                                                strategy={verticalListSortingStrategy}
-                                            >
-                                            {ungroupedCharacters.length > 0 && (
-                                                <div className="min-w-0 space-y-1.5">
-                                                    {groups.length > 0 && (
-                                                        <div className="text-sm font-medium text-muted-foreground flex items-center gap-2 py-1 px-2">
-                                                            <Users className="w-4 h-4" />
-                                                            {t('characterPanel.ungrouped', '미분류')}
-                                                            <span className="text-xs opacity-50">
-                                                                ({ungroupedCharacters.length})
-                                                            </span>
-                                                        </div>
+                        <div className="flex min-w-0 flex-1 flex-col">
+                            <div className="flex h-8 shrink-0 items-center justify-between gap-2 border-b border-border/20 px-2">
+                                <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
+                                    {normalizedSearch
+                                        ? <Search className="h-3.5 w-3.5 shrink-0 text-primary" />
+                                        : selectedGroup
+                                            ? <FolderOpen className={cn("h-3.5 w-3.5 shrink-0", FOLDER_COLORS[selectedGroup.colorIndex ?? 0].icon)} />
+                                            : <Users className="h-3.5 w-3.5 shrink-0" />
+                                    }
+                                    <span className="truncate">
+                                        {normalizedSearch
+                                            ? t('characterPanel.searchResults', '검색 결과')
+                                            : selectedGroup
+                                                ? getCharacterGroupPath(groups, selectedGroup.id)
+                                                : t('characterPanel.ungrouped', '미분류')
+                                        }
+                                    </span>
+                                    <span className="shrink-0 text-[10px] text-muted-foreground">{visibleCharacters.length}</span>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 shrink-0"
+                                    onClick={handleAddCharacter}
+                                >
+                                    <Plus className="h-3.5 w-3.5" />
+                                </Button>
+                            </div>
+                            <ScrollArea className="min-h-0 flex-1">
+                                <SortableContext
+                                    items={visibleCharacters.map(character => character.id)}
+                                    strategy={verticalListSortingStrategy}
+                                >
+                                    <div className="min-w-0 space-y-1.5 p-2">
+                                        {visibleCharacters.map(renderCharacterCard)}
+                                        {visibleCharacters.length === 0 && (
+                                            <div className="flex min-h-40 items-center justify-center py-8 text-center text-sm text-muted-foreground">
+                                                <div>
+                                                    {normalizedSearch
+                                                        ? <Search className="mx-auto mb-2 h-7 w-7 opacity-30" />
+                                                        : <Users className="mx-auto mb-2 h-7 w-7 opacity-30" />
+                                                    }
+                                                    <p>
+                                                        {normalizedSearch
+                                                            ? t('characterPanel.noResults', '검색 결과가 없습니다')
+                                                            : t('characterPanel.emptyFolder', '빈 폴더')
+                                                        }
+                                                    </p>
+                                                    {!normalizedSearch && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="mt-2"
+                                                            onClick={handleAddCharacter}
+                                                        >
+                                                            <Plus className="mr-1 h-3.5 w-3.5" />
+                                                            {t('characterPanel.addFirst', '첫 캐릭터 추가')}
+                                                        </Button>
                                                     )}
-                                                    {ungroupedCharacters.map((char) => {
-                                                        const index = characterIndexById.get(char.id) ?? 0
-                                                        return (
-                                                            <SortableCharacterCard
-                                                                key={char.id}
-                                                                character={char}
-                                                                index={index}
-                                                                isExpanded={expandedId === char.id}
-                                                                onToggleExpand={() => handleToggleExpand(char.id)}
-                                                                onUpdate={(data) => updateCharacter(char.id, data)}
-                                                                updateCharacterDirect={updateCharacter}
-                                                                onRemove={() => removeCharacter(char.id)}
-                                                                onToggleEnabled={() => toggleEnabled(char.id)}
-                                                                onDuplicate={() => handleDuplicate(char)}
-                                                                onSaveAsPreset={() => handleSaveAsPreset(char)}
-                                                                onMoveToGroup={moveCharacterToGroup}
-                                                                positionEnabled={positionEnabled}
-                                                                groups={groups}
-                                                            allCharacters={characters}
-                                                            expertCharacterPromptLayoutEnabled={expertCharacterPromptLayoutEnabled}
-                                                            onAddVariant={() => handleAddVariant(char)}
-                                                                    onSelectVariant={activateVariant}
-                                                            expertCharacterPromptVariantsEnabled={expertCharacterPromptVariantsEnabled}
-                                                            />
-                                                        )
-                                                    })}
                                                 </div>
-                                            )}
-                                            {ungroupedCharacters.length === 0 && groups.length > 0 && (
-                                                <div className="text-sm font-medium text-muted-foreground flex items-center gap-2 py-1 px-2">
-                                                    <Users className="w-4 h-4" />
-                                                    {t('characterPanel.ungrouped', '미분류')}
-                                                    <span className="text-xs opacity-50">(0)</span>
-                                                </div>
-                                            )}
-                                            </SortableContext>
-                                        </DroppableUngrouped>
-
-                                {/* No Results */}
-                                {ungroupedCharacters.length === 0 && groupedCharacters.every(g => g.chars.length === 0) && searchQuery && (
-                                    <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm py-12">
-                                        <div className="text-center">
-                                            <Search className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                                            <p>{t('characterPanel.noResults', '검색 결과가 없습니다')}</p>
-                                        </div>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </>
-                        )}
+                                </SortableContext>
+                            </ScrollArea>
+                        </div>
                     </div>
-                </ScrollArea>
                 </DndContext>
             </div>
 
@@ -824,18 +947,13 @@ function DroppableFolder({ folderId, isActive, isCollapsed, colorClass, children
 // --- DroppableUngrouped Component ---
 interface DroppableUngroupedProps {
     isActive: boolean
-    hasGroups: boolean
     children: React.ReactNode
 }
 
-function DroppableUngrouped({ isActive, hasGroups, children }: DroppableUngroupedProps) {
+function DroppableUngrouped({ isActive, children }: DroppableUngroupedProps) {
     const { setNodeRef, isOver } = useDroppable({
         id: 'ungrouped-zone',
     })
-
-    if (!hasGroups) {
-        return <>{children}</>
-    }
 
     return (
         <div
@@ -896,7 +1014,7 @@ interface CharacterCardProps {
     onSaveAsPreset: () => void
     onMoveToGroup: (characterId: string, groupId: string | undefined) => void
     positionEnabled: boolean
-    groups: { id: string; name: string; collapsed: boolean }[]
+    groups: CharacterGroup[]
     allCharacters: CharacterPrompt[]
     expertCharacterPromptLayoutEnabled: boolean
     expertCharacterPromptVariantsEnabled: boolean
@@ -1189,7 +1307,7 @@ function CharacterCard({
                                         disabled={character.groupId === group.id}
                                     >
                                         <Folder className="h-4 w-4 mr-2 text-amber-500" />
-                                        {group.name}
+                                        {getCharacterGroupPath(groups, group.id)}
                                     </ContextMenuItem>
                                 ))}
                             </ContextMenuSubContent>

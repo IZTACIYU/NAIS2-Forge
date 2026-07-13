@@ -886,6 +886,12 @@
     "moveToFolder": "Move to Folder",
     "removeFromFolder": "Remove from Folder",
     "addFolder": "Add Folder",
+    "folders": "Folders",
+    "addSubfolder": "Add Subfolder",
+    "moveFolder": "Move Folder",
+    "moveToRoot": "Move to Root",
+    "changeFolderColor": "Change Folder Color",
+    "searchResults": "Search Results",
     "newFolderName": "New Folder",
     "costume": "Costume",
     "costumePlaceholder": "Costume prompt..."
