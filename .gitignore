@@ -14,7 +14,9 @@ src-tauri/gen/schemas/
 !.env.example
 *.pem
 *.key
-~/.tauri/
+*.key.pub
+.tauri/
+release-secrets.*
 
 # Logs
 npm-debug.log*
