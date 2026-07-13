@@ -32,14 +32,23 @@ import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/S
 import { useExifStore } from '@/stores/exif-store'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 import { processAndSaveExifImage } from '@/lib/exif-actions'
+import {
+    createHistoryIndexScope,
+    HistoryImageType,
+    loadHistoryIndex,
+    saveHistoryIndex,
+} from '@/lib/history-index'
 
 interface SavedImage {
     name: string
     path: string
     timestamp: number
-    type: 'main' | 'i2i' | 'inpaint' | 'upscale' | 'scene' | 'lineart' | 'sketch' | 'colorize' | 'emotion' | 'declutter'
+    type: HistoryImageType
     isTemporary?: boolean
 }
+
+const MAX_HISTORY_FILES = 200
+const MAX_RENDERED_HISTORY = 20
 
 const appendPathParts = (base: string, ...parts: string[]) => {
     const separator = base.includes('\\') ? '\\' : '/'
@@ -71,13 +80,14 @@ interface HistoryImageItemProps {
     onR2DirectUpload: (image: SavedImage) => void
     onLoadMetadata: (image: SavedImage) => void
     onLoadComplete: (path: string, data: string) => void
+    onMissing: (path: string) => void
 }
 
 const HistoryImageItem = memo(function HistoryImageItem({
     image, thumbnail, index, getTypeIcon,
     onImageClick, onDelete, onSaveAs, onCopy, onRegenerate,
     onOpenSmartTools, onOpenExifManager, onExifDirectAction, showExifDirectAction, showExifQuickAction, onAddAsReference, onInpaint, onI2I, onOpenFolder, onR2DirectUpload, onLoadMetadata,
-    onLoadComplete
+    onLoadComplete, onMissing
 }: HistoryImageItemProps) {
     const { t } = useTranslation()
     const [localThumbnail, setLocalThumbnail] = useState<string | undefined>(thumbnail)
@@ -154,6 +164,9 @@ const HistoryImageItem = memo(function HistoryImageItem({
                             src={localThumbnail}
                             alt={`Image ${index + 1}`}
                             className="w-full h-full object-cover"
+                            onError={() => {
+                                if (!image.isTemporary) onMissing(image.path)
+                            }}
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
@@ -280,6 +293,9 @@ export function HistoryPanel() {
     const historyScanActiveRef = useRef(false)
     const deletedPathsDuringScanRef = useRef<Set<string>>(new Set())
     const addedPathsDuringScanRef = useRef<Set<string>>(new Set())
+    const historyIndexLoadIdRef = useRef(0)
+    const historyIndexReadyRef = useRef(false)
+    const historyIndexScope = createHistoryIndexScope(useAbsolutePath, savePath)
 
     // LRU cache limit for imageThumbnails to prevent memory bloat
     const MAX_THUMBNAIL_CACHE = 20
@@ -304,6 +320,22 @@ export function HistoryPanel() {
                 return newCache
             }
             return { ...prev, [path]: data }
+        })
+    }, [])
+
+    const handleMissingImage = useCallback((path: string) => {
+        void exists(path).then(fileExists => {
+            if (fileExists) return
+
+            setSavedImages(prev => prev.filter(image => image.path !== path))
+            setImageThumbnails(prev => {
+                if (!(path in prev)) return prev
+                const next = { ...prev }
+                delete next[path]
+                return next
+            })
+        }).catch(error => {
+            console.warn('[HistoryIndex] Failed to verify missing image:', error)
         })
     }, [])
 
@@ -349,7 +381,7 @@ export function HistoryPanel() {
                     next = next.filter(img => img !== oldest)
                 }
             }
-            return next.slice(0, 50)
+            return next.slice(0, MAX_HISTORY_FILES)
         })
 
         // Memory optimization: Only cache Base64 for temporary images, use convertFileSrc URL for files
@@ -565,7 +597,6 @@ export function HistoryPanel() {
             images.sort((a, b) => b.timestamp - a.timestamp)
 
             // MEMORY OPTIMIZATION: Limit total file entries to prevent large state
-            const MAX_HISTORY_FILES = 200
             const deletedPaths = new Set(deletedPathsDuringScanRef.current)
             const addedPaths = new Set(addedPathsDuringScanRef.current)
             const limitedImages = images
@@ -603,8 +634,55 @@ export function HistoryPanel() {
     }
 
     useEffect(() => {
-        loadSavedImages()
-    }, [savePath, useAbsolutePath])
+        const loadId = ++historyIndexLoadIdRef.current
+        historyScanIdRef.current += 1
+        historyScanActiveRef.current = false
+        deletedPathsDuringScanRef.current.clear()
+        addedPathsDuringScanRef.current.clear()
+        historyIndexReadyRef.current = false
+        setIsLoading(true)
+
+        const initializeHistory = async () => {
+            const cachedImages = await loadHistoryIndex(historyIndexScope)
+            if (loadId !== historyIndexLoadIdRef.current) return
+
+            if (cachedImages !== null) {
+                historyIndexReadyRef.current = true
+                setSavedImages(prev => {
+                    const temporaryImages = prev.filter(image => image.isTemporary)
+                    const unique = new Map<string, SavedImage>()
+                    for (const image of [...cachedImages, ...temporaryImages]) {
+                        if (!unique.has(image.path)) unique.set(image.path, image)
+                    }
+                    return [...unique.values()].sort((a, b) => b.timestamp - a.timestamp)
+                })
+                setIsLoading(false)
+                return
+            }
+
+            setSavedImages(prev => prev.filter(image => image.isTemporary))
+            await loadSavedImages()
+            if (loadId === historyIndexLoadIdRef.current) {
+                historyIndexReadyRef.current = true
+                setSavedImages(prev => [...prev])
+            }
+        }
+
+        void initializeHistory()
+        return () => {
+            historyIndexLoadIdRef.current += 1
+            historyScanIdRef.current += 1
+        }
+    }, [historyIndexScope])
+
+    useEffect(() => {
+        if (!historyIndexReadyRef.current) return
+
+        const persistentImages = savedImages.filter(image => !image.isTemporary)
+        void saveHistoryIndex(historyIndexScope, persistentImages).catch(error => {
+            console.warn('[HistoryIndex] Failed to save index:', error)
+        })
+    }, [historyIndexScope, savedImages])
 
     // Listen for instant image updates from generation
     useEffect(() => {
@@ -1070,12 +1148,13 @@ export function HistoryPanel() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 gap-2">
-                        {savedImages.slice(0, 20).map((image, index) => (
+                        {savedImages.slice(0, MAX_RENDERED_HISTORY).map((image, index) => (
                             <HistoryImageItem
                                 key={image.path}
                                 image={image}
                                 thumbnail={imageThumbnails[image.path]}
                                 onLoadComplete={handleImageLoadComplete}
+                                onMissing={handleMissingImage}
                                 index={index}
                                 getTypeIcon={getTypeIcon}
                                 onImageClick={handleImageClick}
