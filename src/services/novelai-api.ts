@@ -627,8 +627,9 @@ export async function generateImage(
                 const grayscaleMask = await convertMaskToGrayscale(params.mask, srcDimensions.width, srcDimensions.height)
                 // @ts-ignore
                 apiParameters.mask = grayscaleMask
-                // @ts-ignore - infill uses add_original_image: false
-                apiParameters.add_original_image = false
+                // Preserve pixels outside the mask when chaining inpaint generations.
+                // @ts-ignore
+                apiParameters.add_original_image = true
 
                 // Note: Inpainting now supports director reference images (Feb 2026 update)
                 // No need to delete director_reference_* parameters
@@ -1093,8 +1094,8 @@ export async function generateImageStream(
                     return { success: false, error: 'Mask processing failed' }
                 }
 
-                // infill uses add_original_image: false
-                apiParameters.add_original_image = false
+                // Preserve pixels outside the mask when chaining inpaint generations.
+                apiParameters.add_original_image = true
 
                 // Note: Inpainting now supports director reference images (Feb 2026 update)
                 // No need to delete director_reference_* parameters
