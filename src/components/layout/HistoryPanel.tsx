@@ -9,7 +9,8 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { readDir, readFile, remove, writeFile, mkdir, exists, BaseDirectory } from '@tauri-apps/plugin-fs'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { pictureDir, join } from '@tauri-apps/api/path'
-import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener'
+import { revealItemInDir } from '@tauri-apps/plugin-opener'
+import { Command } from '@tauri-apps/plugin-shell'
 import { save } from '@tauri-apps/plugin-dialog'
 import { MetadataDialog } from '@/components/metadata/MetadataDialog'
 import { ImageReferenceDialog } from '@/components/metadata/ImageReferenceDialog'
@@ -990,7 +991,7 @@ export function HistoryPanel() {
                 ? configuredPath
                 : await join(await pictureDir(), configuredPath)
             if (!(await exists(folderPath))) await mkdir(folderPath, { recursive: true })
-            await openPath(folderPath)
+            await Command.create('explorer', [folderPath]).execute()
         } catch (error) {
             console.error('Failed to open save folder:', error)
         }
