@@ -9,7 +9,6 @@ import { pictureDir, join } from '@tauri-apps/api/path'
 import { useCharacterStore } from './character-store'
 import { useCharacterPromptStore } from './character-prompt-store'
 import { processWildcards } from '@/lib/fragment-processor'
-import { createThumbnail } from '@/lib/image-utils'
 import i18n from '@/i18n'
 import { toast } from '@/components/ui/use-toast'
 
@@ -17,15 +16,6 @@ interface Resolution {
     label: string
     width: number
     height: number
-}
-
-interface HistoryItem {
-    id: string
-    url: string // Base64 or Blob URL
-    thumbnail?: string
-    prompt: string
-    seed: number
-    timestamp: Date
 }
 
 export const AVAILABLE_MODELS = [
@@ -88,7 +78,6 @@ interface GenerationState {
     generatingMode: 'main' | 'scene' | null
     isCancelled: boolean
     previewImage: string | null
-    history: HistoryItem[]
 
     // AbortController for cancellation
     abortController: AbortController | null
@@ -157,8 +146,6 @@ interface GenerationState {
 
     generate: () => Promise<void>
     cancelGeneration: () => void
-    addToHistory: (item: HistoryItem) => void
-    clearHistory: () => void
     setPreviewImage: (url: string | null) => void
     setIsGenerating: (v: boolean) => void // Only for Main Mode use ideally
     setGeneratingMode: (mode: 'main' | 'scene' | null) => void
@@ -215,7 +202,6 @@ export const useGenerationStore = create<GenerationState>()(
             generatingMode: null,
             isCancelled: false,
             previewImage: null,
-            history: [],
             abortController: null,
             generationSessionId: 0,
             streamProgress: 0,
@@ -587,17 +573,6 @@ export const useGenerationStore = create<GenerationState>()(
                             const imageUrl = `data:${mimeType};base64,${result.imageData}`
                             set({ previewImage: imageUrl })
 
-                            // Create thumbnail for history (reduces memory from ~3MB to ~20KB per image)
-                            const thumbnail = await createThumbnail(imageUrl)
-
-                            const historyItem: HistoryItem = {
-                                id: Date.now().toString(),
-                                url: thumbnail, // Store thumbnail instead of full image
-                                prompt: finalPrompt,
-                                seed: currentSeed,
-                                timestamp: new Date(),
-                            }
-
                             // Save Image: Try Tauri FS first, fallback to browser
                             const { savePath, autoSave, useAbsolutePath } = useSettingsStore.getState()
 
@@ -674,10 +649,6 @@ export const useGenerationStore = create<GenerationState>()(
                                 }
                             }
 
-                            set(state => ({
-                                history: [historyItem, ...state.history].slice(0, 20)
-                            }))
-
                             // Refresh Anlas balance
                             useAuthStore.getState().refreshAnlas()
 
@@ -725,12 +696,6 @@ export const useGenerationStore = create<GenerationState>()(
                 }
             },
 
-            addToHistory: (item) => set(state => ({
-                history: [item, ...state.history].slice(0, 20)
-            })),
-
-            clearHistory: () => set({ history: [] }),
-
             setPreviewImage: (url) => set({ previewImage: url }),
             setIsGenerating: (v) => set({ isGenerating: v, generatingMode: v ? 'main' : null }),
             setGeneratingMode: (mode) => set({ generatingMode: mode }),
@@ -771,18 +736,16 @@ export const useGenerationStore = create<GenerationState>()(
                 strength: state.strength,
                 noise: state.noise,
                 inpaintingPrompt: state.inpaintingPrompt,
-                // History - limit to 20 items to prevent memory issues
-                history: state.history.slice(0, 20),
             }),
+            merge: (persistedState, currentState) => {
+                const persistedWithoutHistory = { ...(persistedState || {}) } as Record<string, unknown>
+                delete persistedWithoutHistory.history
+                return { ...currentState, ...persistedWithoutHistory } as GenerationState
+            },
             onRehydrateStorage: () => (state, error) => {
                 if (error) {
                     console.error('[GenerationStore] Hydration failed:', error)
                     return
-                }
-                // Trim history to 20 items on load to prevent OOM
-                if (state && state.history && state.history.length > 20) {
-                    console.log(`[GenerationStore] Trimming history from ${state.history.length} to 20 items`)
-                    state.history = state.history.slice(0, 20)
                 }
                 if (state) {
                     console.log('[GenerationStore] Hydrated successfully')

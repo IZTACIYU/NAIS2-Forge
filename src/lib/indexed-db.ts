@@ -639,17 +639,9 @@ function filterLargeImageData(key: string, data: unknown): unknown {
             }
             
         case 'nais2-forge-generation':
-            // Filter history thumbnails (files exist) and temp images
             return {
                 ...obj,
-                history: Array.isArray(obj.history)
-                    ? obj.history.map((item: Record<string, unknown>) => ({
-                        ...item,
-                        thumbnail: item.thumbnail && typeof item.thumbnail === 'string' && item.thumbnail.startsWith('data:')
-                            ? '[THUMBNAIL_EXCLUDED]'
-                            : item.thumbnail,
-                    }))
-                    : obj.history,
+                history: undefined,
                 sourceImage: null,
                 previewImage: null,
                 mask: null,

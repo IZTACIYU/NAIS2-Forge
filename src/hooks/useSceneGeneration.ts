@@ -10,7 +10,6 @@ import { generateImage, generateImageStream, GenerationParams } from '@/services
 import { BaseDirectory, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { processWildcards } from '@/lib/fragment-processor'
-import { createThumbnail } from '@/lib/image-utils'
 import { useCharacterStore } from '@/stores/character-store'
 import { sendSystemNotification } from '@/lib/system-notification'
 
@@ -417,7 +416,6 @@ export function useSceneGeneration() {
                     const safeSceneName = scene.name.replace(/[<>:"/\\|?*]/g, '_').trim() || 'Untitled_Scene'
                     const { imageFormat } = useSettingsStore.getState()
                     const fileExt = imageFormat === 'webp' ? 'webp' : 'png'
-                    const mimeType = imageFormat === 'webp' ? 'image/webp' : 'image/png'
                     const fileName = `NAIS_SCENE_${Date.now()}.${fileExt}`
 
                     try {
@@ -475,19 +473,6 @@ export function useSceneGeneration() {
                         }))
 
                         addImageToScene(activePresetId, scene.id, fullPath)
-
-                        // Add to Global History (with proper thumbnail, not full image)
-                        const thumbnailData = result.imageData 
-                            ? await createThumbnail(`data:${mimeType};base64,${result.imageData}`)
-                            : undefined
-                        useGenerationStore.getState().addToHistory({
-                            id: Date.now().toString(),
-                            url: fullPath,
-                            thumbnail: thumbnailData,
-                            prompt: finalPrompt,
-                            seed: params.seed,
-                            timestamp: new Date()
-                        })
 
                     } catch (saveError) {
                         console.error('Failed to save scene image file:', saveError)
