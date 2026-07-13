@@ -41,6 +41,7 @@ interface SettingsState {
 
     // Expert options
     expertOptionsEnabled: boolean
+    expertCharacterPromptFolderBrowserEnabled: boolean
     expertCharacterPromptLayoutEnabled: boolean
     expertCharacterPromptVariantsEnabled: boolean
     expertSceneCharacterVariantOverrideEnabled: boolean
@@ -82,6 +83,7 @@ interface SettingsState {
     setLibraryPath: (path: string, useAbsolute?: boolean) => void
     setImageFormat: (format: 'png' | 'webp') => void
     setExpertOptionsEnabled: (enabled: boolean) => void
+    setExpertCharacterPromptFolderBrowserEnabled: (enabled: boolean) => void
     setExpertCharacterPromptLayoutEnabled: (enabled: boolean) => void
     setExpertCharacterPromptVariantsEnabled: (enabled: boolean) => void
     setExpertSceneCharacterVariantOverrideEnabled: (enabled: boolean) => void
@@ -121,6 +123,7 @@ export const useSettingsStore = create<SettingsState>()(
             useAbsoluteLibraryPath: false, // Default: relative to Pictures folder
             imageFormat: 'png', // Default: PNG format
             expertOptionsEnabled: false,
+            expertCharacterPromptFolderBrowserEnabled: true,
             expertCharacterPromptLayoutEnabled: false,
             expertCharacterPromptVariantsEnabled: false,
             expertSceneCharacterVariantOverrideEnabled: false,
@@ -174,6 +177,7 @@ export const useSettingsStore = create<SettingsState>()(
             }),
             setImageFormat: (format) => set({ imageFormat: format }),
             setExpertOptionsEnabled: (expertOptionsEnabled) => set({ expertOptionsEnabled }),
+            setExpertCharacterPromptFolderBrowserEnabled: (expertCharacterPromptFolderBrowserEnabled) => set({ expertCharacterPromptFolderBrowserEnabled }),
             setExpertCharacterPromptLayoutEnabled: (expertCharacterPromptLayoutEnabled) => set({ expertCharacterPromptLayoutEnabled }),
             setExpertCharacterPromptVariantsEnabled: (expertCharacterPromptVariantsEnabled) => set({ expertCharacterPromptVariantsEnabled }),
             setExpertSceneCharacterVariantOverrideEnabled: (expertSceneCharacterVariantOverrideEnabled) => set({ expertSceneCharacterVariantOverrideEnabled }),

@@ -21,6 +21,7 @@ import {
     ChevronRight,
     Save,
     Palette,
+    Menu,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -179,6 +180,8 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     const [editingGroupName, setEditingGroupName] = useState('')
     const [activeId, setActiveId] = useState<string | null>(null)
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+    const [folderPanelOpen, setFolderPanelOpen] = useState(true)
+    const expertCharacterPromptFolderBrowserEnabled = useSettingsStore(state => state.expertCharacterPromptFolderBrowserEnabled)
     const expertCharacterPromptLayoutEnabled = useSettingsStore(state => state.expertCharacterPromptLayoutEnabled)
     const expertCharacterPromptVariantsEnabled = useSettingsStore(state => state.expertCharacterPromptVariantsEnabled)
 
@@ -246,7 +249,10 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     }, [open, characters.length])
 
     const handleAddCharacter = () => {
-        addCharacter(selectedGroupId ? { groupId: selectedGroupId } : undefined)
+        addCharacter(expertCharacterPromptFolderBrowserEnabled && selectedGroupId
+            ? { groupId: selectedGroupId }
+            : undefined
+        )
         // 새 캐릭터 자동 확장
         setTimeout(() => {
             const newChar = useCharacterPromptStore.getState().characters.slice(-1)[0]
@@ -356,7 +362,11 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         }))
     }, [groups])
 
-    const handleCreateGroup = (parentId: string | undefined = selectedGroupId || undefined) => {
+    const handleCreateGroup = (
+        parentId: string | undefined = expertCharacterPromptFolderBrowserEnabled
+            ? selectedGroupId || undefined
+            : undefined
+    ) => {
         const baseName = t('characterPanel.newFolderName', '새폴더')
         const existingNames = groups.map(g => g.name)
         
@@ -421,6 +431,12 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     }, [expertCharacterPromptVariantsEnabled])
 
     const normalizedSearch = searchQuery.trim().toLowerCase()
+    const characterMatchesSearch = useCallback((character: CharacterPrompt) => {
+        if (!normalizedSearch) return true
+        const name = character.name?.toLowerCase() || ''
+        const promptPreview = character.prompt?.split(',')[0]?.trim().toLowerCase() || ''
+        return name.includes(normalizedSearch) || promptPreview.includes(normalizedSearch)
+    }, [normalizedSearch])
     const groupById = useMemo(() => new Map(groups.map(group => [group.id, group])), [groups])
     const groupIds = useMemo(() => new Set(groupById.keys()), [groupById])
     const characterIndexById = useMemo(
@@ -445,17 +461,19 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
 
     const visibleCharacters = useMemo(() => {
         const source = characters.filter(character => {
-            if (normalizedSearch) {
-                const name = character.name?.toLowerCase() || ''
-                const promptPreview = character.prompt?.split(',')[0]?.trim().toLowerCase() || ''
-                return name.includes(normalizedSearch) || promptPreview.includes(normalizedSearch)
-            }
+            if (normalizedSearch) return characterMatchesSearch(character)
             return selectedGroupId
                 ? character.groupId === selectedGroupId
                 : !character.groupId || !groupIds.has(character.groupId)
         })
         return getVisibleStackCharacters(source)
-    }, [characters, getVisibleStackCharacters, groupIds, normalizedSearch, selectedGroupId])
+    }, [characterMatchesSearch, characters, getVisibleStackCharacters, groupIds, normalizedSearch, selectedGroupId])
+
+    const legacyUngroupedCharacters = useMemo(() => getVisibleStackCharacters(
+        characters.filter(character =>
+            (!character.groupId || !groupIds.has(character.groupId)) && characterMatchesSearch(character)
+        )
+    ), [characterMatchesSearch, characters, getVisibleStackCharacters, groupIds])
 
     const groupCharacterCounts = useMemo(() => {
         const directCounts = new Map<string, number>()
@@ -643,6 +661,158 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         )
     }
 
+    const renderLegacyFolder = (group: CharacterGroup, depth = 0): React.ReactNode => {
+        const folderColor = FOLDER_COLORS[group.colorIndex ?? 0]
+        const children = groupChildren.get(group.id) || []
+        const folderCharacters = getVisibleStackCharacters(
+            characters.filter(character => character.groupId === group.id && characterMatchesSearch(character))
+        )
+        const descendants = getCharacterGroupDescendantIds(groups, group.id)
+        const moveTargets = groups.filter(target => !descendants.has(target.id))
+
+        return (
+            <div key={group.id} className={depth > 0 ? "ml-3" : undefined}>
+                <DroppableFolder
+                    folderId={group.id}
+                    isActive={activeId !== null}
+                    isCollapsed={group.collapsed}
+                    colorClass={folderColor.bg}
+                >
+                    <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                            <div className="group/folder flex cursor-pointer items-center gap-2 rounded-lg bg-muted/40 px-2 py-1.5">
+                                <button
+                                    type="button"
+                                    className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                                    onClick={() => toggleGroupCollapsed(group.id)}
+                                >
+                                    {group.collapsed
+                                        ? <ChevronRight className="h-4 w-4 shrink-0" />
+                                        : <ChevronDown className="h-4 w-4 shrink-0" />
+                                    }
+                                    {group.collapsed
+                                        ? <Folder className={cn("h-5 w-5 shrink-0", folderColor.icon)} />
+                                        : <FolderOpen className={cn("h-5 w-5 shrink-0", folderColor.icon)} />
+                                    }
+                                    {editingGroupId === group.id ? (
+                                        <Input
+                                            autoFocus
+                                            value={editingGroupName}
+                                            onChange={(event) => setEditingGroupName(event.target.value)}
+                                            onBlur={() => handleSaveGroupName(group.id)}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter') handleSaveGroupName(group.id)
+                                                if (event.key === 'Escape') {
+                                                    setEditingGroupId(null)
+                                                    setEditingGroupName('')
+                                                }
+                                            }}
+                                            onClick={(event) => event.stopPropagation()}
+                                            className="h-6 min-w-0 flex-1 px-1.5 py-0 text-sm"
+                                        />
+                                    ) : (
+                                        <span className="min-w-0 flex-1 truncate">{group.name}</span>
+                                    )}
+                                    <span className="shrink-0 text-xs opacity-50">({folderCharacters.length})</span>
+                                </button>
+                                <div className="flex gap-1 opacity-0 transition-opacity group-hover/folder:opacity-100">
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-7 w-7"
+                                        onClick={() => handleCreateGroup(group.id)}
+                                    >
+                                        <FolderPlus className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-7 w-7"
+                                        onClick={() => toggleGroupEnabled(group.id)}
+                                    >
+                                        <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-7 w-7"
+                                        onClick={() => {
+                                            setEditingGroupId(group.id)
+                                            setEditingGroupName(group.name)
+                                        }}
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-7 w-7 text-destructive hover:text-destructive"
+                                        onClick={() => handleDeleteGroup(group.id)}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="w-56">
+                            <ContextMenuItem onClick={() => handleCreateGroup(group.id)}>
+                                <FolderPlus className="mr-2 h-4 w-4" />
+                                {t('characterPanel.addSubfolder', '하위 폴더 추가')}
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => {
+                                setEditingGroupId(group.id)
+                                setEditingGroupName(group.name)
+                            }}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                {t('characterPanel.rename', '이름 변경')}
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => handleCycleFolderColor(group.id)}>
+                                <Palette className="mr-2 h-4 w-4" />
+                                {t('characterPanel.changeFolderColor', '폴더 색상 변경')}
+                            </ContextMenuItem>
+                            <ContextMenuSub>
+                                <ContextMenuSubTrigger>
+                                    <Folder className="mr-2 h-4 w-4" />
+                                    {t('characterPanel.moveFolder', '폴더 이동')}
+                                </ContextMenuSubTrigger>
+                                <ContextMenuSubContent className="max-h-72 overflow-y-auto">
+                                    <ContextMenuItem
+                                        disabled={!group.parentId}
+                                        onClick={() => moveGroup(group.id, undefined)}
+                                    >
+                                        {t('characterPanel.moveToRoot', '최상위로 이동')}
+                                    </ContextMenuItem>
+                                    {moveTargets.map(target => (
+                                        <ContextMenuItem
+                                            key={target.id}
+                                            disabled={group.parentId === target.id}
+                                            onClick={() => moveGroup(group.id, target.id)}
+                                        >
+                                            <span className="max-w-48 truncate">{getCharacterGroupPath(groups, target.id)}</span>
+                                        </ContextMenuItem>
+                                    ))}
+                                </ContextMenuSubContent>
+                            </ContextMenuSub>
+                        </ContextMenuContent>
+                    </ContextMenu>
+                </DroppableFolder>
+                {!group.collapsed && (
+                    <div className={cn("ml-2 min-h-8 space-y-1.5 border-l-2 pb-2 pl-2 pt-1", folderColor.border)}>
+                        {children.map(child => renderLegacyFolder(child, depth + 1))}
+                        <SortableContext
+                            items={folderCharacters.map(character => character.id)}
+                            strategy={verticalListSortingStrategy}
+                        >
+                            <div className="min-w-0 space-y-1.5">
+                                {folderCharacters.map(renderCharacterCard)}
+                            </div>
+                        </SortableContext>
+                    </div>
+                )}
+            </div>
+        )
+    }
+
     if (!open) return null
 
     return (
@@ -781,8 +951,21 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                 )}
 
                 {/* Search */}
-                <div className="px-3 py-2 border-b border-border/30 shrink-0">
-                    <div className="relative">
+                <div className="flex shrink-0 items-center gap-1.5 border-b border-border/30 px-3 py-2">
+                    {expertCharacterPromptFolderBrowserEnabled && (
+                        <Tip content={t('characterPanel.toggleFolders', '폴더 패널 열기/닫기')}>
+                            <Button
+                                type="button"
+                                variant={folderPanelOpen ? "secondary" : "ghost"}
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                onClick={() => setFolderPanelOpen(open => !open)}
+                            >
+                                <Menu className="h-4 w-4" />
+                            </Button>
+                        </Tip>
+                    )}
+                    <div className="relative min-w-0 flex-1">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                         <Input
                             value={searchQuery}
@@ -799,7 +982,9 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
                 >
+                    {expertCharacterPromptFolderBrowserEnabled ? (
                     <div className="flex min-h-0 flex-1">
+                        {folderPanelOpen && (
                         <div className="flex w-[34%] min-w-[120px] max-w-[180px] shrink-0 flex-col border-r border-border/30 bg-background/20">
                             <div className="flex h-8 shrink-0 items-center justify-between border-b border-border/20 px-2 text-[11px] font-medium text-muted-foreground">
                                 <span>{t('characterPanel.folders', '폴더')}</span>
@@ -834,6 +1019,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                 </div>
                             </ScrollArea>
                         </div>
+                        )}
 
                         <div className="flex min-w-0 flex-1 flex-col">
                             <div className="flex h-8 shrink-0 items-center justify-between gap-2 border-b border-border/20 px-2">
@@ -902,6 +1088,60 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                             </ScrollArea>
                         </div>
                     </div>
+                    ) : (
+                        <ScrollArea className="min-h-0 flex-1">
+                            <div className="flex min-w-0 flex-col gap-2 p-3">
+                                {characters.length === 0 ? (
+                                    <div className="flex min-h-48 items-center justify-center py-12 text-center text-sm text-muted-foreground">
+                                        <div>
+                                            <Users className="mx-auto mb-2 h-8 w-8 opacity-30" />
+                                            <p>{t('characterPanel.empty', '캐릭터가 없습니다')}</p>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="mt-2"
+                                                onClick={handleAddCharacter}
+                                            >
+                                                <Plus className="mr-1 h-3.5 w-3.5" />
+                                                {t('characterPanel.addFirst', '첫 캐릭터 추가')}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {(groupChildren.get('root') || []).map(group => renderLegacyFolder(group))}
+                                        <DroppableUngrouped isActive={activeId !== null}>
+                                            <SortableContext
+                                                items={legacyUngroupedCharacters.map(character => character.id)}
+                                                strategy={verticalListSortingStrategy}
+                                            >
+                                                <div className="min-w-0 space-y-1.5">
+                                                    {groups.length > 0 && (
+                                                        <div className="flex items-center gap-2 px-2 py-1 text-sm font-medium text-muted-foreground">
+                                                            <Users className="h-4 w-4" />
+                                                            {t('characterPanel.ungrouped', '미분류')}
+                                                            <span className="text-xs opacity-50">({legacyUngroupedCharacters.length})</span>
+                                                        </div>
+                                                    )}
+                                                    {legacyUngroupedCharacters.map(renderCharacterCard)}
+                                                </div>
+                                            </SortableContext>
+                                        </DroppableUngrouped>
+                                        {normalizedSearch
+                                            && getVisibleStackCharacters(characters.filter(characterMatchesSearch)).length === 0
+                                            && (
+                                                <div className="flex min-h-40 items-center justify-center py-8 text-center text-sm text-muted-foreground">
+                                                    <div>
+                                                        <Search className="mx-auto mb-2 h-8 w-8 opacity-30" />
+                                                        <p>{t('characterPanel.noResults', '검색 결과가 없습니다')}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                    </>
+                                )}
+                            </div>
+                        </ScrollArea>
+                    )}
                 </DndContext>
             </div>
 

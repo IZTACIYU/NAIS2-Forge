@@ -656,6 +656,8 @@
       "characterPrompt": {
         "header": "Character Prompt",
         "description": "Change the input layout and version handling for character prompt cards.",
+        "folderBrowserTitle": "Split Folder Browser",
+        "folderBrowserDesc": "Switch between the original combined character list and the split folder tree layout.",
         "layoutTitle": "Extended Character Prompt",
         "layoutDesc": "Switch prompt and negative with tabs, and separate costume prompt so each part can be toggled independently.",
         "variantsTitle": "Character Version Stack",
@@ -875,6 +877,7 @@
     "addDesc": "Add new character prompt",
     "addFolderDesc": "Create character folder",
     "search": "Search characters...",
+    "toggleFolders": "Toggle folder panel",
     "noResults": "No results found",
     "newFolder": "New folder...",
     "emptyFolder": "Empty folder",

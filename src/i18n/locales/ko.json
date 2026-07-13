@@ -686,6 +686,8 @@
       "characterPrompt": {
         "header": "캐릭터 프롬프트",
         "description": "캐릭터 프롬프트 카드의 입력 구조와 버전 관리 방식을 변경합니다.",
+        "folderBrowserTitle": "분할형 폴더 탐색",
+        "folderBrowserDesc": "캐릭터와 폴더를 한 목록에 표시하는 기존 디자인과, 폴더 트리와 캐릭터 목록을 나누는 디자인을 전환합니다.",
         "layoutTitle": "확장된 캐릭터 프롬프트",
         "layoutDesc": "프롬프트와 네거티브를 탭으로 전환하고, 의상 프롬프트를 분리해 개별로 켜고 끄게 합니다.",
         "variantsTitle": "캐릭터 버전 스택",
@@ -971,6 +973,7 @@
     "addDesc": "새 캐릭터 프롬프트 추가",
     "addFolderDesc": "캐릭터 폴더 생성",
     "search": "캐릭터 검색...",
+    "toggleFolders": "폴더 패널 열기/닫기",
     "noResults": "검색 결과가 없습니다",
     "newFolder": "새 폴더...",
     "emptyFolder": "빈 폴더",

@@ -655,6 +655,8 @@
       "characterPrompt": {
         "header": "キャラクタープロンプト",
         "description": "キャラクタープロンプトカードの入力構造とバージョン管理を変更します。",
+        "folderBrowserTitle": "分割フォルダーブラウザー",
+        "folderBrowserDesc": "従来の統合キャラクター一覧と、フォルダーツリーを分離したレイアウトを切り替えます。",
         "layoutTitle": "拡張キャラクタープロンプト",
         "layoutDesc": "プロンプトとネガティブをタブで切り替え、衣装プロンプトを分離して個別にオン/オフできます。",
         "variantsTitle": "キャラクターバージョンスタック",
@@ -826,6 +828,7 @@
     "addDesc": "新規キャラクタープロンプト追加",
     "addFolderDesc": "キャラクターフォルダ作成",
     "search": "キャラクター検索...",
+    "toggleFolders": "フォルダーパネルを開閉",
     "noResults": "検索結果がありません",
     "newFolder": "新規フォルダ...",
     "emptyFolder": "空のフォルダ",
