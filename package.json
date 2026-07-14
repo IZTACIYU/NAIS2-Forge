@@ -9,7 +9,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "npx tauri",
-    "tauri:dev": "npx tauri dev",
+    "tauri:dev": "npx tauri dev --config src-tauri/tauri.dev.conf.json",
     "tauri:build": "npx tauri build",
     "release:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release-windows.ps1",
     "tags:build": "node scripts/build-tag-index.mjs",
