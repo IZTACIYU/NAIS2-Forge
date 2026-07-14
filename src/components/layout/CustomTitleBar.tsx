@@ -6,11 +6,11 @@ import { cn } from '@/lib/utils'
 import { useLayoutStore } from '@/stores/layout-store'
 import { Tip } from '@/components/ui/tooltip'
 
+const appWindow = getCurrentWindow()
+
 export function CustomTitleBar({ navigation }: { navigation?: ReactNode }) {
     const { t } = useTranslation()
     const [isMaximized, setIsMaximized] = useState(false)
-    const appWindow = getCurrentWindow()
-
     const {
         leftSidebarVisible,
         rightSidebarVisible,
@@ -19,16 +19,44 @@ export function CustomTitleBar({ navigation }: { navigation?: ReactNode }) {
     } = useLayoutStore()
 
     useEffect(() => {
-        appWindow.isMaximized().then(setIsMaximized)
+        let active = true
+        let resizeTimer: number | null = null
+        let moveTimer: number | null = null
+        const root = document.documentElement
 
-        const unlisten = appWindow.onResized(async () => {
-            setIsMaximized(await appWindow.isMaximized())
+        void appWindow.isMaximized().then(value => {
+            if (active) setIsMaximized(value)
+        })
+
+        const unlistenResize = appWindow.onResized(() => {
+            root.classList.add('window-resizing')
+            if (resizeTimer !== null) window.clearTimeout(resizeTimer)
+            resizeTimer = window.setTimeout(() => {
+                resizeTimer = null
+                root.classList.remove('window-resizing')
+                void appWindow.isMaximized().then(value => {
+                    if (active) setIsMaximized(value)
+                })
+            }, 120)
+        })
+        const unlistenMove = appWindow.onMoved(() => {
+            root.classList.add('window-moving')
+            if (moveTimer !== null) window.clearTimeout(moveTimer)
+            moveTimer = window.setTimeout(() => {
+                moveTimer = null
+                root.classList.remove('window-moving')
+            }, 120)
         })
 
         return () => {
-            unlisten.then(fn => fn())
+            active = false
+            if (resizeTimer !== null) window.clearTimeout(resizeTimer)
+            if (moveTimer !== null) window.clearTimeout(moveTimer)
+            root.classList.remove('window-resizing', 'window-moving')
+            void unlistenResize.then(fn => fn())
+            void unlistenMove.then(fn => fn())
         }
-    }, [appWindow])
+    }, [])
 
     const handleMinimize = async () => {
         await appWindow.minimize()
@@ -45,7 +73,12 @@ export function CustomTitleBar({ navigation }: { navigation?: ReactNode }) {
     const handleMouseDown = async (e: React.MouseEvent) => {
         // Only start dragging on single click, not double click
         if (e.button === 0 && e.detail === 1) {
-            await appWindow.startDragging()
+            document.documentElement.classList.add('window-moving')
+            try {
+                await appWindow.startDragging()
+            } finally {
+                window.setTimeout(() => document.documentElement.classList.remove('window-moving'), 120)
+            }
         }
     }
 

@@ -160,3 +160,15 @@ body {
   height: 100%;
   overflow: hidden;
 }
+
+/* Keep native/window and panel resizing on the compositor's light path. */
+html:is(.panel-resizing, .window-resizing, .window-moving) #root [class*="backdrop-blur"],
+html:is(.panel-resizing, .window-resizing, .window-moving) #root .glass-surface {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html:is(.panel-resizing, .window-resizing, .window-moving) #root .layout-surface {
+  box-shadow: none !important;
+  transition: none !important;
+}

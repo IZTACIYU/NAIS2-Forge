@@ -44,7 +44,10 @@ export default function WebView() {
     const [newLinkName, setNewLinkName] = useState('')
     const [newLinkUrl, setNewLinkUrl] = useState('')
     const browserAreaRef = useRef<HTMLDivElement>(null)
-    const rafRef = useRef<number | null>(null)
+    const resizeFrameRef = useRef<number | null>(null)
+    const resizeInFlightRef = useRef(false)
+    const resizePendingRef = useRef(false)
+    const lastResizeKeyRef = useRef('')
     const storeRef = useRef<Store | null>(null)
     const [zoomLevel, setZoomLevel] = useState(1.0)
 
@@ -129,17 +132,24 @@ export default function WebView() {
         saveQuickLinks(newLinks)
     }
 
-    // Resize WebView immediately using requestAnimationFrame
+    // Serialize native resize IPC so continuous layout changes cannot build a backlog.
     const updateWebViewSize = useCallback(() => {
         if (!isBrowserOpen || !browserAreaRef.current) return
+        resizePendingRef.current = true
+        if (resizeFrameRef.current !== null || resizeInFlightRef.current) return
 
-        if (rafRef.current) {
-            cancelAnimationFrame(rafRef.current)
-        }
-
-        rafRef.current = requestAnimationFrame(async () => {
+        resizeFrameRef.current = requestAnimationFrame(async () => {
+            resizeFrameRef.current = null
+            if (!resizePendingRef.current) return
+            resizePendingRef.current = false
             const rect = browserAreaRef.current?.getBoundingClientRect()
             if (!rect) return
+            const resizeKey = [rect.left, rect.top, rect.width, rect.height]
+                .map(value => Math.round(value))
+                .join(':')
+            if (resizeKey === lastResizeKeyRef.current) return
+            lastResizeKeyRef.current = resizeKey
+            resizeInFlightRef.current = true
 
             try {
                 await invoke('resize_embedded_browser', {
@@ -150,6 +160,9 @@ export default function WebView() {
                 })
             } catch (error) {
                 // Ignore resize errors
+            } finally {
+                resizeInFlightRef.current = false
+                if (resizePendingRef.current) updateWebViewSize()
             }
         })
     }, [isBrowserOpen])
@@ -195,8 +208,10 @@ export default function WebView() {
         return () => {
             window.removeEventListener('resize', updateWebViewSize)
             resizeObserver.disconnect()
-            if (rafRef.current) {
-                cancelAnimationFrame(rafRef.current)
+            resizePendingRef.current = false
+            if (resizeFrameRef.current !== null) {
+                cancelAnimationFrame(resizeFrameRef.current)
+                resizeFrameRef.current = null
             }
         }
     }, [isBrowserOpen, updateWebViewSize])

@@ -46,11 +46,11 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const location = useLocation()
     const { anlas, isVerified, refreshAnlas } = useAuthStore()
     const { leftSidebarVisible, rightSidebarVisible, toggleLeftSidebar, toggleRightSidebar, leftSidebarWidth, rightSidebarWidth, setLeftSidebarWidth, setRightSidebarWidth } = useLayoutStore()
-    const [displayLeftWidth, setDisplayLeftWidth] = useState(leftSidebarWidth)
-    const [displayRightWidth, setDisplayRightWidth] = useState(rightSidebarWidth)
-    const [resizingSide, setResizingSide] = useState<'left' | 'right' | null>(null)
     const leftWidthRef = useRef(leftSidebarWidth)
     const rightWidthRef = useRef(rightSidebarWidth)
+    const leftPanelRef = useRef<HTMLElement>(null)
+    const rightPanelRef = useRef<HTMLElement>(null)
+    const resizeCleanupRef = useRef<(() => void) | null>(null)
     const expertCloudR2Enabled = useSettingsStore(state => state.expertCloudR2Enabled)
     const expertExifManagerEnabled = useSettingsStore(state => state.expertExifManagerEnabled)
 
@@ -66,44 +66,60 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const [fragmentPanelOpen, setFragmentPanelOpen] = useState(false)
 
     useEffect(() => {
-        if (!resizingSide) {
-            leftWidthRef.current = leftSidebarWidth
-            rightWidthRef.current = rightSidebarWidth
-            setDisplayLeftWidth(leftSidebarWidth)
-            setDisplayRightWidth(rightSidebarWidth)
-        }
-    }, [leftSidebarWidth, rightSidebarWidth, resizingSide])
+        leftWidthRef.current = leftSidebarWidth
+        rightWidthRef.current = rightSidebarWidth
+    }, [leftSidebarWidth, rightSidebarWidth])
+
+    useEffect(() => () => resizeCleanupRef.current?.(), [])
 
     const startPanelResize = (side: 'left' | 'right', event: React.MouseEvent) => {
         event.preventDefault()
+        resizeCleanupRef.current?.()
+        const panel = side === 'left' ? leftPanelRef.current : rightPanelRef.current
+        if (!panel) return
         const startX = event.clientX
-        const startWidth = side === 'left' ? displayLeftWidth : displayRightWidth
-        setResizingSide(side)
+        const startWidth = panel.getBoundingClientRect().width
+        let pendingWidth = startWidth
+        let frameId: number | null = null
         document.body.style.cursor = 'col-resize'
         document.body.style.userSelect = 'none'
+        document.documentElement.classList.add('panel-resizing')
+
+        const applyPendingWidth = () => {
+            frameId = null
+            panel.style.width = `${pendingWidth}px`
+        }
 
         const onMove = (moveEvent: MouseEvent) => {
             const delta = moveEvent.clientX - startX
             if (side === 'left') {
-                const width = Math.min(680, Math.max(340, startWidth + delta))
-                leftWidthRef.current = width
-                setDisplayLeftWidth(width)
+                pendingWidth = Math.min(680, Math.max(340, startWidth + delta))
+                leftWidthRef.current = pendingWidth
             } else {
-                const width = Math.min(480, Math.max(220, startWidth - delta))
-                rightWidthRef.current = width
-                setDisplayRightWidth(width)
+                pendingWidth = Math.min(480, Math.max(220, startWidth - delta))
+                rightWidthRef.current = pendingWidth
             }
+            if (frameId === null) frameId = window.requestAnimationFrame(applyPendingWidth)
         }
-        const onUp = () => {
-            const currentWidth = side === 'left' ? leftWidthRef.current : rightWidthRef.current
-            if (side === 'left') setLeftSidebarWidth(currentWidth)
-            else setRightSidebarWidth(currentWidth)
-            setResizingSide(null)
+
+        const cleanup = () => {
+            if (frameId !== null) {
+                window.cancelAnimationFrame(frameId)
+                applyPendingWidth()
+            }
             document.body.style.cursor = ''
             document.body.style.userSelect = ''
+            document.documentElement.classList.remove('panel-resizing')
             window.removeEventListener('mousemove', onMove)
             window.removeEventListener('mouseup', onUp)
+            resizeCleanupRef.current = null
         }
+        const onUp = () => {
+            cleanup()
+            if (side === 'left') setLeftSidebarWidth(pendingWidth)
+            else setRightSidebarWidth(pendingWidth)
+        }
+        resizeCleanupRef.current = cleanup
         window.addEventListener('mousemove', onMove)
         window.addEventListener('mouseup', onUp)
     }
@@ -166,10 +182,10 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
             {/* Main Layout */}
             <div className="flex flex-1 p-3 gap-3 overflow-hidden">
                 {/* Left Panel - Prompt Input (Fixed, Rounded Box) */}
-                <aside className={cn(
-                    "relative min-w-0 flex-shrink-0 flex flex-col bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg",
+                <aside ref={leftPanelRef} className={cn(
+                    "layout-surface relative min-w-0 flex-shrink-0 flex flex-col bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg",
                     !leftSidebarVisible && "hidden"
-                )} style={{ width: displayLeftWidth }}>
+                )} style={{ width: leftSidebarWidth }}>
                     {/* Header - Preset Title & Anlas Display */}
                     <div className="h-14 min-w-0 flex items-center justify-between gap-2 px-4">
                         {/* Preset Title + Dialog Trigger */}
@@ -219,7 +235,7 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                 </aside>
 
                 {/* Center Panel - Page Content (Rounded Box) */}
-                <div className="flex-1 flex flex-col min-w-0 bg-card/30 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg">
+                <div className="layout-surface flex-1 flex flex-col min-w-0 bg-card/30 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg">
                     {/* Tab Navigation (Glass Surface) */}
                     {isMac && <div className="shrink-0 flex items-center justify-center py-2 z-10 gap-2">
                         {/* Mac: Left sidebar toggle */}
@@ -284,10 +300,10 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                 </div>
 
                 {/* Right Panel - History Only (Rounded Box) */}
-                <aside className={cn(
-                    "relative flex-shrink-0 bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg",
+                <aside ref={rightPanelRef} className={cn(
+                    "layout-surface relative flex-shrink-0 bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg",
                     !rightSidebarVisible && "hidden"
-                )} style={{ width: displayRightWidth }}>
+                )} style={{ width: rightSidebarWidth }}>
                     <div className="absolute inset-y-0 left-0 z-30 w-1.5 cursor-col-resize transition-colors hover:bg-primary/30" onMouseDown={(event) => startPanelResize('right', event)} />
                     <HistoryPanel />
                 </aside>
