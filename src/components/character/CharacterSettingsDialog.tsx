@@ -3,13 +3,14 @@ import {
     DndContext,
     DragOverlay,
     PointerSensor,
-    closestCenter,
+    pointerWithin,
     useDroppable,
     useSensor,
     useSensors,
     type DragEndEvent,
     type DragStartEvent,
 } from '@dnd-kit/core'
+import { snapCenterToCursor } from '@dnd-kit/modifiers'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
@@ -47,6 +48,7 @@ import {
     type ReferenceFolder,
     type ReferenceImage,
     type ReferenceMode,
+    MAX_ACTIVE_REFERENCE_IMAGES,
     useCharacterStore,
 } from '@/stores/character-store'
 
@@ -112,7 +114,11 @@ function SortableImageCard({
         data: { type: 'image', imageId: image.id, folderId: image.folderId },
     })
     const enabled = image.enabled !== false
-    const enableBlocked = !enabled && (isVibe ? enabledCharacterCount > 0 : enabledVibeCount > 0)
+    const enabledModeCount = isVibe ? enabledVibeCount : enabledCharacterCount
+    const enableBlocked = !enabled && (
+        (isVibe ? enabledCharacterCount > 0 : enabledVibeCount > 0)
+        || enabledModeCount >= MAX_ACTIVE_REFERENCE_IMAGES
+    )
 
     return (
         <section
@@ -580,7 +586,7 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                 </button>
                 <input ref={inputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleInput} />
 
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragCancel={() => setActiveDragName(null)} onDragEnd={handleDragEnd}>
+                <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragCancel={() => setActiveDragName(null)} onDragEnd={handleDragEnd}>
                     <div ref={setRootDropRef} className={cn('space-y-3 rounded-md transition-colors', rootIsOver && 'bg-primary/5')}>
                         {unfiledImages.length > 0 && (
                             <div className="space-y-2">
@@ -621,7 +627,7 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                             <div className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">{t('characterDialog.noSearchResults')}</div>
                         )}
                     </div>
-                    <DragOverlay>{activeDragName ? <div className="max-w-[240px] truncate rounded-md border bg-background/95 px-3 py-2 text-sm font-medium shadow-xl">{activeDragName}</div> : null}</DragOverlay>
+                    <DragOverlay modifiers={[snapCenterToCursor]}>{activeDragName ? <div className="max-w-[240px] truncate rounded-md border bg-background/95 px-3 py-2 text-sm font-medium shadow-xl">{activeDragName}</div> : null}</DragOverlay>
                 </DndContext>
             </div>
 

@@ -65,8 +65,7 @@ interface CharacterState {
     ensureHighQualityThumbnails: () => Promise<void>
 }
 
-const MAX_CHARACTER_IMAGES = 10
-const MAX_VIBE_IMAGES = 10
+export const MAX_ACTIVE_REFERENCE_IMAGES = 10
 const THUMBNAIL_VERSION = 3
 const REFERENCE_CACHE_LIMIT_BYTES = 64 * 1024 * 1024
 const referenceAccessOrder = new Map<string, number>()
@@ -118,6 +117,7 @@ async function persistImageToFile(id: string, base64: string, store: typeof useC
             filePath,
             thumbnail,
             thumbnailVersion: THUMBNAIL_VERSION,
+            base64: '',
         })
         console.log('[CharacterStore] Saved ' + field + ' ' + id + ' to file')
     } catch (e) {
@@ -129,7 +129,7 @@ async function persistImageToFile(id: string, base64: string, store: typeof useC
 async function persistVibeToFile(id: string, encodedVibe: string, store: typeof useCharacterStore) {
     try {
         const encodedVibePath = await saveEncodedVibe(id, encodedVibe)
-        store.getState().updateVibeImage(id, { encodedVibePath })
+        store.getState().updateVibeImage(id, { encodedVibePath, encodedVibe: undefined })
         console.log('[CharacterStore] Saved encoded vibe ' + id + ' to file')
     } catch (e) {
         console.error('[CharacterStore] Failed to save encoded vibe ' + id + ':', e)
@@ -151,16 +151,12 @@ export const useCharacterStore = create<CharacterState>()(
                         ...state.characterImages,
                         {
                             id, name, base64,
-                            enabled: !get().vibeImages.some(image => image.enabled !== false),
+                            enabled: !state.vibeImages.some(image => image.enabled !== false)
+                                && state.characterImages.filter(image => image.enabled !== false).length < MAX_ACTIVE_REFERENCE_IMAGES,
                             informationExtracted: 1.0, strength: 0.6, fidelity: 0.6,
                             referenceType: 'character&style' as PreciseReferenceType
                         }
                     ]
-                    if (newImages.length > MAX_CHARACTER_IMAGES) {
-                        const removed = newImages[0]
-                        if (removed.filePath) deleteReferenceImage(removed.filePath)
-                        return { characterImages: newImages.slice(-MAX_CHARACTER_IMAGES) }
-                    }
                     return { characterImages: newImages }
                 })
                 // Async: save to file
@@ -168,7 +164,11 @@ export const useCharacterStore = create<CharacterState>()(
             },
 
             updateCharacterImage: (id, updates) => set((state) => {
-                const safeUpdates = updates.enabled === true && state.vibeImages.some(image => image.enabled !== false)
+                const enableBlocked = updates.enabled === true && (
+                    state.vibeImages.some(image => image.enabled !== false)
+                    || state.characterImages.filter(image => image.id !== id && image.enabled !== false).length >= MAX_ACTIVE_REFERENCE_IMAGES
+                )
+                const safeUpdates = enableBlocked
                     ? { ...updates, enabled: false }
                     : updates
                 return {
@@ -193,19 +193,14 @@ export const useCharacterStore = create<CharacterState>()(
                         ...state.vibeImages,
                         {
                             id, name, base64,
-                            enabled: !get().characterImages.some(image => image.enabled !== false),
+                            enabled: !state.characterImages.some(image => image.enabled !== false)
+                                && state.vibeImages.filter(image => image.enabled !== false).length < MAX_ACTIVE_REFERENCE_IMAGES,
                             encodedVibe,
                             informationExtracted: informationExtracted ?? 1.0,
                             strength: strength ?? 0.6, fidelity: 0.6,
                             referenceType: 'character&style' as PreciseReferenceType
                         }
                     ]
-                    if (newImages.length > MAX_VIBE_IMAGES) {
-                        const removed = newImages[0]
-                        if (removed.filePath) deleteReferenceImage(removed.filePath)
-                        if (removed.encodedVibePath) deleteReferenceImage(removed.encodedVibePath)
-                        return { vibeImages: newImages.slice(-MAX_VIBE_IMAGES) }
-                    }
                     return { vibeImages: newImages }
                 })
                 // Async: save to files
@@ -217,7 +212,11 @@ export const useCharacterStore = create<CharacterState>()(
 
             updateVibeImage: (id, updates) => {
                 set((state) => {
-                    const safeUpdates = updates.enabled === true && state.characterImages.some(image => image.enabled !== false)
+                    const enableBlocked = updates.enabled === true && (
+                        state.characterImages.some(image => image.enabled !== false)
+                        || state.vibeImages.filter(image => image.id !== id && image.enabled !== false).length >= MAX_ACTIVE_REFERENCE_IMAGES
+                    )
+                    const safeUpdates = enableBlocked
                         ? { ...updates, enabled: false }
                         : updates
                     return {
