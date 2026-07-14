@@ -825,17 +825,20 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                 )}
             >
                 {/* Header */}
-                <div className="flex min-w-0 items-center justify-between gap-1 px-3 py-2 bg-muted/50 border-b border-border/30 shrink-0">
-                    <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium">
+                <div className="relative flex min-w-0 items-center overflow-hidden px-3 py-2 bg-muted/50 border-b border-border/30 shrink-0">
+                    <div className={cn(
+                        "flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-sm font-medium",
+                        positionEnabled ? "pr-[192px]" : "pr-[160px]"
+                    )}>
                         <Users className="h-4 w-4 shrink-0 text-primary" />
-                        <span className="min-w-0 truncate">{t('characterPanel.title', '캐릭터 프롬프트')}</span>
+                        <span className="min-w-0 flex-1 truncate">{t('characterPanel.title', '캐릭터 프롬프트')}</span>
                         {enabledCharacterCount > 0 && (
                             <span className="shrink-0 text-xs text-muted-foreground">
                                 ({enabledCharacterCount})
                             </span>
                         )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="absolute right-3 top-1/2 z-10 flex shrink-0 -translate-y-1/2 items-center gap-1 bg-muted/50">
                         {/* 위치 설정 다이얼로그 (활성화 시에만) - 왼쪽에 배치 */}
                         {positionEnabled && (
                             <Tip content={t('characterPanel.positionTitle', '이미지 내 캐릭터 위치 지정')}>
