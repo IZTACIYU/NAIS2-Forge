@@ -51,7 +51,10 @@ export function AutocompleteTextarea({
 
     // onChange ?붾컮?댁뒪瑜??꾪븳 ??대㉧ ref
     const onChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const pendingLocalValueRef = useRef<string | null>(null)
+    const onChangeRef = useRef(onChange)
     const autocompleteRequestRef = useRef(0)
+    onChangeRef.current = onChange
 
     // Fragment Store 援щ룆 (議곌컖 ?꾨＼?꾪듃 紐⑸줉)
     const fragmentFiles = useFragmentStore(state => state.files)
@@ -69,15 +72,37 @@ export function AutocompleteTextarea({
     // ?몃? value媛 蹂寃쎈릺硫??대? state ?숆린??(?? ?꾨━??濡쒕뱶)
     // ?? ?대?媛믨낵 ?숈씪?섎㈃ ?숆린???ㅽ궢 (而ㅼ꽌 ?먰봽 諛⑹?)
     useEffect(() => {
-        internalValueRef.current = internalValue
-    }, [internalValue])
-
-    useEffect(() => {
-        if (value !== internalValueRef.current) {
-            internalValueRef.current = value
-            setInternalValue(value)
+        if (value === internalValueRef.current) {
+            pendingLocalValueRef.current = null
+            return
         }
+
+        // A parent update can arrive after a newer local keystroke. Keep the
+        // editor authoritative until that local value has been acknowledged.
+        if (pendingLocalValueRef.current !== null) return
+
+        internalValueRef.current = value
+        setInternalValue(value)
     }, [value])
+
+    const scheduleValueChange = useCallback((nextValue: string, delay: number) => {
+        pendingLocalValueRef.current = nextValue
+        if (onChangeTimerRef.current) clearTimeout(onChangeTimerRef.current)
+        onChangeTimerRef.current = setTimeout(() => {
+            onChangeTimerRef.current = null
+            onChangeRef.current({ target: { value: nextValue } })
+        }, delay)
+    }, [])
+
+    const flushPendingValue = useCallback(() => {
+        if (!onChangeTimerRef.current) return
+        clearTimeout(onChangeTimerRef.current)
+        onChangeTimerRef.current = null
+        const pendingValue = pendingLocalValueRef.current
+        if (pendingValue !== null) {
+            onChangeRef.current({ target: { value: pendingValue } })
+        }
+    }, [])
 
     // --- Helpers ---
     const getCurrentWord = (text: string, position: number) => {
@@ -218,10 +243,7 @@ export function AutocompleteTextarea({
             })
 
             // Debounce external onChange to avoid re-render resetting cursor
-            if (onChangeTimerRef.current) clearTimeout(onChangeTimerRef.current)
-            onChangeTimerRef.current = setTimeout(() => {
-                onChange({ target: { value: newValue } })
-            }, 50)
+            scheduleValueChange(newValue, 50)
         } else {
             // ?쇰컲 ?쒓렇 ?쎌엯 (:: 臾몃쾿 吏??
             const left = val.slice(0, pos)
@@ -261,10 +283,7 @@ export function AutocompleteTextarea({
             })
 
             // Debounce external onChange to avoid re-render resetting cursor
-            if (onChangeTimerRef.current) clearTimeout(onChangeTimerRef.current)
-            onChangeTimerRef.current = setTimeout(() => {
-                onChange({ target: { value: newValue } })
-            }, 50)
+            scheduleValueChange(newValue, 50)
         }
     }
 
@@ -301,12 +320,7 @@ export function AutocompleteTextarea({
         setInternalValue(code)
 
         // onChange瑜?100ms ?붾컮?댁뒪 (Zustand ?낅뜲?댄듃 吏?곗쑝濡???諛⑹?)
-        if (onChangeTimerRef.current) {
-            clearTimeout(onChangeTimerRef.current)
-        }
-        onChangeTimerRef.current = setTimeout(() => {
-            onChange({ target: { value: code } })
-        }, 100)
+        scheduleValueChange(code, 100)
 
         if (textareaRef.current) {
             checkAutocomplete(code, textareaRef.current)
@@ -348,9 +362,9 @@ export function AutocompleteTextarea({
     useEffect(() => {
         return () => {
             autocompleteRequestRef.current++
-            if (onChangeTimerRef.current) clearTimeout(onChangeTimerRef.current)
+            flushPendingValue()
         }
-    }, [])
+    }, [flushPendingValue])
 
     // Scroll active suggestion into view
     useEffect(() => {
@@ -500,6 +514,7 @@ export function AutocompleteTextarea({
 
                     // Event wiring
                     onFocus={(e) => textareaRef.current = e.target as HTMLTextAreaElement}
+                    onBlur={flushPendingValue}
                     onClick={(e) => {
                         textareaRef.current = e.target as HTMLTextAreaElement
                         scrollToCaret()

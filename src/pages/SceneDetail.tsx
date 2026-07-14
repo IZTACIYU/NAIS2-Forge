@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import {
     Select,
@@ -141,6 +141,8 @@ export default function SceneDetail() {
     // Auto-save prompt logic - hooks must be before conditional return
     const updateScenePrompt = useSceneStore(state => state.updateScenePrompt)
     const [localPrompt, setLocalPrompt] = useState(scene?.scenePrompt || '')
+    const localPromptRef = useRef(localPrompt)
+    localPromptRef.current = localPrompt
 
     const nav = useNavigate()
 
@@ -182,7 +184,7 @@ export default function SceneDetail() {
         }
     }, [scene?.id])
 
-    // Debounced save of prompt to store + save on unmount
+    // Debounced save of prompt to store.
     useEffect(() => {
         if (!scene || !activePresetId) return
         if (localPrompt === scene.scenePrompt) return
@@ -191,17 +193,25 @@ export default function SceneDetail() {
             updateScenePrompt(activePresetId, scene.id, localPrompt)
         }, 1000)
 
+        return () => clearTimeout(timer)
+    }, [localPrompt, scene?.id, scene?.scenePrompt, activePresetId, updateScenePrompt])
+
+    // Preserve the newest local edit when leaving the scene before debounce ends.
+    useEffect(() => {
+        if (!scene || !activePresetId) return
+        const sceneIdToSave = scene.id
+        const presetIdToSave = activePresetId
+
         return () => {
-            clearTimeout(timer)
-            // Save immediately on unmount if changed
+            const latestPrompt = localPromptRef.current
             const currentScene = useSceneStore.getState().presets
-                .find(p => p.id === activePresetId)?.scenes
-                .find(s => s.id === scene.id)
-            if (currentScene && localPrompt !== currentScene.scenePrompt) {
-                updateScenePrompt(activePresetId, scene.id, localPrompt)
+                .find(p => p.id === presetIdToSave)?.scenes
+                .find(s => s.id === sceneIdToSave)
+            if (currentScene && latestPrompt !== currentScene.scenePrompt) {
+                updateScenePrompt(presetIdToSave, sceneIdToSave, latestPrompt)
             }
         }
-    }, [localPrompt, scene, activePresetId, updateScenePrompt])
+    }, [scene?.id, activePresetId, updateScenePrompt])
 
     // Auto-validate images on mount - MUST be before conditional return to maintain hook order
     useEffect(() => {
@@ -481,6 +491,7 @@ export default function SceneDetail() {
             < div className="flex flex-col min-h-[140px] shrink-0" >
                 <label className="text-xs font-medium text-muted-foreground mb-1">{t('scene.scenePrompt')}</label>
                 <AutocompleteTextarea
+                    key={scene.id}
                     placeholder=""
                     className="flex-1 min-h-0 resize-none rounded-xl"
                     style={{ fontSize: `${promptFontSize}px` }}
