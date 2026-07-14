@@ -40,7 +40,7 @@ import { Button } from '@/components/ui/button'
 import { Tip } from '@/components/ui/tooltip'
 import { useSettingsStore } from '@/stores/settings-store'
 
-const STACK_DROP_HOVER_MS = 500
+const STACK_DROP_HOVER_MS = 1000
 
 const dropAnimation = {
     sideEffects: defaultDropAnimationSideEffects({
