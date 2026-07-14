@@ -1224,6 +1224,10 @@ function SortableCharacterCard(props: CharacterCardProps) {
     } = useSortable({ id: props.character.id })
 
     const style: React.CSSProperties = {
+        width: '100%',
+        minWidth: 0,
+        maxWidth: '100%',
+        contain: 'inline-size',
         transform: CSS.Transform.toString(transform),
         transition,
         zIndex: isDragging ? 9999 : 'auto',
@@ -1236,6 +1240,7 @@ function SortableCharacterCard(props: CharacterCardProps) {
         <div 
             ref={setNodeRef} 
             style={style}
+            className="w-full min-w-0 max-w-full overflow-hidden"
             {...attributes}
         >
             <CharacterCard {...props} dragHandleProps={listeners} />
@@ -1341,7 +1346,7 @@ function CharacterCard({
                     >
                         {/* Card Header - Drag Handle */}
                         <div
-                            className="flex min-w-0 items-center gap-2.5 px-3 py-2.5 cursor-grab hover:bg-muted/50 transition-colors bg-muted/30 active:cursor-grabbing"
+                            className="flex w-full min-w-0 max-w-full items-center gap-2.5 overflow-hidden px-3 py-2.5 cursor-grab hover:bg-muted/50 transition-colors bg-muted/30 active:cursor-grabbing"
                             onClick={onToggleExpand}
                             {...dragHandleProps}
                         >
@@ -1363,7 +1368,7 @@ function CharacterCard({
                                 {index + 1}
                             </div>
 
-                            <span className="min-w-0 flex-1 text-sm font-medium truncate">
+                            <span className="w-0 min-w-0 flex-1 truncate text-sm font-medium">
                                 {getVariantBaseName(
                                     character,
                                     character.prompt
