@@ -503,7 +503,7 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
     return (
         <div
             className={cn(
-                'absolute inset-0 z-20 flex flex-col overflow-hidden rounded-xl border border-border/50 bg-muted/95 backdrop-blur-sm',
+                'absolute inset-0 z-20 flex flex-col overflow-hidden rounded-xl border border-border/50 bg-muted/95',
                 'animate-in slide-in-from-bottom-4 duration-200',
                 dragOverFiles && 'ring-2 ring-inset ring-primary'
             )}
