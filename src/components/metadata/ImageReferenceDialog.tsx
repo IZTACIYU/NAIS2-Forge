@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ImagePlus, Loader2, Sparkles, User } from 'lucide-react'
+import { ImagePlus, Sparkles, User } from 'lucide-react'
 import {
     Dialog,
     DialogContent,
@@ -21,26 +22,39 @@ interface ImageReferenceDialogProps {
 export function ImageReferenceDialog({ open, onOpenChange, imageBase64 }: ImageReferenceDialogProps) {
     const { t } = useTranslation()
     const { addVibeImage, addCharacterImage, characterImages } = useCharacterStore()
+    const [isProcessing, setIsProcessing] = useState(false)
+    
     // 활성화된 참조 레퍼런스 이미지가 있는지 확인
     const hasEnabledCharacterImages = characterImages.some(img => img.enabled !== false)
 
-    const queueAdd = (mode: 'character' | 'vibe') => {
+    const handleAddAsVibe = async () => {
         if (!imageBase64) return
-        const source = imageBase64
-        onOpenChange(false)
-
-        window.setTimeout(() => {
-            const task = mode === 'character'
-                ? addCharacterImage(source)
-                : addVibeImage(source)
+        setIsProcessing(true)
+        try {
+            await addVibeImage(imageBase64)
             toast({
-                title: mode === 'character'
-                    ? t('imageRef.addedChar', 'Added to character references')
-                    : t('imageRef.addedVibe', 'Added to Vibe Transfer'),
+                title: t('imageRef.addedVibe', 'Vibe Transfer에 추가됨'),
                 variant: 'success',
             })
-            void task.catch(error => console.error('[ImageReference] Background add failed:', error))
-        }, 0)
+            onOpenChange(false)
+        } finally {
+            setIsProcessing(false)
+        }
+    }
+
+    const handleAddAsCharacter = async () => {
+        if (!imageBase64) return
+        setIsProcessing(true)
+        try {
+            await addCharacterImage(imageBase64)
+            toast({
+                title: t('imageRef.addedChar', '캐릭터 레퍼런스에 추가됨'),
+                variant: 'success',
+            })
+            onOpenChange(false)
+        } finally {
+            setIsProcessing(false)
+        }
     }
 
     return (
@@ -58,18 +72,15 @@ export function ImageReferenceDialog({ open, onOpenChange, imageBase64 }: ImageR
 
                 <div className="flex gap-4 mt-4">
                     {/* Left: Image Preview */}
-                    <div className="flex h-32 w-32 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
-                        {imageBase64 ? (
+                    {imageBase64 && (
+                        <div className="flex-shrink-0">
                             <img
                                 src={imageBase64}
                                 alt="Preview"
-                                decoding="async"
-                                className="h-full w-full object-cover"
+                                className="w-32 h-32 rounded-lg border object-cover"
                             />
-                        ) : (
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                        )}
-                    </div>
+                        </div>
+                    )}
 
                     {/* Right: Buttons stacked vertically */}
                     <div className="flex-1 flex flex-col gap-3">
@@ -77,8 +88,8 @@ export function ImageReferenceDialog({ open, onOpenChange, imageBase64 }: ImageR
                         <Button
                             variant="outline"
                             className="flex-1 flex items-center justify-start gap-3 hover:bg-primary/10 hover:border-primary"
-                            onClick={() => queueAdd('character')}
-                            disabled={!imageBase64}
+                            onClick={handleAddAsCharacter}
+                            disabled={isProcessing}
                         >
                             <User className="h-6 w-6 text-blue-500 flex-shrink-0" />
                             <div className="text-left">
@@ -96,8 +107,8 @@ export function ImageReferenceDialog({ open, onOpenChange, imageBase64 }: ImageR
                             <Button
                                 variant="outline"
                                 className="flex-1 flex items-center justify-start gap-3 hover:bg-primary/10 hover:border-primary"
-                                onClick={() => queueAdd('vibe')}
-                                disabled={!imageBase64 || hasEnabledCharacterImages}
+                                onClick={handleAddAsVibe}
+                                disabled={isProcessing || hasEnabledCharacterImages}
                             >
                                 <Sparkles className="h-6 w-6 text-purple-500 flex-shrink-0" />
                                 <div className="text-left">

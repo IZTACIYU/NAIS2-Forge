@@ -75,38 +75,16 @@ let thumbnailRefreshPromise: Promise<void> | null = null
 const estimateRuntimeBytes = (image: ReferenceImage) =>
     ((image.base64?.length || 0) + (image.encodedVibe?.length || 0)) * 2
 
-const waitForIdle = () => new Promise<void>((resolve) => {
-    if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(() => resolve(), { timeout: 1000 })
-        return
-    }
-    setTimeout(resolve, 32)
-})
-
 /** Create a tiny thumbnail for UI display (~10-30KB instead of 2-5MB) */
 async function makeThumbnail(base64: string, width = 384, height = 264): Promise<string> {
     return new Promise((resolve) => {
         const img = new Image()
-        let canvas: HTMLCanvasElement | null = null
-        let settled = false
-        const finish = (value: string) => {
-            if (settled) return
-            settled = true
-            img.onload = null
-            img.onerror = null
-            if (canvas) {
-                canvas.width = 0
-                canvas.height = 0
-            }
-            img.src = ''
-            resolve(value)
-        }
-        img.decoding = 'async'
         img.onload = () => {
+            let canvas: HTMLCanvasElement | null = null
             try {
                 canvas = document.createElement('canvas')
                 const ctx = canvas.getContext('2d')
-                if (!ctx) { finish(''); return }
+                if (!ctx) { resolve(''); return }
                 const targetRatio = width / height
                 const sourceRatio = img.width / img.height
                 const sourceWidth = sourceRatio > targetRatio ? img.height * targetRatio : img.width
@@ -118,19 +96,14 @@ async function makeThumbnail(base64: string, width = 384, height = 264): Promise
                 ctx.imageSmoothingEnabled = true
                 ctx.imageSmoothingQuality = 'high'
                 ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, width, height)
-                canvas.toBlob((blob) => {
-                    if (!blob) {
-                        finish('')
-                        return
-                    }
-                    const reader = new FileReader()
-                    reader.onload = () => finish(String(reader.result))
-                    reader.onerror = () => finish('')
-                    reader.readAsDataURL(blob)
-                }, 'image/webp', 0.82)
-            } catch { finish('') }
+                resolve(canvas.toDataURL('image/webp', 0.82))
+            } catch { resolve('') }
+            finally {
+                if (canvas) { canvas.width = 0; canvas.height = 0 }
+                img.src = ''
+            }
         }
-        img.onerror = () => finish('')
+        img.onerror = () => { img.src = ''; resolve('') }
         img.src = base64
     })
 }
@@ -139,15 +112,12 @@ async function makeThumbnail(base64: string, width = 384, height = 264): Promise
 async function persistImageToFile(id: string, base64: string, store: typeof useCharacterStore, field: 'characterImages' | 'vibeImages') {
     try {
         const filePath = await saveReferenceImage(id, base64)
-        store.getState()[field === 'characterImages' ? 'updateCharacterImage' : 'updateVibeImage'](id, {
-            filePath,
-            base64: '',
-        })
-        await waitForIdle()
         const thumbnail = await makeThumbnail(base64)
         store.getState()[field === 'characterImages' ? 'updateCharacterImage' : 'updateVibeImage'](id, {
+            filePath,
             thumbnail,
             thumbnailVersion: THUMBNAIL_VERSION,
+            base64: '',
         })
         console.log('[CharacterStore] Saved ' + field + ' ' + id + ' to file')
     } catch (e) {
