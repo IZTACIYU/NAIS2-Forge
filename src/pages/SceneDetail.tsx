@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import {
     Select,
@@ -51,6 +51,7 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { exists, readFile, remove } from '@tauri-apps/plugin-fs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from '@/components/ui/use-toast'
+import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 
 export default function SceneDetail() {
     const { id: sceneId } = useParams()
@@ -123,6 +124,7 @@ export default function SceneDetail() {
     const [selectedImageForMetadata, setSelectedImageForMetadata] = useState<string | undefined>()
     const [imageRefDialogOpen, setImageRefDialogOpen] = useState(false)
     const [selectedImageForRef, setSelectedImageForRef] = useState<string | null>(null)
+    const imageRefLoadIdRef = useRef(0)
     const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false)
     const [selectedImageForInpaint, setSelectedImageForInpaint] = useState<string | null>(null)
     const [isEditingName, setIsEditingName] = useState(false)
@@ -130,6 +132,32 @@ export default function SceneDetail() {
     const [viewerImageSrc, setViewerImageSrc] = useState<string | null>(null)
     const [viewerImage, setViewerImage] = useState<SceneImage | null>(null)  // Current image object for context menu
     const streamingSceneId = useSceneStore(s => s.streamingSceneId)
+
+    const openImageReference = async (image: SceneImage) => {
+        const loadId = ++imageRefLoadIdRef.current
+        setSelectedImageForRef(null)
+        setImageRefDialogOpen(true)
+        try {
+            const dataUrl = image.url.startsWith('data:')
+                ? image.url
+                : await bytesToImageDataUrl(await readFile(image.url), image.url)
+            if (imageRefLoadIdRef.current === loadId) setSelectedImageForRef(dataUrl)
+        } catch (error) {
+            console.error('Failed to load reference image', error)
+            if (imageRefLoadIdRef.current === loadId) {
+                setImageRefDialogOpen(false)
+                toast({ title: t('library.error', 'Error'), variant: 'destructive' })
+            }
+        }
+    }
+
+    const handleImageRefOpenChange = (open: boolean) => {
+        setImageRefDialogOpen(open)
+        if (!open) {
+            imageRefLoadIdRef.current += 1
+            setSelectedImageForRef(null)
+        }
+    }
     const streamingImage = useSceneStore(s => s.streamingSceneId === sceneId ? s.streamingImage : null)
     const streamingProgress = useSceneStore(s => s.streamingSceneId === sceneId ? s.streamingProgress : 0)
     const thumbnailLayout = useSceneStore(s => s.thumbnailLayout)
@@ -657,25 +685,7 @@ export default function SceneDetail() {
                                     onDelete={() => deleteImage(activePresetId, scene.id, image.id)}
                                     onToggleFavorite={() => toggleFavorite(activePresetId, scene.id, image.id)}
                                     // Handlers for new context menu items
-                                    onAddRef={async () => {
-                                        // Reuse image loading logic or read file
-                                        try {
-                                            let dataUrl = image.url
-                                            if (!dataUrl.startsWith('data:')) {
-                                                const data = await readFile(image.url)
-                                                let binary = ''
-                                                const len = data.byteLength
-                                                for (let i = 0; i < len; i++) {
-                                                    binary += String.fromCharCode(data[i])
-                                                }
-                                                dataUrl = `data:image/png;base64,${btoa(binary)}`
-                                            }
-                                            setSelectedImageForRef(dataUrl)
-                                            setImageRefDialogOpen(true)
-                                        } catch (e) {
-                                            console.error("Failed to load reference image", e)
-                                        }
-                                    }}
+                                    onAddRef={() => { void openImageReference(image) }}
                                     onLoadMetadata={async () => {
                                         try {
                                             let dataUrl = image.url
@@ -720,7 +730,7 @@ export default function SceneDetail() {
 
             <ImageReferenceDialog
                 open={imageRefDialogOpen}
-                onOpenChange={setImageRefDialogOpen}
+                onOpenChange={handleImageRefOpenChange}
                 imageBase64={selectedImageForRef}
             />
 
@@ -751,23 +761,7 @@ export default function SceneDetail() {
                             setViewerImageSrc(null)
                             setViewerImage(null)
                         }}
-                        onAddRef={async () => {
-                            try {
-                                let dataUrl = viewerImage.url
-                                if (!dataUrl.startsWith('data:')) {
-                                    const data = await readFile(viewerImage.url)
-                                    let binary = ''
-                                    for (let i = 0; i < data.byteLength; i++) {
-                                        binary += String.fromCharCode(data[i])
-                                    }
-                                    dataUrl = `data:image/png;base64,${btoa(binary)}`
-                                }
-                                setSelectedImageForRef(dataUrl)
-                                setImageRefDialogOpen(true)
-                            } catch (e) {
-                                console.error('Failed to load ref image', e)
-                            }
-                        }}
+                        onAddRef={() => { void openImageReference(viewerImage) }}
                         onLoadMetadata={async () => {
                             try {
                                 let dataUrl = viewerImage.url

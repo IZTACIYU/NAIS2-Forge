@@ -282,6 +282,7 @@ export function HistoryPanel() {
     const [selectedImageForMetadata, setSelectedImageForMetadata] = useState<string | undefined>()
     const [imageRefDialogOpen, setImageRefDialogOpen] = useState(false)
     const [selectedImageForRef, setSelectedImageForRef] = useState<string | null>(null)
+    const imageRefLoadIdRef = useRef(0)
     const [r2DirectUploadItems, setR2DirectUploadItems] = useState<UploadCandidate[]>([])
     const [r2DirectUploadOpen, setR2DirectUploadOpen] = useState(false)
     // Inpainting dialog state
@@ -1101,10 +1102,25 @@ export function HistoryPanel() {
     }
 
     const handleAddAsReference = async (image: SavedImage) => {
-        let imageData: string
-        try { imageData = await getFullImageData(image) } catch { return }
-        setSelectedImageForRef(imageData)
+        const loadId = ++imageRefLoadIdRef.current
+        setSelectedImageForRef(null)
         setImageRefDialogOpen(true)
+        let imageData: string
+        try {
+            imageData = await getFullImageData(image)
+        } catch {
+            if (imageRefLoadIdRef.current === loadId) setImageRefDialogOpen(false)
+            return
+        }
+        if (imageRefLoadIdRef.current === loadId) setSelectedImageForRef(imageData)
+    }
+
+    const handleImageRefOpenChange = (open: boolean) => {
+        setImageRefDialogOpen(open)
+        if (!open) {
+            imageRefLoadIdRef.current += 1
+            setSelectedImageForRef(null)
+        }
     }
 
     // Inpainting: Open dialog directly with image (source/mode set when mask is saved)
@@ -1212,7 +1228,7 @@ export function HistoryPanel() {
 
             <ImageReferenceDialog
                 open={imageRefDialogOpen}
-                onOpenChange={setImageRefDialogOpen}
+                onOpenChange={handleImageRefOpenChange}
                 imageBase64={selectedImageForRef}
             />
 

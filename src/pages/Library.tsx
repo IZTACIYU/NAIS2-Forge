@@ -63,6 +63,7 @@ import {
 import { ImageReferenceDialog } from '@/components/metadata/ImageReferenceDialog'
 import { MetadataDialog } from '@/components/metadata/MetadataDialog'
 import { readFile } from '@tauri-apps/plugin-fs'
+import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 
 // ... existing imports
 
@@ -133,6 +134,7 @@ export default function Library() {
     const [selectedItemForRename, setSelectedItemForRename] = useState<LibraryItem | null>(null)
     const [imageRefDialogOpen, setImageRefDialogOpen] = useState(false)
     const [selectedImageRef, setSelectedImageRef] = useState<string | null>(null)
+    const imageRefLoadIdRef = useRef(0)
     const [metadataDialogOpen, setMetadataDialogOpen] = useState(false)
     const [selectedImageForMetadata, setSelectedImageForMetadata] = useState<string | undefined>()
 
@@ -476,14 +478,27 @@ export default function Library() {
     }
 
     const handleAddRefClick = async (item: LibraryItem) => {
+        const loadId = ++imageRefLoadIdRef.current
+        setSelectedImageRef(null)
+        setImageRefDialogOpen(true)
         try {
             const data = await readFile(item.path)
-            const base64 = arrayBufferToBase64(data)
-            setSelectedImageRef(`data:image/png;base64,${base64}`)
-            setImageRefDialogOpen(true)
+            const imageData = await bytesToImageDataUrl(data, item.name)
+            if (imageRefLoadIdRef.current === loadId) setSelectedImageRef(imageData)
         } catch (e) {
             console.error('Failed to load for ref:', e)
-            toast({ title: t('library.error', '오류 발생'), variant: 'destructive' })
+            if (imageRefLoadIdRef.current === loadId) {
+                setImageRefDialogOpen(false)
+                toast({ title: t('library.error', 'Error'), variant: 'destructive' })
+            }
+        }
+    }
+
+    const handleImageRefOpenChange = (open: boolean) => {
+        setImageRefDialogOpen(open)
+        if (!open) {
+            imageRefLoadIdRef.current += 1
+            setSelectedImageRef(null)
         }
     }
 
@@ -886,7 +901,7 @@ export default function Library() {
 
             <ImageReferenceDialog
                 open={imageRefDialogOpen}
-                onOpenChange={setImageRefDialogOpen}
+                onOpenChange={handleImageRefOpenChange}
                 imageBase64={selectedImageRef}
             />
 
