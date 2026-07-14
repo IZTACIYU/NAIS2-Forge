@@ -414,7 +414,7 @@ export function PromptPanel() {
                 <Button
                     variant={imageRefDialogOpen ? "default" : "outline"}
                     size="sm"
-                    className="min-w-0 flex-1 overflow-hidden px-2 text-xs rounded-xl h-9 relative"
+                    className="min-w-0 flex-1 px-2 text-xs rounded-xl h-9 relative"
                     onClick={() => {
                         setCharacterPanelOpen(false)
                         setImageRefDialogOpen(prev => !prev)
@@ -436,7 +436,7 @@ export function PromptPanel() {
                     variant={characterPanelOpen ? "default" : "outline"}
                     size="sm"
                     className={cn(
-                        "min-w-0 flex-1 overflow-hidden px-2 text-xs rounded-xl h-9 relative",
+                        "min-w-0 flex-1 px-2 text-xs rounded-xl h-9 relative",
                         characterPanelOpen && "bg-primary text-primary-foreground"
                     )}
                     onClick={() => {
