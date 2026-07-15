@@ -26,6 +26,7 @@ import {
     PanelLeft,
     PanelRight,
     Dices,
+    FolderOpen,
 } from 'lucide-react'
 
 interface ThreeColumnLayoutProps {
@@ -37,6 +38,10 @@ import { useCharacterStore } from '@/stores/character-store'
 import { usePresetStore } from '@/stores/preset-store'
 import { useLayoutStore } from '@/stores/layout-store'
 import { useSettingsStore } from '@/stores/settings-store'
+import { useSceneStore } from '@/stores/scene-store'
+import { mkdir } from '@tauri-apps/plugin-fs'
+import { join, pictureDir } from '@tauri-apps/api/path'
+import { Command } from '@tauri-apps/plugin-shell'
 
 // Check if running on Mac (works in browser and Tauri WebView)
 const isMac = navigator.platform.toUpperCase().includes('MAC') ||
@@ -61,6 +66,9 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const expertSceneRandomCharactersEnabled = useSettingsStore(state => state.expertSceneRandomCharactersEnabled)
     const sceneRandomCharactersActive = useSettingsStore(state => state.sceneRandomCharactersActive)
     const sceneRandomCharacterCount = useSettingsStore(state => state.sceneRandomCharacterCount)
+    const activeScenePresetName = useSceneStore(state =>
+        state.presets.find(preset => preset.id === state.activePresetId)?.name
+    )
 
     // Get generation params for cost calculation
     const { characterImages, vibeImages } = useCharacterStore()
@@ -167,9 +175,33 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
         }
     }, [isVerified, refreshAnlas])
 
+    const handleOpenActiveScenePresetFolder = async () => {
+        if (!activeScenePresetName) return
+        try {
+            const safePresetName = activeScenePresetName.replace(/[<>:"/\\|?*]/g, '_').trim() || 'Default'
+            const { savePath, useAbsolutePath } = useSettingsStore.getState()
+            const basePath = useAbsolutePath && savePath ? savePath : await pictureDir()
+            const presetPath = await join(basePath, 'NAIS_Scene', safePresetName)
+            await mkdir(presetPath, { recursive: true })
+            await Command.create('explorer', [presetPath]).execute()
+        } catch (error) {
+            console.error('Failed to open active scene preset folder:', error)
+        }
+    }
+
     const navItems = [
         { path: '/', icon: Home, labelKey: 'nav.main' },
-        { path: '/scenes', icon: Film, labelKey: 'nav.scenes' },
+        {
+            path: '/scenes',
+            icon: Film,
+            labelKey: 'nav.scenes',
+            leadingAction: {
+                icon: FolderOpen,
+                labelKey: 'scene.openPresetFolder',
+                onClick: handleOpenActiveScenePresetFolder,
+                disabled: !activeScenePresetName,
+            },
+        },
         { path: '/tools', icon: Wand2, labelKey: 'smartTools.title' },
         ...(expertExifManagerEnabled ? [{ path: '/exif', icon: Eraser, labelKey: 'nav.exifManager' }] : []),
         { path: '/web', icon: Globe, labelKey: 'nav.web' },

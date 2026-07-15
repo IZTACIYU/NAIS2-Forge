@@ -66,6 +66,7 @@
   "scene": {
     "title": "シーンモード",
     "description": "プロンプトをカードとして保存し、一括生成",
+    "openPresetFolder": "現在のシーンプリセットフォルダーを開く",
     "generateAll": "すべて生成",
     "addScene": "シーン追加",
     "defaultName": "シーン {{num}}",

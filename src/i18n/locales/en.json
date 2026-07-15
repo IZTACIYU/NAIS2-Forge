@@ -67,6 +67,7 @@
   "scene": {
     "title": "Scene Mode",
     "description": "Save prompts as cards and batch generate",
+    "openPresetFolder": "Open current scene preset folder",
     "generateAll": "Generate All",
     "addScene": "Add Scene",
     "defaultName": "Scene {{num}}",

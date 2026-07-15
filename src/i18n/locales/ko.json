@@ -67,6 +67,7 @@
   "scene": {
     "title": "씬 모드",
     "description": "프롬프트를 카드로 저장하고 대량 생성하세요",
+    "openPresetFolder": "현재 씬 프리셋 폴더 열기",
     "generateAll": "예약 생성",
     "addScene": "씬 추가",
     "defaultName": "씬 {{num}}",
