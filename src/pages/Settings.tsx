@@ -1232,11 +1232,21 @@ export default function Settings() {
                                         onChange={(e) => setExpertSceneCharacterAdditionsEnabled(e.target.checked)}
                                     />
                                 </div>
-                                <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-4">
+                            </div>
+
+                            <div className="space-y-1">
+                                <h3 className="text-sm font-semibold">{t('settingsPage.expert.randomGeneration.header')}</h3>
+                                <p className="text-xs text-muted-foreground">
+                                    {t('settingsPage.expert.randomGeneration.description')}
+                                </p>
+                            </div>
+
+                            <div className="border border-border/50 rounded-xl p-6 bg-card/30">
+                                <div className="flex items-center justify-between gap-4">
                                     <div>
-                                        <label className="text-sm font-medium">{t('settingsPage.expert.sceneMode.randomCharactersTitle')}</label>
+                                        <label className="text-sm font-medium">{t('settingsPage.expert.randomGeneration.characterTitle')}</label>
                                         <p className="text-xs text-muted-foreground mt-1">
-                                            {t('settingsPage.expert.sceneMode.randomCharactersDesc')}
+                                            {t('settingsPage.expert.randomGeneration.characterDesc')}
                                         </p>
                                     </div>
                                     <Switch

@@ -720,9 +720,13 @@
         "characterRepeatTitle": "Character Repeat",
         "characterRepeatDesc": "Adds a lightweight character queue to Scene Mode so the same scene reservations can run for multiple characters in order.",
         "characterAdditionsTitle": "Scene Character Additions",
-        "characterAdditionsDesc": "Adds per-scene character prompt, character reference, and vibe reference controls.",
-        "randomCharactersTitle": "Random Character Generation",
-        "randomCharactersDesc": "Selects the requested number of characters from all characters, a custom character range, or selected folders for every scene image."
+        "characterAdditionsDesc": "Adds per-scene character prompt, character reference, and vibe reference controls."
+      },
+      "randomGeneration": {
+        "header": "Random Generation",
+        "description": "Randomly applies matching items for each image generation.",
+        "characterTitle": "Random Character Generation",
+        "characterDesc": "Selects the requested number of characters from all characters, a custom character range, or selected folders for every scene image."
       },
       "exif": {
         "header": "EXIF Handling",
