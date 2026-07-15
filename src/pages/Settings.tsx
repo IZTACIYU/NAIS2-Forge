@@ -81,7 +81,7 @@ export default function Settings() {
     const { t, i18n } = useTranslation()
     const { theme, setTheme } = useThemeStore()
     const { token, isVerified, anlas, isLoading, verifyAndSave } = useAuthStore()
-    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptFolderBrowserEnabled, setExpertCharacterPromptFolderBrowserEnabled, expertLibraryFolderBrowserEnabled, setExpertLibraryFolderBrowserEnabled, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertSceneCharacterVariantOverrideEnabled, setExpertSceneCharacterVariantOverrideEnabled, expertSceneCharacterCostumeOverrideEnabled, setExpertSceneCharacterCostumeOverrideEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, expertExifDirectActionEnabled, setExpertExifDirectActionEnabled, expertExifManagerEnabled, setExpertExifManagerEnabled, expertExifQuickActionEnabled, setExpertExifQuickActionEnabled, expertExifAutoSaveEnabled, setExpertExifAutoSaveEnabled, exifAutoSaveName, setExifAutoSaveName, exifAutoSavePath, setExifAutoSavePath, exifOutputFormat, setExifOutputFormat, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertR2ExifRemovalEnabled, setExpertR2ExifRemovalEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
+    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptFolderBrowserEnabled, setExpertCharacterPromptFolderBrowserEnabled, expertLibraryFolderBrowserEnabled, setExpertLibraryFolderBrowserEnabled, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertSceneCharacterVariantOverrideEnabled, setExpertSceneCharacterVariantOverrideEnabled, expertSceneCharacterCostumeOverrideEnabled, setExpertSceneCharacterCostumeOverrideEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, expertSceneRandomCharactersEnabled, setExpertSceneRandomCharactersEnabled, expertExifDirectActionEnabled, setExpertExifDirectActionEnabled, expertExifManagerEnabled, setExpertExifManagerEnabled, expertExifQuickActionEnabled, setExpertExifQuickActionEnabled, expertExifAutoSaveEnabled, setExpertExifAutoSaveEnabled, exifAutoSaveName, setExifAutoSaveName, exifAutoSavePath, setExifAutoSavePath, exifOutputFormat, setExifOutputFormat, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertR2ExifRemovalEnabled, setExpertR2ExifRemovalEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
     const { bindings, enabled: shortcutsEnabled, setBinding, resetBinding, resetAllBindings, setEnabled: setShortcutsEnabled } = useShortcutStore()
     const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey)
 
@@ -1230,6 +1230,18 @@ export default function Settings() {
                                     <Switch
                                         checked={expertSceneCharacterAdditionsEnabled}
                                         onChange={(e) => setExpertSceneCharacterAdditionsEnabled(e.target.checked)}
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-4">
+                                    <div>
+                                        <label className="text-sm font-medium">{t('settingsPage.expert.sceneMode.randomCharactersTitle')}</label>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            {t('settingsPage.expert.sceneMode.randomCharactersDesc')}
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={expertSceneRandomCharactersEnabled}
+                                        onChange={(e) => setExpertSceneRandomCharactersEnabled(e.target.checked)}
                                     />
                                 </div>
                             </div>

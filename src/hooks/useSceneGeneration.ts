@@ -12,6 +12,7 @@ import { pictureDir, join } from '@tauri-apps/api/path'
 import { processWildcards } from '@/lib/fragment-processor'
 import { useCharacterStore } from '@/stores/character-store'
 import { sendSystemNotification } from '@/lib/system-notification'
+import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 
 // Module-level variable to prevent concurrent processing
 let isProcessing = false
@@ -214,9 +215,24 @@ export function useSceneGeneration() {
                 const vibeReferenceIds = sequenceMode
                     ? sequenceEntry.vibeReferenceIds
                     : referenceState.vibeImages.filter(img => img.enabled !== false).map(img => img.id)
+                const randomCharacterCandidates = !sequenceMode
+                    && latestSettingsStore.expertSceneRandomCharactersEnabled
+                    && latestSettingsStore.sceneRandomCharactersActive
+                    ? getRandomCharacterCandidates(
+                        latestPromptStore.characters,
+                        latestPromptStore.groups,
+                        latestSettingsStore.sceneRandomCharacterMode,
+                        latestSettingsStore.sceneRandomCharacterIds,
+                        latestSettingsStore.sceneRandomCharacterGroupIds,
+                    )
+                    : []
+                const randomCharacterIds = randomCharacterCandidates.length > 0
+                    ? pickRandomCharacters(randomCharacterCandidates, latestSettingsStore.sceneRandomCharacterCount).map(character => character.id)
+                    : null
                 const characterPromptIds = sequenceMode
                     ? sequenceEntry.characterPromptIds
-                    : latestPromptStore.characters.filter(character => character.enabled).map(character => character.id)
+                    : randomCharacterIds
+                        ?? latestPromptStore.characters.filter(character => character.enabled).map(character => character.id)
                 const finalCharacterReferenceIds = uniqueIds([
                     ...characterReferenceIds,
                     ...(sceneAddition?.characterReferenceIds || []),

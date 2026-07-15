@@ -170,6 +170,23 @@
     "emptyInline": "No scene characters",
     "characterCount": "Char"
   },
+  "sceneRandomCharacters": {
+    "buttonTooltip": "Random character settings",
+    "title": "Random Character Generation",
+    "description": "Draws a new character combination from the configured scope for every scene image.",
+    "activeTitle": "Use random selection",
+    "activeDesc": "Applies a new random combination to every image generation request.",
+    "modeAll": "Fully random",
+    "modeCharacters": "Characters",
+    "modeFolders": "Folders",
+    "countTitle": "Characters per image",
+    "poolCount": "{{count}} available",
+    "searchPlaceholder": "Search characters or folders...",
+    "allSummary": "Draw from all {{count}} characters",
+    "stackHint": "A version stack counts as one character.",
+    "emptyWarning": "The selected scope has no available characters.",
+    "queuePriority": "Character queue repeat settings take priority for queue-repeat jobs."
+  },
   "preset": {
     "default": "Default",
     "add": "New Preset",
@@ -226,7 +243,7 @@
   "exif": {
     "title": "EXIF Cleaner",
     "description": "Redraw an image to a clean canvas and export it without embedded metadata.",
-    "disabled": "Enable the EXIF Manager in Expert Options.",
+    "disabled": "Enable the EXIF Manager in Extensions.",
     "open": "Open image",
     "drop": "Drop an image here or click to open",
     "process": "Remove EXIF",
@@ -551,7 +568,7 @@
       "api": "API",
       "storage": "Storage",
       "shortcuts": "Shortcuts",
-      "expert": "Expert Options"
+      "expert": "Extensions"
     },
     "api": {
       "title": "API Settings",
@@ -675,8 +692,8 @@
       "totalSize": "Total Size"
     },
     "expert": {
-      "title": "Expert Options",
-      "description": "Enable only the advanced features you want while keeping the default behavior available.",
+      "title": "Extensions",
+      "description": "Enable only the optional extensions you want while keeping the default behavior available.",
       "characterPrompt": {
         "header": "Character Prompt",
         "description": "Change the input layout and version handling for character prompt cards.",
@@ -703,7 +720,9 @@
         "characterRepeatTitle": "Character Repeat",
         "characterRepeatDesc": "Adds a lightweight character queue to Scene Mode so the same scene reservations can run for multiple characters in order.",
         "characterAdditionsTitle": "Scene Character Additions",
-        "characterAdditionsDesc": "Adds per-scene character prompt, character reference, and vibe reference controls."
+        "characterAdditionsDesc": "Adds per-scene character prompt, character reference, and vibe reference controls.",
+        "randomCharactersTitle": "Random Character Generation",
+        "randomCharactersDesc": "Selects the requested number of characters from all characters, a custom character range, or selected folders for every scene image."
       },
       "exif": {
         "header": "EXIF Handling",
@@ -931,7 +950,7 @@
   },
   "cloudR2": {
     "title": "R2 Cloud",
-    "disabled": "Enable Cloudflare R2 Manager in Expert Options.",
+    "disabled": "Enable Cloudflare R2 Manager in Extensions.",
     "missingConfig": "Enter R2 credentials in Settings > API.",
     "upload": "Upload",
     "newFolder": "New folder",

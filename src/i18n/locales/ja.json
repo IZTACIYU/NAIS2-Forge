@@ -169,6 +169,23 @@
     "emptyInline": "\u30b7\u30fc\u30f3\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u306a\u3057",
     "characterCount": "\u30ad\u30e3\u30e9"
   },
+  "sceneRandomCharacters": {
+    "buttonTooltip": "ランダムキャラクター設定",
+    "title": "ランダムキャラクター生成",
+    "description": "シーン画像を生成するたびに、指定した範囲から新しいキャラクター構成を抽選します。",
+    "activeTitle": "ランダム選択を使用",
+    "activeDesc": "画像生成リクエストごとに新しいランダム構成を適用します。",
+    "modeAll": "完全ランダム",
+    "modeCharacters": "個別範囲",
+    "modeFolders": "フォルダー範囲",
+    "countTitle": "画像ごとの人数",
+    "poolCount": "{{count}}人選択可能",
+    "searchPlaceholder": "キャラクターまたはフォルダーを検索...",
+    "allSummary": "全{{count}}人のキャラクターから抽選",
+    "stackHint": "バージョンスタックは1人のキャラクターとして扱います。",
+    "emptyWarning": "選択した範囲に使用可能なキャラクターがありません。",
+    "queuePriority": "キャラクターキュー繰り返しを使用する処理では、キュー設定が優先されます。"
+  },
   "preset": {
     "default": "デフォルト",
     "add": "新規プリセット",
@@ -225,7 +242,7 @@
   "exif": {
     "title": "EXIF削除",
     "description": "画像を新しいキャンバスに再描画し、埋め込みメタデータなしで書き出します。",
-    "disabled": "熟練者オプションでEXIF管理ページを有効にしてください。",
+    "disabled": "拡張機能でEXIF管理ページを有効にしてください。",
     "open": "画像を開く",
     "drop": "画像をドロップするかクリックして開く",
     "process": "EXIF削除",
@@ -550,7 +567,7 @@
       "api": "API",
       "storage": "ストレージ",
       "shortcuts": "ショートカット",
-      "expert": "熟練者オプション"
+      "expert": "拡張機能"
     },
     "api": {
       "title": "API設定",
@@ -674,8 +691,8 @@
       "totalSize": "合計サイズ"
     },
     "expert": {
-      "title": "熟練者オプション",
-      "description": "基本動作を保ちながら、必要な高度機能だけを個別に切り替えます。",
+      "title": "拡張機能",
+      "description": "基本動作を保ちながら、必要な拡張機能だけを個別に切り替えます。",
       "characterPrompt": {
         "header": "キャラクタープロンプト",
         "description": "キャラクタープロンプトカードの入力構造とバージョン管理を変更します。",
@@ -698,11 +715,13 @@
       },
       "sceneMode": {
         "header": "\u30b7\u30fc\u30f3\u30e2\u30fc\u30c9",
-        "description": "\u30b7\u30fc\u30f3\u4e00\u62ec\u751f\u6210\u7528\u306e\u4e0a\u7d1a\u8005\u6a5f\u80fd\u3067\u3059\u3002",
+        "description": "シーン一括生成用の拡張機能です。",
         "characterRepeatTitle": "\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u7e70\u308a\u8fd4\u3057",
         "characterRepeatDesc": "\u30b7\u30fc\u30f3\u30e2\u30fc\u30c9\u306b\u8efd\u91cf\u306a\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u30ad\u30e5\u30fc\u3092\u8ffd\u52a0\u3057\u3001\u540c\u3058\u30b7\u30fc\u30f3\u4e88\u7d04\u3092\u8907\u6570\u306e\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u306b\u9806\u756a\u306b\u5b9f\u884c\u3057\u307e\u3059\u3002",
         "characterAdditionsTitle": "\u30b7\u30fc\u30f3\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u8ffd\u52a0",
-        "characterAdditionsDesc": "\u30b7\u30fc\u30f3\u3054\u3068\u306b\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u30d7\u30ed\u30f3\u30d7\u30c8\u3001\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u30ea\u30d5\u30a1\u30ec\u30f3\u30b9\u3001Vibe\u30ea\u30d5\u30a1\u30ec\u30f3\u30b9\u3092\u8ffd\u52a0\u3067\u304d\u308b\u3088\u3046\u306b\u3057\u307e\u3059\u3002"
+        "characterAdditionsDesc": "\u30b7\u30fc\u30f3\u3054\u3068\u306b\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u30d7\u30ed\u30f3\u30d7\u30c8\u3001\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u30ea\u30d5\u30a1\u30ec\u30f3\u30b9\u3001Vibe\u30ea\u30d5\u30a1\u30ec\u30f3\u30b9\u3092\u8ffd\u52a0\u3067\u304d\u308b\u3088\u3046\u306b\u3057\u307e\u3059\u3002",
+        "randomCharactersTitle": "ランダムキャラクター生成",
+        "randomCharactersDesc": "シーン画像ごとに、全キャラクター、個別範囲、またはフォルダー範囲から指定人数をランダムに選択します。"
       },
       "exif": {
         "header": "EXIF管理",
@@ -930,7 +949,7 @@
   },
   "cloudR2": {
     "title": "R2クラウド",
-    "disabled": "熟練者オプションでCloudflare R2管理を有効にしてください。",
+    "disabled": "拡張機能でCloudflare R2管理を有効にしてください。",
     "missingConfig": "設定 > APIでR2情報を入力してください。",
     "upload": "アップロード",
     "newFolder": "新規フォルダ",

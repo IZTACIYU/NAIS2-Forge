@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef, useState } from 'react'
+import { lazy, ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -25,6 +25,7 @@ import {
     Zap,
     PanelLeft,
     PanelRight,
+    Dices,
 } from 'lucide-react'
 
 interface ThreeColumnLayoutProps {
@@ -41,6 +42,10 @@ import { useSettingsStore } from '@/stores/settings-store'
 const isMac = navigator.platform.toUpperCase().includes('MAC') ||
     navigator.userAgent.toUpperCase().includes('MAC')
 
+const SceneRandomCharacterDialog = lazy(() => import('@/components/scene/SceneRandomCharacterDialog').then(module => ({
+    default: module.SceneRandomCharacterDialog,
+})))
+
 export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const { t } = useTranslation()
     const location = useLocation()
@@ -53,6 +58,9 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const resizeCleanupRef = useRef<(() => void) | null>(null)
     const expertCloudR2Enabled = useSettingsStore(state => state.expertCloudR2Enabled)
     const expertExifManagerEnabled = useSettingsStore(state => state.expertExifManagerEnabled)
+    const expertSceneRandomCharactersEnabled = useSettingsStore(state => state.expertSceneRandomCharactersEnabled)
+    const sceneRandomCharactersActive = useSettingsStore(state => state.sceneRandomCharactersActive)
+    const sceneRandomCharacterCount = useSettingsStore(state => state.sceneRandomCharacterCount)
 
     // Get generation params for cost calculation
     const { characterImages, vibeImages } = useCharacterStore()
@@ -64,6 +72,7 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     // Preset dialog state (for shortcut support)
     const [presetDialogOpen, setPresetDialogOpen] = useState(false)
     const [fragmentPanelOpen, setFragmentPanelOpen] = useState(false)
+    const [randomCharacterDialogOpen, setRandomCharacterDialogOpen] = useState(false)
 
     useEffect(() => {
         leftWidthRef.current = leftSidebarWidth
@@ -197,6 +206,27 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                         </div>
 
                         {/* Anlas Display */}
+                        {expertSceneRandomCharactersEnabled && location.pathname.startsWith('/scenes') && (
+                            <Tip content={t('sceneRandomCharacters.buttonTooltip')}>
+                                <button
+                                    type="button"
+                                    onClick={() => setRandomCharacterDialogOpen(true)}
+                                    className={cn(
+                                        "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors",
+                                        sceneRandomCharactersActive
+                                            ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-500"
+                                            : "border-border/50 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                                    )}
+                                >
+                                    <Dices className="h-4 w-4" />
+                                    {sceneRandomCharactersActive && (
+                                        <span className="absolute -right-1.5 -top-1.5 min-w-4 rounded-full bg-cyan-500 px-1 text-[10px] font-bold leading-4 text-black">
+                                            {sceneRandomCharacterCount}
+                                        </span>
+                                    )}
+                                </button>
+                            </Tip>
+                        )}
                         {isVerified && anlas ? (
                             <div className="flex shrink-0 items-center gap-2">
                                 <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 rounded-full border border-amber-500/30">
@@ -308,6 +338,14 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                     <HistoryPanel />
                 </aside>
             </div>
+            {randomCharacterDialogOpen && (
+                <Suspense fallback={null}>
+                    <SceneRandomCharacterDialog
+                        open
+                        onOpenChange={setRandomCharacterDialogOpen}
+                    />
+                </Suspense>
+            )}
         </div>
     )
 }
