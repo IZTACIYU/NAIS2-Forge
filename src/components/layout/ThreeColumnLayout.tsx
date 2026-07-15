@@ -206,7 +206,7 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                         </div>
 
                         {/* Anlas Display */}
-                        {expertSceneRandomCharactersEnabled && location.pathname.startsWith('/scenes') && (
+                        {expertSceneRandomCharactersEnabled && (
                             <Tip content={t('sceneRandomCharacters.buttonTooltip')}>
                                 <button
                                     type="button"

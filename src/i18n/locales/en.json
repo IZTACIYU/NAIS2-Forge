@@ -173,7 +173,7 @@
   "sceneRandomCharacters": {
     "buttonTooltip": "Random character settings",
     "title": "Random Character Generation",
-    "description": "Draws a new character combination from the configured scope for every scene image.",
+    "description": "Draws a new character combination from the configured scope for every image.",
     "activeTitle": "Use random selection",
     "activeDesc": "Applies a new random combination to every image generation request.",
     "modeAll": "Fully random",
@@ -726,7 +726,7 @@
         "header": "Random Generation",
         "description": "Randomly applies matching items for each image generation.",
         "characterTitle": "Random Character Generation",
-        "characterDesc": "Selects the requested number of characters from all characters, a custom character range, or selected folders for every scene image."
+        "characterDesc": "Selects the requested number of characters from all characters, a custom character range, or selected folders for every image."
       },
       "exif": {
         "header": "EXIF Handling",

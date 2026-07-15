@@ -9,6 +9,7 @@ import { pictureDir, join } from '@tauri-apps/api/path'
 import { useCharacterStore } from './character-store'
 import { useCharacterPromptStore } from './character-prompt-store'
 import { processWildcards } from '@/lib/fragment-processor'
+import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 import i18n from '@/i18n'
 import { toast } from '@/components/ui/use-toast'
 
@@ -387,7 +388,31 @@ export const useGenerationStore = create<GenerationState>()(
                         const vibeImages = allVibeImages.filter(img => img.enabled !== false && (img.base64 || img.encodedVibe))
 
                         // Character Prompts (Position-based)
-                        const { characters: characterPrompts, positionEnabled } = useCharacterPromptStore.getState()
+                        const {
+                            characters: characterPrompts,
+                            groups: characterGroups,
+                            positionEnabled,
+                        } = useCharacterPromptStore.getState()
+                        const randomSettings = useSettingsStore.getState()
+                        const randomCharacterCandidates = randomSettings.expertSceneRandomCharactersEnabled
+                            && randomSettings.sceneRandomCharactersActive
+                            ? getRandomCharacterCandidates(
+                                characterPrompts,
+                                characterGroups,
+                                randomSettings.sceneRandomCharacterMode,
+                                randomSettings.sceneRandomCharacterIds,
+                                randomSettings.sceneRandomCharacterGroupIds,
+                            )
+                            : []
+                        const randomCharacterIds = randomCharacterCandidates.length > 0
+                            ? new Set(pickRandomCharacters(
+                                randomCharacterCandidates,
+                                randomSettings.sceneRandomCharacterCount,
+                            ).map(character => character.id))
+                            : null
+                        const characterPromptsForGeneration = randomCharacterIds
+                            ? characterPrompts.filter(character => randomCharacterIds.has(character.id))
+                            : characterPrompts.filter(character => character.enabled)
 
 
                         const splitCharacterCostumePrompt = (prompt: string) => {
@@ -413,7 +438,7 @@ export const useGenerationStore = create<GenerationState>()(
 
                         // Apply fragment/wildcard substitution to character prompts (async)
                         const processedCharacterPrompts = await Promise.all(
-                            characterPrompts.filter(c => c.enabled).map(async c => {
+                            characterPromptsForGeneration.map(async c => {
                                 const processedPrompt = await processWildcards(buildCharacterPromptForGeneration(c))
                                 const processedNegative = await processWildcards(useSettingsStore.getState().expertCharacterPromptLayoutEnabled && c.negativeEnabled === false ? '' : c.negative)
                                 return {

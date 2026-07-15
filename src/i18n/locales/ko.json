@@ -173,7 +173,7 @@
   "sceneRandomCharacters": {
     "buttonTooltip": "랜덤 캐릭터 설정",
     "title": "랜덤 캐릭터 생성",
-    "description": "씬 이미지를 생성할 때마다 지정한 범위에서 캐릭터를 새로 추첨합니다.",
+    "description": "이미지를 생성할 때마다 지정한 범위에서 캐릭터를 새로 추첨합니다.",
     "activeTitle": "랜덤 선택 사용",
     "activeDesc": "활성화하면 각 이미지 생성 요청에 새로운 랜덤 조합을 적용합니다.",
     "modeAll": "완전 랜덤",
@@ -756,7 +756,7 @@
         "header": "랜덤 생성",
         "description": "이미지 생성마다 조건에 맞는 항목을 무작위로 적용하는 확장 기능입니다.",
         "characterTitle": "랜덤 캐릭터 생성",
-        "characterDesc": "씬 이미지마다 전체, 개별 캐릭터 또는 폴더 범위에서 지정한 인원수를 무작위로 선택합니다."
+        "characterDesc": "이미지마다 전체, 개별 캐릭터 또는 폴더 범위에서 지정한 인원수를 무작위로 선택합니다."
       },
       "exif": {
         "header": "EXIF 관리",
