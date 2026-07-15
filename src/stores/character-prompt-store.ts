@@ -37,13 +37,17 @@ export const CHARACTER_COLORS = [
 
 // Folder color palette
 export const FOLDER_COLORS = [
-    { name: 'amber', icon: 'text-amber-500', border: 'border-amber-500/40', bg: 'bg-amber-500/10' },
-    { name: 'blue', icon: 'text-blue-500', border: 'border-blue-500/40', bg: 'bg-blue-500/10' },
-    { name: 'green', icon: 'text-green-500', border: 'border-green-500/40', bg: 'bg-green-500/10' },
-    { name: 'purple', icon: 'text-purple-500', border: 'border-purple-500/40', bg: 'bg-purple-500/10' },
-    { name: 'pink', icon: 'text-pink-500', border: 'border-pink-500/40', bg: 'bg-pink-500/10' },
-    { name: 'cyan', icon: 'text-cyan-500', border: 'border-cyan-500/40', bg: 'bg-cyan-500/10' },
-    { name: 'red', icon: 'text-red-500', border: 'border-red-500/40', bg: 'bg-red-500/10' },
+    { name: 'amber', swatch: '#f59e0b', icon: 'text-amber-500', border: 'border-amber-500/40', bg: 'bg-amber-500/10' },
+    { name: 'blue', swatch: '#3b82f6', icon: 'text-blue-500', border: 'border-blue-500/40', bg: 'bg-blue-500/10' },
+    { name: 'green', swatch: '#22c55e', icon: 'text-green-500', border: 'border-green-500/40', bg: 'bg-green-500/10' },
+    { name: 'purple', swatch: '#a855f7', icon: 'text-purple-500', border: 'border-purple-500/40', bg: 'bg-purple-500/10' },
+    { name: 'pink', swatch: '#ec4899', icon: 'text-pink-500', border: 'border-pink-500/40', bg: 'bg-pink-500/10' },
+    { name: 'cyan', swatch: '#06b6d4', icon: 'text-cyan-500', border: 'border-cyan-500/40', bg: 'bg-cyan-500/10' },
+    { name: 'red', swatch: '#ef4444', icon: 'text-red-500', border: 'border-red-500/40', bg: 'bg-red-500/10' },
+    { name: 'orange', swatch: '#f97316', icon: 'text-orange-500', border: 'border-orange-500/40', bg: 'bg-orange-500/10' },
+    { name: 'indigo', swatch: '#6366f1', icon: 'text-indigo-500', border: 'border-indigo-500/40', bg: 'bg-indigo-500/10' },
+    { name: 'teal', swatch: '#14b8a6', icon: 'text-teal-500', border: 'border-teal-500/40', bg: 'bg-teal-500/10' },
+    { name: 'lime', swatch: '#84cc16', icon: 'text-lime-500', border: 'border-lime-500/40', bg: 'bg-lime-500/10' },
 ]
 
 export interface CharacterPreset {
@@ -133,6 +137,7 @@ interface CharacterPromptState {
     updateGroup: (id: string, data: Partial<CharacterGroup>) => void
     deleteGroup: (id: string) => void
     moveGroup: (id: string, parentId?: string) => void
+    reorderGroups: (activeId: string, overId: string) => void
     toggleGroupCollapsed: (id: string) => void
     toggleGroupEnabled: (groupId: string) => void // 그룹 내 모든 캐릭터 활성화/비활성화
     moveCharacterToGroup: (characterId: string, groupId: string | undefined) => void
@@ -365,6 +370,30 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
                     return {
                         groups: state.groups.map(candidate =>
                             candidate.id === id ? { ...candidate, parentId } : candidate
+                        )
+                    }
+                })
+            },
+
+            reorderGroups: (activeId, overId) => {
+                set(state => {
+                    const activeGroup = state.groups.find(group => group.id === activeId)
+                    const overGroup = state.groups.find(group => group.id === overId)
+                    if (!activeGroup || !overGroup || activeGroup.parentId !== overGroup.parentId) return state
+
+                    const siblings = state.groups.filter(group => group.parentId === activeGroup.parentId)
+                    const oldIndex = siblings.findIndex(group => group.id === activeId)
+                    const newIndex = siblings.findIndex(group => group.id === overId)
+                    if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return state
+
+                    const reordered = [...siblings]
+                    const [moved] = reordered.splice(oldIndex, 1)
+                    reordered.splice(newIndex, 0, moved)
+                    let siblingIndex = 0
+                    return {
+                        groups: state.groups.map(group => group.parentId === activeGroup.parentId
+                            ? reordered[siblingIndex++]
+                            : group
                         )
                     }
                 })

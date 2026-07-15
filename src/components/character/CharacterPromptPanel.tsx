@@ -167,6 +167,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         updateGroup,
         deleteGroup,
         moveGroup,
+        reorderGroups,
         toggleGroupCollapsed,
         toggleGroupEnabled,
         moveCharacterToGroup,
@@ -207,8 +208,20 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         
         if (!over) return
         
-        const activeCharId = active.id as string
+        const activeItemId = active.id as string
         const overId = over.id as string
+
+        if (activeItemId.startsWith('folder-')) {
+            if (overId.startsWith('folder-')) {
+                reorderGroups(
+                    activeItemId.replace('folder-', ''),
+                    overId.replace('folder-', '')
+                )
+            }
+            return
+        }
+
+        const activeCharId = activeItemId
         
         // 폴더에 드롭한 경우
         if (overId.startsWith('folder-')) {
@@ -393,14 +406,6 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         setEditingGroupName('')
     }
 
-    const handleCycleFolderColor = (groupId: string) => {
-        const group = groups.find(g => g.id === groupId)
-        if (!group) return
-        const currentIndex = group.colorIndex ?? 0
-        const nextIndex = (currentIndex + 1) % FOLDER_COLORS.length
-        updateGroup(groupId, { colorIndex: nextIndex })
-    }
-
     const handleDeleteGroup = (groupId: string) => {
         const parentId = groups.find(group => group.id === groupId)?.parentId || null
         deleteGroup(groupId)
@@ -535,6 +540,34 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         )
     }
 
+    const renderFolderColorMenu = (group: CharacterGroup) => (
+        <ContextMenuSub>
+            <ContextMenuSubTrigger>
+                <Palette className="mr-2 h-4 w-4" />
+                {t('characterPanel.changeFolderColor')}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="w-auto min-w-0 p-2">
+                <div className="flex items-center gap-1.5">
+                    {FOLDER_COLORS.map((color, index) => (
+                        <ContextMenuItem
+                            key={color.name}
+                            aria-label={color.name}
+                            title={color.name}
+                            className={cn(
+                                "h-6 w-6 min-w-0 cursor-pointer rounded-full border-2 p-0 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-popover",
+                                (group.colorIndex ?? 0) === index
+                                    ? "border-foreground"
+                                    : "border-transparent"
+                            )}
+                            style={{ backgroundColor: color.swatch }}
+                            onSelect={() => updateGroup(group.id, { colorIndex: index })}
+                        />
+                    ))}
+                </div>
+            </ContextMenuSubContent>
+        </ContextMenuSub>
+    )
+
     const renderFolderTree = (group: CharacterGroup, depth = 0): React.ReactNode => {
         const folderColor = FOLDER_COLORS[group.colorIndex ?? 0]
         const children = groupChildren.get(group.id) || []
@@ -603,10 +636,6 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                         </div>
                     </ContextMenuTrigger>
                     <ContextMenuContent className="w-56">
-                        <ContextMenuItem onClick={() => handleCreateGroup(group.id)}>
-                            <FolderPlus className="mr-2 h-4 w-4" />
-                            {t('characterPanel.addSubfolder', '하위 폴더 추가')}
-                        </ContextMenuItem>
                         <ContextMenuItem onClick={() => {
                             setEditingGroupId(group.id)
                             setEditingGroupName(group.name)
@@ -618,9 +647,10 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                             <Eye className="mr-2 h-4 w-4" />
                             {t('characterPanel.toggleAll', '폴더 내 전체 활성화/비활성화')}
                         </ContextMenuItem>
-                        <ContextMenuItem onClick={() => handleCycleFolderColor(group.id)}>
-                            <Palette className="mr-2 h-4 w-4" />
-                            {t('characterPanel.changeFolderColor', '폴더 색상 변경')}
+                        {renderFolderColorMenu(group)}
+                        <ContextMenuItem onClick={() => handleCreateGroup(group.id)}>
+                            <FolderPlus className="mr-2 h-4 w-4" />
+                            {t('characterPanel.addSubfolder', '하위 폴더 추가')}
                         </ContextMenuItem>
                         <ContextMenuSub>
                             <ContextMenuSubTrigger>
@@ -656,7 +686,14 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                     </ContextMenuContent>
                 </ContextMenu>
                 </DroppableFolder>
-                {!group.collapsed && children.map(child => renderFolderTree(child, depth + 1))}
+                {!group.collapsed && children.length > 0 && (
+                    <SortableContext
+                        items={children.map(child => `folder-${child.id}`)}
+                        strategy={verticalListSortingStrategy}
+                    >
+                        {children.map(child => renderFolderTree(child, depth + 1))}
+                    </SortableContext>
+                )}
             </div>
         )
     }
@@ -755,10 +792,6 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                             </div>
                         </ContextMenuTrigger>
                         <ContextMenuContent className="w-56">
-                            <ContextMenuItem onClick={() => handleCreateGroup(group.id)}>
-                                <FolderPlus className="mr-2 h-4 w-4" />
-                                {t('characterPanel.addSubfolder', '하위 폴더 추가')}
-                            </ContextMenuItem>
                             <ContextMenuItem onClick={() => {
                                 setEditingGroupId(group.id)
                                 setEditingGroupName(group.name)
@@ -766,9 +799,10 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                 <Pencil className="mr-2 h-4 w-4" />
                                 {t('characterPanel.rename', '이름 변경')}
                             </ContextMenuItem>
-                            <ContextMenuItem onClick={() => handleCycleFolderColor(group.id)}>
-                                <Palette className="mr-2 h-4 w-4" />
-                                {t('characterPanel.changeFolderColor', '폴더 색상 변경')}
+                            {renderFolderColorMenu(group)}
+                            <ContextMenuItem onClick={() => handleCreateGroup(group.id)}>
+                                <FolderPlus className="mr-2 h-4 w-4" />
+                                {t('characterPanel.addSubfolder', '하위 폴더 추가')}
                             </ContextMenuItem>
                             <ContextMenuSub>
                                 <ContextMenuSubTrigger>
@@ -798,7 +832,14 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                 </DroppableFolder>
                 {!group.collapsed && (
                     <div className={cn("ml-2 min-h-8 space-y-1.5 border-l-2 pb-2 pl-2 pt-1", folderColor.border)}>
-                        {children.map(child => renderLegacyFolder(child, depth + 1))}
+                        {children.length > 0 && (
+                            <SortableContext
+                                items={children.map(child => `folder-${child.id}`)}
+                                strategy={verticalListSortingStrategy}
+                            >
+                                {children.map(child => renderLegacyFolder(child, depth + 1))}
+                            </SortableContext>
+                        )}
                         <SortableContext
                             items={folderCharacters.map(character => character.id)}
                             strategy={verticalListSortingStrategy}
@@ -1018,7 +1059,12 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                             <span className="text-[10px] opacity-50">{ungroupedCount}</span>
                                         </button>
                                     </DroppableUngrouped>
-                                    {(groupChildren.get('root') || []).map(group => renderFolderTree(group))}
+                                    <SortableContext
+                                        items={(groupChildren.get('root') || []).map(group => `folder-${group.id}`)}
+                                        strategy={verticalListSortingStrategy}
+                                    >
+                                        {(groupChildren.get('root') || []).map(group => renderFolderTree(group))}
+                                    </SortableContext>
                                 </div>
                             </ScrollArea>
                         </div>
@@ -1112,7 +1158,12 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                     </div>
                                 ) : (
                                     <>
-                                        {(groupChildren.get('root') || []).map(group => renderLegacyFolder(group))}
+                                        <SortableContext
+                                            items={(groupChildren.get('root') || []).map(group => `folder-${group.id}`)}
+                                            strategy={verticalListSortingStrategy}
+                                        >
+                                            {(groupChildren.get('root') || []).map(group => renderLegacyFolder(group))}
+                                        </SortableContext>
                                         <DroppableUngrouped isActive={activeId !== null}>
                                             <SortableContext
                                                 items={legacyUngroupedCharacters.map(character => character.id)}
@@ -1169,17 +1220,36 @@ interface DroppableFolderProps {
 }
 
 function DroppableFolder({ folderId, isActive, isCollapsed, colorClass, children }: DroppableFolderProps) {
-    const { setNodeRef, isOver } = useDroppable({
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+        isOver,
+    } = useSortable({
         id: `folder-${folderId}`,
     })
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        position: isDragging ? 'relative' as const : undefined,
+        zIndex: isDragging ? 20 : undefined,
+    }
 
     return (
         <div
             ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
             className={cn(
                 "transition-all duration-200 rounded-lg",
                 isActive && isCollapsed && "ring-2 ring-dashed ring-current/30",
-                isOver && cn("ring-2 ring-current", colorClass)
+                isOver && cn("ring-2 ring-current", colorClass),
+                isDragging && "opacity-60 shadow-lg"
             )}
         >
             {children}
