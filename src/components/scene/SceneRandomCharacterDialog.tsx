@@ -59,10 +59,39 @@ export function SceneRandomCharacterDialog({ open, onOpenChange }: SceneRandomCh
         const groupPath = character.groupId ? getCharacterGroupPath(groups, character.groupId).toLowerCase() : ''
         return name.includes(query) || groupPath.includes(query)
     }), [allCandidates, groups, query])
-    const filteredGroups = useMemo(() => groups.filter(group => {
+    const orderedGroups = useMemo(() => {
+        const childrenByParent = new Map<string, typeof groups>()
+        for (const group of groups) {
+            const parentKey = group.parentId || 'root'
+            const siblings = childrenByParent.get(parentKey)
+            if (siblings) siblings.push(group)
+            else childrenByParent.set(parentKey, [group])
+        }
+
+        const ordered: { group: (typeof groups)[number], depth: number }[] = []
+        const visited = new Set<string>()
+        const appendChildren = (parentKey: string, depth: number) => {
+            for (const group of childrenByParent.get(parentKey) || []) {
+                if (visited.has(group.id)) continue
+                visited.add(group.id)
+                ordered.push({ group, depth })
+                appendChildren(group.id, depth + 1)
+            }
+        }
+
+        appendChildren('root', 0)
+        for (const group of groups) {
+            if (visited.has(group.id)) continue
+            visited.add(group.id)
+            ordered.push({ group, depth: 0 })
+            appendChildren(group.id, 1)
+        }
+        return ordered
+    }, [groups])
+    const filteredGroups = useMemo(() => orderedGroups.filter(({ group }) => {
         if (!query) return true
         return getCharacterGroupPath(groups, group.id).toLowerCase().includes(query)
-    }), [groups, query])
+    }), [groups, orderedGroups, query])
 
     const isCharacterSelected = (characterId: string) => {
         const candidate = charactersById.get(characterId)
@@ -191,13 +220,13 @@ export function SceneRandomCharacterDialog({ open, onOpenChange }: SceneRandomCh
                         </div>
                     ) : (
                         <div className="divide-y divide-border/30">
-                            {filteredGroups.map(group => {
+                            {filteredGroups.map(({ group, depth }) => {
                                 const checked = groupIds.includes(group.id)
                                 return (
                                     <label key={group.id} className={cn(
                                         "flex items-center gap-3 px-2 py-3 cursor-pointer hover:bg-muted/35",
                                         checked && "bg-primary/5",
-                                    )}>
+                                    )} style={{ paddingLeft: 8 + depth * 16 }}>
                                         <Checkbox checked={checked} onCheckedChange={() => toggleGroup(group.id)} />
                                         <FolderTree className="h-4 w-4 shrink-0 text-amber-500" />
                                         <span className="min-w-0 truncate text-sm">{getCharacterGroupPath(groups, group.id)}</span>
