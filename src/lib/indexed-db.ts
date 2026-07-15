@@ -172,6 +172,16 @@ export function createDeferredJSONStorage<S>(debounceMs = 3000, maxWaitMs = 1000
         setItem: async (name, value) => {
             const now = Date.now()
             const previous = deferredJSONWrites.get(name)
+
+            // Zustand calls storage for every state update, including runtime-only
+            // changes. Keep the existing timer when the persisted snapshot itself
+            // has not changed.
+            if (previous
+                && previous.value.state === value.state
+                && previous.value.version === value.version) {
+                return
+            }
+
             if (previous?.timer) clearTimeout(previous.timer)
 
             const queuedAt = previous?.queuedAt ?? now

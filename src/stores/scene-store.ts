@@ -189,6 +189,81 @@ type PersistedSceneState = Pick<SceneState,
     | 'thumbnailLayout'
 >
 
+interface ScenePersistSource {
+    presets: ScenePreset[]
+    activePresetId: string | null
+    characterSequenceEnabled: boolean
+    characterSequenceEntries: SceneCharacterSequenceEntry[]
+    sceneCharacterAdditionsEnabled: boolean
+    sceneCharacterAdditions: Record<string, Record<string, SceneCharacterAddition>>
+    gridColumns: number
+    thumbnailLayout: SceneState['thumbnailLayout']
+}
+
+let lastScenePersistSource: ScenePersistSource | null = null
+let lastScenePersistSnapshot: PersistedSceneState | null = null
+
+function getScenePersistSnapshot(state: SceneState): PersistedSceneState {
+    const source: ScenePersistSource = {
+        presets: state.presets,
+        activePresetId: state.activePresetId,
+        characterSequenceEnabled: state.characterSequenceEnabled,
+        characterSequenceEntries: state.characterSequenceEntries,
+        sceneCharacterAdditionsEnabled: state.sceneCharacterAdditionsEnabled,
+        sceneCharacterAdditions: state.sceneCharacterAdditions,
+        gridColumns: state.gridColumns,
+        thumbnailLayout: state.thumbnailLayout,
+    }
+
+    if (lastScenePersistSource
+        && lastScenePersistSnapshot
+        && lastScenePersistSource.presets === source.presets
+        && lastScenePersistSource.activePresetId === source.activePresetId
+        && lastScenePersistSource.characterSequenceEnabled === source.characterSequenceEnabled
+        && lastScenePersistSource.characterSequenceEntries === source.characterSequenceEntries
+        && lastScenePersistSource.sceneCharacterAdditionsEnabled === source.sceneCharacterAdditionsEnabled
+        && lastScenePersistSource.sceneCharacterAdditions === source.sceneCharacterAdditions
+        && lastScenePersistSource.gridColumns === source.gridColumns
+        && lastScenePersistSource.thumbnailLayout === source.thumbnailLayout) {
+        return lastScenePersistSnapshot
+    }
+
+    const MAX_IMAGES_PERSIST = 2000
+    const snapshot: PersistedSceneState = {
+        presets: state.presets.map(p => ({
+            ...p,
+            scenes: p.scenes.map(s => {
+                if (s.images.length <= MAX_IMAGES_PERSIST) {
+                    return { ...s, queueCount: 0 }
+                }
+
+                const favorites = s.images.filter(img => img.isFavorite)
+                const nonFavorites = s.images
+                    .filter(img => !img.isFavorite)
+                    .sort((a, b) => b.timestamp - a.timestamp)
+                const keepCount = Math.max(0, MAX_IMAGES_PERSIST - favorites.length)
+                return {
+                    ...s,
+                    queueCount: 0,
+                    images: [...favorites, ...nonFavorites.slice(0, keepCount)]
+                        .sort((a, b) => b.timestamp - a.timestamp),
+                }
+            }),
+        })),
+        activePresetId: state.activePresetId,
+        characterSequenceEnabled: state.characterSequenceEnabled,
+        characterSequenceEntries: state.characterSequenceEntries,
+        sceneCharacterAdditionsEnabled: state.sceneCharacterAdditionsEnabled,
+        sceneCharacterAdditions: state.sceneCharacterAdditions,
+        gridColumns: state.gridColumns,
+        thumbnailLayout: state.thumbnailLayout,
+    }
+
+    lastScenePersistSource = source
+    lastScenePersistSnapshot = snapshot
+    return snapshot
+}
+
 const DEFAULT_PRESET_ID = 'scene-default'
 
 const createDefaultPreset = (): ScenePreset => ({
@@ -1205,41 +1280,7 @@ export const useSceneStore = create<SceneState>()(
         {
             name: 'nais2-forge-scenes',
             storage: createDeferredJSONStorage<PersistedSceneState>(3000),
-            partialize: (state): PersistedSceneState => {
-                // Images are stored as file paths, not base64 - storage is minimal per entry
-                const MAX_IMAGES_PERSIST = 2000
-
-                return {
-                    presets: state.presets.map(p => ({
-                        ...p,
-                        scenes: p.scenes.map(s => {
-                            // Fast path: skip expensive sorting if under limit
-                            if (s.images.length <= MAX_IMAGES_PERSIST) {
-                                return { ...s, queueCount: 0 }
-                            }
-                            // Over limit: keep favorites + newest non-favorites
-                            const favorites = s.images.filter(img => img.isFavorite)
-                            const nonFavorites = s.images
-                                .filter(img => !img.isFavorite)
-                                .sort((a, b) => b.timestamp - a.timestamp)
-                            const keepCount = Math.max(0, MAX_IMAGES_PERSIST - favorites.length)
-                            return {
-                                ...s,
-                                queueCount: 0,
-                                images: [...favorites, ...nonFavorites.slice(0, keepCount)]
-                                    .sort((a, b) => b.timestamp - a.timestamp)
-                            }
-                        })
-                    })),
-                    activePresetId: state.activePresetId,
-                    characterSequenceEnabled: state.characterSequenceEnabled,
-                    characterSequenceEntries: state.characterSequenceEntries,
-                    sceneCharacterAdditionsEnabled: state.sceneCharacterAdditionsEnabled,
-                    sceneCharacterAdditions: state.sceneCharacterAdditions,
-                    gridColumns: state.gridColumns,
-                    thumbnailLayout: state.thumbnailLayout,
-                }
-            },
+            partialize: getScenePersistSnapshot,
             onRehydrateStorage: () => (state, error) => {
                 if (error) {
                     console.error('[SceneStore] Hydration failed:', error)
