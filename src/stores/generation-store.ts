@@ -444,7 +444,8 @@ export const useGenerationStore = create<GenerationState>()(
                                 return {
                                     ...c,
                                     prompt: processedPrompt,
-                                    negative: processedNegative
+                                    negative: processedNegative,
+                                    enabled: true,
                                 }
                             })
                         )
