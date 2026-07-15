@@ -90,6 +90,62 @@ async function processFileWildcards(prompt: string): Promise<string> {
     return result
 }
 
+async function resolveFragmentFirstLinesInternal(
+    prompt: string,
+    depth: number,
+    visitedFileIds: Set<string>,
+): Promise<string> {
+    if (depth >= 6 || !prompt.includes('<')) return prompt
+
+    const matches = Array.from(prompt.matchAll(/<([^<>]+)>/g))
+    if (matches.length === 0) return prompt
+
+    const replacements = await Promise.all(matches.map(async match => {
+        const original = match[0]
+        const trimmed = match[1].trim()
+
+        if (trimmed.includes('|') && !trimmed.includes('||')) {
+            const firstOption = trimmed.split('|').map(option => option.trim()).find(Boolean)
+            return firstOption
+                ? resolveFragmentFirstLinesInternal(firstOption, depth + 1, visitedFileIds)
+                : original
+        }
+
+        const path = normalizeFragmentPath(trimmed.startsWith('*') ? trimmed.slice(1) : trimmed)
+        if (!path) return original
+
+        const store = useFragmentStore.getState()
+        const file = store.getFileByPath(path)
+        if (!file) return original
+
+        try {
+            const content = await store.loadFileContent(file.id)
+            const firstLine = content[0]?.trim()
+            if (!firstLine) return ''
+            if (visitedFileIds.has(file.id)) return firstLine
+
+            const nextVisited = new Set(visitedFileIds)
+            nextVisited.add(file.id)
+            return resolveFragmentFirstLinesInternal(firstLine, depth + 1, nextVisited)
+        } catch {
+            return original
+        }
+    }))
+
+    let result = prompt
+    for (let index = matches.length - 1; index >= 0; index--) {
+        const match = matches[index]
+        const start = match.index ?? 0
+        result = result.slice(0, start) + replacements[index] + result.slice(start + match[0].length)
+    }
+    return result
+}
+
+// Token estimates use the first stored line without advancing random/sequential state.
+export function resolveFragmentsForTokenCount(prompt: string): Promise<string> {
+    return resolveFragmentFirstLinesInternal(prompt, 0, new Set())
+}
+
 /**
  * 괄호로 감싸진 와일드카드 처리
  * "(a, b/c, d/e, f)" → "a, b" 또는 "c, d" 또는 "e, f" 중 하나

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, MouseEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, MouseEvent as ReactMouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     X,
@@ -86,6 +86,7 @@ interface CharacterPromptPanelProps {
 
 
 const COSTUME_MARKER = '\n#!-\uc758\uc0c1\ud504\ub86c\n'
+const FOLDER_PANEL_WIDTH_STORAGE_KEY = 'nais2-forge-character-folder-panel-width'
 
 const splitCostumePrompt = (prompt: string) => {
     const normalized = prompt.replace(/\r\n/g, '\n')
@@ -182,9 +183,45 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     const [activeId, setActiveId] = useState<string | null>(null)
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
     const [folderPanelOpen, setFolderPanelOpen] = useState(true)
+    const [folderPanelWidth, setFolderPanelWidth] = useState(() => {
+        const savedWidth = Number(window.localStorage.getItem(FOLDER_PANEL_WIDTH_STORAGE_KEY))
+        return Number.isFinite(savedWidth) && savedWidth > 0
+            ? Math.min(320, Math.max(120, savedWidth))
+            : 150
+    })
     const expertCharacterPromptFolderBrowserEnabled = useSettingsStore(state => state.expertCharacterPromptFolderBrowserEnabled)
     const expertCharacterPromptLayoutEnabled = useSettingsStore(state => state.expertCharacterPromptLayoutEnabled)
     const expertCharacterPromptVariantsEnabled = useSettingsStore(state => state.expertCharacterPromptVariantsEnabled)
+
+    const startFolderPanelResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        const startX = event.clientX
+        const startWidth = folderPanelWidth
+        const containerWidth = event.currentTarget.parentElement?.getBoundingClientRect().width || 500
+        const maxWidth = Math.max(120, Math.min(320, containerWidth - 180))
+        let nextWidth = startWidth
+        const previousCursor = document.body.style.cursor
+        const previousUserSelect = document.body.style.userSelect
+
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+            nextWidth = Math.min(maxWidth, Math.max(120, startWidth + moveEvent.clientX - startX))
+            setFolderPanelWidth(nextWidth)
+        }
+        const handleMouseUp = () => {
+            window.localStorage.setItem(FOLDER_PANEL_WIDTH_STORAGE_KEY, String(Math.round(nextWidth)))
+            document.body.style.cursor = previousCursor
+            document.body.style.userSelect = previousUserSelect
+            window.removeEventListener('mousemove', handleMouseMove)
+            window.removeEventListener('mouseup', handleMouseUp)
+            window.removeEventListener('blur', handleMouseUp)
+        }
+
+        document.body.style.cursor = 'col-resize'
+        document.body.style.userSelect = 'none'
+        window.addEventListener('mousemove', handleMouseMove)
+        window.addEventListener('mouseup', handleMouseUp)
+        window.addEventListener('blur', handleMouseUp)
+    }, [folderPanelWidth])
 
     // DnD sensors
     const sensors = useSensors(
@@ -1029,7 +1066,11 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                     {expertCharacterPromptFolderBrowserEnabled ? (
                     <div className="flex min-h-0 flex-1">
                         {folderPanelOpen && (
-                        <div className="flex w-[34%] min-w-[120px] max-w-[180px] shrink-0 flex-col border-r border-border/30 bg-background/20">
+                        <>
+                        <div
+                            className="flex min-w-[120px] shrink-0 flex-col bg-background/20"
+                            style={{ width: folderPanelWidth, maxWidth: 'calc(100% - 180px)' }}
+                        >
                             <div className="flex h-8 shrink-0 items-center justify-between border-b border-border/20 px-2 text-[11px] font-medium text-muted-foreground">
                                 <span>{t('characterPanel.folders', '폴더')}</span>
                                 <Button
@@ -1068,6 +1109,13 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                 </div>
                             </ScrollArea>
                         </div>
+                        <div
+                            role="separator"
+                            aria-orientation="vertical"
+                            className="w-1.5 shrink-0 cursor-col-resize border-l border-border/30 transition-colors hover:bg-primary/25"
+                            onMouseDown={startFolderPanelResize}
+                        />
+                        </>
                         )}
 
                         <div className="flex min-w-0 flex-1 flex-col">
@@ -1716,18 +1764,18 @@ function PositionDialog({ open, onOpenChange, characters, onPositionChange }: Po
         onPositionChange(id, x, y)
     }
 
-    const handleMouseDown = (e: MouseEvent, id: string) => {
+    const handleMouseDown = (e: ReactMouseEvent, id: string) => {
         e.preventDefault()
         setDragging(id)
         setSelectedId(id)
     }
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = (e: ReactMouseEvent) => {
         if (!dragging) return
         updatePositionFromPointer(dragging, e.clientX, e.clientY)
     }
 
-    const handleGridMouseDown = (e: MouseEvent<HTMLDivElement>) => {
+    const handleGridMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
         if (e.button !== 0 || e.target !== e.currentTarget || !selectedId) return
         updatePositionFromPointer(selectedId, e.clientX, e.clientY)
     }

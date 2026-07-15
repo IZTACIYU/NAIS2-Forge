@@ -51,6 +51,7 @@ import { useSceneStore } from '@/stores/scene-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { useCharacterStore } from '@/stores/character-store'
+import { useFragmentStore } from '@/stores/fragment-store'
 import { ResolutionSelector } from '@/components/ui/ResolutionSelector'
 
 const SAMPLERS = [
@@ -150,6 +151,9 @@ export function PromptPanel() {
     // Zustand 선택적 구독 - characterPromptStore
     const characterCount = useCharacterPromptStore(state => state.characters.filter(c => c.enabled).length)
     const characters = useCharacterPromptStore(state => state.characters)
+    const fragmentRevision = useFragmentStore(state =>
+        state.files.map(file => `${file.id}:${file.updatedAt}`).join('|')
+    )
     const activeReferenceCount = useCharacterStore(state =>
         state.characterImages.filter(image => image.enabled !== false).length
         + state.vibeImages.filter(image => image.enabled !== false).length
@@ -183,15 +187,27 @@ export function PromptPanel() {
         }
         let cancelled = false
         const timer = window.setTimeout(() => {
-            void import('@/lib/token-counter').then(({ countTokens }) => {
-                if (!cancelled) setTokenTotals({ positive: countTokens(positive), negative: countTokens(negative) })
+            void Promise.all([
+                import('@/lib/token-counter'),
+                import('@/lib/fragment-processor'),
+            ]).then(async ([{ countTokens }, { resolveFragmentsForTokenCount }]) => {
+                const [resolvedPositive, resolvedNegative] = await Promise.all([
+                    resolveFragmentsForTokenCount(positive),
+                    resolveFragmentsForTokenCount(negative),
+                ])
+                if (!cancelled) {
+                    setTokenTotals({
+                        positive: countTokens(resolvedPositive),
+                        negative: countTokens(resolvedNegative),
+                    })
+                }
             })
         }, 250)
         return () => {
             cancelled = true
             window.clearTimeout(timer)
         }
-    }, [basePrompt, additionalPrompt, detailPrompt, negativePrompt, activeScenePrompt, characters])
+    }, [basePrompt, additionalPrompt, detailPrompt, negativePrompt, activeScenePrompt, characters, fragmentRevision])
 
     // 전역 단축키 이벤트 수신
     useEffect(() => {
