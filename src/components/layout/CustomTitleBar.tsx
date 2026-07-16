@@ -1,4 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { PanelLeft, PanelRight, Minus, Square, X, Maximize2 } from 'lucide-react'
@@ -16,7 +17,12 @@ export function CustomTitleBar({ navigation }: { navigation?: ReactNode }) {
         rightSidebarVisible,
         toggleLeftSidebar,
         toggleRightSidebar
-    } = useLayoutStore()
+    } = useLayoutStore(useShallow(state => ({
+        leftSidebarVisible: state.leftSidebarVisible,
+        rightSidebarVisible: state.rightSidebarVisible,
+        toggleLeftSidebar: state.toggleLeftSidebar,
+        toggleRightSidebar: state.toggleRightSidebar,
+    })))
 
     useEffect(() => {
         let active = true

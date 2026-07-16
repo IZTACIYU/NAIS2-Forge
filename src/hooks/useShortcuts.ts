@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useShortcutStore, matchesBinding, ShortcutAction } from '@/stores/shortcut-store'
 import { useGenerationStore } from '@/stores/generation-store'
@@ -21,7 +22,10 @@ const MENU_ROUTES = ['/', '/scenes', '/tools', '/web', '/library', '/settings']
 export function useShortcuts() {
     const navigate = useNavigate()
     const location = useLocation()
-    const { bindings, enabled } = useShortcutStore()
+    const { bindings, enabled } = useShortcutStore(useShallow(state => ({
+        bindings: state.bindings,
+        enabled: state.enabled,
+    })))
     const generate = useGenerationStore(state => state.generate)
     const cancelGeneration = useGenerationStore(state => state.cancelGeneration)
     const isGenerating = useGenerationStore(state => state.isGenerating)

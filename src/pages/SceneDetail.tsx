@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useState, useEffect, useRef } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { Button } from '@/components/ui/button'
 import {
     Select,
@@ -41,7 +42,6 @@ const getThumbnailAspectClass = (layout: 'vertical' | 'horizontal' | 'square') =
 
 import { useSceneStore, SceneImage } from '@/stores/scene-store'
 import { useSettingsStore } from '@/stores/settings-store'
-import { useSceneGeneration } from '@/hooks/useSceneGeneration'
 import { Command } from '@tauri-apps/plugin-shell'
 import { MetadataDialog } from '@/components/metadata/MetadataDialog'
 import { ImageReferenceDialog } from '@/components/metadata/ImageReferenceDialog'
@@ -77,8 +77,21 @@ export default function SceneDetail() {
         validateSceneImages,
         updateSceneSettings,
         updateSceneCharacterAddition,
-    } = useSceneStore()
-    const { isGenerating: _isGlobalGenerating } = useSceneGeneration()
+    } = useSceneStore(useShallow(state => ({
+        renameScene: state.renameScene,
+        toggleFavorite: state.toggleFavorite,
+        deleteImage: state.deleteImage,
+        deleteNonFavoriteImages: state.deleteNonFavoriteImages,
+        incrementQueue: state.incrementQueue,
+        decrementQueue: state.decrementQueue,
+        validateSceneImages: state.validateSceneImages,
+        updateSceneSettings: state.updateSceneSettings,
+        updateSceneCharacterAddition: state.updateSceneCharacterAddition,
+    })))
+    const sceneQueueCount = useSceneStore(state => {
+        const preset = state.presets.find(candidate => candidate.id === state.activePresetId)
+        return preset?.scenes.find(candidate => candidate.id === sceneId)?.queueCount ?? 0
+    })
     const promptFontSize = useSettingsStore(state => state.promptFontSize)
     const expertCharacterPromptLayoutEnabled = useSettingsStore(state => state.expertCharacterPromptLayoutEnabled)
     const expertCharacterPromptVariantsEnabled = useSettingsStore(state => state.expertCharacterPromptVariantsEnabled)
@@ -283,7 +296,7 @@ export default function SceneDetail() {
 
         // If queue count is 0, set it to 1 for single generation
         // Otherwise, use the existing queue count without incrementing
-        if (scene.queueCount === 0) {
+        if (sceneQueueCount === 0) {
             incrementQueue(activePresetId, scene.id)
         }
 
@@ -418,11 +431,11 @@ export default function SceneDetail() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => decrementQueue(activePresetId, scene.id)}
-                            disabled={scene.queueCount === 0}
+                            disabled={sceneQueueCount === 0}
                         >
                             <Minus className="h-3 w-3" />
                         </Button>
-                        <span className="text-sm font-medium w-8 text-center">{scene.queueCount}</span>
+                        <span className="text-sm font-medium w-8 text-center">{sceneQueueCount}</span>
                         <Button
                             variant="ghost"
                             size="icon"

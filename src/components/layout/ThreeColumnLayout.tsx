@@ -1,4 +1,5 @@
 import { lazy, ReactNode, Suspense, useEffect, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -49,8 +50,21 @@ const SceneRandomCharacterDialog = lazy(() => import('@/components/scene/SceneRa
 export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const { t } = useTranslation()
     const location = useLocation()
-    const { anlas, isVerified, refreshAnlas } = useAuthStore()
-    const { leftSidebarVisible, rightSidebarVisible, toggleLeftSidebar, toggleRightSidebar, leftSidebarWidth, rightSidebarWidth, setLeftSidebarWidth, setRightSidebarWidth } = useLayoutStore()
+    const { anlas, isVerified, refreshAnlas } = useAuthStore(useShallow(state => ({
+        anlas: state.anlas,
+        isVerified: state.isVerified,
+        refreshAnlas: state.refreshAnlas,
+    })))
+    const { leftSidebarVisible, rightSidebarVisible, toggleLeftSidebar, toggleRightSidebar, leftSidebarWidth, rightSidebarWidth, setLeftSidebarWidth, setRightSidebarWidth } = useLayoutStore(useShallow(state => ({
+        leftSidebarVisible: state.leftSidebarVisible,
+        rightSidebarVisible: state.rightSidebarVisible,
+        toggleLeftSidebar: state.toggleLeftSidebar,
+        toggleRightSidebar: state.toggleRightSidebar,
+        leftSidebarWidth: state.leftSidebarWidth,
+        rightSidebarWidth: state.rightSidebarWidth,
+        setLeftSidebarWidth: state.setLeftSidebarWidth,
+        setRightSidebarWidth: state.setRightSidebarWidth,
+    })))
     const leftWidthRef = useRef(leftSidebarWidth)
     const rightWidthRef = useRef(rightSidebarWidth)
     const leftPanelRef = useRef<HTMLElement>(null)
@@ -63,10 +77,16 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const sceneRandomCharacterCount = useSettingsStore(state => state.sceneRandomCharacterCount)
 
     // Get generation params for cost calculation
-    const { characterImages, vibeImages } = useCharacterStore()
+    const { characterImages, vibeImages } = useCharacterStore(useShallow(state => ({
+        characterImages: state.characterImages,
+        vibeImages: state.vibeImages,
+    })))
 
     // Get active preset for header display
-    const { presets, activePresetId } = usePresetStore()
+    const { presets, activePresetId } = usePresetStore(useShallow(state => ({
+        presets: state.presets,
+        activePresetId: state.activePresetId,
+    })))
     const activePreset = presets.find(p => p.id === activePresetId)
 
     // Preset dialog state (for shortcut support)

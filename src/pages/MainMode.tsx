@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
 import { ImageIcon, ImagePlus, Download, Copy, RotateCcw, Save, Users, FolderOpen, Paintbrush, Cloud, Eraser } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -45,12 +46,37 @@ export default function MainMode() {
         streamProgress,
         setSourceImage,
         setI2IMode,
-    } = useGenerationStore()
+        setIsGenerating,
+        setPreviewImage,
+        setSeed,
+        setSeedLocked,
+        setActiveImageSeed,
+        setPreviewSeed,
+    } = useGenerationStore(useShallow(state => ({
+        previewImage: state.previewImage,
+        isGenerating: state.isGenerating,
+        selectedResolution: state.selectedResolution,
+        seed: state.seed,
+        activeImageSeed: state.activeImageSeed,
+        previewSeed: state.previewSeed,
+        lastGenerationTime: state.lastGenerationTime,
+        batchCount: state.batchCount,
+        currentBatch: state.currentBatch,
+        streamProgress: state.streamProgress,
+        setSourceImage: state.setSourceImage,
+        setI2IMode: state.setI2IMode,
+        setIsGenerating: state.setIsGenerating,
+        setPreviewImage: state.setPreviewImage,
+        setSeed: state.setSeed,
+        setSeedLocked: state.setSeedLocked,
+        setActiveImageSeed: state.setActiveImageSeed,
+        setPreviewSeed: state.setPreviewSeed,
+    })))
 
     const displaySeed = previewSeed ?? activeImageSeed ?? seed
 
     const navigate = useNavigate()
-    const { setActiveImage } = useToolsStore()
+    const setActiveImage = useToolsStore(state => state.setActiveImage)
     const expertR2DirectUploadEnabled = useSettingsStore(s => s.expertR2DirectUploadEnabled)
     const expertExifDirectActionEnabled = useSettingsStore(s => s.expertExifDirectActionEnabled)
     const expertExifQuickActionEnabled = useSettingsStore(s => s.expertExifManagerEnabled && s.expertExifQuickActionEnabled)
@@ -62,9 +88,6 @@ export default function MainMode() {
     const [r2DirectUploadOpen, setR2DirectUploadOpen] = useState(false)
     // Inpainting dialog state
     const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false)
-
-    // Get more store functions for regenerate with metadata
-    const genStore = useGenerationStore()
 
     // Regenerate with metadata - direct API call without modifying UI
     const handleRegenerateWithMetadata = async () => {
@@ -92,7 +115,7 @@ export default function MainMode() {
             }
 
             // Set generating state
-            genStore.setIsGenerating(true)
+            setIsGenerating(true)
 
             // Generate random seed
             const newSeed = Math.floor(Math.random() * 4294967295)
@@ -141,7 +164,7 @@ export default function MainMode() {
                 const { imageFormat } = useSettingsStore.getState()
                 const mimeType = imageFormat === 'webp' ? 'image/webp' : 'image/png'
                 const fileExt = imageFormat === 'webp' ? 'webp' : 'png'
-                genStore.setPreviewImage(`data:${mimeType};base64,${result.imageData}`)
+                setPreviewImage(`data:${mimeType};base64,${result.imageData}`)
 
                 // Save to disk if autoSave is enabled
                 const { savePath, autoSave, useAbsolutePath } = useSettingsStore.getState()
@@ -204,7 +227,7 @@ export default function MainMode() {
         } catch (e) {
             console.error('Regenerate failed:', e)
         } finally {
-            genStore.setIsGenerating(false)
+            setIsGenerating(false)
         }
     }
 
@@ -635,10 +658,10 @@ export default function MainMode() {
                     onClick={() => {
                         const targetSeed = displaySeed
                         if (targetSeed) {
-                            genStore.setSeed(targetSeed)
-                            genStore.setSeedLocked(true)
-                            genStore.setActiveImageSeed(targetSeed)
-                            genStore.setPreviewSeed(null)
+                            setSeed(targetSeed)
+                            setSeedLocked(true)
+                            setActiveImageSeed(targetSeed)
+                            setPreviewSeed(null)
                             toast({ title: t('toast.seedApplied', 'Seed applied'), variant: 'success' })
                         }
                     }}

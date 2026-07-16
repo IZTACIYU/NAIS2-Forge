@@ -71,8 +71,11 @@ const buildSceneCharacterPrompt = (character: CharacterPrompt, costumeOverride?:
 
 export function useSceneGeneration() {
     const { t } = useTranslation()
-    const { token } = useAuthStore()
-    const { savePath, useStreaming: streamingView } = useSettingsStore()
+    const token = useAuthStore(state => state.token)
+    const { savePath, streamingView } = useSettingsStore(useShallow(state => ({
+        savePath: state.savePath,
+        streamingView: state.useStreaming,
+    })))
 
     // NOTE: Do NOT use useGenerationStore() hook here — it subscribes to ALL store
     // changes (prompt typing, preview image, etc.) causing unnecessary re-renders.

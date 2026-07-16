@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { type Update } from '@tauri-apps/plugin-updater'
 import { checkForAppUpdate } from '@/lib/app-updater'
 import { getVersion } from '@tauri-apps/api/app'
@@ -30,7 +31,14 @@ export function useUpdateChecker() {
         setIsDownloading,
         setDownloadProgress,
         clearPendingUpdate
-    } = useUpdateStore()
+    } = useUpdateStore(useShallow(state => ({
+        pendingUpdate: state.pendingUpdate,
+        isDownloading: state.isDownloading,
+        setPendingUpdate: state.setPendingUpdate,
+        setIsDownloading: state.setIsDownloading,
+        setDownloadProgress: state.setDownloadProgress,
+        clearPendingUpdate: state.clearPendingUpdate,
+    })))
 
     // Function to download update (but not install)
     const downloadUpdate = async (update: Update) => {
