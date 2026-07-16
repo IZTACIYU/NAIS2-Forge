@@ -128,8 +128,11 @@ async function makeThumbnail(base64?: string, filePath?: string, width = 384, he
         })
     } catch (error) {
         console.warn('[CharacterStore] Rust thumbnail generation failed, using Canvas fallback:', error)
-        const fallbackSource = base64 || (filePath ? await loadReferenceImage(filePath) : null)
-        return fallbackSource ? makeThumbnailWithCanvas(fallbackSource, width, height) : ''
+        // Never pull a stored original back into the WebView just for migration.
+        // A stale dev binary may not have the Rust command yet, and decoding every
+        // large file here blocks scrolling. Newly added images can reuse their
+        // already-present base64 without extra disk I/O.
+        return base64 ? makeThumbnailWithCanvas(base64, width, height) : ''
     }
 }
 
@@ -137,7 +140,7 @@ async function makeThumbnail(base64?: string, filePath?: string, width = 384, he
 async function persistImageToFile(id: string, base64: string, store: typeof useCharacterStore, field: 'characterImages' | 'vibeImages') {
     try {
         const filePath = await saveReferenceImage(id, base64)
-        const thumbnail = await makeThumbnail(undefined, filePath)
+        const thumbnail = await makeThumbnail(base64, filePath)
         store.getState()[field === 'characterImages' ? 'updateCharacterImage' : 'updateVibeImage'](id, {
             filePath,
             thumbnail,
