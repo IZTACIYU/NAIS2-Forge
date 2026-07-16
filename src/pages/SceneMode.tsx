@@ -198,6 +198,54 @@ function SceneQueueToolbar({ activePresetId, sceneCount, isGenerating, batchCoun
     )
 }
 
+function useSceneQueueCount(activePresetId: string | null, sceneId: string, sceneIndex: number) {
+    return useSceneStore(state => {
+        const preset = state.presets.find(candidate => candidate.id === activePresetId)
+        const indexedScene = sceneIndex >= 0 ? preset?.scenes[sceneIndex] : undefined
+        if (indexedScene && indexedScene.id === sceneId) return indexedScene.queueCount
+        return preset?.scenes.find(scene => scene.id === sceneId)?.queueCount ?? 0
+    })
+}
+
+const SceneQueueBadge = memo(function SceneQueueBadge({ activePresetId, sceneId, sceneIndex }: {
+    activePresetId: string | null
+    sceneId: string
+    sceneIndex: number
+}) {
+    const queueCount = useSceneQueueCount(activePresetId, sceneId, sceneIndex)
+    if (queueCount <= 0) return null
+    return (
+        <div className="absolute top-2 left-2 z-30 px-2.5 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">
+            {queueCount}
+        </div>
+    )
+})
+
+const SceneQueueControls = memo(function SceneQueueControls({ activePresetId, sceneId, sceneIndex, disabled }: {
+    activePresetId: string | null
+    sceneId: string
+    sceneIndex: number
+    disabled: boolean
+}) {
+    const queueCount = useSceneQueueCount(activePresetId, sceneId, sceneIndex)
+    const incrementQueue = useSceneStore.getState().incrementQueue
+    const decrementQueue = useSceneStore.getState().decrementQueue
+    const onIncrement = () => {
+        if (activePresetId) incrementQueue(activePresetId, sceneId, useGenerationStore.getState().batchCount)
+    }
+    const onDecrement = () => {
+        if (activePresetId) decrementQueue(activePresetId, sceneId)
+    }
+
+    return (
+        <div className="flex items-center justify-between gap-2" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+            <Button variant="secondary" size="icon" className="h-7 w-7 rounded-lg bg-white/15 hover:bg-white/25 text-white border border-white/5 disabled:opacity-30" onClick={onDecrement} disabled={queueCount === 0 || disabled}> <Minus className="h-3 w-3" /> </Button>
+            <div className="flex-1" />
+            <Button variant="secondary" size="icon" className="h-7 w-7 rounded-lg bg-white/15 hover:bg-white/25 text-white border border-white/5" onClick={onIncrement} disabled={disabled}> <Plus className="h-3 w-3" /> </Button>
+        </div>
+    )
+})
+
 // --- Scene Preset Reorder Dialog ---
 function SortablePresetRow({ preset, isActive, listeners, attributes, setNodeRef, style, isDragging, t }: any) {
     return (
@@ -1094,15 +1142,6 @@ const SceneCardItem = memo(function SceneCardItem({ scene, sceneIndex = -1, onCl
         return s.sceneCharacterAdditions[presetId]?.[scene.id] || null
     })
     
-    // Queue controls need their own subscription so rapid clicks are not held
-    // behind the parent card memoization.
-    const queueCount = useSceneStore(s => {
-        const preset = s.presets.find(p => p.id === s.activePresetId)
-        const indexedScene = sceneIndex >= 0 ? preset?.scenes[sceneIndex] : undefined
-        if (indexedScene && indexedScene.id === scene.id) return indexedScene.queueCount
-        return preset?.scenes.find(sc => sc.id === scene.id)?.queueCount ?? 0
-    })
-
     // Streaming State - only this card's streaming state
     const isStreaming = useSceneStore(s => s.streamingSceneId === scene.id)
     const streamingImage = useSceneStore(s => s.streamingSceneId === scene.id ? s.streamingImage : null)
@@ -1113,8 +1152,6 @@ const SceneCardItem = memo(function SceneCardItem({ scene, sceneIndex = -1, onCl
     const renameScene = useSceneStore.getState().renameScene
     const duplicateScene = useSceneStore.getState().duplicateScene
     const deleteScene = useSceneStore.getState().deleteScene
-    const incrementQueue = useSceneStore.getState().incrementQueue
-    const decrementQueue = useSceneStore.getState().decrementQueue
     const toggleSceneSelection = useSceneStore.getState().toggleSceneSelection
     const selectSceneRange = useSceneStore.getState().selectSceneRange
     const lastSelectedSceneId = useSceneStore.getState().lastSelectedSceneId
@@ -1147,8 +1184,6 @@ const SceneCardItem = memo(function SceneCardItem({ scene, sceneIndex = -1, onCl
 
     const onDelete = () => { if (activePresetId) deleteScene(activePresetId, scene.id) }
     const onDuplicate = () => { if (activePresetId) duplicateScene(activePresetId, scene.id) }
-    const onIncrement = () => { if (activePresetId) incrementQueue(activePresetId, scene.id, useGenerationStore.getState().batchCount) }
-    const onDecrement = () => { if (activePresetId) decrementQueue(activePresetId, scene.id) }
     const additionCounts = {
         characters: sceneCharacterAddition?.characterPromptIds.length || 0,
         refs: sceneCharacterAddition?.characterReferenceIds.length || 0,
@@ -1209,12 +1244,7 @@ const SceneCardItem = memo(function SceneCardItem({ scene, sceneIndex = -1, onCl
                         </div>
                     )}
 
-                    {/* Queue Badge - lightweight */}
-                    {queueCount > 0 && (
-                        <div className="absolute top-2 left-2 z-30 px-2.5 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">
-                            {queueCount}
-                        </div>
-                    )}
+                    <SceneQueueBadge activePresetId={activePresetId} sceneId={scene.id} sceneIndex={sceneIndex} />
 
                     {/* 3-dot Menu - hidden in edit mode */}
                     {!disabled && !isOverlay && !isEditMode && (
@@ -1266,11 +1296,7 @@ const SceneCardItem = memo(function SceneCardItem({ scene, sceneIndex = -1, onCl
                             )}
                         </div>
 
-                        <div className="flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-                            <Button variant="secondary" size="icon" className="h-7 w-7 rounded-lg bg-white/15 hover:bg-white/25 text-white border border-white/5 disabled:opacity-30" onClick={() => onDecrement()} disabled={queueCount === 0 || disabled}> <Minus className="h-3 w-3" /> </Button>
-                            <div className="flex-1" />
-                            <Button variant="secondary" size="icon" className="h-7 w-7 rounded-lg bg-white/15 hover:bg-white/25 text-white border border-white/5" onClick={() => onIncrement()} disabled={disabled}> <Plus className="h-3 w-3" /> </Button>
-                        </div>
+                        <SceneQueueControls activePresetId={activePresetId} sceneId={scene.id} sceneIndex={sceneIndex} disabled={disabled} />
                         {expertSceneCharacterAdditionsEnabled && sceneCharacterAdditionsEnabled && !isEditMode && !isOverlay && (
                             <div
                                 className="mt-2 rounded-lg border border-white/10 bg-black/55 px-2.5 py-1.5 backdrop-blur-sm"
@@ -1372,9 +1398,8 @@ const SortableSceneCard = memo(function SortableSceneCard(props: any) {
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.0 : 1 }
     return <div ref={setNodeRef} style={style}> <SceneCardItem {...props} dragAttributes={attributes} dragListeners={listeners} /> </div>
 }, (prevProps, nextProps) => {
-    // Only re-render if scene id, queueCount, name, or disabled changes
+    // Queue state is rendered by the isolated queue components above.
     return prevProps.scene.id === nextProps.scene.id &&
-        prevProps.scene.queueCount === nextProps.scene.queueCount &&
         prevProps.scene.name === nextProps.scene.name &&
         prevProps.scene.images?.length === nextProps.scene.images?.length &&
         prevProps.sceneIndex === nextProps.sceneIndex &&
