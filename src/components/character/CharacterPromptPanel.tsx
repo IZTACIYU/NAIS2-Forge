@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback, useMemo, MouseEvent as ReactMouseEvent } from 'react'
+import { memo, useState, useEffect, useRef, useCallback, useMemo, MouseEvent as ReactMouseEvent } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
 import {
     X,
@@ -173,7 +174,29 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         toggleGroupEnabled,
         moveCharacterToGroup,
         saveCharacterAsPreset,
-    } = useCharacterPromptStore()
+        reorderCharactersInGroup,
+    } = useCharacterPromptStore(useShallow(state => ({
+        characters: state.characters,
+        groups: state.groups,
+        addCharacter: state.addCharacter,
+        updateCharacter: state.updateCharacter,
+        removeCharacter: state.removeCharacter,
+        setPosition: state.setPosition,
+        toggleEnabled: state.toggleEnabled,
+        disableAll: state.disableAll,
+        positionEnabled: state.positionEnabled,
+        setPositionEnabled: state.setPositionEnabled,
+        addGroup: state.addGroup,
+        updateGroup: state.updateGroup,
+        deleteGroup: state.deleteGroup,
+        moveGroup: state.moveGroup,
+        reorderGroups: state.reorderGroups,
+        toggleGroupCollapsed: state.toggleGroupCollapsed,
+        toggleGroupEnabled: state.toggleGroupEnabled,
+        moveCharacterToGroup: state.moveCharacterToGroup,
+        saveCharacterAsPreset: state.saveCharacterAsPreset,
+        reorderCharactersInGroup: state.reorderCharactersInGroup,
+    })))
 
     const [expandedId, setExpandedId] = useState<string | null>(null)
     const [positionDialogOpen, setPositionDialogOpen] = useState(false)
@@ -236,8 +259,6 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         setActiveId(event.active.id as string)
         setExpandedId(null)
     }
-
-    const { reorderCharactersInGroup } = useCharacterPromptStore()
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event
@@ -1329,7 +1350,27 @@ function DroppableUngrouped({ isActive, children }: DroppableUngroupedProps) {
 }
 
 // --- SortableCharacterCard Wrapper ---
-function SortableCharacterCard(props: CharacterCardProps) {
+function haveSameCharacterCardProps(previous: CharacterCardProps, next: CharacterCardProps) {
+    if (
+        previous.character !== next.character
+        || previous.index !== next.index
+        || previous.isExpanded !== next.isExpanded
+        || previous.positionEnabled !== next.positionEnabled
+        || previous.groups !== next.groups
+        || previous.expertCharacterPromptLayoutEnabled !== next.expertCharacterPromptLayoutEnabled
+        || previous.expertCharacterPromptVariantsEnabled !== next.expertCharacterPromptVariantsEnabled
+    ) return false
+
+    if (!next.expertCharacterPromptVariantsEnabled) return true
+
+    const stackKey = getStackKey(next.character)
+    const previousVariants = previous.allCharacters.filter(character => getStackKey(character) === stackKey)
+    const nextVariants = next.allCharacters.filter(character => getStackKey(character) === stackKey)
+    return previousVariants.length === nextVariants.length
+        && previousVariants.every((character, index) => character === nextVariants[index])
+}
+
+const SortableCharacterCard = memo(function SortableCharacterCard(props: CharacterCardProps) {
     const {
         attributes,
         listeners,
@@ -1362,7 +1403,7 @@ function SortableCharacterCard(props: CharacterCardProps) {
             <CharacterCard {...props} dragHandleProps={listeners} />
         </div>
     )
-}
+}, haveSameCharacterCardProps)
 
 // --- Character Card Component ---
 interface CharacterCardProps {

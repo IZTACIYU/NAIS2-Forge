@@ -50,6 +50,12 @@ const waitForLibraryMaintenance = () => new Promise<void>(resolve => {
     }
 })
 
+const arrayBufferToBase64 = (buffer: Uint8Array): string => {
+    let binary = ''
+    for (let i = 0; i < buffer.byteLength; i++) binary += String.fromCharCode(buffer[i])
+    return btoa(binary)
+}
+
 const dropAnimation = {
     sideEffects: defaultDropAnimationSideEffects({
         styles: {
@@ -88,12 +94,9 @@ export default function Library() {
         isEditMode,
         setEditMode,
         selectedItemIds,
-        toggleItemSelection,
-        selectItemRange,
         selectAllItems,
         clearSelection: _clearSelection,
         deleteSelectedItems,
-        lastSelectedItemId,
         // Stack
         createStackFromSelected,
         moveItemToStack,
@@ -453,21 +456,11 @@ export default function Library() {
 
     const activeItem = activeId ? viewItems.find(i => i.id === activeId) : null
 
-    // Helper
-    const arrayBufferToBase64 = (buffer: Uint8Array): string => {
-        let binary = ''
-        const len = buffer.byteLength
-        for (let i = 0; i < len; i++) {
-            binary += String.fromCharCode(buffer[i])
-        }
-        return btoa(binary)
-    }
-
     // Handlers
-    const handleRenameClick = (item: LibraryItem) => {
+    const handleRenameClick = useCallback((item: LibraryItem) => {
         setSelectedItemForRename(item)
         setRenameDialogOpen(true)
-    }
+    }, [])
 
     const handleRenameConfirm = (newName: string) => {
         if (selectedItemForRename) {
@@ -482,7 +475,7 @@ export default function Library() {
         }
     }
 
-    const handleAddRefClick = async (item: LibraryItem) => {
+    const handleAddRefClick = useCallback(async (item: LibraryItem) => {
         try {
             const data = await readFile(item.path)
             const base64 = arrayBufferToBase64(data)
@@ -492,9 +485,9 @@ export default function Library() {
             console.error('Failed to load for ref:', e)
             toast({ title: t('library.error', '오류 발생'), variant: 'destructive' })
         }
-    }
+    }, [t])
 
-    const handleLoadMetadata = async (item: LibraryItem) => {
+    const handleLoadMetadata = useCallback(async (item: LibraryItem) => {
         try {
             const data = await readFile(item.path)
             const base64 = arrayBufferToBase64(data)
@@ -504,7 +497,30 @@ export default function Library() {
             console.error('Failed to load metadata:', e)
             toast({ title: t('library.error', '오류 발생'), variant: 'destructive' })
         }
-    }
+    }, [t])
+
+    const handleItemImageClick = useCallback((item: LibraryItem, imageUrl: string) => {
+        const store = useLibraryStore.getState()
+        if (store.isEditMode && !item.isStack) {
+            store.toggleItemSelection(item.id, false)
+        } else if (item.isStack) {
+            store.setCurrentStackId(item.id)
+        } else {
+            setViewerImageSrc(imageUrl)
+        }
+    }, [])
+
+    const handleItemSelectionClick = useCallback((item: LibraryItem, event: React.MouseEvent) => {
+        if (item.isStack) return
+        const store = useLibraryStore.getState()
+        if (event.shiftKey && store.lastSelectedItemId) {
+            store.selectItemRange(store.lastSelectedItemId, item.id, viewItemIds)
+        } else if (event.ctrlKey || event.metaKey) {
+            store.toggleItemSelection(item.id, false)
+        } else {
+            store.toggleItemSelection(item.id, true)
+        }
+    }, [viewItemIds])
 
     const handleToggleGrid = () => {
         const next = gridColumns >= 5 ? 2 : gridColumns + 1
@@ -798,31 +814,11 @@ export default function Library() {
                                     onRename={handleRenameClick}
                                     onAddRef={handleAddRefClick}
                                     onLoadMetadata={handleLoadMetadata}
-                                    onImageClick={(imgUrl) => {
-                                        if (isEditMode && !item.isStack) {
-                                            // Edit mode: toggle selection (stacks cannot be selected)
-                                            toggleItemSelection(item.id, false)
-                                        } else if (item.isStack) {
-                                            // Stack: navigate into it
-                                            setCurrentStackId(item.id)
-                                        } else {
-                                            // Normal: show fullscreen
-                                            setViewerImageSrc(imgUrl)
-                                        }
-                                    }}
+                                    onImageClick={handleItemImageClick}
                                     isEditMode={isEditMode}
                                     isSelected={selectedItemIds.includes(item.id)}
                                     isStackDropTarget={stackDropTargetId === item.id}
-                                    onSelectionClick={(e: React.MouseEvent) => {
-                                        if (item.isStack) return // Stacks cannot be selected
-                                        if (e.shiftKey && lastSelectedItemId) {
-                                            selectItemRange(lastSelectedItemId, item.id, viewItemIds)
-                                        } else if (e.ctrlKey || e.metaKey) {
-                                            toggleItemSelection(item.id, false)
-                                        } else {
-                                            toggleItemSelection(item.id, true)
-                                        }
-                                    }}
+                                    onSelectionClick={handleItemSelectionClick}
                                     disabled={isEditMode}
                                 />
                             ))}

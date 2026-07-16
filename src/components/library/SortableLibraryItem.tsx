@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { LibraryItem as LibraryItemType } from '@/stores/library-store'
@@ -8,15 +9,15 @@ interface SortableLibraryItemProps {
     onRename: (item: LibraryItemType) => void
     onAddRef: (item: LibraryItemType) => void
     onLoadMetadata: (item: LibraryItemType) => void
-    onImageClick?: (imageUrl: string) => void
+    onImageClick?: (item: LibraryItemType, imageUrl: string) => void
     isEditMode?: boolean
     isSelected?: boolean
-    onSelectionClick?: (e: React.MouseEvent) => void
+    onSelectionClick?: (item: LibraryItemType, e: React.MouseEvent) => void
     isStackDropTarget?: boolean
     disabled?: boolean
 }
 
-export function SortableLibraryItem({ item, onRename, onAddRef, onLoadMetadata, onImageClick, isEditMode, isSelected, onSelectionClick, isStackDropTarget, disabled }: SortableLibraryItemProps) {
+export const SortableLibraryItem = memo(function SortableLibraryItem({ item, onRename, onAddRef, onLoadMetadata, onImageClick, isEditMode, isSelected, onSelectionClick, isStackDropTarget, disabled }: SortableLibraryItemProps) {
     const {
         attributes,
         listeners,
@@ -39,12 +40,12 @@ export function SortableLibraryItem({ item, onRename, onAddRef, onLoadMetadata, 
                 onRename={onRename} 
                 onAddRef={onAddRef} 
                 onLoadMetadata={onLoadMetadata} 
-                onImageClick={onImageClick}
+                onImageClick={onImageClick ? imageUrl => onImageClick(item, imageUrl) : undefined}
                 isEditMode={isEditMode}
                 isSelected={isSelected}
-                onSelectionClick={onSelectionClick}
+                onSelectionClick={onSelectionClick ? event => onSelectionClick(item, event) : undefined}
                 isDropTarget={item.isStack && isStackDropTarget}
             />
         </div>
     )
-}
+})
