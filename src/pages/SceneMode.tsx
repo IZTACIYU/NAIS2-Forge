@@ -77,6 +77,7 @@ import {
     UserPlus,
     SlidersHorizontal,
     Cloud,
+    FolderOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNearViewport } from '@/hooks/use-near-viewport'
@@ -99,7 +100,9 @@ import { useSceneStore } from '@/stores/scene-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { toast } from '@/components/ui/use-toast'
 import { convertFileSrc } from '@tauri-apps/api/core'
-import { writeFile } from '@tauri-apps/plugin-fs'
+import { mkdir, writeFile } from '@tauri-apps/plugin-fs'
+import { join, pictureDir } from '@tauri-apps/api/path'
+import { Command } from '@tauri-apps/plugin-shell'
 import { save } from '@tauri-apps/plugin-dialog'
 import { ExportDialog } from '@/components/scene/ExportDialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -253,6 +256,20 @@ export default function SceneMode() {
     const setSceneCharacterAdditionsEnabled = useSceneStore(s => s.setSceneCharacterAdditionsEnabled)
 
     const totalQueue = activePresetId ? getTotalQueueCount(activePresetId) : 0
+
+    const handleOpenActivePresetFolder = async () => {
+        if (!activePreset) return
+        try {
+            const safePresetName = activePreset.name.replace(/[<>:"/\\|?*]/g, '_').trim() || 'Default'
+            const { savePath, useAbsolutePath } = useSettingsStore.getState()
+            const basePath = useAbsolutePath && savePath ? savePath : await pictureDir()
+            const presetPath = await join(basePath, 'NAIS_Scene', safePresetName)
+            await mkdir(presetPath, { recursive: true })
+            await Command.create('explorer', [presetPath]).execute()
+        } catch (error) {
+            console.error('Failed to open active scene preset folder:', error)
+        }
+    }
 
     // Edit Mode (Multi-Select)
     const isEditMode = useSceneStore(s => s.isEditMode)
@@ -648,7 +665,18 @@ export default function SceneMode() {
             ) : (
                 /* Normal Header */
                 <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex items-center gap-2">
+                        <Tip content={t('scene.openPresetFolder')}>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                onClick={handleOpenActivePresetFolder}
+                                disabled={!activePreset}
+                            >
+                                <FolderOpen className="h-4 w-4" />
+                            </Button>
+                        </Tip>
                         <h1 className="text-2xl font-bold">{t('scene.title')}</h1>
                     </div>
                     <div className="flex gap-2">
