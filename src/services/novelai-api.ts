@@ -1288,8 +1288,16 @@ export async function generateImageStream(
         console.log('[Stream] Starting streaming generation...')
         const processor = createStreamMessageProcessor(params.steps || 28, onProgress)
         if (useNativeReferences) {
-            const onChunk = new Channel<ArrayBuffer>()
-            onChunk.onmessage = chunk => processor.push(new Uint8Array(chunk))
+            let resolveStreamComplete: (() => void) | null = null
+            const streamComplete = new Promise<void>(resolve => { resolveStreamComplete = resolve })
+            const onChunk = new Channel<ArrayBuffer | { done: true }>()
+            onChunk.onmessage = message => {
+                if (message instanceof ArrayBuffer) {
+                    processor.push(new Uint8Array(message))
+                } else if (message?.done) {
+                    resolveStreamComplete?.()
+                }
+            }
             const nativeResult = await invoke<NativeGenerationResult>('generate_image_stream_with_references', {
                 token: token.trim(),
                 payload: requestBody,
@@ -1300,6 +1308,7 @@ export async function generateImageStream(
                 processor.clear()
                 return { success: false, error: nativeResult.error || 'Native streaming generation failed' }
             }
+            await streamComplete
             newlyEncodedVibes = nativeResult.encodedVibes
             newlyEncodedVibeIndices = buildNativeReferenceArgs(params).vibeReferences
                 .flatMap((reference, index) => !reference.encodedVibe && !reference.encodedVibePath ? [index] : [])

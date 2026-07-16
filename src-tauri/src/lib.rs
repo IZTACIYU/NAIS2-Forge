@@ -1182,6 +1182,17 @@ async fn generate_image_stream_with_references(
         }
     }
 
+    if let Err(error) = on_chunk.send(tauri::ipc::InvokeResponseBody::Json(
+        "{\"done\":true}".to_string(),
+    )) {
+        return NativeGenerationResult {
+            success: false,
+            response_base64: None,
+            encoded_vibes,
+            error: Some(format!("Failed to send stream completion: {error}")),
+        };
+    }
+
     NativeGenerationResult {
         success: true,
         response_base64: None,
