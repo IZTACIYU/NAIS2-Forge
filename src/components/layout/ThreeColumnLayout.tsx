@@ -148,7 +148,7 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
 
     // Calculate cached vs uncached vibes (only enabled ones)
     const enabledVibes = vibeImages.filter(v => v.enabled !== false)
-    const uncachedVibeCount = enabledVibes.filter(v => !v.encodedVibe).length
+    const uncachedVibeCount = enabledVibes.filter(v => !v.encodedVibe && !v.encodedVibePath).length
     const cachedVibeCount = enabledVibes.length - uncachedVibeCount
 
     // Count only enabled character images

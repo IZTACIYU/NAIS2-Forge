@@ -190,7 +190,7 @@ function SortableImageCard({
                                 <span className="whitespace-pre-line text-center text-[10px]">{t('characterDialog.encodedDataOnly')}</span>
                             </div>
                         )}
-                        {(image.cacheKey || image.encodedVibe) && (
+                        {(image.cacheKey || image.encodedVibe || image.encodedVibePath) && (
                             <div className="absolute bottom-2 left-2 rounded bg-green-500/90 px-1.5 py-1 text-white"><Zap className="h-3 w-3" /></div>
                         )}
                     </div>
