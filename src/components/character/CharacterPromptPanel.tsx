@@ -291,12 +291,10 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         }
     }
 
-    // 패널 열릴 때 첫 번째 캐릭터 펼치기
+    // Reopen with all existing cards collapsed.
     useEffect(() => {
-        if (open && characters.length > 0 && !expandedId) {
-            setExpandedId(characters[0].id)
-        }
-    }, [open, characters.length])
+        if (!open) setExpandedId(null)
+    }, [open])
 
     const handleAddCharacter = () => {
         addCharacter(expertCharacterPromptFolderBrowserEnabled && selectedGroupId

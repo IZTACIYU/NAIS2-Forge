@@ -72,6 +72,14 @@ const referenceAccessOrder = new Map<string, number>()
 let referenceAccessCounter = 0
 let thumbnailRefreshPromise: Promise<void> | null = null
 
+const yieldToUI = () => new Promise<void>(resolve => {
+    if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(() => resolve(), { timeout: 100 })
+        return
+    }
+    window.setTimeout(resolve, 0)
+})
+
 const estimateRuntimeBytes = (image: ReferenceImage) =>
     ((image.base64?.length || 0) + (image.encodedVibe?.length || 0)) * 2
 
@@ -386,6 +394,7 @@ export const useCharacterStore = create<CharacterState>()(
                         for (const image of snapshot) {
                             if (image.thumbnail && image.thumbnailVersion === THUMBNAIL_VERSION) continue
                             if (!image.filePath && !image.base64) continue
+                            await yieldToUI()
                             const base64 = image.base64 || await loadReferenceImage(image.filePath!)
                             if (!base64) continue
                             const thumbnail = await makeThumbnail(base64)

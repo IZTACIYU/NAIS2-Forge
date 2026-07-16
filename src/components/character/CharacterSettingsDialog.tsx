@@ -178,7 +178,13 @@ function SortableImageCard({
                 <div className="space-y-3 p-3">
                     <div className="relative flex aspect-[384/264] w-full items-center justify-center overflow-hidden rounded-md border bg-muted/40">
                         {image.thumbnail || image.base64 ? (
-                            <img src={image.thumbnail || image.base64} alt="" className="h-full w-full object-cover" />
+                            <img
+                                src={image.thumbnail || image.base64}
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
+                                className="h-full w-full object-cover"
+                            />
                         ) : (
                             <div className="flex flex-col items-center gap-1 text-muted-foreground">
                                 <Database className="h-7 w-7 opacity-60" />
@@ -345,7 +351,14 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
     const { setNodeRef: setRootDropRef, isOver: rootIsOver } = useDroppable({ id: `root:${activeTab}`, data: { type: 'root' } })
 
     useEffect(() => {
-        if (open) void ensureHighQualityThumbnails()
+        if (!open) return
+
+        const current = useCharacterStore.getState()
+        setCollapsedImageIds(new Set([
+            ...current.characterImages.map(image => image.id),
+            ...current.vibeImages.map(image => image.id),
+        ]))
+        void ensureHighQualityThumbnails()
     }, [open, ensureHighQualityThumbnails])
 
     const addFiles = useCallback(async (files: FileList | File[], mode: ReferenceMode) => {
