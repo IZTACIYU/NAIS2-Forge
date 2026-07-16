@@ -812,6 +812,47 @@ async fn create_reference_thumbnail(
     .map_err(|error| format!("Thumbnail worker failed: {error}"))?
 }
 
+#[tauri::command]
+async fn create_library_thumbnail(
+    file_path: String,
+    output_path: String,
+    max_edge: u32,
+    quality: f32,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        use image::imageops::FilterType;
+        use image::GenericImageView;
+
+        if max_edge == 0 {
+            return Err("Thumbnail max edge must be greater than zero".to_string());
+        }
+        if let Some(parent) = std::path::Path::new(&output_path).parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|error| format!("Failed to create thumbnail directory: {error}"))?;
+        }
+
+        let source = image::open(&file_path)
+            .map_err(|error| format!("Failed to decode library image: {error}"))?;
+        let (width, height) = source.dimensions();
+        let scale = (max_edge as f64 / width.max(height) as f64).min(1.0);
+        let target_width = ((width as f64 * scale).round() as u32).max(1);
+        let target_height = ((height as f64 * scale).round() as u32).max(1);
+        let thumbnail = source.resize_exact(target_width, target_height, FilterType::Lanczos3);
+        let rgb = thumbnail.to_rgb8();
+        let encoded = webp::Encoder::from_rgb(rgb.as_raw(), target_width, target_height)
+            .encode(quality.clamp(1.0, 100.0));
+
+        if !std::path::Path::new(&file_path).exists() {
+            return Err("Original image was removed".to_string());
+        }
+        std::fs::write(&output_path, &*encoded)
+            .map_err(|error| format!("Failed to write library thumbnail: {error}"))?;
+        Ok(output_path)
+    })
+    .await
+    .map_err(|error| format!("Library thumbnail worker failed: {error}"))?
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct NativeCharacterReference {
@@ -1474,6 +1515,7 @@ pub fn run() {
             r2_delete_prefix,
             r2_create_folder,
             create_reference_thumbnail,
+            create_library_thumbnail,
             generate_image_with_references,
             generate_image_stream_with_references,
             state_db_get,

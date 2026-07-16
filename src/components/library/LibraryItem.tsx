@@ -6,6 +6,7 @@ import { LibraryContextMenu } from './LibraryContextMenu'
 import { cn } from '@/lib/utils'
 import { Check, Square, Layers } from 'lucide-react'
 import { ensureLibraryThumbnail, LIBRARY_THUMBNAIL_VERSION } from '@/lib/library-thumbnail'
+import { useNearViewport } from '@/hooks/use-near-viewport'
 
 interface LibraryItemProps {
     item: LibraryItemType
@@ -25,36 +26,61 @@ export const LibraryItem = memo(function LibraryItem({ item, className, isOverla
     const { t } = useTranslation()
     const [imageUrl, setImageUrl] = useState<string>('')
     const [isLoading, setIsLoading] = useState(true)
+    const [containerRef, isNearViewport] = useNearViewport<HTMLDivElement>('500px 0px')
 
     const hasCurrentThumbnail = Boolean(
         item.thumbnailPath && item.thumbnailVersion === LIBRARY_THUMBNAIL_VERSION
     )
 
     useEffect(() => {
-        setIsLoading(true)
-        try {
-            setImageUrl(convertFileSrc(hasCurrentThumbnail ? item.thumbnailPath! : item.path))
-        } catch (e) {
-            console.error('Failed to create asset URL:', e)
+        let cancelled = false
+        if (!isOverlay && !isNearViewport) {
             setImageUrl('')
             setIsLoading(false)
+            return
         }
-    }, [hasCurrentThumbnail, item.path, item.thumbnailPath])
+
+        setIsLoading(true)
+        if (isOverlay || hasCurrentThumbnail) {
+            try {
+                setImageUrl(convertFileSrc(hasCurrentThumbnail ? item.thumbnailPath! : item.path))
+            } catch (error) {
+                console.error('Failed to create asset URL:', error)
+                setImageUrl('')
+                setIsLoading(false)
+            }
+            return
+        }
+
+        const thumbnailSource = getFirstLibraryLeaf(item)
+        void ensureLibraryThumbnail(thumbnailSource.id, thumbnailSource.path)
+            .then(thumbnailPath => {
+                if (cancelled) return
+                const updates = {
+                    thumbnailPath,
+                    thumbnailVersion: LIBRARY_THUMBNAIL_VERSION,
+                }
+                const store = useLibraryStore.getState()
+                store.updateItem(thumbnailSource.id, updates)
+                if (thumbnailSource.id !== item.id) store.updateItem(item.id, updates)
+                setImageUrl(convertFileSrc(thumbnailPath))
+            })
+            .catch(error => {
+                if (cancelled) return
+                console.warn('Failed to create library thumbnail:', error)
+                try {
+                    setImageUrl(convertFileSrc(item.path))
+                } catch {
+                    setImageUrl('')
+                    setIsLoading(false)
+                }
+            })
+
+        return () => { cancelled = true }
+    }, [hasCurrentThumbnail, isNearViewport, isOverlay, item.id, item.path, item.thumbnailPath])
 
     const handleImageLoad = () => {
         setIsLoading(false)
-        if (isOverlay || hasCurrentThumbnail) return
-
-        const thumbnailSource = getFirstLibraryLeaf(item)
-
-        void ensureLibraryThumbnail(thumbnailSource.id, thumbnailSource.path)
-            .then(thumbnailPath => {
-                useLibraryStore.getState().updateItem(thumbnailSource.id, {
-                    thumbnailPath,
-                    thumbnailVersion: LIBRARY_THUMBNAIL_VERSION,
-                })
-            })
-            .catch(error => console.warn('Failed to create library thumbnail:', error))
     }
 
     const handleImageError = () => {
@@ -82,6 +108,7 @@ export const LibraryItem = memo(function LibraryItem({ item, className, isOverla
 
     const content = (
         <div
+            ref={containerRef}
             className={cn(
                 "relative group aspect-[2/3] rounded-xl overflow-hidden bg-muted/30 border border-border/50 shadow-sm transition-all hover:ring-2 hover:ring-primary/50",
                 isOverlay && "pointer-events-none opacity-50 ring-2 ring-primary shadow-xl cursor-grabbing z-50",
@@ -100,9 +127,6 @@ export const LibraryItem = memo(function LibraryItem({ item, className, isOverla
                 <img
                     src={imageUrl}
                     alt={item.name}
-                    loading={isOverlay ? 'eager' : 'lazy'}
-                    decoding="async"
-                    fetchPriority={isOverlay ? 'high' : 'low'}
                     onLoad={handleImageLoad}
                     onError={handleImageError}
                     className={cn(

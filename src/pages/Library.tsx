@@ -42,6 +42,14 @@ import { useSettingsStore } from '@/stores/settings-store'
 
 const STACK_DROP_HOVER_MS = 1000
 
+const waitForLibraryMaintenance = () => new Promise<void>(resolve => {
+    if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(() => resolve())
+    } else {
+        setTimeout(resolve, 120)
+    }
+})
+
 const dropAnimation = {
     sideEffects: defaultDropAnimationSideEffects({
         styles: {
@@ -172,6 +180,7 @@ export default function Library() {
 
     // Ensure Library Directory Exists & Sync Files
     useEffect(() => {
+        let cancelled = false
         const initDir = async () => {
             try {
                 // 1. Ensure Dir Exists
@@ -190,13 +199,10 @@ export default function Library() {
                     }
                 }
 
-                // 2. Sync: Remove items that no longer exist on disk
-                // We process this strictly to keep the library clean.
-                // Note: 'items' comes from store, which is persisted.
-                // We can't directly map 'items' inside this async function if it changes, 
-                // but for init sync (on mount), using the initial state is fine.
-                // However, 'items' in dependency array might cause loops if we simply set items.
-                // We'll trust the store's current state on mount.
+                // File maintenance is intentionally idle and sequential. A parallel
+                // scan of large stacks competes with thumbnail decoding and scrolling.
+                await waitForLibraryMaintenance()
+                if (cancelled) return
 
                 const currentItems = useLibraryStore.getState().items
                 const validItems: LibraryItem[] = []
@@ -205,12 +211,11 @@ export default function Library() {
                 const validateItem = async (item: LibraryItem): Promise<LibraryItem | null> => {
                     if (item.isStack && item.stackItems) {
                         const validStackItems: LibraryItem[] = []
-                        const batchSize = 16
-
-                        for (let index = 0; index < item.stackItems.length; index += batchSize) {
-                            const batch = item.stackItems.slice(index, index + batchSize)
-                            const results = await Promise.all(batch.map(validateItem))
-                            validStackItems.push(...results.filter((entry): entry is LibraryItem => entry !== null))
+                        for (const stackItem of item.stackItems) {
+                            if (cancelled) return item
+                            await waitForLibraryMaintenance()
+                            const result = await validateItem(stackItem)
+                            if (result) validStackItems.push(result)
                         }
 
                         if (validStackItems.length === 0) {
@@ -240,6 +245,8 @@ export default function Library() {
                     }
 
                     try {
+                        await waitForLibraryMaintenance()
+                        if (cancelled) return item
                         if (await exists(item.path)) return item
                         changed = true
                         return null
@@ -249,14 +256,13 @@ export default function Library() {
                     }
                 }
 
-                const batchSize = 16
-                for (let index = 0; index < currentItems.length; index += batchSize) {
-                    const batch = currentItems.slice(index, index + batchSize)
-                    const results = await Promise.all(batch.map(validateItem))
-                    validItems.push(...results.filter((entry): entry is LibraryItem => entry !== null))
+                for (const item of currentItems) {
+                    if (cancelled) return
+                    const result = await validateItem(item)
+                    if (result) validItems.push(result)
                 }
 
-                if (changed) {
+                if (changed && !cancelled) {
                     setItems(validItems)
                     console.log('[Library] Synced missing files and repaired stack thumbnails.')
                 }
@@ -265,7 +271,8 @@ export default function Library() {
                 console.error('Failed to init/sync library:', e)
             }
         }
-        initDir()
+        void initDir()
+        return () => { cancelled = true }
     }, [setItems, libraryPath, useAbsoluteLibraryPath])
 
     const handleDeleteSelected = useCallback(async () => {
