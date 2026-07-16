@@ -53,6 +53,7 @@ import { useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { useCharacterStore } from '@/stores/character-store'
 import { useFragmentStore } from '@/stores/fragment-store'
 import { ResolutionSelector } from '@/components/ui/ResolutionSelector'
+import { useSceneQueueHasItems, useSceneQueueTotal } from '@/hooks/use-scene-queue'
 
 const SAMPLERS = [
     'k_euler',
@@ -67,10 +68,8 @@ const SAMPLERS = [
 const SCHEDULERS = ['native', 'karras', 'exponential', 'polyexponential']
 
 function SceneQueueCountLabel() {
-    const count = useSceneStore(state => {
-        const preset = state.presets.find(candidate => candidate.id === state.activePresetId)
-        return preset?.scenes.reduce((total, scene) => total + scene.queueCount, 0) || 0
-    })
+    const activePresetId = useSceneStore(state => state.activePresetId)
+    const count = useSceneQueueTotal(activePresetId)
     return count > 0 ? <> ({count})</> : null
 }
 
@@ -81,15 +80,13 @@ export function PromptPanel() {
 
     // Zustand 선택적 구독 - sceneStore
     const routeSceneId = location.pathname.match(/^\/scenes\/([^/]+)/)?.[1]
+    const activePresetId = useSceneStore(state => state.activePresetId)
     const activeScenePrompt = useSceneStore(state => {
         if (!routeSceneId || !state.activePresetId) return ''
         return state.presets.find(preset => preset.id === state.activePresetId)
             ?.scenes.find(scene => scene.id === routeSceneId)?.scenePrompt || ''
     })
-    const sceneHasQueue = useSceneStore(state => {
-        const preset = state.presets.find(candidate => candidate.id === state.activePresetId)
-        return preset?.scenes.some(scene => scene.queueCount > 0) || false
-    })
+    const sceneHasQueue = useSceneQueueHasItems(activePresetId)
     const sceneIsGenerating = useSceneStore(state => state.isGenerating)
     const sceneIsCancelling = useSceneStore(state => state.isCancelling)
     const cancelSceneGeneration = useSceneStore(state => state.cancelSceneGeneration)

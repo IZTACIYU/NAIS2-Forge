@@ -4,6 +4,7 @@ import { createDeferredJSONStorage } from '@/lib/indexed-db'
 import { rename, exists} from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { useSettingsStore } from './settings-store'
+import { notifySceneQueueChanged } from '@/lib/scene-queue-events'
 
 export interface SceneImage {
     id: string
@@ -57,7 +58,6 @@ type SceneGenerationSource = 'queue' | 'detail'
 interface SceneState {
     presets: ScenePreset[]
     activePresetId: string | null
-    queueRevision: number
 
     // Actions - Presets
     addPreset: (name: string) => void
@@ -203,7 +203,6 @@ interface ScenePersistSource {
 
 let lastScenePersistSource: ScenePersistSource | null = null
 let lastScenePersistSnapshot: PersistedSceneState | null = null
-let skipNextScenePersistSnapshot = false
 
 function getScenePersistSnapshot(state: SceneState): PersistedSceneState {
     const source: ScenePersistSource = {
@@ -215,14 +214,6 @@ function getScenePersistSnapshot(state: SceneState): PersistedSceneState {
         sceneCharacterAdditions: state.sceneCharacterAdditions,
         gridColumns: state.gridColumns,
         thumbnailLayout: state.thumbnailLayout,
-    }
-
-    if (skipNextScenePersistSnapshot) {
-        skipNextScenePersistSnapshot = false
-        if (lastScenePersistSnapshot) {
-            lastScenePersistSource = source
-            return lastScenePersistSnapshot
-        }
     }
 
     if (lastScenePersistSource
@@ -288,7 +279,6 @@ export const useSceneStore = create<SceneState>()(
         (set, get) => ({
             presets: [createDefaultPreset()],
             activePresetId: DEFAULT_PRESET_ID,
-            queueRevision: 0,
 
             // Preset Actions
             addPreset: (name) => {
@@ -519,8 +509,7 @@ export const useSceneStore = create<SceneState>()(
                 const nextCount = Math.max(0, count)
                 if (scene.queueCount === nextCount) return
                 scene.queueCount = nextCount
-                skipNextScenePersistSnapshot = true
-                set({ queueRevision: state.queueRevision + 1 })
+                notifySceneQueueChanged(presetId, [sceneId])
             },
 
             incrementQueue: (presetId, sceneId, count = 1) => {
@@ -528,8 +517,7 @@ export const useSceneStore = create<SceneState>()(
                 const scene = state.presets.find(p => p.id === presetId)?.scenes.find(s => s.id === sceneId)
                 if (!scene) return
                 scene.queueCount = Math.max(0, scene.queueCount + count)
-                skipNextScenePersistSnapshot = true
-                set({ queueRevision: state.queueRevision + 1 })
+                notifySceneQueueChanged(presetId, [sceneId])
             },
 
             decrementQueue: (presetId, sceneId) => {
@@ -537,8 +525,7 @@ export const useSceneStore = create<SceneState>()(
                 const scene = state.presets.find(p => p.id === presetId)?.scenes.find(s => s.id === sceneId)
                 if (!scene || scene.queueCount <= 0) return
                 scene.queueCount -= 1
-                skipNextScenePersistSnapshot = true
-                set({ queueRevision: state.queueRevision + 1 })
+                notifySceneQueueChanged(presetId, [sceneId])
             },
 
             addAllToQueue: (presetId, count = 1) => {
@@ -546,8 +533,7 @@ export const useSceneStore = create<SceneState>()(
                 const preset = state.presets.find(p => p.id === presetId)
                 if (!preset || preset.scenes.length === 0) return
                 preset.scenes.forEach(scene => { scene.queueCount = Math.max(0, scene.queueCount + count) })
-                skipNextScenePersistSnapshot = true
-                set({ queueRevision: state.queueRevision + 1 })
+                notifySceneQueueChanged(presetId, preset.scenes.map(scene => scene.id))
             },
 
             clearAllQueue: (presetId) => {
@@ -555,8 +541,7 @@ export const useSceneStore = create<SceneState>()(
                 const preset = state.presets.find(p => p.id === presetId)
                 if (!preset || !preset.scenes.some(scene => scene.queueCount > 0)) return
                 preset.scenes.forEach(scene => { scene.queueCount = 0 })
-                skipNextScenePersistSnapshot = true
-                set({ queueRevision: state.queueRevision + 1 })
+                notifySceneQueueChanged(presetId, preset.scenes.map(scene => scene.id))
             },
 
             getTotalQueueCount: (presetId) => {
@@ -805,6 +790,7 @@ export const useSceneStore = create<SceneState>()(
                                 : p
                         ),
                     }))
+                    notifySceneQueueChanged(presetId, queuedScenes.map(scene => scene.id))
                 }
 
                 const [next, ...rest] = queue

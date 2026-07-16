@@ -32,6 +32,7 @@ import { AutocompleteTextarea } from "@/components/ui/AutocompleteTextarea";
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useNearViewport } from '@/hooks/use-near-viewport'
+import { useSceneQueueCount } from '@/hooks/use-scene-queue'
 
 
 const getThumbnailAspectClass = (layout: 'vertical' | 'horizontal' | 'square') => {
@@ -88,10 +89,7 @@ export default function SceneDetail() {
         updateSceneSettings: state.updateSceneSettings,
         updateSceneCharacterAddition: state.updateSceneCharacterAddition,
     })))
-    const sceneQueueCount = useSceneStore(state => {
-        const preset = state.presets.find(candidate => candidate.id === state.activePresetId)
-        return preset?.scenes.find(candidate => candidate.id === sceneId)?.queueCount ?? 0
-    })
+    const sceneQueueCount = useSceneQueueCount(activePresetId, sceneId || '')
     const promptFontSize = useSettingsStore(state => state.promptFontSize)
     const expertCharacterPromptLayoutEnabled = useSettingsStore(state => state.expertCharacterPromptLayoutEnabled)
     const expertCharacterPromptVariantsEnabled = useSettingsStore(state => state.expertCharacterPromptVariantsEnabled)
