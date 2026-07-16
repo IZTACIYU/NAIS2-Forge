@@ -933,7 +933,11 @@ async fn prepare_generation_references(
             processed_vibes.push(encoded);
             continue;
         }
-        if let Some(path) = reference.encoded_vibe_path.as_deref().filter(|path| !path.is_empty()) {
+        if let Some(path) = reference
+            .encoded_vibe_path
+            .as_deref()
+            .filter(|path| !path.is_empty())
+        {
             let encoded_bytes = tokio::fs::read(path)
                 .await
                 .map_err(|error| format!("Failed to read encoded vibe cache: {error}"))?;
@@ -1186,6 +1190,99 @@ async fn generate_image_stream_with_references(
     }
 }
 
+fn open_state_database(path: &std::path::Path) -> Result<rusqlite::Connection, String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| format!("Failed to create state database directory: {error}"))?;
+    }
+
+    let connection = rusqlite::Connection::open(path)
+        .map_err(|error| format!("Failed to open state database: {error}"))?;
+    connection
+        .busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(|error| format!("Failed to configure state database timeout: {error}"))?;
+    connection
+        .pragma_update(None, "journal_mode", "WAL")
+        .map_err(|error| format!("Failed to enable state database WAL mode: {error}"))?;
+    connection
+        .pragma_update(None, "synchronous", "NORMAL")
+        .map_err(|error| format!("Failed to configure state database sync mode: {error}"))?;
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS app_state (
+                key TEXT PRIMARY KEY NOT NULL,
+                value TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            );",
+        )
+        .map_err(|error| format!("Failed to initialize state database: {error}"))?;
+    Ok(connection)
+}
+
+fn state_database_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|directory| directory.join("nais2-forge-state.sqlite3"))
+        .map_err(|error| format!("Failed to resolve app data directory: {error}"))
+}
+
+#[tauri::command]
+async fn state_db_get(app: tauri::AppHandle, key: String) -> Result<Option<String>, String> {
+    let path = state_database_path(&app)?;
+    tokio::task::spawn_blocking(move || {
+        use rusqlite::OptionalExtension;
+
+        let connection = open_state_database(&path)?;
+        connection
+            .query_row(
+                "SELECT value FROM app_state WHERE key = ?1",
+                [&key],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| format!("Failed to read state database key: {error}"))
+    })
+    .await
+    .map_err(|error| format!("State database read worker failed: {error}"))?
+}
+
+#[tauri::command]
+async fn state_db_set(app: tauri::AppHandle, key: String, value: String) -> Result<(), String> {
+    let path = state_database_path(&app)?;
+    tokio::task::spawn_blocking(move || {
+        let connection = open_state_database(&path)?;
+        let updated_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+            .min(i64::MAX as u128) as i64;
+        connection
+            .execute(
+                "INSERT INTO app_state (key, value, updated_at) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+                rusqlite::params![key, value, updated_at],
+            )
+            .map(|_| ())
+            .map_err(|error| format!("Failed to write state database key: {error}"))
+    })
+    .await
+    .map_err(|error| format!("State database write worker failed: {error}"))?
+}
+
+#[tauri::command]
+async fn state_db_remove(app: tauri::AppHandle, key: String) -> Result<(), String> {
+    let path = state_database_path(&app)?;
+    tokio::task::spawn_blocking(move || {
+        let connection = open_state_database(&path)?;
+        connection
+            .execute("DELETE FROM app_state WHERE key = ?1", [&key])
+            .map(|_| ())
+            .map_err(|error| format!("Failed to remove state database key: {error}"))
+    })
+    .await
+    .map_err(|error| format!("State database remove worker failed: {error}"))?
+}
+
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Url};
@@ -1368,6 +1465,9 @@ pub fn run() {
             create_reference_thumbnail,
             generate_image_with_references,
             generate_image_stream_with_references,
+            state_db_get,
+            state_db_set,
+            state_db_remove,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
