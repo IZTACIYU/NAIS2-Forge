@@ -517,19 +517,33 @@ export const useSceneStore = create<SceneState>()(
             },
 
             incrementQueue: (presetId, sceneId, count = 1) => {
-                const preset = get().presets.find(p => p.id === presetId)
-                const scene = preset?.scenes.find(s => s.id === sceneId)
-                if (scene) {
-                    get().setQueueCount(presetId, sceneId, scene.queueCount + count)
-                }
+                set(state => ({
+                    presets: state.presets.map(preset => preset.id === presetId
+                        ? {
+                            ...preset,
+                            scenes: preset.scenes.map(scene => scene.id === sceneId
+                                ? { ...scene, queueCount: Math.max(0, scene.queueCount + count) }
+                                : scene
+                            ),
+                        }
+                        : preset
+                    ),
+                }))
             },
 
             decrementQueue: (presetId, sceneId) => {
-                const preset = get().presets.find(p => p.id === presetId)
-                const scene = preset?.scenes.find(s => s.id === sceneId)
-                if (scene && scene.queueCount > 0) {
-                    get().setQueueCount(presetId, sceneId, scene.queueCount - 1)
-                }
+                set(state => ({
+                    presets: state.presets.map(preset => preset.id === presetId
+                        ? {
+                            ...preset,
+                            scenes: preset.scenes.map(scene => scene.id === sceneId && scene.queueCount > 0
+                                ? { ...scene, queueCount: scene.queueCount - 1 }
+                                : scene
+                            ),
+                        }
+                        : preset
+                    ),
+                }))
             },
 
             addAllToQueue: (presetId, count = 1) => {

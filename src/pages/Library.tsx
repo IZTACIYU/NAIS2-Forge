@@ -109,8 +109,11 @@ export default function Library() {
     const { libraryPath, useAbsoluteLibraryPath, expertLibraryFolderBrowserEnabled } = useSettingsStore()
     const [activeId, setActiveId] = useState<string | null>(null)
     const [stackDropTargetId, setStackDropTargetId] = useState<string | null>(null)
+    const stackDropTargetIdRef = useRef<string | null>(null)
     const stackDropCandidateRef = useRef<string | null>(null)
     const stackDropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const activeDragItemRef = useRef<LibraryItem | null>(null)
+    const activeDragDescendantIdsRef = useRef<Set<string>>(new Set())
     const [isDraggingFile, setIsDraggingFile] = useState(false)
     const [folderPanelOpen, setFolderPanelOpen] = useState(true)
     const [selectedFolderId, setSelectedFolderId] = useState<LibraryFolderSelection>(LIBRARY_ALL_FOLDER_ID)
@@ -128,6 +131,9 @@ export default function Library() {
         return items.filter(item => item.folderId === selectedFolderId)
     }, [currentStack, currentStackId, expertLibraryFolderBrowserEnabled, folderIds, items, selectedFolderId])
     const viewItemIds = useMemo(() => viewItems.map(item => item.id), [viewItems])
+    const itemById = useMemo(() => new Map(
+        flattenLibraryItems(items).map(item => [item.id, item])
+    ), [items])
 
     useEffect(() => {
         if (
@@ -165,7 +171,10 @@ export default function Library() {
         if (stackDropTimerRef.current) clearTimeout(stackDropTimerRef.current)
         stackDropTimerRef.current = null
         stackDropCandidateRef.current = null
-        setStackDropTargetId(null)
+        if (stackDropTargetIdRef.current !== null) {
+            stackDropTargetIdRef.current = null
+            setStackDropTargetId(null)
+        }
     }, [])
 
     useEffect(() => clearStackDropTarget, [clearStackDropTarget])
@@ -301,19 +310,25 @@ export default function Library() {
 
     const handleDragStart = (event: DragStartEvent) => {
         clearStackDropTarget()
-        setActiveId(event.active.id as string)
+        const nextActiveId = String(event.active.id)
+        const activeItem = itemById.get(nextActiveId) || null
+        activeDragItemRef.current = activeItem
+        activeDragDescendantIdsRef.current = activeItem?.isStack
+            ? new Set(flattenLibraryItems(activeItem.stackItems || []).map(item => item.id))
+            : new Set()
+        setActiveId(nextActiveId)
     }
 
     const handleDragOver = (event: DragOverEvent) => {
-        const activeItem = findLibraryItem(items, String(event.active.id))
         const overId = event.over ? String(event.over.id) : null
-        const overItem = overId ? findLibraryItem(items, overId) : null
-        const createsCycle = Boolean(
-            activeItem?.isStack && overId && findLibraryItem(activeItem.stackItems || [], overId)
-        )
+        const activeItem = activeDragItemRef.current
+        const overItem = overId ? itemById.get(overId) : null
+        const createsCycle = Boolean(overId && activeDragDescendantIdsRef.current.has(overId))
 
         if (!activeItem || !overId || activeItem.id === overId || !overItem?.isStack || createsCycle) {
-            clearStackDropTarget()
+            if (stackDropCandidateRef.current !== null || stackDropTargetIdRef.current !== null) {
+                clearStackDropTarget()
+            }
             return
         }
         if (stackDropCandidateRef.current === overId) return
@@ -322,6 +337,7 @@ export default function Library() {
         stackDropCandidateRef.current = overId
         stackDropTimerRef.current = setTimeout(() => {
             stackDropTimerRef.current = null
+            stackDropTargetIdRef.current = overId
             setStackDropTargetId(overId)
         }, STACK_DROP_HOVER_MS)
     }
@@ -338,11 +354,13 @@ export default function Library() {
                     folderId === LIBRARY_UNGROUPED_FOLDER_ID ? undefined : folderId
                 )
                 clearStackDropTarget()
+                activeDragItemRef.current = null
+                activeDragDescendantIdsRef.current.clear()
                 setActiveId(null)
                 return
             }
-            const activeItem = findLibraryItem(items, String(active.id))
-            const overItem = findLibraryItem(items, overId)
+            const activeItem = activeDragItemRef.current
+            const overItem = itemById.get(overId)
             if (activeItem && overItem?.isStack && stackDropTargetId === overId) {
                 moveItemToStack(String(active.id), overId)
             } else {
@@ -351,11 +369,15 @@ export default function Library() {
         }
 
         clearStackDropTarget()
+        activeDragItemRef.current = null
+        activeDragDescendantIdsRef.current.clear()
         setActiveId(null)
     }
 
     const handleDragCancel = () => {
         clearStackDropTarget()
+        activeDragItemRef.current = null
+        activeDragDescendantIdsRef.current.clear()
         setActiveId(null)
     }
 

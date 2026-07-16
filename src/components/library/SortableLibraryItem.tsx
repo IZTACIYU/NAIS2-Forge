@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { LibraryItem as LibraryItemType } from '@/stores/library-store'
@@ -33,6 +33,15 @@ export const SortableLibraryItem = memo(function SortableLibraryItem({ item, onR
         opacity: isDragging ? 0.2 : 1,
     }
 
+    const handleImageClick = useCallback(
+        (imageUrl: string) => onImageClick?.(item, imageUrl),
+        [item, onImageClick]
+    )
+    const handleSelectionClick = useCallback(
+        (event: React.MouseEvent) => onSelectionClick?.(item, event),
+        [item, onSelectionClick]
+    )
+
     return (
         <div ref={setNodeRef} style={style} {...(disabled ? {} : { ...attributes, ...listeners })} id={item.id} className="w-full h-full">
             <LibraryItem 
@@ -40,10 +49,10 @@ export const SortableLibraryItem = memo(function SortableLibraryItem({ item, onR
                 onRename={onRename} 
                 onAddRef={onAddRef} 
                 onLoadMetadata={onLoadMetadata} 
-                onImageClick={onImageClick ? imageUrl => onImageClick(item, imageUrl) : undefined}
+                onImageClick={onImageClick ? handleImageClick : undefined}
                 isEditMode={isEditMode}
                 isSelected={isSelected}
-                onSelectionClick={onSelectionClick ? event => onSelectionClick(item, event) : undefined}
+                onSelectionClick={onSelectionClick ? handleSelectionClick : undefined}
                 isDropTarget={item.isStack && isStackDropTarget}
             />
         </div>
