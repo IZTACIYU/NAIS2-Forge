@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/components/ui/use-toast'
 import { useSceneStore } from '@/stores/scene-store'
@@ -90,7 +91,20 @@ export function useSceneGeneration() {
         completedCount,
         totalQueuedCount,
         generationSessionId
-    } = useSceneStore()
+    } = useSceneStore(useShallow(state => ({
+        isGenerating: state.isGenerating,
+        setIsGenerating: state.setIsGenerating,
+        activePresetId: state.activePresetId,
+        getNextCharacterSequenceScene: state.getNextCharacterSequenceScene,
+        getHasMoreSceneGeneration: state.getHasMoreSceneGeneration,
+        addImageToScene: state.addImageToScene,
+        setStreamingData: state.setStreamingData,
+        initGenerationProgress: state.initGenerationProgress,
+        setGenerationProgress: state.setGenerationProgress,
+        completedCount: state.completedCount,
+        totalQueuedCount: state.totalQueuedCount,
+        generationSessionId: state.generationSessionId,
+    })))
 
     useEffect(() => {
         const processQueue = async (sessionId: number) => {

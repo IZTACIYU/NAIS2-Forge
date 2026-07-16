@@ -66,28 +66,36 @@ const SAMPLERS = [
 
 const SCHEDULERS = ['native', 'karras', 'exponential', 'polyexponential']
 
+function SceneQueueCountLabel() {
+    const count = useSceneStore(state => {
+        const preset = state.presets.find(candidate => candidate.id === state.activePresetId)
+        return preset?.scenes.reduce((total, scene) => total + scene.queueCount, 0) || 0
+    })
+    return count > 0 ? <> ({count})</> : null
+}
+
 export function PromptPanel() {
     const { t } = useTranslation()
     const location = useLocation()
     const isSceneMode = location.pathname.startsWith('/scenes')
 
     // Zustand 선택적 구독 - sceneStore
-    const activePresetId = useSceneStore(state => state.activePresetId)
     const routeSceneId = location.pathname.match(/^\/scenes\/([^/]+)/)?.[1]
     const activeScenePrompt = useSceneStore(state => {
         if (!routeSceneId || !state.activePresetId) return ''
         return state.presets.find(preset => preset.id === state.activePresetId)
             ?.scenes.find(scene => scene.id === routeSceneId)?.scenePrompt || ''
     })
-    const getTotalQueueCount = useSceneStore(state => state.getTotalQueueCount)
+    const sceneHasQueue = useSceneStore(state => {
+        const preset = state.presets.find(candidate => candidate.id === state.activePresetId)
+        return preset?.scenes.some(scene => scene.queueCount > 0) || false
+    })
     const sceneIsGenerating = useSceneStore(state => state.isGenerating)
     const sceneIsCancelling = useSceneStore(state => state.isCancelling)
     const cancelSceneGeneration = useSceneStore(state => state.cancelSceneGeneration)
     const startNewGenerationSession = useSceneStore(state => state.startNewGenerationSession)
     const completedCount = useSceneStore(state => state.completedCount)
     const totalQueuedCount = useSceneStore(state => state.totalQueuedCount)
-
-    const sceneQueueCount = activePresetId ? getTotalQueueCount(activePresetId) : 0
 
     // Zustand 선택적 구독 - generationStore (상태)
     const basePrompt = useGenerationStore(state => state.basePrompt)
@@ -754,7 +762,7 @@ export function PromptPanel() {
                         )}
                         onClick={handleGenerateOrCancel}
                         disabled={
-                            (isSceneMode && sceneQueueCount === 0 && !sceneIsGenerating && !sceneIsCancelling) ||
+                            (isSceneMode && !sceneHasQueue && !sceneIsGenerating && !sceneIsCancelling) ||
                             isConflict ||
                             sceneIsCancelling ||  // Disable while waiting for API to complete after cancel (Scene Mode)
                             (isGenerating && isCancelled)  // Disable while waiting for API to complete after cancel (Main Mode)
@@ -774,7 +782,7 @@ export function PromptPanel() {
                             ) : (
                                 <>
                                     <Film className="mr-2 h-5 w-5" />
-                                    {t('scene.generateAll', '씬 생성')} {sceneQueueCount > 0 && `(${sceneQueueCount})`}
+                                    {t('scene.generateAll', '씬 생성')}<SceneQueueCountLabel />
                                 </>
                             )
                         ) : (

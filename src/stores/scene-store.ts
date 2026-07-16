@@ -57,6 +57,7 @@ type SceneGenerationSource = 'queue' | 'detail'
 interface SceneState {
     presets: ScenePreset[]
     activePresetId: string | null
+    queueRevision: number
 
     // Actions - Presets
     addPreset: (name: string) => void
@@ -287,6 +288,7 @@ export const useSceneStore = create<SceneState>()(
         (set, get) => ({
             presets: [createDefaultPreset()],
             activePresetId: DEFAULT_PRESET_ID,
+            queueRevision: 0,
 
             // Preset Actions
             addPreset: (name) => {
@@ -511,63 +513,50 @@ export const useSceneStore = create<SceneState>()(
 
             // Queue Actions
             setQueueCount: (presetId, sceneId, count) => {
+                const state = get()
+                const scene = state.presets.find(p => p.id === presetId)?.scenes.find(s => s.id === sceneId)
+                if (!scene) return
+                const nextCount = Math.max(0, count)
+                if (scene.queueCount === nextCount) return
+                scene.queueCount = nextCount
                 skipNextScenePersistSnapshot = true
-                set(state => ({
-                    presets: state.presets.map(p =>
-                        p.id === presetId
-                            ? {
-                                ...p,
-                                scenes: p.scenes.map(s =>
-                                    s.id === sceneId ? { ...s, queueCount: Math.max(0, count) } : s
-                                ),
-                            }
-                            : p
-                    ),
-                }))
+                set({ queueRevision: state.queueRevision + 1 })
             },
 
             incrementQueue: (presetId, sceneId, count = 1) => {
-                const preset = get().presets.find(p => p.id === presetId)
-                const scene = preset?.scenes.find(s => s.id === sceneId)
-                if (scene) {
-                    get().setQueueCount(presetId, sceneId, scene.queueCount + count)
-                }
+                const state = get()
+                const scene = state.presets.find(p => p.id === presetId)?.scenes.find(s => s.id === sceneId)
+                if (!scene) return
+                scene.queueCount = Math.max(0, scene.queueCount + count)
+                skipNextScenePersistSnapshot = true
+                set({ queueRevision: state.queueRevision + 1 })
             },
 
             decrementQueue: (presetId, sceneId) => {
-                const preset = get().presets.find(p => p.id === presetId)
-                const scene = preset?.scenes.find(s => s.id === sceneId)
-                if (scene && scene.queueCount > 0) {
-                    get().setQueueCount(presetId, sceneId, scene.queueCount - 1)
-                }
+                const state = get()
+                const scene = state.presets.find(p => p.id === presetId)?.scenes.find(s => s.id === sceneId)
+                if (!scene || scene.queueCount <= 0) return
+                scene.queueCount -= 1
+                skipNextScenePersistSnapshot = true
+                set({ queueRevision: state.queueRevision + 1 })
             },
 
             addAllToQueue: (presetId, count = 1) => {
+                const state = get()
+                const preset = state.presets.find(p => p.id === presetId)
+                if (!preset || preset.scenes.length === 0) return
+                preset.scenes.forEach(scene => { scene.queueCount = Math.max(0, scene.queueCount + count) })
                 skipNextScenePersistSnapshot = true
-                set(state => ({
-                    presets: state.presets.map(p =>
-                        p.id === presetId
-                            ? {
-                                ...p,
-                                scenes: p.scenes.map(s => ({ ...s, queueCount: s.queueCount + count })),
-                            }
-                            : p
-                    ),
-                }))
+                set({ queueRevision: state.queueRevision + 1 })
             },
 
             clearAllQueue: (presetId) => {
+                const state = get()
+                const preset = state.presets.find(p => p.id === presetId)
+                if (!preset || !preset.scenes.some(scene => scene.queueCount > 0)) return
+                preset.scenes.forEach(scene => { scene.queueCount = 0 })
                 skipNextScenePersistSnapshot = true
-                set(state => ({
-                    presets: state.presets.map(p =>
-                        p.id === presetId
-                            ? {
-                                ...p,
-                                scenes: p.scenes.map(s => ({ ...s, queueCount: 0 })),
-                            }
-                            : p
-                    ),
-                }))
+                set({ queueRevision: state.queueRevision + 1 })
             },
 
             getTotalQueueCount: (presetId) => {

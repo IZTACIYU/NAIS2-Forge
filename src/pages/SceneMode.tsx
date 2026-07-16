@@ -244,7 +244,10 @@ export default function SceneMode() {
 
     const addAllToQueue = useSceneStore(s => s.addAllToQueue)
     const clearAllQueue = useSceneStore(s => s.clearAllQueue)
-    const getTotalQueueCount = useSceneStore(s => s.getTotalQueueCount)
+    const hasQueuedScenes = useSceneStore(state => {
+        const preset = state.presets.find(candidate => candidate.id === state.activePresetId)
+        return preset?.scenes.some(scene => scene.queueCount > 0) || false
+    })
     const batchCount = useGenerationStore(s => s.batchCount)
     const expertSceneCharacterRepeatEnabled = useSettingsStore(s => s.expertSceneCharacterRepeatEnabled)
     const expertSceneCharacterAdditionsEnabled = useSettingsStore(s => s.expertSceneCharacterAdditionsEnabled)
@@ -254,8 +257,6 @@ export default function SceneMode() {
     const characterSequenceEntries = useSceneStore(s => s.characterSequenceEntries)
     const sceneCharacterAdditionsEnabled = useSceneStore(s => s.sceneCharacterAdditionsEnabled)
     const setSceneCharacterAdditionsEnabled = useSceneStore(s => s.setSceneCharacterAdditionsEnabled)
-
-    const totalQueue = activePresetId ? getTotalQueueCount(activePresetId) : 0
 
     const handleOpenActivePresetFolder = async () => {
         if (!activePreset) return
@@ -749,7 +750,7 @@ export default function SceneMode() {
                             </Tip>
                             <div className="w-px h-4 bg-white/10 mx-1" />
                             <Tip content={t('scene.clearAllQueue', '모든 대기열 초기화')}>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => activePresetId && clearAllQueue(activePresetId)} disabled={totalQueue === 0 || isGenerating}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => activePresetId && clearAllQueue(activePresetId)} disabled={!hasQueuedScenes || isGenerating}>
                                     <ListX className="h-4 w-4" />
                                 </Button>
                             </Tip>
