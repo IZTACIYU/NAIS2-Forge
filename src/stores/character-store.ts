@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { indexedDBStorage } from '@/lib/indexed-db'
 import { saveReferenceImage, loadReferenceImage, deleteReferenceImage, saveEncodedVibe, loadEncodedVibe } from '@/lib/image-utils'
+import { invoke } from '@tauri-apps/api/core'
 
 // 참조 레퍼런스 타입 (NovelAI 2026년 2월 업데이트)
 export type PreciseReferenceType = 'character' | 'style' | 'character&style'
@@ -66,7 +67,7 @@ interface CharacterState {
 }
 
 export const MAX_ACTIVE_REFERENCE_IMAGES = 10
-const THUMBNAIL_VERSION = 3
+const THUMBNAIL_VERSION = 4
 const REFERENCE_CACHE_LIMIT_BYTES = 64 * 1024 * 1024
 const referenceAccessOrder = new Map<string, number>()
 let referenceAccessCounter = 0
@@ -83,8 +84,7 @@ const yieldToUI = () => new Promise<void>(resolve => {
 const estimateRuntimeBytes = (image: ReferenceImage) =>
     ((image.base64?.length || 0) + (image.encodedVibe?.length || 0)) * 2
 
-/** Create a tiny thumbnail for UI display (~10-30KB instead of 2-5MB) */
-async function makeThumbnail(base64: string, width = 384, height = 264): Promise<string> {
+async function makeThumbnailWithCanvas(base64: string, width: number, height: number): Promise<string> {
     return new Promise((resolve) => {
         const img = new Image()
         img.onload = () => {
@@ -116,11 +116,28 @@ async function makeThumbnail(base64: string, width = 384, height = 264): Promise
     })
 }
 
+/** Keep image decoding and resizing outside the WebView renderer. */
+async function makeThumbnail(base64?: string, filePath?: string, width = 384, height = 264): Promise<string> {
+    try {
+        return await invoke<string>('create_reference_thumbnail', {
+            sourceBase64: filePath ? null : base64 || null,
+            filePath: filePath || null,
+            width,
+            height,
+            quality: 82,
+        })
+    } catch (error) {
+        console.warn('[CharacterStore] Rust thumbnail generation failed, using Canvas fallback:', error)
+        const fallbackSource = base64 || (filePath ? await loadReferenceImage(filePath) : null)
+        return fallbackSource ? makeThumbnailWithCanvas(fallbackSource, width, height) : ''
+    }
+}
+
 /** Save image to file async, then update store with filePath */
 async function persistImageToFile(id: string, base64: string, store: typeof useCharacterStore, field: 'characterImages' | 'vibeImages') {
     try {
         const filePath = await saveReferenceImage(id, base64)
-        const thumbnail = await makeThumbnail(base64)
+        const thumbnail = await makeThumbnail(undefined, filePath)
         store.getState()[field === 'characterImages' ? 'updateCharacterImage' : 'updateVibeImage'](id, {
             filePath,
             thumbnail,
@@ -389,21 +406,26 @@ export const useCharacterStore = create<CharacterState>()(
                 if (thumbnailRefreshPromise) return thumbnailRefreshPromise
                 thumbnailRefreshPromise = (async () => {
                     const fields = ['characterImages', 'vibeImages'] as const
+                    const refreshed = new Map<string, string>()
                     for (const field of fields) {
                         const snapshot = get()[field]
                         for (const image of snapshot) {
                             if (image.thumbnail && image.thumbnailVersion === THUMBNAIL_VERSION) continue
                             if (!image.filePath && !image.base64) continue
                             await yieldToUI()
-                            const base64 = image.base64 || await loadReferenceImage(image.filePath!)
-                            if (!base64) continue
-                            const thumbnail = await makeThumbnail(base64)
-                            set(state => ({
-                                [field]: state[field].map(item => item.id === image.id
-                                    ? { ...item, thumbnail, thumbnailVersion: THUMBNAIL_VERSION }
-                                    : item),
-                            }))
+                            const thumbnail = await makeThumbnail(image.base64 || undefined, image.filePath)
+                            if (thumbnail) refreshed.set(image.id, thumbnail)
                         }
+                    }
+                    if (refreshed.size > 0) {
+                        const applyRefresh = (image: ReferenceImage) => {
+                            const thumbnail = refreshed.get(image.id)
+                            return thumbnail ? { ...image, thumbnail, thumbnailVersion: THUMBNAIL_VERSION } : image
+                        }
+                        set(state => ({
+                            characterImages: state.characterImages.map(applyRefresh),
+                            vibeImages: state.vibeImages.map(applyRefresh),
+                        }))
                     }
                 })()
                 try {

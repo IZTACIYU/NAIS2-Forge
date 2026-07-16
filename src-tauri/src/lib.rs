@@ -665,6 +665,48 @@ async fn r2_create_folder(config: R2Config, key: String) -> Result<(), String> {
     r2_put_object(config, folder_key, String::new(), Some("application/x-directory".to_string())).await
 }
 
+#[tauri::command]
+async fn create_reference_thumbnail(
+    source_base64: Option<String>,
+    file_path: Option<String>,
+    width: u32,
+    height: u32,
+    quality: u8,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
+        use image::codecs::jpeg::JpegEncoder;
+        use image::imageops::FilterType;
+
+        if width == 0 || height == 0 {
+            return Err("Thumbnail dimensions must be greater than zero".to_string());
+        }
+
+        let bytes = if let Some(path) = file_path.filter(|path| !path.is_empty()) {
+            std::fs::read(path).map_err(|error| format!("Failed to read reference image: {error}"))?
+        } else if let Some(encoded) = source_base64.filter(|value| !value.is_empty()) {
+            let raw = encoded.split_once(',').map(|(_, data)| data).unwrap_or(encoded.as_str());
+            STANDARD
+                .decode(raw)
+                .map_err(|error| format!("Failed to decode reference image: {error}"))?
+        } else {
+            return Err("No reference image source was provided".to_string());
+        };
+
+        let source = image::load_from_memory(&bytes)
+            .map_err(|error| format!("Unsupported reference image: {error}"))?;
+        let thumbnail = source.resize_to_fill(width, height, FilterType::Lanczos3);
+        let mut encoded = Vec::new();
+        JpegEncoder::new_with_quality(&mut encoded, quality.clamp(1, 100))
+            .encode_image(&thumbnail)
+            .map_err(|error| format!("Failed to encode reference thumbnail: {error}"))?;
+
+        Ok(format!("data:image/jpeg;base64,{}", STANDARD.encode(encoded)))
+    })
+    .await
+    .map_err(|error| format!("Thumbnail worker failed: {error}"))?
+}
+
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Url};
@@ -844,6 +886,7 @@ pub fn run() {
             r2_delete_object,
             r2_delete_prefix,
             r2_create_folder,
+            create_reference_thumbnail,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
