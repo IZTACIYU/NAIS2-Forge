@@ -202,34 +202,7 @@ interface ScenePersistSource {
 
 let lastScenePersistSource: ScenePersistSource | null = null
 let lastScenePersistSnapshot: PersistedSceneState | null = null
-
-function haveSamePersistedScenes(previous: ScenePreset[], next: ScenePreset[]): boolean {
-    if (previous === next) return true
-    if (previous.length !== next.length) return false
-
-    return previous.every((preset, presetIndex) => {
-        const candidatePreset = next[presetIndex]
-        if (preset === candidatePreset) return true
-        if (!candidatePreset
-            || preset.id !== candidatePreset.id
-            || preset.name !== candidatePreset.name
-            || preset.createdAt !== candidatePreset.createdAt
-            || preset.scenes.length !== candidatePreset.scenes.length) return false
-
-        return preset.scenes.every((scene, sceneIndex) => {
-            const candidateScene = candidatePreset.scenes[sceneIndex]
-            if (scene === candidateScene) return true
-            return Boolean(candidateScene
-                && scene.id === candidateScene.id
-                && scene.name === candidateScene.name
-                && scene.scenePrompt === candidateScene.scenePrompt
-                && scene.images === candidateScene.images
-                && scene.width === candidateScene.width
-                && scene.height === candidateScene.height
-                && scene.createdAt === candidateScene.createdAt)
-        })
-    })
-}
+let skipNextScenePersistSnapshot = false
 
 function getScenePersistSnapshot(state: SceneState): PersistedSceneState {
     const source: ScenePersistSource = {
@@ -243,17 +216,24 @@ function getScenePersistSnapshot(state: SceneState): PersistedSceneState {
         thumbnailLayout: state.thumbnailLayout,
     }
 
+    if (skipNextScenePersistSnapshot) {
+        skipNextScenePersistSnapshot = false
+        if (lastScenePersistSnapshot) {
+            lastScenePersistSource = source
+            return lastScenePersistSnapshot
+        }
+    }
+
     if (lastScenePersistSource
         && lastScenePersistSnapshot
+        && lastScenePersistSource.presets === source.presets
         && lastScenePersistSource.activePresetId === source.activePresetId
         && lastScenePersistSource.characterSequenceEnabled === source.characterSequenceEnabled
         && lastScenePersistSource.characterSequenceEntries === source.characterSequenceEntries
         && lastScenePersistSource.sceneCharacterAdditionsEnabled === source.sceneCharacterAdditionsEnabled
         && lastScenePersistSource.sceneCharacterAdditions === source.sceneCharacterAdditions
         && lastScenePersistSource.gridColumns === source.gridColumns
-        && lastScenePersistSource.thumbnailLayout === source.thumbnailLayout
-        && haveSamePersistedScenes(lastScenePersistSource.presets, source.presets)) {
-        lastScenePersistSource = source
+        && lastScenePersistSource.thumbnailLayout === source.thumbnailLayout) {
         return lastScenePersistSnapshot
     }
 
@@ -531,6 +511,7 @@ export const useSceneStore = create<SceneState>()(
 
             // Queue Actions
             setQueueCount: (presetId, sceneId, count) => {
+                skipNextScenePersistSnapshot = true
                 set(state => ({
                     presets: state.presets.map(p =>
                         p.id === presetId
@@ -562,6 +543,7 @@ export const useSceneStore = create<SceneState>()(
             },
 
             addAllToQueue: (presetId, count = 1) => {
+                skipNextScenePersistSnapshot = true
                 set(state => ({
                     presets: state.presets.map(p =>
                         p.id === presetId
@@ -575,6 +557,7 @@ export const useSceneStore = create<SceneState>()(
             },
 
             clearAllQueue: (presetId) => {
+                skipNextScenePersistSnapshot = true
                 set(state => ({
                     presets: state.presets.map(p =>
                         p.id === presetId
