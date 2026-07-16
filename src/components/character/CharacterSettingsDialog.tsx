@@ -181,8 +181,7 @@ function SortableImageCard({
                             <img
                                 src={image.thumbnail || image.base64}
                                 alt=""
-                                loading="lazy"
-                                decoding="async"
+                                draggable={false}
                                 className="h-full w-full object-cover"
                             />
                         ) : (
@@ -516,7 +515,7 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
     return (
         <div
             className={cn(
-                'absolute inset-0 z-20 flex flex-col overflow-hidden rounded-xl border border-border/50 bg-muted/95',
+                'absolute inset-0 z-20 flex flex-col overflow-hidden rounded-xl border border-border/50 bg-muted',
                 'animate-in slide-in-from-bottom-4 duration-200',
                 dragOverFiles && 'ring-2 ring-inset ring-primary'
             )}
@@ -588,7 +587,7 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                 )}
             </div>
 
-            <div className="relative min-h-0 flex-1 overflow-y-auto p-3">
+            <div className="relative min-h-0 flex-1 overflow-y-auto p-3 [contain:layout_paint]">
                 <button
                     type="button"
                     className={cn('mb-3 flex h-14 w-full items-center justify-center gap-2 rounded-lg border border-dashed text-xs transition-colors', dragOverFiles ? 'border-primary bg-primary/10 text-primary' : 'border-muted-foreground/30 text-muted-foreground hover:bg-muted/50')}
