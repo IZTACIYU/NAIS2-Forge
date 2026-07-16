@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './styles/globals.css'
 import './i18n'
-import { cleanupLargeData, migrateFromLocalStorage, migrateIndexedDBKeys, ensureDbReady, isDbInitFailed, indexedDBStorage, exportAllData } from './lib/indexed-db'
+import { cleanupLargeData, migrateFromLocalStorage, migrateIndexedDBKeys, ensureDbReady, isDbInitFailed, readStoredStateItem, exportAllData } from './lib/indexed-db'
 
 // 자동 백업 상수
 const AUTO_BACKUP_KEY = 'nais2-forge-auto-backup'
@@ -90,7 +90,7 @@ async function checkDataIntegrity(): Promise<boolean> {
         let hasDataLoss = false
         
         for (const storeKey of criticalStores) {
-            const data = await indexedDBStorage.getItem(storeKey)
+            const data = await readStoredStateItem(storeKey)
             
             if (!data) {
                 console.warn(`[Integrity] ${storeKey}: No data found`)

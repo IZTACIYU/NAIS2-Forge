@@ -1,4 +1,5 @@
 import type { PersistStorage, StateStorage, StorageValue } from 'zustand/middleware'
+import { readNativeState, removeNativeState, writeNativeState } from '@/lib/native-state'
 // Since I cannot install packages, I will implement a minimal wrapper similar to idb-keyval logic
 // or I can implement a raw IndexedDB wrapper.
 // Given constraints, raw IndexedDB is safer as strict dependency rules apply.
@@ -139,6 +140,98 @@ interface DeferredJSONWrite {
 }
 
 const deferredJSONWrites = new Map<string, DeferredJSONWrite>()
+const nativeDeferredJSONWrites = new Map<string, DeferredJSONWrite>()
+const NATIVE_STATE_KEYS = new Set(['nais2-forge-library'])
+
+function cancelNativeDeferredJSONWrite(name: string): void {
+    const pending = nativeDeferredJSONWrites.get(name)
+    if (pending?.timer) clearTimeout(pending.timer)
+    nativeDeferredJSONWrites.delete(name)
+}
+
+export async function readStoredStateItem(name: string): Promise<string | null> {
+    const pending = nativeDeferredJSONWrites.get(name)
+    if (pending) return JSON.stringify(pending.value)
+
+    if (NATIVE_STATE_KEYS.has(name)) {
+        const native = await readNativeState(name)
+        if (native.value !== null) return native.value
+
+        const legacy = await indexedDBStorage.getItem(name)
+        if (legacy && native.available && await writeNativeState(name, legacy)) {
+            const verified = await readNativeState(name)
+            if (verified.value === legacy) {
+                await indexedDBStorage.removeItem(name)
+                console.log(`[NativeState] Migrated ${name} from IndexedDB to SQLite`)
+            }
+        }
+        return legacy
+    }
+
+    return indexedDBStorage.getItem(name)
+}
+
+async function flushNativeDeferredJSONWrite(name: string): Promise<void> {
+    const pending = nativeDeferredJSONWrites.get(name)
+    if (!pending) return
+
+    if (pending.timer) clearTimeout(pending.timer)
+    nativeDeferredJSONWrites.delete(name)
+    const serialized = JSON.stringify(pending.value)
+    if (await writeNativeState(name, serialized)) {
+        await indexedDBStorage.removeItem(name)
+        return
+    }
+    await indexedDBStorage.setItem(name, serialized)
+}
+
+async function flushAllNativeDeferredJSONWrites(): Promise<void> {
+    for (const key of [...nativeDeferredJSONWrites.keys()]) {
+        await flushNativeDeferredJSONWrite(key)
+    }
+}
+
+export function createNativeDeferredJSONStorage<S>(debounceMs = 1000, maxWaitMs = 5000): PersistStorage<S, Promise<void>> {
+    return {
+        getItem: async name => {
+            const raw = await readStoredStateItem(name)
+            return raw ? JSON.parse(raw) as StorageValue<S> : null
+        },
+        setItem: async (name, value) => {
+            const now = Date.now()
+            const previous = nativeDeferredJSONWrites.get(name)
+            if (previous?.timer) clearTimeout(previous.timer)
+
+            const queuedAt = previous?.queuedAt ?? now
+            nativeDeferredJSONWrites.set(name, {
+                value: value as StorageValue<unknown>,
+                timer: null,
+                queuedAt,
+            })
+            if (now - queuedAt >= maxWaitMs) {
+                await flushNativeDeferredJSONWrite(name)
+                return
+            }
+
+            const waitMs = Math.min(debounceMs, maxWaitMs - (now - queuedAt))
+            const timer = setTimeout(() => {
+                flushNativeDeferredJSONWrite(name).catch(error => {
+                    console.error(`[NativeState] Deferred write failed for ${name}:`, error)
+                })
+            }, waitMs)
+            nativeDeferredJSONWrites.set(name, {
+                value: value as StorageValue<unknown>,
+                timer,
+                queuedAt,
+            })
+        },
+        removeItem: async name => {
+            cancelNativeDeferredJSONWrite(name)
+            await removeNativeState(name)
+            await indexedDBStorage.removeItem(name)
+        },
+    }
+}
 
 function cancelDeferredJSONWrite(name: string): void {
     const pending = deferredJSONWrites.get(name)
@@ -281,6 +374,7 @@ async function flushKey(name: string): Promise<void> {
 
 /** Flush ALL pending writes (called on app close) */
 export async function flushAllPendingWrites(): Promise<void> {
+    await flushAllNativeDeferredJSONWrites()
     await flushAllDeferredJSONWrites()
     const keys = [...new Set([...pendingWriteTimers.keys(), ...pendingWriteValues.keys()])]
     for (const key of keys) {
@@ -290,6 +384,16 @@ export async function flushAllPendingWrites(): Promise<void> {
 
 /** Write and verify data immediately before relaunching the app. */
 export async function setStorageItemImmediately(name: string, value: string): Promise<void> {
+    if (NATIVE_STATE_KEYS.has(name)) {
+        cancelNativeDeferredJSONWrite(name)
+        if (await writeNativeState(name, value)) {
+            const stored = await readNativeState(name)
+            if (stored.value !== value) throw new Error(`Failed to verify restored SQLite store: ${name}`)
+            await indexedDBStorage.removeItem(name)
+            return
+        }
+    }
+
     cancelDeferredJSONWrite(name)
     const timer = pendingWriteTimers.get(name)
     if (timer) clearTimeout(timer)
@@ -305,6 +409,11 @@ export async function setStorageItemImmediately(name: string, value: string): Pr
 // Flush pending writes on app close
 if (typeof window !== 'undefined') {
     window.addEventListener('beforeunload', () => {
+        for (const [name, pending] of nativeDeferredJSONWrites.entries()) {
+            if (pending.timer) clearTimeout(pending.timer)
+            void writeNativeState(name, JSON.stringify(pending.value))
+        }
+        nativeDeferredJSONWrites.clear()
         for (const [name, pending] of deferredJSONWrites.entries()) {
             if (pending.timer) clearTimeout(pending.timer)
             pendingWriteValues.set(name, JSON.stringify(pending.value))
@@ -665,7 +774,7 @@ export async function exportAllData(): Promise<{ [key: string]: unknown }> {
     
     for (const key of keys) {
         try {
-            const data = await indexedDBStorage.getItem(key)
+            const data = await readStoredStateItem(key)
             if (data) {
                 let parsed = JSON.parse(data)
                 
@@ -896,7 +1005,7 @@ export async function importAllData(backup: { [key: string]: unknown }, overwrit
         
         try {
             if (!overwrite) {
-                const existing = await indexedDBStorage.getItem(key)
+                const existing = await readStoredStateItem(key)
                 if (existing) {
                     console.log(`[Restore] ${key}: Skipping (data exists)`)
                     continue
@@ -935,7 +1044,7 @@ export async function getStoreSizes(): Promise<{ [key: string]: number }> {
     
     for (const key of keys) {
         try {
-            const data = await indexedDBStorage.getItem(key)
+            const data = await readStoredStateItem(key)
             sizes[key] = data ? data.length : 0
         } catch {
             sizes[key] = -1 // 에러 표시

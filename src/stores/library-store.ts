@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
-import { indexedDBStorage } from '@/lib/indexed-db'
+import { persist } from 'zustand/middleware'
+import { createNativeDeferredJSONStorage } from '@/lib/indexed-db'
 
 export interface LibraryItem {
     id: string
@@ -535,7 +535,7 @@ export const useLibraryStore = create<LibraryState>()(
         }),
         {
             name: 'nais2-forge-library',
-            storage: createJSONStorage(() => indexedDBStorage),
+            storage: createNativeDeferredJSONStorage(1000, 5000),
             partialize: state => ({ items: state.items, folders: state.folders, gridColumns: state.gridColumns }),
         }
     )
