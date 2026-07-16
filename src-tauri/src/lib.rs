@@ -271,8 +271,7 @@ async fn augment_image(
     image: String,
     width: i32,
     height: i32,
-    #[allow(non_snake_case)]
-    reqType: String,
+    #[allow(non_snake_case)] reqType: String,
     defry: Option<i32>,
     prompt: Option<String>,
 ) -> UpscaleResult {
@@ -300,20 +299,18 @@ async fn augment_image(
         Ok(response) => {
             if response.status().is_success() {
                 match response.bytes().await {
-                    Ok(bytes) => {
-                        match extract_image_from_zip(&bytes) {
-                            Ok(base64_image) => UpscaleResult {
-                                success: true,
-                                image_data: Some(base64_image),
-                                error: None,
-                            },
-                            Err(e) => UpscaleResult {
-                                success: false,
-                                image_data: None,
-                                error: Some(format!("ZIP 처리 오류: {}", e)),
-                            },
-                        }
-                    }
+                    Ok(bytes) => match extract_image_from_zip(&bytes) {
+                        Ok(base64_image) => UpscaleResult {
+                            success: true,
+                            image_data: Some(base64_image),
+                            error: None,
+                        },
+                        Err(e) => UpscaleResult {
+                            success: false,
+                            image_data: None,
+                            error: Some(format!("ZIP 처리 오류: {}", e)),
+                        },
+                    },
                     Err(e) => UpscaleResult {
                         success: false,
                         image_data: None,
@@ -427,7 +424,6 @@ async fn remove_background(image_base64: String) -> RemoveBackgroundResult {
     }
 }
 
-
 #[derive(Debug, Deserialize, Clone)]
 struct R2Config {
     account_id: String,
@@ -467,7 +463,9 @@ fn sha256_hex(bytes: &[u8]) -> String {
 fn aws_encode(value: &str, keep_slash: bool) -> String {
     let mut out = String::new();
     for b in value.bytes() {
-        let ok = b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') || (keep_slash && b == b'/');
+        let ok = b.is_ascii_alphanumeric()
+            || matches!(b, b'-' | b'_' | b'.' | b'~')
+            || (keep_slash && b == b'/');
         if ok {
             out.push(b as char);
         } else {
@@ -478,7 +476,10 @@ fn aws_encode(value: &str, keep_slash: bool) -> String {
 }
 
 fn r2_endpoint(config: &R2Config) -> String {
-    format!("https://{}.r2.cloudflarestorage.com", config.account_id.trim())
+    format!(
+        "https://{}.r2.cloudflarestorage.com",
+        config.account_id.trim()
+    )
 }
 
 fn r2_sign_headers(
@@ -494,7 +495,10 @@ fn r2_sign_headers(
     let date_stamp = now.format("%Y%m%d").to_string();
     let host = format!("{}.r2.cloudflarestorage.com", config.account_id.trim());
 
-    let mut canonical_headers = format!("host:{}\nx-amz-content-sha256:{}\nx-amz-date:{}\n", host, payload_hash, amz_date);
+    let mut canonical_headers = format!(
+        "host:{}\nx-amz-content-sha256:{}\nx-amz-date:{}\n",
+        host, payload_hash, amz_date
+    );
     let mut signed_headers = "host;x-amz-content-sha256;x-amz-date".to_string();
     if let Some(ct) = content_type {
         canonical_headers = format!("content-type:{}\n{}", ct, canonical_headers);
@@ -513,14 +517,20 @@ fn r2_sign_headers(
         sha256_hex(canonical_request.as_bytes())
     );
 
-    let k_date = hmac_sha256(format!("AWS4{}", config.secret_access_key).as_bytes(), &date_stamp);
+    let k_date = hmac_sha256(
+        format!("AWS4{}", config.secret_access_key).as_bytes(),
+        &date_stamp,
+    );
     let k_region = hmac_sha256(&k_date, "auto");
     let k_service = hmac_sha256(&k_region, "s3");
     let k_signing = hmac_sha256(&k_service, "aws4_request");
     let signature = hex::encode(hmac_sha256(&k_signing, &string_to_sign));
     let authorization = format!(
         "AWS4-HMAC-SHA256 Credential={}/{}, SignedHeaders={}, Signature={}",
-        config.access_key_id.trim(), credential_scope, signed_headers, signature
+        config.access_key_id.trim(),
+        credential_scope,
+        signed_headers,
+        signature
     );
 
     let mut headers = vec![
@@ -568,12 +578,26 @@ async fn r2_list_objects(config: R2Config, prefix: Option<String>) -> Result<R2L
         "delimiter=%2F&list-type=2&prefix={}",
         aws_encode(&prefix, false)
     );
-    let url = format!("{}{}?{}", r2_endpoint(&config), canonical_uri, canonical_query);
+    let url = format!(
+        "{}{}?{}",
+        r2_endpoint(&config),
+        canonical_uri,
+        canonical_query
+    );
     let payload_hash = sha256_hex(b"");
-    let headers = r2_sign_headers(&config, "GET", &canonical_uri, &canonical_query, &payload_hash, None);
+    let headers = r2_sign_headers(
+        &config,
+        "GET",
+        &canonical_uri,
+        &canonical_query,
+        &payload_hash,
+        None,
+    );
     let client = reqwest::Client::new();
     let mut req = client.get(url);
-    for (k, v) in headers { req = req.header(k, v); }
+    for (k, v) in headers {
+        req = req.header(k, v);
+    }
     let response = req.send().await.map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         let status = response.status();
@@ -581,38 +605,88 @@ async fn r2_list_objects(config: R2Config, prefix: Option<String>) -> Result<R2L
         return Err(format!("R2 list failed: {} {}", status, body));
     }
     let xml = response.text().await.map_err(|e| e.to_string())?;
-    let folders = split_xml_blocks(&xml, "CommonPrefixes").into_iter().filter_map(|block| {
-        let key = xml_text(block, "Prefix")?;
-        let name = key.trim_end_matches('/').rsplit('/').next().unwrap_or(&key).to_string();
-        Some(R2ObjectInfo { key, name, size: 0, last_modified: None, is_folder: true })
-    }).collect();
-    let files = split_xml_blocks(&xml, "Contents").into_iter().filter_map(|block| {
-        let key = xml_text(block, "Key")?;
-        if key.ends_with('/') { return None; }
-        let name = key.rsplit('/').next().unwrap_or(&key).to_string();
-        let size = xml_text(block, "Size").and_then(|s| s.parse().ok()).unwrap_or(0);
-        let last_modified = xml_text(block, "LastModified");
-        Some(R2ObjectInfo { key, name, size, last_modified, is_folder: false })
-    }).collect();
+    let folders = split_xml_blocks(&xml, "CommonPrefixes")
+        .into_iter()
+        .filter_map(|block| {
+            let key = xml_text(block, "Prefix")?;
+            let name = key
+                .trim_end_matches('/')
+                .rsplit('/')
+                .next()
+                .unwrap_or(&key)
+                .to_string();
+            Some(R2ObjectInfo {
+                key,
+                name,
+                size: 0,
+                last_modified: None,
+                is_folder: true,
+            })
+        })
+        .collect();
+    let files = split_xml_blocks(&xml, "Contents")
+        .into_iter()
+        .filter_map(|block| {
+            let key = xml_text(block, "Key")?;
+            if key.ends_with('/') {
+                return None;
+            }
+            let name = key.rsplit('/').next().unwrap_or(&key).to_string();
+            let size = xml_text(block, "Size")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0);
+            let last_modified = xml_text(block, "LastModified");
+            Some(R2ObjectInfo {
+                key,
+                name,
+                size,
+                last_modified,
+                is_folder: false,
+            })
+        })
+        .collect();
     Ok(R2ListResult { folders, files })
 }
 
 #[tauri::command]
-async fn r2_put_object(config: R2Config, key: String, content_base64: String, content_type: Option<String>) -> Result<(), String> {
+async fn r2_put_object(
+    config: R2Config,
+    key: String,
+    content_base64: String,
+    content_type: Option<String>,
+) -> Result<(), String> {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     let body = STANDARD.decode(content_base64).map_err(|e| e.to_string())?;
-    let canonical_uri = format!("/{}/{}", aws_encode(config.bucket.trim(), true), aws_encode(&key, true));
+    let canonical_uri = format!(
+        "/{}/{}",
+        aws_encode(config.bucket.trim(), true),
+        aws_encode(&key, true)
+    );
     let canonical_query = "";
     let payload_hash = sha256_hex(&body);
     let content_type = content_type.unwrap_or_else(|| "application/octet-stream".to_string());
-    let headers = r2_sign_headers(&config, "PUT", &canonical_uri, canonical_query, &payload_hash, Some(&content_type));
+    let headers = r2_sign_headers(
+        &config,
+        "PUT",
+        &canonical_uri,
+        canonical_query,
+        &payload_hash,
+        Some(&content_type),
+    );
     let url = format!("{}{}", r2_endpoint(&config), canonical_uri);
     let content_length = body.len();
     let client = reqwest::Client::new();
-    let mut req = client.put(url).body(body).header("Content-Length", content_length);
-    for (k, v) in headers { req = req.header(k, v); }
+    let mut req = client
+        .put(url)
+        .body(body)
+        .header("Content-Length", content_length);
+    for (k, v) in headers {
+        req = req.header(k, v);
+    }
     let response = req.send().await.map_err(|e| e.to_string())?;
-    if response.status().is_success() { Ok(()) } else {
+    if response.status().is_success() {
+        Ok(())
+    } else {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
         Err(format!("R2 upload failed: {} {}", status, body))
@@ -621,22 +695,36 @@ async fn r2_put_object(config: R2Config, key: String, content_base64: String, co
 
 #[tauri::command]
 async fn r2_delete_object(config: R2Config, key: String) -> Result<(), String> {
-    let canonical_uri = format!("/{}/{}", aws_encode(config.bucket.trim(), true), aws_encode(&key, true));
+    let canonical_uri = format!(
+        "/{}/{}",
+        aws_encode(config.bucket.trim(), true),
+        aws_encode(&key, true)
+    );
     let canonical_query = "";
     let payload_hash = sha256_hex(b"");
-    let headers = r2_sign_headers(&config, "DELETE", &canonical_uri, canonical_query, &payload_hash, None);
+    let headers = r2_sign_headers(
+        &config,
+        "DELETE",
+        &canonical_uri,
+        canonical_query,
+        &payload_hash,
+        None,
+    );
     let url = format!("{}{}", r2_endpoint(&config), canonical_uri);
     let client = reqwest::Client::new();
     let mut req = client.delete(url);
-    for (k, v) in headers { req = req.header(k, v); }
+    for (k, v) in headers {
+        req = req.header(k, v);
+    }
     let response = req.send().await.map_err(|e| e.to_string())?;
-    if response.status().is_success() { Ok(()) } else {
+    if response.status().is_success() {
+        Ok(())
+    } else {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
         Err(format!("R2 delete failed: {} {}", status, body))
     }
 }
-
 
 #[tauri::command]
 async fn r2_delete_prefix(config: R2Config, prefix: String) -> Result<(), String> {
@@ -661,8 +749,18 @@ async fn r2_delete_prefix(config: R2Config, prefix: String) -> Result<(), String
 
 #[tauri::command]
 async fn r2_create_folder(config: R2Config, key: String) -> Result<(), String> {
-    let folder_key = if key.ends_with('/') { key } else { format!("{}/", key) };
-    r2_put_object(config, folder_key, String::new(), Some("application/x-directory".to_string())).await
+    let folder_key = if key.ends_with('/') {
+        key
+    } else {
+        format!("{}/", key)
+    };
+    r2_put_object(
+        config,
+        folder_key,
+        String::new(),
+        Some("application/x-directory".to_string()),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -683,9 +781,13 @@ async fn create_reference_thumbnail(
         }
 
         let bytes = if let Some(path) = file_path.filter(|path| !path.is_empty()) {
-            std::fs::read(path).map_err(|error| format!("Failed to read reference image: {error}"))?
+            std::fs::read(path)
+                .map_err(|error| format!("Failed to read reference image: {error}"))?
         } else if let Some(encoded) = source_base64.filter(|value| !value.is_empty()) {
-            let raw = encoded.split_once(',').map(|(_, data)| data).unwrap_or(encoded.as_str());
+            let raw = encoded
+                .split_once(',')
+                .map(|(_, data)| data)
+                .unwrap_or(encoded.as_str());
             STANDARD
                 .decode(raw)
                 .map_err(|error| format!("Failed to decode reference image: {error}"))?
@@ -701,10 +803,387 @@ async fn create_reference_thumbnail(
             .encode_image(&thumbnail)
             .map_err(|error| format!("Failed to encode reference thumbnail: {error}"))?;
 
-        Ok(format!("data:image/jpeg;base64,{}", STANDARD.encode(encoded)))
+        Ok(format!(
+            "data:image/jpeg;base64,{}",
+            STANDARD.encode(encoded)
+        ))
     })
     .await
     .map_err(|error| format!("Thumbnail worker failed: {error}"))?
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeCharacterReference {
+    file_path: Option<String>,
+    source_base64: Option<String>,
+    cache_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeVibeReference {
+    file_path: Option<String>,
+    source_base64: Option<String>,
+    encoded_vibe: Option<String>,
+    encoded_vibe_path: Option<String>,
+    information_extracted: f64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeGenerationResult {
+    success: bool,
+    response_base64: Option<String>,
+    encoded_vibes: Vec<String>,
+    error: Option<String>,
+}
+
+fn read_reference_bytes(
+    file_path: Option<&str>,
+    source_base64: Option<&str>,
+) -> Result<Vec<u8>, String> {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+
+    if let Some(path) = file_path.filter(|path| !path.is_empty()) {
+        return std::fs::read(path)
+            .map_err(|error| format!("Failed to read reference image: {error}"));
+    }
+
+    let encoded = source_base64
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "Reference image source is missing".to_string())?;
+    let raw = encoded
+        .split_once(',')
+        .map(|(_, data)| data)
+        .unwrap_or(encoded);
+    STANDARD
+        .decode(raw)
+        .map_err(|error| format!("Failed to decode reference image: {error}"))
+}
+
+async fn prepare_character_reference(
+    reference: NativeCharacterReference,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
+        use image::codecs::jpeg::JpegEncoder;
+        use image::imageops::{overlay, FilterType};
+        use image::GenericImageView;
+
+        let bytes = read_reference_bytes(
+            reference.file_path.as_deref(),
+            reference.source_base64.as_deref(),
+        )?;
+        let source = image::load_from_memory(&bytes)
+            .map_err(|error| format!("Unsupported character reference image: {error}"))?;
+        let (width, height) = source.dimensions();
+        let (target_width, target_height) = if width > height {
+            (1536, 1024)
+        } else if width < height {
+            (1024, 1536)
+        } else {
+            (1472, 1472)
+        };
+        let scale = (target_width as f64 / width as f64).min(target_height as f64 / height as f64);
+        let resized_width = ((width as f64 * scale).round() as u32).max(1);
+        let resized_height = ((height as f64 * scale).round() as u32).max(1);
+        let resized = source.resize_exact(resized_width, resized_height, FilterType::Lanczos3);
+        let mut canvas = image::DynamicImage::new_rgb8(target_width, target_height);
+        overlay(
+            &mut canvas,
+            &resized,
+            ((target_width - resized_width) / 2) as i64,
+            ((target_height - resized_height) / 2) as i64,
+        );
+
+        let mut encoded = Vec::new();
+        JpegEncoder::new_with_quality(&mut encoded, 95)
+            .encode_image(&canvas)
+            .map_err(|error| format!("Failed to encode character reference: {error}"))?;
+        Ok(STANDARD.encode(encoded))
+    })
+    .await
+    .map_err(|error| format!("Character reference worker failed: {error}"))?
+}
+
+async fn prepare_generation_references(
+    client: &reqwest::Client,
+    token: &str,
+    mut payload: serde_json::Value,
+    character_references: Vec<NativeCharacterReference>,
+    vibe_references: Vec<NativeVibeReference>,
+) -> Result<(serde_json::Value, Vec<String>), String> {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+
+    let mut processed_characters = Vec::new();
+    let mut cached_characters = Vec::new();
+    for reference in character_references {
+        if let Some(cache_key) = reference.cache_key.as_ref().filter(|key| !key.is_empty()) {
+            cached_characters.push(serde_json::json!({ "cache_secret_key": cache_key }));
+        } else {
+            processed_characters.push(prepare_character_reference(reference).await?);
+        }
+    }
+
+    let mut processed_vibes = Vec::new();
+    let mut newly_encoded_vibes = Vec::new();
+    for reference in vibe_references {
+        if let Some(encoded) = reference.encoded_vibe.filter(|value| !value.is_empty()) {
+            processed_vibes.push(encoded);
+            continue;
+        }
+        if let Some(path) = reference.encoded_vibe_path.as_deref().filter(|path| !path.is_empty()) {
+            let encoded_bytes = tokio::fs::read(path)
+                .await
+                .map_err(|error| format!("Failed to read encoded vibe cache: {error}"))?;
+            processed_vibes.push(STANDARD.encode(encoded_bytes));
+            continue;
+        }
+
+        let bytes = tokio::task::spawn_blocking({
+            let file_path = reference.file_path.clone();
+            let source_base64 = reference.source_base64.clone();
+            move || read_reference_bytes(file_path.as_deref(), source_base64.as_deref())
+        })
+        .await
+        .map_err(|error| format!("Vibe reference worker failed: {error}"))??;
+        let encoded_source = STANDARD.encode(bytes);
+        let response = client
+            .post("https://image.novelai.net/ai/encode-vibe")
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Content-Type", "application/json")
+            .header("User-Agent", "NAIS2_Client/1.0")
+            .json(&serde_json::json!({
+                "image": encoded_source,
+                "model": "nai-diffusion-4-5-full",
+                "information_extracted": reference.information_extracted,
+            }))
+            .send()
+            .await
+            .map_err(|error| format!("Vibe encoding request failed: {error}"))?;
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(format!("Vibe encoding failed: {status} {body}"));
+        }
+        let encoded = STANDARD.encode(
+            response
+                .bytes()
+                .await
+                .map_err(|error| format!("Failed to read encoded vibe: {error}"))?,
+        );
+        processed_vibes.push(encoded.clone());
+        newly_encoded_vibes.push(encoded);
+    }
+
+    let parameters = payload
+        .get_mut("parameters")
+        .and_then(serde_json::Value::as_object_mut)
+        .ok_or_else(|| "Generation payload parameters are missing".to_string())?;
+    parameters.remove("director_reference_images");
+    parameters.remove("director_reference_images_cached");
+    parameters.remove("reference_image_multiple");
+    if !processed_characters.is_empty() {
+        parameters.insert(
+            "director_reference_images".to_string(),
+            serde_json::Value::Array(
+                processed_characters
+                    .into_iter()
+                    .map(serde_json::Value::String)
+                    .collect(),
+            ),
+        );
+    }
+    if !cached_characters.is_empty() {
+        parameters.insert(
+            "director_reference_images_cached".to_string(),
+            serde_json::Value::Array(cached_characters),
+        );
+    }
+    if !processed_vibes.is_empty() {
+        parameters.insert(
+            "reference_image_multiple".to_string(),
+            serde_json::Value::Array(
+                processed_vibes
+                    .into_iter()
+                    .map(serde_json::Value::String)
+                    .collect(),
+            ),
+        );
+    }
+
+    Ok((payload, newly_encoded_vibes))
+}
+
+#[tauri::command]
+async fn generate_image_with_references(
+    token: String,
+    payload: serde_json::Value,
+    character_references: Vec<NativeCharacterReference>,
+    vibe_references: Vec<NativeVibeReference>,
+) -> NativeGenerationResult {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+
+    let client = reqwest::Client::new();
+    let token = token.trim().to_string();
+    let prepared = prepare_generation_references(
+        &client,
+        &token,
+        payload,
+        character_references,
+        vibe_references,
+    )
+    .await;
+    let (payload, encoded_vibes) = match prepared {
+        Ok(value) => value,
+        Err(error) => {
+            return NativeGenerationResult {
+                success: false,
+                response_base64: None,
+                encoded_vibes: Vec::new(),
+                error: Some(error),
+            }
+        }
+    };
+
+    let response = client
+        .post("https://image.novelai.net/ai/generate-image")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .header("User-Agent", "NAIS2_Client/1.0")
+        .json(&payload)
+        .send()
+        .await;
+    match response {
+        Ok(response) => {
+            let status = response.status();
+            if !status.is_success() {
+                let body = response.text().await.unwrap_or_default();
+                return NativeGenerationResult {
+                    success: false,
+                    response_base64: None,
+                    encoded_vibes,
+                    error: Some(format!("API Error: {status} {body}")),
+                };
+            }
+            match response.bytes().await {
+                Ok(bytes) => NativeGenerationResult {
+                    success: true,
+                    response_base64: Some(STANDARD.encode(bytes)),
+                    encoded_vibes,
+                    error: None,
+                },
+                Err(error) => NativeGenerationResult {
+                    success: false,
+                    response_base64: None,
+                    encoded_vibes,
+                    error: Some(format!("Failed to read generation response: {error}")),
+                },
+            }
+        }
+        Err(error) => NativeGenerationResult {
+            success: false,
+            response_base64: None,
+            encoded_vibes,
+            error: Some(format!("Generation request failed: {error}")),
+        },
+    }
+}
+
+#[tauri::command]
+async fn generate_image_stream_with_references(
+    token: String,
+    payload: serde_json::Value,
+    character_references: Vec<NativeCharacterReference>,
+    vibe_references: Vec<NativeVibeReference>,
+    on_chunk: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>,
+) -> NativeGenerationResult {
+    let client = reqwest::Client::new();
+    let token = token.trim().to_string();
+    let prepared = prepare_generation_references(
+        &client,
+        &token,
+        payload,
+        character_references,
+        vibe_references,
+    )
+    .await;
+    let (payload, encoded_vibes) = match prepared {
+        Ok(value) => value,
+        Err(error) => {
+            return NativeGenerationResult {
+                success: false,
+                response_base64: None,
+                encoded_vibes: Vec::new(),
+                error: Some(error),
+            }
+        }
+    };
+
+    let response = client
+        .post("https://image.novelai.net/ai/generate-image-stream")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/x-msgpack")
+        .header("User-Agent", "NAIS2_Client/1.0")
+        .json(&payload)
+        .send()
+        .await;
+    let mut response = match response {
+        Ok(response) => response,
+        Err(error) => {
+            return NativeGenerationResult {
+                success: false,
+                response_base64: None,
+                encoded_vibes,
+                error: Some(format!("Streaming request failed: {error}")),
+            }
+        }
+    };
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return NativeGenerationResult {
+            success: false,
+            response_base64: None,
+            encoded_vibes,
+            error: Some(format!("API Error: {status} {body}")),
+        };
+    }
+
+    loop {
+        match response.chunk().await {
+            Ok(Some(chunk)) => {
+                if let Err(error) =
+                    on_chunk.send(tauri::ipc::InvokeResponseBody::Raw(chunk.to_vec()))
+                {
+                    return NativeGenerationResult {
+                        success: false,
+                        response_base64: None,
+                        encoded_vibes,
+                        error: Some(format!("Failed to forward stream data: {error}")),
+                    };
+                }
+            }
+            Ok(None) => break,
+            Err(error) => {
+                return NativeGenerationResult {
+                    success: false,
+                    response_base64: None,
+                    encoded_vibes,
+                    error: Some(format!("Failed to read stream data: {error}")),
+                }
+            }
+        }
+    }
+
+    NativeGenerationResult {
+        success: true,
+        response_base64: None,
+        encoded_vibes,
+        error: None,
+    }
 }
 
 use std::collections::HashMap;
@@ -887,6 +1366,8 @@ pub fn run() {
             r2_delete_prefix,
             r2_create_folder,
             create_reference_thumbnail,
+            generate_image_with_references,
+            generate_image_stream_with_references,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

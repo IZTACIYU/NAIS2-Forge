@@ -375,17 +375,9 @@ export const useGenerationStore = create<GenerationState>()(
                             : Math.floor(Math.random() * 4294967295)
                         set({ seed: currentSeed, activeImageSeed: currentSeed })
 
-                        // Character & Vibe Data (활성화된 이미지만 필터링)
-                        // Ensure base64 data is loaded from files before generation
-                        const referenceState = useCharacterStore.getState()
-                        const requiredReferenceIds = [
-                            ...referenceState.characterImages.filter(img => img.enabled !== false).map(img => img.id),
-                            ...referenceState.vibeImages.filter(img => img.enabled !== false).map(img => img.id),
-                        ]
-                        await referenceState.ensureImagesLoaded(requiredReferenceIds)
                         const { characterImages: allCharImages, vibeImages: allVibeImages } = useCharacterStore.getState()
-                        const characterImages = allCharImages.filter(img => img.enabled !== false && (img.base64 || img.cacheKey))
-                        const vibeImages = allVibeImages.filter(img => img.enabled !== false && (img.base64 || img.encodedVibe))
+                        const characterImages = allCharImages.filter(img => img.enabled !== false && (img.filePath || img.base64 || img.cacheKey))
+                        const vibeImages = allVibeImages.filter(img => img.enabled !== false && (img.filePath || img.base64 || img.encodedVibe || img.encodedVibePath))
 
                         // Character Prompts (Position-based)
                         const {
@@ -502,15 +494,17 @@ export const useGenerationStore = create<GenerationState>()(
                             noise,
                             mask: mask || undefined,
 
-                            // Precise Reference (캐릭터 참조) - filter out images without base64 loaded
+                            // File-backed originals are read and transferred by Rust.
                             charImages: characterImages.map(img => img.base64 || ''),
+                            charImagePaths: characterImages.map(img => img.filePath || null),
                             charStrength: characterImages.map(img => img.strength),
                             charFidelity: characterImages.map(img => img.fidelity ?? 0.6),
                             charReferenceType: characterImages.map(img => img.referenceType ?? 'character&style'),
                             charCacheKeys: characterImages.map(img => img.cacheKey || null),
 
-                            // Vibe Transfer - filter out images without base64 loaded
                             vibeImages: vibeImages.map(img => img.base64 || ''),
+                            vibeImagePaths: vibeImages.map(img => img.filePath || null),
+                            vibeEncodedPaths: vibeImages.map(img => img.encodedVibePath || null),
                             vibeInfo: vibeImages.map(img => img.informationExtracted),
                             vibeStrength: vibeImages.map(img => img.strength),
                             preEncodedVibes: vibeImages.map(img => img.encodedVibe || null),
@@ -566,24 +560,34 @@ export const useGenerationStore = create<GenerationState>()(
                         // Persist newly encoded vibes before releasing transient source data.
                         if (result.encodedVibes && result.encodedVibes.length > 0) {
                             const { vibeImages: storedVibes, updateVibeImage } = useCharacterStore.getState()
-                            let encodedIndex = 0
-                            for (let vi = 0; vi < storedVibes.length && encodedIndex < result.encodedVibes.length; vi++) {
-                                if (!storedVibes[vi].encodedVibe) {
-                                    updateVibeImage(storedVibes[vi].id, { encodedVibe: result.encodedVibes[encodedIndex] })
-                                    encodedIndex++
+                            if (result.encodedVibeIndices) {
+                                result.encodedVibeIndices.forEach((sourceIndex, encodedIndex) => {
+                                    const selected = vibeImages[sourceIndex]
+                                    if (selected && result.encodedVibes?.[encodedIndex]) {
+                                        updateVibeImage(selected.id, { encodedVibe: result.encodedVibes[encodedIndex] })
+                                    }
+                                })
+                            } else {
+                                let encodedIndex = 0
+                                for (let vi = 0; vi < storedVibes.length && encodedIndex < result.encodedVibes.length; vi++) {
+                                    if (!storedVibes[vi].encodedVibe && !storedVibes[vi].encodedVibePath) {
+                                        updateVibeImage(storedVibes[vi].id, { encodedVibe: result.encodedVibes[encodedIndex] })
+                                        encodedIndex++
+                                    }
                                 }
                             }
                         }
 
                         // Reference originals are needed only while the API request is active.
                         generationParams.charImages = []
+                        generationParams.charImagePaths = []
                         generationParams.vibeImages = []
+                        generationParams.vibeImagePaths = []
+                        generationParams.vibeEncodedPaths = []
                         generationParams.preEncodedVibes = []
                         characterImages.length = 0
                         vibeImages.length = 0
                         useCharacterStore.getState().releaseImageData()
-                        allCharImages.length = 0
-                        allVibeImages.length = 0
 
                         // Check if cancelled or session changed after API call
                         if (get().isCancelled || get().generationSessionId !== sessionId) {

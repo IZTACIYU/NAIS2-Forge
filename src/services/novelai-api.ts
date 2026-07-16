@@ -1,5 +1,6 @@
 import JSZip from 'jszip'
 import { decode as msgpackDecode } from '@msgpack/msgpack'
+import { Channel, invoke } from '@tauri-apps/api/core'
 import { embedNais2Params } from '@/lib/nais2-png-meta'
 
 // TESTING: Always use native window.fetch
@@ -57,6 +58,7 @@ export interface GenerationParams {
 
     // Precise Reference (Director Tools) - 2026년 2월 업데이트
     charImages?: string[]
+    charImagePaths?: (string | null)[]
     charStrength?: number[]      // Strength 값 (0~1)
     charFidelity?: number[]      // Fidelity 값 (0~1) - API에서는 1-fidelity로 전송
     charReferenceType?: ('character' | 'style' | 'character&style')[]  // 참조 타입
@@ -67,6 +69,8 @@ export interface GenerationParams {
 
     // Vibe Transfer
     vibeImages?: string[]
+    vibeImagePaths?: (string | null)[]
+    vibeEncodedPaths?: (string | null)[]
     vibeInfo?: number[]
     vibeStrength?: number[]
     preEncodedVibes?: (string | null)[]  // Pre-encoded vibe data (skips /ai/encode-vibe if present)
@@ -104,6 +108,71 @@ export interface GenerationParams {
         negative?: string
         inpainting?: string
     }
+}
+
+interface NativeGenerationResult {
+    success: boolean
+    responseBase64?: string
+    encodedVibes: string[]
+    error?: string
+}
+
+interface NativeCharacterReference {
+    filePath: string | null
+    sourceBase64: string | null
+    cacheKey: string | null
+}
+
+interface NativeVibeReference {
+    filePath: string | null
+    sourceBase64: string | null
+    encodedVibe: string | null
+    encodedVibePath: string | null
+    informationExtracted: number
+}
+
+function usesNativeReferenceTransport(params: GenerationParams): boolean {
+    return !!params.charImagePaths?.some(Boolean)
+        || !!params.vibeImagePaths?.some(Boolean)
+        || !!params.vibeEncodedPaths?.some(Boolean)
+}
+
+function buildNativeReferenceArgs(params: GenerationParams): {
+    characterReferences: NativeCharacterReference[]
+    vibeReferences: NativeVibeReference[]
+} {
+    const characterCount = Math.max(
+        params.charImagePaths?.length || 0,
+        params.charImages?.length || 0,
+        params.charCacheKeys?.length || 0,
+    )
+    const vibeCount = Math.max(
+        params.vibeImagePaths?.length || 0,
+        params.vibeImages?.length || 0,
+        params.preEncodedVibes?.length || 0,
+        params.vibeEncodedPaths?.length || 0,
+    )
+    return {
+        characterReferences: Array.from({ length: characterCount }, (_, index) => ({
+            filePath: params.charImagePaths?.[index] || null,
+            sourceBase64: params.charImages?.[index] || null,
+            cacheKey: params.charCacheKeys?.[index] || null,
+        })),
+        vibeReferences: Array.from({ length: vibeCount }, (_, index) => ({
+            filePath: params.vibeImagePaths?.[index] || null,
+            sourceBase64: params.vibeImages?.[index] || null,
+            encodedVibe: params.preEncodedVibes?.[index] || null,
+            encodedVibePath: params.vibeEncodedPaths?.[index] || null,
+            informationExtracted: params.vibeInfo?.[index] || 1,
+        })),
+    }
+}
+
+function decodeBase64Bytes(value: string): Uint8Array {
+    const binary = atob(value)
+    const bytes = new Uint8Array(binary.length)
+    for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
+    return bytes
 }
 
 /**
@@ -379,16 +448,21 @@ function processCharacterImage(imageBase64: string): Promise<string> {
 export async function generateImage(
     token: string,
     params: GenerationParams
-): Promise<{ success: boolean; imageData?: string; error?: string; encodedVibes?: string[]; charCacheKeys?: string[] }> {
+): Promise<{ success: boolean; imageData?: string; error?: string; encodedVibes?: string[]; encodedVibeIndices?: number[]; charCacheKeys?: string[] }> {
     if (!token) {
         return { success: false, error: 'API 토큰이 필요합니다' }
     }
 
     try {
+        const useNativeReferences = usesNativeReferenceTransport(params)
         // Process Vibe Images
         const processedVibeImages: string[] = []
-        const newlyEncodedVibes: (string | null)[] = []  // Track which vibes were newly encoded
-        if (params.vibeImages && params.vibeImages.length > 0) {
+        let newlyEncodedVibes: (string | null)[] = []  // Track which vibes were newly encoded
+        let newlyEncodedVibeIndices: number[] | undefined
+        if (useNativeReferences) {
+            const vibeCount = Math.max(params.vibeImagePaths?.length || 0, params.vibeImages?.length || 0, params.preEncodedVibes?.length || 0, params.vibeEncodedPaths?.length || 0)
+            for (let i = 0; i < vibeCount; i++) processedVibeImages.push(params.preEncodedVibes?.[i] || '')
+        } else if (params.vibeImages && params.vibeImages.length > 0) {
             for (let i = 0; i < params.vibeImages.length; i++) {
                 // Use pre-encoded vibe if available (saves API call)
                 if (params.preEncodedVibes?.[i]) {
@@ -413,7 +487,13 @@ export async function generateImage(
         const processedCharImages: string[] = []
         const charImagesThatNeedProcessing: number[] = []  // 처리가 필요한 이미지 인덱스
         
-        if (params.charImages && params.charImages.length > 0) {
+        if (useNativeReferences) {
+            const charCount = Math.max(params.charImagePaths?.length || 0, params.charImages?.length || 0, params.charCacheKeys?.length || 0)
+            for (let i = 0; i < charCount; i++) {
+                processedCharImages.push('')
+                if (!params.charCacheKeys?.[i]) charImagesThatNeedProcessing.push(i)
+            }
+        } else if (params.charImages && params.charImages.length > 0) {
             for (let i = 0; i < params.charImages.length; i++) {
                 // 캐시 키가 있으면 이미지 처리 스킵
                 if (params.charCacheKeys?.[i]) {
@@ -653,23 +733,37 @@ export async function generateImage(
         }
 
 
-        const response = await CLIENT_FETCH(API_ENDPOINTS.IMAGE_GENERATE, {
-            method: 'POST',
-            headers: {
-                ...DEFAULT_HEADERS,
-                'Authorization': `Bearer ${token.trim()}`,
-            },
-            body: JSON.stringify(payload),
-        })
+        let zipData: ArrayBuffer
+        if (useNativeReferences) {
+            const nativeResult = await invoke<NativeGenerationResult>('generate_image_with_references', {
+                token: token.trim(),
+                payload,
+                ...buildNativeReferenceArgs(params),
+            })
+            if (!nativeResult.success || !nativeResult.responseBase64) {
+                return { success: false, error: nativeResult.error || 'Native generation failed' }
+            }
+            newlyEncodedVibes = nativeResult.encodedVibes
+            newlyEncodedVibeIndices = buildNativeReferenceArgs(params).vibeReferences
+                .flatMap((reference, index) => !reference.encodedVibe && !reference.encodedVibePath ? [index] : [])
+            zipData = decodeBase64Bytes(nativeResult.responseBase64).buffer as ArrayBuffer
+        } else {
+            const response = await CLIENT_FETCH(API_ENDPOINTS.IMAGE_GENERATE, {
+                method: 'POST',
+                headers: {
+                    ...DEFAULT_HEADERS,
+                    'Authorization': `Bearer ${token.trim()}`,
+                },
+                body: JSON.stringify(payload),
+            })
 
-        if (!response.ok) {
-            const errorText = await response.text()
-            console.error('API Error:', response.status, errorText)
-            return { success: false, error: `API 오류 (${response.status}): ${errorText}` }
+            if (!response.ok) {
+                const errorText = await response.text()
+                console.error('API Error:', response.status, errorText)
+                return { success: false, error: `API 오류 (${response.status}): ${errorText}` }
+            }
+            zipData = await response.arrayBuffer()
         }
-
-        // Response is a ZIP file containing the image
-        const zipData = await response.arrayBuffer()
 
         // Load ZIP using JSZip
         const zip = await JSZip.loadAsync(zipData)
@@ -707,7 +801,8 @@ export async function generateImage(
             success: true,
             imageData: taggedBase64,
             // Return newly encoded vibes so they can be cached in character-store
-            encodedVibes: newlyEncodedVibes.filter((v): v is string => v !== null)
+            encodedVibes: newlyEncodedVibes.filter((v): v is string => v !== null),
+            encodedVibeIndices: newlyEncodedVibeIndices,
         }
     } catch (error) {
         console.error('Generation error:', error)
@@ -824,6 +919,70 @@ export async function upscaleImage(
     }
 }
 
+function createStreamMessageProcessor(
+    totalSteps: number,
+    onProgress?: (progress: number, partialImage?: string) => void,
+) {
+    let buffer = new Uint8Array(0)
+    let finalImageData: string | null = null
+    let lastStepShown = -1
+
+    const binaryToBase64 = (uint8: Uint8Array): string => {
+        let binary = ''
+        const chunkSize = 32768
+        for (let i = 0; i < uint8.length; i += chunkSize) {
+            const chunk = uint8.subarray(i, Math.min(i + chunkSize, uint8.length))
+            binary += String.fromCharCode.apply(null, Array.from(chunk))
+        }
+        return btoa(binary)
+    }
+
+    return {
+        push(value: Uint8Array) {
+            const newBuffer = new Uint8Array(buffer.length + value.length)
+            newBuffer.set(buffer)
+            newBuffer.set(value, buffer.length)
+            buffer = newBuffer
+
+            while (buffer.length >= 4) {
+                const length = (buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3]
+                if (length <= 0 || length > 50_000_000 || buffer.length < 4 + length) break
+
+                const messageData = buffer.slice(4, 4 + length)
+                buffer = buffer.slice(4 + length)
+                try {
+                    const decoded = msgpackDecode(messageData) as Record<string, unknown>
+                    const eventType = decoded.event_type || decoded.event || 'unknown'
+                    const stepIx = decoded.step_ix as number | undefined
+                    if (typeof stepIx === 'number' && eventType === 'intermediate') {
+                        const progress = Math.round((stepIx / totalSteps) * 100)
+                        const image = decoded.image as Uint8Array | undefined
+                        if (image instanceof Uint8Array && stepIx > lastStepShown + 1) {
+                            lastStepShown = stepIx
+                            onProgress?.(progress, binaryToBase64(image))
+                        } else {
+                            onProgress?.(progress)
+                        }
+                    }
+                    if (eventType === 'final') {
+                        const image = decoded.image as Uint8Array | undefined
+                        if (image instanceof Uint8Array) finalImageData = binaryToBase64(image)
+                        onProgress?.(100)
+                    }
+                    if (decoded.error || decoded.message) {
+                        throw new Error(String(decoded.error || decoded.message))
+                    }
+                } catch (error) {
+                    console.error('[Stream] Failed to decode message:', error)
+                }
+            }
+        },
+        getFinalImageData: () => finalImageData,
+        getBufferedByteLength: () => buffer.length,
+        clear: () => { buffer = new Uint8Array(0) },
+    }
+}
+
 
 /**
  * Generate image using NovelAI Streaming API
@@ -833,12 +992,13 @@ export async function generateImageStream(
     token: string,
     params: GenerationParams,
     onProgress?: (progress: number, partialImage?: string) => void
-): Promise<{ success: boolean; imageData?: string; error?: string; encodedVibes?: string[] }> {
+): Promise<{ success: boolean; imageData?: string; error?: string; encodedVibes?: string[]; encodedVibeIndices?: number[] }> {
     if (!token) {
         return { success: false, error: 'API 토큰이 필요합니다' }
     }
 
     try {
+        const useNativeReferences = usesNativeReferenceTransport(params)
         // Use the streaming endpoint
         const endpoint = API_ENDPOINTS.IMAGE_GENERATE_STREAM
 
@@ -848,8 +1008,12 @@ export async function generateImageStream(
 
         // Process Vibe Images
         const processedVibeImages: string[] = []
-        const newlyEncodedVibes: (string | null)[] = []  // Track which vibes were newly encoded
-        if (params.vibeImages && params.vibeImages.length > 0) {
+        let newlyEncodedVibes: (string | null)[] = []  // Track which vibes were newly encoded
+        let newlyEncodedVibeIndices: number[] | undefined
+        if (useNativeReferences) {
+            const vibeCount = Math.max(params.vibeImagePaths?.length || 0, params.vibeImages?.length || 0, params.preEncodedVibes?.length || 0, params.vibeEncodedPaths?.length || 0)
+            for (let i = 0; i < vibeCount; i++) processedVibeImages.push(params.preEncodedVibes?.[i] || '')
+        } else if (params.vibeImages && params.vibeImages.length > 0) {
             for (let i = 0; i < params.vibeImages.length; i++) {
                 // Use pre-encoded vibe if available (saves API call)
                 if (params.preEncodedVibes?.[i]) {
@@ -873,7 +1037,13 @@ export async function generateImageStream(
         const processedCharImages: string[] = []
         const charImagesThatNeedProcessingStream: number[] = []  // 처리가 필요한 이미지 인덱스
         
-        if (params.charImages && params.charImages.length > 0) {
+        if (useNativeReferences) {
+            const charCount = Math.max(params.charImagePaths?.length || 0, params.charImages?.length || 0, params.charCacheKeys?.length || 0)
+            for (let i = 0; i < charCount; i++) {
+                processedCharImages.push('')
+                if (!params.charCacheKeys?.[i]) charImagesThatNeedProcessingStream.push(i)
+            }
+        } else if (params.charImages && params.charImages.length > 0) {
             for (let i = 0; i < params.charImages.length; i++) {
                 // 캐시 키가 있으면 이미지 처리 스킵
                 if (params.charCacheKeys?.[i]) {
@@ -1116,148 +1286,51 @@ export async function generateImageStream(
         }
 
         console.log('[Stream] Starting streaming generation...')
-
-        const response = await CLIENT_FETCH(endpoint, {
-            method: 'POST',
-            headers: {
-                ...DEFAULT_HEADERS,
-                'Authorization': `Bearer ${token.trim()}`,
-                'Accept': 'application/x-msgpack'
-            },
-            body: JSON.stringify(requestBody)
-        })
-
-        if (!response.ok) {
-            const errorText = await response.text()
-            console.error('[Stream] API Error:', response.status, errorText)
-            return { success: false, error: `API Error: ${response.status} ${errorText}` }
-        }
-
-        if (!response.body) {
-            return { success: false, error: '스트리밍 응답 없음' }
-        }
-
-        // Helper function to convert binary to base64 (chunk-safe, synchronous)
-        const binaryToBase64 = (uint8: Uint8Array): string => {
-            let binary = ''
-            const chunkSize = 32768
-            for (let i = 0; i < uint8.length; i += chunkSize) {
-                const chunk = uint8.subarray(i, Math.min(i + chunkSize, uint8.length))
-                binary += String.fromCharCode.apply(null, Array.from(chunk))
+        const processor = createStreamMessageProcessor(params.steps || 28, onProgress)
+        if (useNativeReferences) {
+            const onChunk = new Channel<ArrayBuffer>()
+            onChunk.onmessage = chunk => processor.push(new Uint8Array(chunk))
+            const nativeResult = await invoke<NativeGenerationResult>('generate_image_stream_with_references', {
+                token: token.trim(),
+                payload: requestBody,
+                ...buildNativeReferenceArgs(params),
+                onChunk,
+            })
+            if (!nativeResult.success) {
+                processor.clear()
+                return { success: false, error: nativeResult.error || 'Native streaming generation failed' }
             }
-            return btoa(binary)
-        }
-
-        // Read the streaming response and parse events in real-time
-        const reader = response.body.getReader()
-        let buffer = new Uint8Array(0) // Accumulated buffer for incomplete messages
-        let finalImageData: string | null = null
-        let lastStepShown = -1
-        const totalSteps = params.steps || 28
-
-        console.log('[Stream] Starting real-time event processing...')
-
-        while (true) {
-            const { done, value } = await reader.read()
-
-            if (value) {
-                // Append new data to buffer
-                const newBuffer = new Uint8Array(buffer.length + value.length)
-                newBuffer.set(buffer)
-                newBuffer.set(value, buffer.length)
-                buffer = newBuffer
-
-                // Try to parse complete msgpack messages from buffer
-                while (buffer.length >= 4) {
-                    // Read 4-byte length header (big-endian)
-                    const length = (buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3]
-
-                    if (length <= 0 || length > 50_000_000) {
-                        console.error('[Stream] Invalid message length:', length)
-                        break
-                    }
-
-                    // Check if we have the complete message
-                    if (buffer.length < 4 + length) {
-                        // Need more data
-                        break
-                    }
-
-                    // Extract and process this message
-                    const messageData = buffer.slice(4, 4 + length)
-                    buffer = buffer.slice(4 + length) // Remove processed data from buffer
-
-                    try {
-                        let decoded: Record<string, unknown> | null = msgpackDecode(messageData) as Record<string, unknown>
-                        const eventType = decoded.event_type || decoded.event || 'unknown'
-                        const stepIx = decoded.step_ix as number | undefined
-
-                        // Debug: log all events (reduced logging)
-                        if (eventType === 'final' || (stepIx !== undefined && stepIx % 5 === 0)) {
-                            console.log(`[Stream] Event: ${eventType}, step: ${stepIx}`)
-                        }
-
-                        // Calculate progress based on step index
-                        if (typeof stepIx === 'number') {
-                            const progress = Math.round((stepIx / totalSteps) * 100)
-
-                            // Always update progress for smooth progress bar
-                            if (eventType === 'intermediate') {
-                                // Show preview image every 2 steps for smooth real-time preview
-                                const imgField = decoded.image as Uint8Array | undefined
-                                if (imgField && imgField instanceof Uint8Array && stepIx > lastStepShown + 1) {
-                                    lastStepShown = stepIx
-                                    const previewBase64 = binaryToBase64(imgField)
-                                    onProgress?.(progress, previewBase64)
-                                } else {
-                                    // Update progress without image preview
-                                    onProgress?.(progress)
-                                }
-                            }
-                        }
-
-                        if (eventType === 'final') {
-                            console.log('[Stream] Received final event')
-                            const imgField = decoded.image as Uint8Array | undefined
-
-                            if (imgField && imgField instanceof Uint8Array) {
-                                finalImageData = binaryToBase64(imgField)
-                                console.log('[Stream] Final image converted, length:', finalImageData.length)
-                            }
-
-                            onProgress?.(100)
-                        }
-
-                        // Check for error
-                        if (decoded.error || decoded.message) {
-                            const errorMsg = (decoded.error || decoded.message) as string
-                            console.error('[Stream] API Error:', errorMsg)
-                            decoded = null // Release reference before returning
-                            reader.cancel()
-                            return { success: false, error: `API 오류: ${errorMsg}` }
-                        }
-
-                        // Explicit reference release to help GC
-                        decoded = null
-
-                    } catch (e) {
-                        console.error('[Stream] Failed to decode message:', e)
-                    }
-                }
+            newlyEncodedVibes = nativeResult.encodedVibes
+            newlyEncodedVibeIndices = buildNativeReferenceArgs(params).vibeReferences
+                .flatMap((reference, index) => !reference.encodedVibe && !reference.encodedVibePath ? [index] : [])
+        } else {
+            const response = await CLIENT_FETCH(endpoint, {
+                method: 'POST',
+                headers: {
+                    ...DEFAULT_HEADERS,
+                    'Authorization': `Bearer ${token.trim()}`,
+                    'Accept': 'application/x-msgpack'
+                },
+                body: JSON.stringify(requestBody)
+            })
+            if (!response.ok) {
+                const errorText = await response.text()
+                return { success: false, error: `API Error: ${response.status} ${errorText}` }
             }
+            if (!response.body) return { success: false, error: '스트리밍 응답 없음' }
 
-            if (done) {
-                console.log('[Stream] Stream ended, remaining buffer:', buffer.length)
-                break
+            const reader = response.body.getReader()
+            while (true) {
+                const { done, value } = await reader.read()
+                if (value) processor.push(value)
+                if (done) break
             }
-        }
-
-        // Clean up: release reader and clear buffer
-        try {
             reader.releaseLock()
-        } catch {
-            // Reader may already be released
         }
+
+        const finalImageData = processor.getFinalImageData()
+        console.log('[Stream] Stream ended, remaining buffer:', processor.getBufferedByteLength())
+        processor.clear()
 
         if (finalImageData) {
             const taggedFinal = embedNais2Params(finalImageData, {
@@ -1274,7 +1347,8 @@ export async function generateImageStream(
             return {
                 success: true,
                 imageData: taggedFinal,
-                encodedVibes: newlyEncodedVibes.filter((v): v is string => v !== null)
+                encodedVibes: newlyEncodedVibes.filter((v): v is string => v !== null),
+                encodedVibeIndices: newlyEncodedVibeIndices,
             }
         }
 
