@@ -50,6 +50,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     const maskSavedRef = useRef(false)
     const isDrawingRef = useRef(false)
     const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null)
+    const [displaySize, setDisplaySize] = useState<{ width: number; height: number } | null>(null)
 
     // The mask is an 8x8 grid, so undo stores only changed cells instead of
     // retaining a full RGBA canvas snapshot for every brush stroke.
@@ -93,6 +94,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
             currentStrokeCellsRef.current = new Set()
             setHistoryStep(0)
             setImageSize(null)
+            setDisplaySize(null)
         }
     }, [open, propSourceImage, resetI2IParams, setSourceImage])
 
@@ -109,8 +111,11 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
             const img = new Image()
             img.crossOrigin = 'anonymous'
             img.onload = () => {
-                canvas.width = img.width
-                canvas.height = img.height
+                const width = img.naturalWidth || img.width
+                const height = img.naturalHeight || img.height
+                setImageSize({ width, height })
+                canvas.width = width
+                canvas.height = height
                 ctx.clearRect(0, 0, canvas.width, canvas.height)
 
                 // Restore existing mask if present
@@ -130,6 +135,41 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         }, 100)
         return () => clearTimeout(timer)
     }, [open, propSourceImage, existingMask])
+
+    useEffect(() => {
+        const container = containerRef.current
+        if (!open || !container || !imageSize) {
+            setDisplaySize(null)
+            return
+        }
+
+        const updateDisplaySize = () => {
+            const style = window.getComputedStyle(container)
+            const horizontalPadding = (Number.parseFloat(style.paddingLeft) || 0)
+                + (Number.parseFloat(style.paddingRight) || 0)
+            const verticalPadding = (Number.parseFloat(style.paddingTop) || 0)
+                + (Number.parseFloat(style.paddingBottom) || 0)
+            const availableWidth = Math.max(1, container.clientWidth - horizontalPadding)
+            const availableHeight = Math.max(1, container.clientHeight - verticalPadding)
+            const scale = Math.min(
+                availableWidth / imageSize.width,
+                availableHeight / imageSize.height,
+            )
+            const nextSize = {
+                width: Math.max(1, Math.floor(imageSize.width * scale)),
+                height: Math.max(1, Math.floor(imageSize.height * scale)),
+            }
+
+            setDisplaySize(current => current?.width === nextSize.width && current.height === nextSize.height
+                ? current
+                : nextSize)
+        }
+
+        updateDisplaySize()
+        const observer = new ResizeObserver(updateDisplaySize)
+        observer.observe(container)
+        return () => observer.disconnect()
+    }, [open, imageSize])
 
     // Last grid position for continuous drawing
     const lastGridPosRef = useRef<{ gx: number; gy: number } | null>(null)
@@ -456,18 +496,17 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                         >
                             {propSourceImage && (
                                 <div
-                                    className="relative flex justify-center items-center"
+                                    className="relative shrink-0"
                                     style={{
-                                        maxHeight: '100%',
-                                        maxWidth: '100%',
-                                        aspectRatio: imageSize ? `${imageSize.width} / ${imageSize.height}` : 'auto',
-                                        width: imageSize ? `min(100%, calc((85vh - 210px) * ${imageSize.width / imageSize.height}))` : '100%'
+                                        width: displaySize ? `${displaySize.width}px` : '1px',
+                                        height: displaySize ? `${displaySize.height}px` : '1px',
+                                        visibility: displaySize ? 'visible' : 'hidden',
                                     }}
                                 >
                                     <img
                                         src={propSourceImage}
                                         alt="Source"
-                                        className="block w-full h-full object-contain"
+                                        className="block w-full h-full"
                                         onLoad={(e) => {
                                             const img = e.currentTarget
                                             setImageSize({ width: img.naturalWidth, height: img.naturalHeight })
