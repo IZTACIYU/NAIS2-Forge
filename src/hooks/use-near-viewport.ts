@@ -2,11 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 
 const DEFAULT_ROOT_MARGIN = '800px 0px'
 
-export function useNearViewport<T extends Element>(rootMargin = DEFAULT_ROOT_MARGIN) {
+export function useNearViewport<T extends Element>(rootMargin = DEFAULT_ROOT_MARGIN, enabled = true) {
     const elementRef = useRef<T | null>(null)
     const [isNearViewport, setIsNearViewport] = useState(false)
 
     useEffect(() => {
+        if (!enabled) {
+            setIsNearViewport(true)
+            return
+        }
+
         const element = elementRef.current
         if (!element) return
 
@@ -27,7 +32,7 @@ export function useNearViewport<T extends Element>(rootMargin = DEFAULT_ROOT_MAR
 
         observer.observe(element)
         return () => observer.disconnect()
-    }, [rootMargin])
+    }, [enabled, rootMargin])
 
     return [elementRef, isNearViewport] as const
 }

@@ -26,7 +26,7 @@ export const LibraryItem = memo(function LibraryItem({ item, className, isOverla
     const { t } = useTranslation()
     const [imageUrl, setImageUrl] = useState<string>('')
     const [isLoading, setIsLoading] = useState(true)
-    const [containerRef, isNearViewport] = useNearViewport<HTMLDivElement>('500px 0px')
+    const [containerRef, isNearViewport] = useNearViewport<HTMLDivElement>('500px 0px', !isOverlay)
 
     const hasCurrentThumbnail = Boolean(
         item.thumbnailPath && item.thumbnailVersion === LIBRARY_THUMBNAIL_VERSION

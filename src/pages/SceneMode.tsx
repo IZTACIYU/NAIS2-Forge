@@ -1031,7 +1031,12 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
         return s.sceneCharacterAdditions[presetId]?.[scene.id] || null
     })
     
-    const queueCount = scene.queueCount ?? 0
+    // Queue controls need their own subscription so rapid clicks are not held
+    // behind the parent card memoization.
+    const queueCount = useSceneStore(s => {
+        const preset = s.presets.find(p => p.id === s.activePresetId)
+        return preset?.scenes.find(sc => sc.id === scene.id)?.queueCount ?? 0
+    })
 
     // Streaming State - only this card's streaming state
     const isStreaming = useSceneStore(s => s.streamingSceneId === scene.id)

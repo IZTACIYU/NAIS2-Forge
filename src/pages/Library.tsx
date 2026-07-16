@@ -840,7 +840,11 @@ export default function Library() {
                     </div>
                 </div>
 
-                <DragOverlay dropAnimation={dropAnimation} modifiers={[snapCenterToCursor]}>
+                <DragOverlay
+                    dropAnimation={dropAnimation}
+                    modifiers={[snapCenterToCursor]}
+                    style={{ willChange: 'transform' }}
+                >
                     {activeItem ? (
                         <LibraryItemComponent item={activeItem} isOverlay />
                     ) : null}
