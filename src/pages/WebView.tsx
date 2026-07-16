@@ -248,6 +248,10 @@ export default function WebView() {
 
             const rect = browserArea.getBoundingClientRect()
 
+            lastResizeKeyRef.current = [rect.left, rect.top, rect.width, rect.height]
+                .map(value => Math.round(value))
+                .join(':')
+
             await invoke('open_embedded_browser', {
                 url: targetUrl,
                 x: rect.left,

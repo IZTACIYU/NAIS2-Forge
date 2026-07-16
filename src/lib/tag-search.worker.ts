@@ -1,7 +1,6 @@
 /// <reference lib="webworker" />
 
 import tagsBinaryUrl from '@/assets/tags.bin?url'
-import Fuse from 'fuse.js'
 
 interface Tag {
     label: string
@@ -55,7 +54,6 @@ const synonyms: Record<string, string> = {
 }
 
 let tagIndexPromise: Promise<TagIndex> | null = null
-let fuse: Fuse<string> | null = null
 
 async function loadTagIndex(): Promise<TagIndex> {
     const response = await fetch(tagsBinaryUrl)
@@ -120,6 +118,57 @@ function toTag(index: TagIndex, tagIndex: number): Tag {
     }
 }
 
+function editDistanceWithin(
+    source: string,
+    target: string,
+    maxDistance: number,
+    firstRow: Uint16Array,
+    secondRow: Uint16Array,
+): number | null {
+    if (Math.abs(source.length - target.length) > maxDistance) return null
+
+    let previous = firstRow
+    let current = secondRow
+    for (let column = 0; column <= source.length; column++) previous[column] = column
+
+    for (let row = 1; row <= target.length; row++) {
+        current[0] = row
+        for (let column = 1; column <= source.length; column++) {
+            const substitution = previous[column - 1] + (source[column - 1] === target[row - 1] ? 0 : 1)
+            current[column] = Math.min(
+                previous[column] + 1,
+                current[column - 1] + 1,
+                substitution,
+            )
+        }
+        ;[previous, current] = [current, previous]
+    }
+
+    const distance = previous[source.length]
+    return distance <= maxDistance ? distance : null
+}
+
+function findFuzzyAlternatives(index: TagIndex, normalized: string): Tag[] {
+    if (normalized.length < 2) return []
+
+    const maxDistance = Math.max(1, Math.floor(normalized.length * 0.3))
+    const firstRow = new Uint16Array(normalized.length + 1)
+    const secondRow = new Uint16Array(normalized.length + 1)
+    const best: Array<{ tagIndex: number; distance: number }> = []
+
+    for (const tagIndex of index.prefixIndex[normalized[0] || '_'] || EMPTY_INDEXES) {
+        const label = index.labels[tagIndex].toLowerCase()
+        const distance = editDistanceWithin(normalized, label, maxDistance, firstRow, secondRow)
+        if (distance === null) continue
+
+        best.push({ tagIndex, distance })
+        best.sort((a, b) => a.distance - b.distance || index.counts[b.tagIndex] - index.counts[a.tagIndex])
+        if (best.length > 5) best.length = 5
+    }
+
+    return best.map(candidate => toTag(index, candidate.tagIndex))
+}
+
 function matchSingleTag(index: TagIndex, tag: string): TagMatchResult {
     const normalized = tag.trim().toLowerCase().replace(/_/g, ' ')
     if (!normalized) return { original: tag, matched: null, alternatives: [], status: 'unmatched' }
@@ -146,15 +195,7 @@ function matchSingleTag(index: TagIndex, tag: string): TagMatchResult {
         return { original: tag, matched: null, alternatives: alternatives.slice(0, 5), status: 'fuzzy' }
     }
 
-    fuse ||= new Fuse(index.labels, {
-        threshold: 0.3,
-        distance: 50,
-        includeScore: true,
-        minMatchCharLength: 2,
-    })
-    const fuzzy = fuse.search(normalized, { limit: 5 })
-        .map(result => toTag(index, result.refIndex))
-        .sort((a, b) => b.count - a.count)
+    const fuzzy = findFuzzyAlternatives(index, normalized)
     return fuzzy.length
         ? { original: tag, matched: null, alternatives: fuzzy, status: 'fuzzy' }
         : { original: tag, matched: null, alternatives: [], status: 'unmatched' }
