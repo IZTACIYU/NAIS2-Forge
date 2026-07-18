@@ -1141,6 +1141,9 @@ export const useSceneStore = create<SceneState>()(
                     }
 
                     const hasImportedSceneCharacters = Object.keys(importedSceneCharacterAdditions).length > 0
+                    const importedSceneCharactersEnabled = typeof jsonContent.sceneCharacterAdditionsEnabled === 'boolean'
+                        ? jsonContent.sceneCharacterAdditionsEnabled
+                        : hasImportedSceneCharacters
                     return {
                         presets: [...state.presets, newPreset],
                         activePresetId: newPreset.id, // Switch to imported preset
@@ -1151,7 +1154,7 @@ export const useSceneStore = create<SceneState>()(
                             }
                             : state.sceneCharacterAdditions,
                         sceneCharacterAdditionsEnabled: hasImportedSceneCharacters
-                            ? true
+                            ? importedSceneCharactersEnabled
                             : state.sceneCharacterAdditionsEnabled,
                     }
                 })
