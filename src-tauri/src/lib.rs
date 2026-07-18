@@ -853,6 +853,18 @@ async fn create_library_thumbnail(
     .map_err(|error| format!("Library thumbnail worker failed: {error}"))?
 }
 
+#[tauri::command]
+async fn find_missing_files(paths: Vec<String>) -> Result<Vec<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        Ok(paths
+            .into_iter()
+            .filter(|path| !std::path::Path::new(path).is_file())
+            .collect())
+    })
+    .await
+    .map_err(|error| format!("File validation worker failed: {error}"))?
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct NativeCharacterReference {
@@ -1516,6 +1528,7 @@ pub fn run() {
             r2_create_folder,
             create_reference_thumbnail,
             create_library_thumbnail,
+            find_missing_files,
             generate_image_with_references,
             generate_image_stream_with_references,
             state_db_get,
