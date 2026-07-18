@@ -524,13 +524,21 @@ export default function SceneMode() {
 
             if (filePath) {
                 // 이미지 데이터 제외하고 씬 정보만 내보내기 (공유용)
+                const sceneState = useSceneStore.getState()
+                const exportedSceneIds = new Set(activePreset.scenes.map(scene => scene.id))
+                const sceneCharacterAdditions = Object.fromEntries(
+                    Object.entries(sceneState.sceneCharacterAdditions[activePreset.id] || {})
+                        .filter(([sceneId]) => exportedSceneIds.has(sceneId))
+                )
                 const exportData = {
                     ...activePreset,
                     scenes: activePreset.scenes.map(scene => ({
                         ...scene,
                         images: [],  // 이미지 제거
                         queueCount: 0  // 대기열도 초기화
-                    }))
+                    })),
+                    sceneCharacterAdditionsEnabled: sceneState.sceneCharacterAdditionsEnabled,
+                    sceneCharacterAdditions,
                 }
                 const content = JSON.stringify(exportData, null, 2)
                 const encoder = new TextEncoder()

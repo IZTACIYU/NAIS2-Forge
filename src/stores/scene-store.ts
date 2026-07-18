@@ -54,6 +54,33 @@ export interface SceneCharacterAddition {
     characterCostumeEnabled?: boolean
 }
 
+function normalizeSceneCharacterAddition(value: unknown): SceneCharacterAddition | null {
+    if (!value || typeof value !== 'object') return null
+    const source = value as Partial<SceneCharacterAddition>
+    const normalizeIds = (ids: unknown) => Array.isArray(ids)
+        ? ids.filter((id): id is string => typeof id === 'string')
+        : []
+    const addition: SceneCharacterAddition = {
+        characterPromptIds: normalizeIds(source.characterPromptIds),
+        characterReferenceIds: normalizeIds(source.characterReferenceIds),
+        vibeReferenceIds: normalizeIds(source.vibeReferenceIds),
+    }
+
+    if (Number.isInteger(source.characterVariantIndex) && Number(source.characterVariantIndex) >= 0) {
+        addition.characterVariantIndex = Number(source.characterVariantIndex)
+    }
+    if (typeof source.characterCostumeEnabled === 'boolean') {
+        addition.characterCostumeEnabled = source.characterCostumeEnabled
+    }
+
+    const hasAny = addition.characterPromptIds.length > 0
+        || addition.characterReferenceIds.length > 0
+        || addition.vibeReferenceIds.length > 0
+        || addition.characterVariantIndex !== undefined
+        || addition.characterCostumeEnabled !== undefined
+    return hasAny ? addition : null
+}
+
 type SceneGenerationSource = 'queue' | 'detail'
 
 interface SceneState {
@@ -1089,6 +1116,16 @@ export const useSceneStore = create<SceneState>()(
                         return state
                     }
 
+                    const importedSceneIds = new Set(newScenes.map(scene => scene.id))
+                    const importedSceneCharacterAdditions: Record<string, SceneCharacterAddition> = {}
+                    if (jsonContent.sceneCharacterAdditions && typeof jsonContent.sceneCharacterAdditions === 'object') {
+                        for (const [sceneId, value] of Object.entries(jsonContent.sceneCharacterAdditions)) {
+                            if (!importedSceneIds.has(sceneId)) continue
+                            const addition = normalizeSceneCharacterAddition(value)
+                            if (addition) importedSceneCharacterAdditions[sceneId] = addition
+                        }
+                    }
+
                     // Create the new preset
                     const newPreset: ScenePreset = {
                         id: Date.now().toString(), // Generate new ID
@@ -1103,9 +1140,19 @@ export const useSceneStore = create<SceneState>()(
                         newPreset.name = `${newName} (${nameSuffix++})`
                     }
 
+                    const hasImportedSceneCharacters = Object.keys(importedSceneCharacterAdditions).length > 0
                     return {
                         presets: [...state.presets, newPreset],
-                        activePresetId: newPreset.id // Switch to imported preset
+                        activePresetId: newPreset.id, // Switch to imported preset
+                        sceneCharacterAdditions: hasImportedSceneCharacters
+                            ? {
+                                ...state.sceneCharacterAdditions,
+                                [newPreset.id]: importedSceneCharacterAdditions,
+                            }
+                            : state.sceneCharacterAdditions,
+                        sceneCharacterAdditionsEnabled: hasImportedSceneCharacters
+                            ? true
+                            : state.sceneCharacterAdditionsEnabled,
                     }
                 })
             },
