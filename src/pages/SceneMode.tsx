@@ -136,7 +136,7 @@ const SceneQueueControls = memo(function SceneQueueControls({ activePresetId, sc
 })
 
 import { Tip } from '@/components/ui/tooltip'
-import { useSceneStore } from '@/stores/scene-store'
+import { useSceneStore, type SceneImage } from '@/stores/scene-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { toast } from '@/components/ui/use-toast'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -1083,7 +1083,6 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
     const streamingProgress = useSceneStore(s => s.streamingSceneId === scene.id ? s.streamingProgress : 0)
 
     // Actions - use getState() for stable references that don't trigger re-renders
-    const getSceneThumbnail = useSceneStore.getState().getSceneThumbnail
     const renameScene = useSceneStore.getState().renameScene
     const duplicateScene = useSceneStore.getState().duplicateScene
     const deleteScene = useSceneStore.getState().deleteScene
@@ -1091,23 +1090,40 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
     const selectSceneRange = useSceneStore.getState().selectSceneRange
     const lastSelectedSceneId = useSceneStore.getState().lastSelectedSceneId
 
-    const thumbnail = getSceneThumbnail(scene)
-    const [imageUrl, setImageUrl] = useState<string>('')
+    const thumbnailImage = scene.images.find((image: SceneImage) => image.isFavorite) || scene.images[0]
+    const thumbnail = thumbnailImage?.url
+    const [renderedThumbnail, setRenderedThumbnail] = useState<{ imageId: string; url: string } | null>(null)
     const [cardRef, isNearViewport] = useNearViewport<HTMLDivElement>()
     const shouldRenderImage = isOverlay || isNearViewport
 
     useEffect(() => {
-        if (!shouldRenderImage || !thumbnail) {
-            setImageUrl('')
+        if (!shouldRenderImage || !thumbnail || !thumbnailImage) {
+            setRenderedThumbnail(null)
             return
         }
         if (thumbnail.startsWith('data:')) {
-            setImageUrl(thumbnail)
+            setRenderedThumbnail({ imageId: thumbnailImage.id, url: thumbnail })
             return
         }
         // Use convertFileSrc for efficient native asset loading
-        setImageUrl(convertFileSrc(thumbnail))
-    }, [shouldRenderImage, thumbnail])
+        setRenderedThumbnail({ imageId: thumbnailImage.id, url: convertFileSrc(thumbnail) })
+    }, [shouldRenderImage, thumbnail, thumbnailImage?.id])
+
+    const handleThumbnailLoadError = () => {
+        const failedImageId = renderedThumbnail?.imageId
+        setRenderedThumbnail(null)
+        if (!failedImageId || !activePresetId) return
+
+        const sceneState = useSceneStore.getState()
+        const currentScene = sceneState.getScene(activePresetId, scene.id)
+        if (!currentScene?.images.some(image => image.id === failedImageId)) return
+
+        sceneState.validateSceneImages(
+            activePresetId,
+            scene.id,
+            currentScene.images.filter(image => image.id !== failedImageId).map(image => image.id)
+        )
+    }
 
 
     const handleSaveName = () => {
@@ -1201,8 +1217,8 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
                     <div className="relative flex-1 bg-zinc-900/50 w-full overflow-hidden">
                         {shouldRenderImage && isStreaming && streamingImage ? (
                             <img src={streamingImage} alt="Streaming..." className="w-full h-full object-cover animate-pulse" loading="lazy" decoding="async" />
-                        ) : imageUrl ? (
-                            <img src={imageUrl} alt={scene.name} className="w-full h-full object-cover" draggable={false} loading="lazy" decoding="async" />
+                        ) : renderedThumbnail ? (
+                            <img key={renderedThumbnail.imageId} src={renderedThumbnail.url} alt={scene.name} className="w-full h-full object-cover" draggable={false} loading="lazy" decoding="async" onError={handleThumbnailLoadError} />
                         ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/30"> <ImageIcon className="h-10 w-10 mb-2" /> <span className="text-xs">No Image</span> </div>
                         )}
