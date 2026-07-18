@@ -1057,6 +1057,28 @@ export default function SceneMode() {
     )
 }
 
+type MissingSceneThumbnail = { presetId: string; sceneId: string; imageId: string }
+let pendingMissingSceneThumbnails: MissingSceneThumbnail[] = []
+let missingSceneThumbnailTimer: number | null = null
+
+const scheduleMissingSceneThumbnailCleanup = (missing: MissingSceneThumbnail) => {
+    pendingMissingSceneThumbnails.push(missing)
+    if (missingSceneThumbnailTimer !== null) return
+
+    missingSceneThumbnailTimer = window.setTimeout(() => {
+        missingSceneThumbnailTimer = null
+        const batch = pendingMissingSceneThumbnails
+        pendingMissingSceneThumbnails = []
+        const flush = () => useSceneStore.getState().removeMissingSceneImages(batch)
+
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(flush, { timeout: 3000 })
+        } else {
+            window.setTimeout(flush, 0)
+        }
+    }, 250)
+}
+
 // Memoized SceneCard to prevent unnecessary re-renders
 const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = false, isOverlay = false, style, dragAttributes, dragListeners, onOpenSceneCharacterAddition }: any) {
     const { t } = useTranslation()
@@ -1090,7 +1112,9 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
     const selectSceneRange = useSceneStore.getState().selectSceneRange
     const lastSelectedSceneId = useSceneStore.getState().lastSelectedSceneId
 
-    const thumbnailImage = scene.images.find((image: SceneImage) => image.isFavorite) || scene.images[0]
+    const [failedThumbnailIds, setFailedThumbnailIds] = useState<Set<string>>(() => new Set())
+    const thumbnailImage = scene.images.find((image: SceneImage) => image.isFavorite && !failedThumbnailIds.has(image.id))
+        || scene.images.find((image: SceneImage) => !failedThumbnailIds.has(image.id))
     const thumbnail = thumbnailImage?.url
     const [renderedThumbnail, setRenderedThumbnail] = useState<{ imageId: string; url: string } | null>(null)
     const [cardRef, isNearViewport] = useNearViewport<HTMLDivElement>()
@@ -1114,15 +1138,13 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
         setRenderedThumbnail(null)
         if (!failedImageId || !activePresetId) return
 
-        const sceneState = useSceneStore.getState()
-        const currentScene = sceneState.getScene(activePresetId, scene.id)
-        if (!currentScene?.images.some(image => image.id === failedImageId)) return
-
-        sceneState.validateSceneImages(
-            activePresetId,
-            scene.id,
-            currentScene.images.filter(image => image.id !== failedImageId).map(image => image.id)
-        )
+        setFailedThumbnailIds(current => {
+            if (current.has(failedImageId)) return current
+            const next = new Set(current)
+            next.add(failedImageId)
+            return next
+        })
+        scheduleMissingSceneThumbnailCleanup({ presetId: activePresetId, sceneId: scene.id, imageId: failedImageId })
     }
 
 

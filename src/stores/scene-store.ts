@@ -175,6 +175,7 @@ interface SceneState {
     // File Management
     importPreset: (preset: ScenePreset) => void
     validateSceneImages: (presetId: string, sceneId: string, validImageIds: string[]) => void
+    removeMissingSceneImages: (missingImages: Array<{ presetId: string; sceneId: string; imageId: string }>) => void
 
     // Multi-Select / Edit Mode
     isEditMode: boolean
@@ -1179,6 +1180,46 @@ export const useSceneStore = create<SceneState>()(
                             : p
                     )
                 }))
+            },
+
+            removeMissingSceneImages: (missingImages) => {
+                if (missingImages.length === 0) return
+
+                const missingByPreset = new Map<string, Map<string, Set<string>>>()
+                for (const { presetId, sceneId, imageId } of missingImages) {
+                    let missingByScene = missingByPreset.get(presetId)
+                    if (!missingByScene) {
+                        missingByScene = new Map()
+                        missingByPreset.set(presetId, missingByScene)
+                    }
+                    let imageIds = missingByScene.get(sceneId)
+                    if (!imageIds) {
+                        imageIds = new Set()
+                        missingByScene.set(sceneId, imageIds)
+                    }
+                    imageIds.add(imageId)
+                }
+
+                set(state => {
+                    let changed = false
+                    const presets = state.presets.map(preset => {
+                        const missingByScene = missingByPreset.get(preset.id)
+                        if (!missingByScene) return preset
+
+                        let presetChanged = false
+                        const scenes = preset.scenes.map(scene => {
+                            const missingIds = missingByScene.get(scene.id)
+                            if (!missingIds) return scene
+                            const images = scene.images.filter(image => !missingIds.has(image.id))
+                            if (images.length === scene.images.length) return scene
+                            changed = true
+                            presetChanged = true
+                            return { ...scene, images }
+                        })
+                        return presetChanged ? { ...preset, scenes } : preset
+                    })
+                    return changed ? { presets } : state
+                })
             },
 
             // Multi-Select / Edit Mode Implementation
