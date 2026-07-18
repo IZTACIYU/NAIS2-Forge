@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createDeferredJSONStorage } from '@/lib/indexed-db'
-import { rename, exists} from '@tauri-apps/plugin-fs'
-import { pictureDir, join } from '@tauri-apps/api/path'
+import { rename, exists } from '@tauri-apps/plugin-fs'
+import { pictureDir, join, dirname } from '@tauri-apps/api/path'
 import { useSettingsStore } from './settings-store'
 import { notifySceneQueueChanged } from '@/lib/scene-queue-events'
+import { getSceneFolderFromImages, replaceSceneFolderPrefix, sanitizeSceneFolderName } from '@/lib/scene-path'
 
 export interface SceneImage {
     id: string
@@ -384,9 +385,9 @@ export const useSceneStore = create<SceneState>()(
                 if (!scene || scene.name === name) return
                 
                 const oldName = scene.name
-                const safeOldName = oldName.replace(/[<>:"/\\|?*]/g, '_').trim() || 'Untitled_Scene'
-                const safeNewName = name.replace(/[<>:"/\\|?*]/g, '_').trim() || 'Untitled_Scene'
-                const safePresetName = (preset?.name || 'Default').replace(/[<>:"/\\|?*]/g, '_').trim()
+                const safeOldName = sanitizeSceneFolderName(oldName)
+                const safeNewName = sanitizeSceneFolderName(name)
+                const safePresetName = sanitizeSceneFolderName(preset?.name || 'Default', 'Default')
                 
                 // Try to rename the folder
                 try {
@@ -394,7 +395,11 @@ export const useSceneStore = create<SceneState>()(
                     let oldFolderPath: string
                     let newFolderPath: string
                     
-                    if (useAbsolutePath && savePath) {
+                    const linkedFolderPath = getSceneFolderFromImages(scene.images)
+                    if (linkedFolderPath) {
+                        oldFolderPath = linkedFolderPath
+                        newFolderPath = await join(await dirname(linkedFolderPath), safeNewName)
+                    } else if (useAbsolutePath && savePath) {
                         oldFolderPath = await join(savePath, 'NAIS_Scene', safePresetName, safeOldName)
                         newFolderPath = await join(savePath, 'NAIS_Scene', safePresetName, safeNewName)
                     } else {
@@ -403,6 +408,17 @@ export const useSceneStore = create<SceneState>()(
                         newFolderPath = await join(baseDir, 'NAIS_Scene', safePresetName, safeNewName)
                     }
                     
+                    if (oldFolderPath.toLocaleLowerCase() === newFolderPath.toLocaleLowerCase()) {
+                        set(state => ({
+                            presets: state.presets.map(p =>
+                                p.id === presetId
+                                    ? { ...p, scenes: p.scenes.map(s => s.id === sceneId ? { ...s, name } : s) }
+                                    : p
+                            ),
+                        }))
+                        return
+                    }
+
                     // Only rename if old folder exists and new folder doesn't
                     if (await exists(oldFolderPath) && !(await exists(newFolderPath))) {
                         await rename(oldFolderPath, newFolderPath)
@@ -420,7 +436,7 @@ export const useSceneStore = create<SceneState>()(
                                                     name,
                                                     images: s.images.map(img => ({
                                                         ...img,
-                                                        url: img.url.replace(oldFolderPath, newFolderPath)
+                                                        url: replaceSceneFolderPrefix(img.url, oldFolderPath, newFolderPath)
                                                     }))
                                                 } 
                                                 : s

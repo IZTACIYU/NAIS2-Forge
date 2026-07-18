@@ -49,9 +49,10 @@ import { ImageReferenceDialog } from '@/components/metadata/ImageReferenceDialog
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { convertFileSrc } from '@tauri-apps/api/core'
-import { exists, readFile, remove } from '@tauri-apps/plugin-fs'
+import { exists, mkdir, readFile, remove } from '@tauri-apps/plugin-fs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from '@/components/ui/use-toast'
+import { getSceneFolderFromImages, sanitizeSceneFolderName } from '@/lib/scene-path'
 
 export default function SceneDetail() {
     const { id: sceneId } = useParams()
@@ -308,51 +309,18 @@ export default function SceneDetail() {
 
             // Get preset name for folder structure
             const currentPreset = useSceneStore.getState().presets.find(p => p.id === activePresetId)
-            const safePresetName = (currentPreset?.name || 'Default').replace(/[<>:"/\\|?*]/g, '_').trim()
-            // Sanitize scene name for folder name - MUST match useSceneGeneration.ts logic
-            const safeSceneName = scene.name.replace(/[<>:"/\\|?*]/g, '_').trim() || 'Untitled_Scene'
+            const safePresetName = sanitizeSceneFolderName(currentPreset?.name || 'Default', 'Default')
+            const safeSceneName = sanitizeSceneFolderName(scene.name)
 
             const { savePath, useAbsolutePath } = useSettingsStore.getState()
-            let folderPath: string
+            const basePath = useAbsolutePath && savePath ? savePath : await pictureDir()
+            const defaultFolderPath = await join(basePath, 'NAIS_Scene', safePresetName, safeSceneName)
+            const linkedFolderPath = getSceneFolderFromImages(scene.images)
+            const folderPath = linkedFolderPath && await exists(linkedFolderPath)
+                ? linkedFolderPath
+                : defaultFolderPath
 
-            if (useAbsolutePath && savePath) {
-                // Absolute path: savePath/NAIS_Scene/<PresetName>/<SceneName>
-                folderPath = await join(savePath, 'NAIS_Scene', safePresetName, safeSceneName)
-
-                if (!(await exists(folderPath))) {
-                    // Try parent folder (preset folder)
-                    const presetPath = await join(savePath, 'NAIS_Scene', safePresetName)
-                    if (await exists(presetPath)) {
-                        await Command.create('explorer', [presetPath]).execute()
-                    } else {
-                        // Try NAIS_Scene folder
-                        const naisPath = await join(savePath, 'NAIS_Scene')
-                        if (await exists(naisPath)) {
-                            await Command.create('explorer', [naisPath]).execute()
-                        }
-                    }
-                    return
-                }
-            } else {
-                // Relative path: Pictures/NAIS_Scene/<PresetName>/<SceneName>
-                const picDir = await pictureDir()
-                folderPath = await join(picDir, 'NAIS_Scene', safePresetName, safeSceneName)
-
-                if (!(await exists(folderPath))) {
-                    const presetPath = await join(picDir, 'NAIS_Scene', safePresetName)
-                    if (await exists(presetPath)) {
-                        await Command.create('explorer', [presetPath]).execute()
-                    } else {
-                        const parentPath = await join(picDir, 'NAIS_Scene')
-                        if (await exists(parentPath)) {
-                            await Command.create('explorer', [parentPath]).execute()
-                        }
-                    }
-                    return
-                }
-            }
-
-            // Open folder in explorer
+            await mkdir(folderPath, { recursive: true })
             await Command.create('explorer', [folderPath]).execute()
         } catch (error) {
             console.error("Failed to open folder:", error)

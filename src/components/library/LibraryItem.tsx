@@ -53,6 +53,12 @@ export const LibraryItem = memo(function LibraryItem({ item, className, isOverla
         }
 
         const thumbnailSource = getFirstLibraryLeaf(item)
+        try {
+            setImageUrl(convertFileSrc(thumbnailSource.path))
+        } catch {
+            setImageUrl('')
+        }
+
         void ensureLibraryThumbnail(thumbnailSource.id, thumbnailSource.path)
             .then(thumbnailPath => {
                 if (cancelled) return

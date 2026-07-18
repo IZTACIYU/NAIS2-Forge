@@ -7,6 +7,7 @@ export const LIBRARY_THUMBNAIL_VERSION = 1
 const THUMBNAIL_DIRECTORY = '.thumbnails'
 const MAX_THUMBNAIL_EDGE = 960
 const WEBP_QUALITY = 88
+const IDLE_TIMEOUT_MS = 500
 
 const pending = new Map<string, Promise<string>>()
 let queueTail: Promise<void> = Promise.resolve()
@@ -14,7 +15,7 @@ let queueTail: Promise<void> = Promise.resolve()
 const waitForIdle = (): Promise<void> =>
     new Promise(resolve => {
         if ('requestIdleCallback' in window) {
-            window.requestIdleCallback(() => resolve())
+            window.requestIdleCallback(() => resolve(), { timeout: IDLE_TIMEOUT_MS })
         } else {
             setTimeout(resolve, 100)
         }

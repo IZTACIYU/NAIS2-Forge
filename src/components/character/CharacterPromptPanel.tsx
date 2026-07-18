@@ -1457,6 +1457,8 @@ function CharacterCard({
     const [renameDialogOpen, setRenameDialogOpen] = useState(false)
     const [newName, setNewName] = useState(character.name || '')
     const [activePromptTab, setActivePromptTab] = useState<'prompt' | 'negative'>('prompt')
+    const [primaryPromptCollapsed, setPrimaryPromptCollapsed] = useState(false)
+    const [secondaryPromptCollapsed, setSecondaryPromptCollapsed] = useState(false)
     const { characterPrompt, costumePrompt } = splitCostumePrompt(character.prompt)
     const promptEnabled = character.promptEnabled ?? true
     const negativeEnabled = character.negativeEnabled ?? true
@@ -1562,10 +1564,23 @@ function CharacterCard({
                         {isExpanded && (
                             <div className="min-w-0 px-3 py-3 space-y-3 border-t border-border/30 bg-background/40 animate-in slide-in-from-top-2 duration-150">
                                 {expertCharacterPromptLayoutEnabled ? (
-                                    <>
-                                        <div className="min-w-0 space-y-1.5">
+                                    <div className="flex h-[332px] min-w-0 flex-col gap-3">
+                                        <div
+                                            className={cn(
+                                                "min-w-0 overflow-hidden flex flex-col transition-all duration-200",
+                                                primaryPromptCollapsed && "h-7 flex-none"
+                                            )}
+                                            style={primaryPromptCollapsed ? undefined : { flex: '150 1 0%' }}
+                                        >
                                             <div className="flex items-center justify-between gap-2">
                                                 <div className="flex items-center gap-2 text-xs font-medium">
+                                                    <button
+                                                        type="button"
+                                                        className="flex h-6 w-5 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground"
+                                                        onClick={() => setPrimaryPromptCollapsed(value => !value)}
+                                                    >
+                                                        {primaryPromptCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+                                                    </button>
                                                     <button
                                                         className={cn("px-2 py-1 rounded-md", activePromptTab === 'prompt' ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted")}
                                                         onClick={() => setActivePromptTab('prompt')}
@@ -1579,12 +1594,12 @@ function CharacterCard({
                                                     {(activePromptTab === 'prompt' ? promptEnabled : negativeEnabled) ? <Eye className="h-3.5 w-3.5 text-primary" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
                                                 </Button>
                                             </div>
-                                            {activePromptTab === 'prompt' ? (
+                                            {!primaryPromptCollapsed && (activePromptTab === 'prompt' ? (
                                                 <AutocompleteTextarea
                                                     value={characterPrompt}
                                                     onChange={(e) => onUpdate({ prompt: joinCostumePrompt(e.target.value, costumePrompt) })}
                                                     placeholder={t('characterPanel.promptPlaceholder')}
-                                                    className={cn("h-[150px] text-sm resize-none", !promptEnabled && "opacity-50")}
+                                                    className={cn("mt-1.5 flex-1 min-h-0 text-sm resize-none", !promptEnabled && "opacity-50")}
                                                     style={{ fontSize: `${promptFontSize}px` }}
                                                 />
                                             ) : (
@@ -1592,54 +1607,89 @@ function CharacterCard({
                                                     value={character.negative}
                                                     onChange={(e) => onUpdate({ negative: e.target.value })}
                                                     placeholder={t('characterPanel.negativePlaceholder')}
-                                                    className={cn("h-[150px] text-sm border-destructive/20 resize-none", !negativeEnabled && "opacity-50")}
+                                                    className={cn("mt-1.5 flex-1 min-h-0 text-sm border-destructive/20 resize-none", !negativeEnabled && "opacity-50")}
                                                     style={{ fontSize: `${promptFontSize}px` }}
                                                 />
-                                            )}
+                                            ))}
                                         </div>
-                                        <div className="min-w-0 space-y-1.5">
+                                        <div
+                                            className={cn(
+                                                "min-w-0 overflow-hidden flex flex-col transition-all duration-200",
+                                                secondaryPromptCollapsed && "h-7 flex-none"
+                                            )}
+                                            style={secondaryPromptCollapsed ? undefined : { flex: '110 1 0%' }}
+                                        >
                                             <div className="flex items-center justify-between gap-2">
-                                                <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">{t('characterPanel.costume')}</label>
+                                                <button
+                                                    type="button"
+                                                    className="flex h-6 items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                                                    onClick={() => setSecondaryPromptCollapsed(value => !value)}
+                                                >
+                                                    {secondaryPromptCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+                                                    <span className="whitespace-nowrap">{t('characterPanel.costume')}</span>
+                                                </button>
                                                 <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => onUpdate({ costumeEnabled: !costumeEnabled })}>
                                                     {costumeEnabled ? <Eye className="h-3.5 w-3.5 text-primary" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
                                                 </Button>
                                             </div>
-                                            <AutocompleteTextarea
+                                            {!secondaryPromptCollapsed && <AutocompleteTextarea
                                                 value={costumePrompt}
                                                 onChange={(e) => onUpdate({ prompt: joinCostumePrompt(characterPrompt, e.target.value) })}
                                                 placeholder={t('characterPanel.costumePlaceholder')}
-                                                className={cn("h-[110px] text-sm resize-none", !costumeEnabled && "opacity-50")}
+                                                className={cn("mt-1.5 flex-1 min-h-0 text-sm resize-none", !costumeEnabled && "opacity-50")}
                                                 style={{ fontSize: `${promptFontSize}px` }}
-                                            />
+                                            />}
                                         </div>
-                                    </>
+                                    </div>
                                 ) : (
-                                    <>
-                                        <div className="min-w-0 space-y-1.5">
-                                            <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                                                {t('characterPanel.prompt', 'Prompt')}
-                                            </label>
-                                            <AutocompleteTextarea
+                                    <div className="flex h-[376px] min-w-0 flex-col gap-3">
+                                        <div
+                                            className={cn(
+                                                "min-w-0 overflow-hidden flex flex-col transition-all duration-200",
+                                                primaryPromptCollapsed && "h-7 flex-none"
+                                            )}
+                                            style={primaryPromptCollapsed ? undefined : { flex: '180 1 0%' }}
+                                        >
+                                            <button
+                                                type="button"
+                                                className="flex h-6 items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                                                onClick={() => setPrimaryPromptCollapsed(value => !value)}
+                                            >
+                                                {primaryPromptCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+                                                <span className="whitespace-nowrap">{t('characterPanel.prompt', 'Prompt')}</span>
+                                            </button>
+                                            {!primaryPromptCollapsed && <AutocompleteTextarea
                                                 value={character.prompt}
                                                 onChange={(e) => onUpdate({ prompt: e.target.value })}
                                                 placeholder={t('characterPanel.promptPlaceholder')}
-                                                className="h-[180px] text-sm resize-none"
+                                                className="mt-1.5 flex-1 min-h-0 text-sm resize-none"
                                                 style={{ fontSize: `${promptFontSize}px` }}
-                                            />
+                                            />}
                                         </div>
-                                        <div className="min-w-0 space-y-1.5">
-                                            <label className="text-xs font-medium text-destructive/70 whitespace-nowrap">
-                                                {t('characterPanel.negative', 'Negative')}
-                                            </label>
-                                            <AutocompleteTextarea
+                                        <div
+                                            className={cn(
+                                                "min-w-0 overflow-hidden flex flex-col transition-all duration-200",
+                                                secondaryPromptCollapsed && "h-7 flex-none"
+                                            )}
+                                            style={secondaryPromptCollapsed ? undefined : { flex: '140 1 0%' }}
+                                        >
+                                            <button
+                                                type="button"
+                                                className="flex h-6 items-center gap-1 text-xs font-medium text-destructive/70 hover:text-destructive"
+                                                onClick={() => setSecondaryPromptCollapsed(value => !value)}
+                                            >
+                                                {secondaryPromptCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+                                                <span className="whitespace-nowrap">{t('characterPanel.negative', 'Negative')}</span>
+                                            </button>
+                                            {!secondaryPromptCollapsed && <AutocompleteTextarea
                                                 value={character.negative}
                                                 onChange={(e) => onUpdate({ negative: e.target.value })}
                                                 placeholder={t('characterPanel.negativePlaceholder')}
-                                                className="h-[140px] text-sm border-destructive/20 resize-none"
+                                                className="mt-1.5 flex-1 min-h-0 text-sm border-destructive/20 resize-none"
                                                 style={{ fontSize: `${promptFontSize}px` }}
-                                            />
+                                            />}
                                         </div>
-                                    </>
+                                    </div>
                                 )}
                                 {expertCharacterPromptVariantsEnabled && (
                                     <div className="flex items-center justify-between gap-2 py-1">
