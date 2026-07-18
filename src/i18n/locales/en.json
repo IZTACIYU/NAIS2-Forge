@@ -359,7 +359,12 @@
     "fidelity": "Fidelity",
     "vibeDisabledMsg": "Cannot use with Reference active.",
     "clickToDisable": "Click to disable",
-    "clickToEnable": "Click to enable"
+    "clickToEnable": "Click to enable",
+    "changeFolderColor": "Change folder color",
+    "downloadImage": "Download original image",
+    "downloadFolderZip": "Export as ZIP",
+    "downloadComplete": "Download complete",
+    "downloadFailed": "Download failed"
   },
   "imageRef": {
     "title": "Add Image Reference",

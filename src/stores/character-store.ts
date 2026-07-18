@@ -12,6 +12,7 @@ export interface ReferenceFolder {
     id: string
     name: string
     mode: ReferenceMode
+    colorIndex?: number
 }
 
 export interface ReferenceImage {
@@ -49,6 +50,7 @@ interface CharacterState {
 
     addReferenceFolder: (mode: ReferenceMode, name: string) => string
     renameReferenceFolder: (id: string, name: string) => void
+    setReferenceFolderColor: (id: string, colorIndex: number) => void
     removeReferenceFolder: (id: string) => void
     reorderReferenceFolders: (mode: ReferenceMode, activeId: string, overId: string) => void
     moveReferenceImage: (mode: ReferenceMode, imageId: string, folderId?: string, beforeImageId?: string) => void
@@ -270,12 +272,16 @@ export const useCharacterStore = create<CharacterState>()(
 
             addReferenceFolder: (mode, name) => {
                 const id = `reference-folder-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-                set(state => ({ referenceFolders: [...state.referenceFolders, { id, name, mode }] }))
+                set(state => ({ referenceFolders: [...state.referenceFolders, { id, name, mode, colorIndex: 0 }] }))
                 return id
             },
 
             renameReferenceFolder: (id, name) => set(state => ({
                 referenceFolders: state.referenceFolders.map(folder => folder.id === id ? { ...folder, name } : folder),
+            })),
+
+            setReferenceFolderColor: (id, colorIndex) => set(state => ({
+                referenceFolders: state.referenceFolders.map(folder => folder.id === id ? { ...folder, colorIndex } : folder),
             })),
 
             removeReferenceFolder: (id) => set(state => ({

@@ -361,7 +361,12 @@
     "fidelity": "충실도 (Fidelity)",
     "vibeDisabledMsg": "참조 레퍼런스가 있으면 사용할 수 없습니다.",
     "clickToDisable": "클릭하여 비활성화",
-    "clickToEnable": "클릭하여 활성화"
+    "clickToEnable": "클릭하여 활성화",
+    "changeFolderColor": "폴더 색상 변경",
+    "downloadImage": "원본 이미지 다운로드",
+    "downloadFolderZip": "ZIP으로 내보내기",
+    "downloadComplete": "다운로드 완료",
+    "downloadFailed": "다운로드 실패"
   },
   "imageRef": {
     "title": "이미지 참조 추가",

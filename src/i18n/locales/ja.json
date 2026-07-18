@@ -358,7 +358,12 @@
     "fidelity": "忠実度 (Fidelity)",
     "vibeDisabledMsg": "参照リファレンスがある場合は使用できません。",
     "clickToDisable": "クリックで無効化",
-    "clickToEnable": "クリックで有効化"
+    "clickToEnable": "クリックで有効化",
+    "changeFolderColor": "フォルダーの色を変更",
+    "downloadImage": "元画像をダウンロード",
+    "downloadFolderZip": "ZIPとしてエクスポート",
+    "downloadComplete": "ダウンロード完了",
+    "downloadFailed": "ダウンロード失敗"
   },
   "imageRef": {
     "title": "画像参照を追加",

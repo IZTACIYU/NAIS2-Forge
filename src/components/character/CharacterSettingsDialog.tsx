@@ -19,10 +19,12 @@ import {
     ChevronDown,
     ChevronRight,
     Database,
+    Download,
     Eye,
     EyeOff,
     Folder,
     FolderPlus,
+    FileArchive,
     GripVertical,
     Image as ImageIcon,
     Pencil,
@@ -41,8 +43,17 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tip } from '@/components/ui/tooltip'
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuTrigger,
+} from '@/components/ui/context-menu'
+import { FolderColorContextMenu } from '@/components/common/FolderColorContextMenu'
+import { toast } from '@/components/ui/use-toast'
 import { cn } from '@/lib/utils'
 import { parseMetadataFromBase64 } from '@/lib/metadata-parser'
+import { downloadReferenceFolder, downloadReferenceImage } from '@/lib/reference-export'
 import {
     type PreciseReferenceType,
     type ReferenceFolder,
@@ -51,6 +62,7 @@ import {
     MAX_ACTIVE_REFERENCE_IMAGES,
     useCharacterStore,
 } from '@/stores/character-store'
+import { FOLDER_COLORS } from '@/stores/character-prompt-store'
 
 interface CharacterSettingsDialogProps {
     open: boolean
@@ -71,6 +83,7 @@ interface SortableImageCardProps {
     onStartRename: () => void
     onCommitRename: () => void
     onCancelRename: () => void
+    onDownload: () => void
     onUpdate: (updates: Partial<ReferenceImage>) => void
     onRemove: () => void
 }
@@ -105,6 +118,7 @@ function SortableImageCard({
     onStartRename,
     onCommitRename,
     onCancelRename,
+    onDownload,
     onUpdate,
     onRemove,
 }: SortableImageCardProps) {
@@ -121,7 +135,9 @@ function SortableImageCard({
     )
 
     return (
-        <section
+        <ContextMenu>
+            <ContextMenuTrigger asChild>
+                <section
             ref={setNodeRef}
             id={`reference-image-${image.id}`}
             style={{ transform: CSS.Transform.toString(transform), transition }}
@@ -224,7 +240,19 @@ function SortableImageCard({
                     )}
                 </div>
             )}
-        </section>
+                </section>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="w-48">
+                <ContextMenuItem onClick={onStartRename}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    {t('common.rename')}
+                </ContextMenuItem>
+                <ContextMenuItem onClick={onDownload}>
+                    <Download className="mr-2 h-4 w-4" />
+                    {t('characterDialog.downloadImage')}
+                </ContextMenuItem>
+            </ContextMenuContent>
+        </ContextMenu>
     )
 }
 
@@ -239,6 +267,8 @@ function FolderSection({
     onStartRename,
     onCommitRename,
     onCancelRename,
+    onSetColor,
+    onDownload,
     onRemove,
     renderImage,
 }: {
@@ -252,6 +282,8 @@ function FolderSection({
     onStartRename: () => void
     onCommitRename: () => void
     onCancelRename: () => void
+    onSetColor: (colorIndex: number) => void
+    onDownload: () => void
     onRemove: () => void
     renderImage: (image: ReferenceImage) => React.ReactNode
 }) {
@@ -261,19 +293,23 @@ function FolderSection({
         data: { type: 'folder', folderId: folder.id },
     })
 
+    const folderColor = FOLDER_COLORS[(folder.colorIndex ?? 0) % FOLDER_COLORS.length]
+
     return (
         <section
             ref={setNodeRef}
             style={{ transform: CSS.Transform.toString(transform), transition }}
             className={cn('overflow-hidden rounded-lg border border-border/70 bg-background/20', isOver && 'border-primary bg-primary/5', isDragging && 'opacity-35')}
         >
-            <div className="flex h-10 items-center gap-1.5 border-b border-border/50 px-1.5">
+            <ContextMenu>
+                <ContextMenuTrigger asChild>
+                    <div className="flex h-10 items-center gap-1.5 border-b border-border/50 px-1.5">
                 <button type="button" className="flex h-7 w-6 shrink-0 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing" {...attributes} {...listeners}>
                     <GripVertical className="h-4 w-4" />
                 </button>
                 <button type="button" className="flex min-w-0 flex-1 items-center gap-1.5 text-left" onClick={onToggle}>
                     {collapsed ? <ChevronRight className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
-                    <Folder className="h-4 w-4 shrink-0 text-amber-400" />
+                    <Folder className={cn('h-4 w-4 shrink-0', folderColor.icon)} />
                     {editing ? (
                         <Input
                             value={editingName}
@@ -296,7 +332,24 @@ function FolderSection({
                 <Tip content={t('characterDialog.deleteFolder')}>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={onRemove}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </Tip>
-            </div>
+                    </div>
+                </ContextMenuTrigger>
+                <ContextMenuContent className="w-52">
+                    <ContextMenuItem onClick={onStartRename}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        {t('common.rename')}
+                    </ContextMenuItem>
+                    <FolderColorContextMenu
+                        label={t('characterDialog.changeFolderColor')}
+                        selectedIndex={folder.colorIndex}
+                        onSelect={onSetColor}
+                    />
+                    <ContextMenuItem disabled={images.length === 0} onClick={onDownload}>
+                        <FileArchive className="mr-2 h-4 w-4" />
+                        {t('characterDialog.downloadFolderZip')}
+                    </ContextMenuItem>
+                </ContextMenuContent>
+            </ContextMenu>
             {!collapsed && (
                 <div className="min-h-12 space-y-2 p-2">
                     <SortableContext items={images.map(image => `image:${image.id}`)} strategy={verticalListSortingStrategy}>
@@ -329,6 +382,7 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
     const updateVibeImage = useCharacterStore(state => state.updateVibeImage)
     const addFolder = useCharacterStore(state => state.addReferenceFolder)
     const renameFolder = useCharacterStore(state => state.renameReferenceFolder)
+    const setFolderColor = useCharacterStore(state => state.setReferenceFolderColor)
     const removeFolder = useCharacterStore(state => state.removeReferenceFolder)
     const reorderFolders = useCharacterStore(state => state.reorderReferenceFolders)
     const moveImage = useCharacterStore(state => state.moveReferenceImage)
@@ -447,6 +501,26 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
         setCreatingFolder(false)
     }
 
+    const handleImageDownload = async (image: ReferenceImage, fallbackName: string) => {
+        try {
+            if (await downloadReferenceImage(image, fallbackName)) {
+                toast({ title: t('characterDialog.downloadComplete'), variant: 'success' })
+            }
+        } catch (error) {
+            toast({ title: t('characterDialog.downloadFailed'), description: String(error), variant: 'destructive' })
+        }
+    }
+
+    const handleFolderDownload = async (folder: ReferenceFolder, images: ReferenceImage[]) => {
+        try {
+            if (await downloadReferenceFolder(folder.name, images)) {
+                toast({ title: t('characterDialog.downloadComplete'), variant: 'success' })
+            }
+        } catch (error) {
+            toast({ title: t('characterDialog.downloadFailed'), description: String(error), variant: 'destructive' })
+        }
+    }
+
     const handleDragStart = (event: DragStartEvent) => {
         const data = event.active.data.current
         if (data?.type === 'image') {
@@ -506,6 +580,7 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                 onStartRename={() => { setEditingName(image.name || fallbackName); setEditingFolderId(null); setEditingImageId(image.id) }}
                 onCommitRename={() => { const name = editingName.trim(); if (name) update(image.id, { name }); setEditingImageId(null) }}
                 onCancelRename={() => setEditingImageId(null)}
+                onDownload={() => void handleImageDownload(image, fallbackName)}
                 onUpdate={updates => update(image.id, updates)}
                 onRemove={() => remove(image.id)}
             />
@@ -625,6 +700,8 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                                         onStartRename={() => { setEditingName(folder.name); setEditingImageId(null); setEditingFolderId(folder.id) }}
                                         onCommitRename={() => { const name = editingName.trim(); if (name) renameFolder(folder.id, name); setEditingFolderId(null) }}
                                         onCancelRename={() => setEditingFolderId(null)}
+                                        onSetColor={colorIndex => setFolderColor(folder.id, colorIndex)}
+                                        onDownload={() => void handleFolderDownload(folder, folderImages)}
                                         onRemove={() => removeFolder(folder.id)}
                                         renderImage={renderImage}
                                     />
