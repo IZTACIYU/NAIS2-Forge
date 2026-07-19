@@ -670,6 +670,17 @@
       "absolutePathHelp": "라이브러리 파일이 해당 폴더에 직접 저장됩니다.",
       "selectFolder": "라이브러리 폴더 선택"
     },
+    "storageMigration": {
+      "moveFolder": "폴더 옮기기",
+      "confirmTitle": "폴더를 새 위치로 옮길까요?",
+      "confirmDesc": "현재 폴더의 파일과 연결된 경로 데이터를 새 위치로 이전합니다.",
+      "confirmWarning": "복사와 검증이 끝날 때까지 프로그램을 종료하지 마세요.",
+      "completed": "폴더 이전 완료",
+      "completedWithWarning": "폴더 이전 완료 (기존 파일 일부 정리 필요)",
+      "completedDesc": "{{count}}개 파일, {{size}} 이전 완료. 정리 실패: {{failures}}개",
+      "failed": "폴더 이전 실패",
+      "busy": "이미지 생성 중에는 저장 폴더를 옮길 수 없습니다."
+    },
     "streaming": {
       "title": "스트리밍 생성",
       "description": "이미지 생성 중 실시간 진행 상황을 표시합니다"

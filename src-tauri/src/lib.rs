@@ -867,6 +867,344 @@ async fn find_missing_files(paths: Vec<String>) -> Result<Vec<String>, String> {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct FolderMove {
+    source_path: String,
+    destination_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FolderMigrationResult {
+    files_moved: usize,
+    bytes_moved: u64,
+    cleanup_failures: usize,
+}
+
+struct PlannedFileMove {
+    source: std::path::PathBuf,
+    destination: std::path::PathBuf,
+    size: u64,
+}
+
+fn normalized_path_key(path: &std::path::Path) -> String {
+    path.to_string_lossy()
+        .replace('/', "\\")
+        .trim_end_matches('\\')
+        .to_lowercase()
+}
+
+fn paths_overlap(left: &std::path::Path, right: &std::path::Path) -> bool {
+    let left_key = normalized_path_key(left);
+    let right_key = normalized_path_key(right);
+    left_key == right_key
+        || left_key.starts_with(&(right_key.clone() + "\\"))
+        || right_key.starts_with(&(left_key + "\\"))
+}
+
+fn collect_folder_move(
+    source: &std::path::Path,
+    destination: &std::path::Path,
+    excluded_sources: &[std::path::PathBuf],
+    directories: &mut Vec<(std::path::PathBuf, std::path::PathBuf)>,
+    files: &mut Vec<PlannedFileMove>,
+) -> Result<(), String> {
+    directories.push((source.to_path_buf(), destination.to_path_buf()));
+    let entries = std::fs::read_dir(source)
+        .map_err(|error| format!("Failed to read source folder {}: {error}", source.display()))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("Failed to read folder entry: {error}"))?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        let file_type = entry
+            .file_type()
+            .map_err(|error| format!("Failed to inspect {}: {error}", source_path.display()))?;
+
+        if file_type.is_dir() {
+            let source_key = normalized_path_key(&source_path);
+            if excluded_sources
+                .iter()
+                .any(|excluded| normalized_path_key(excluded) == source_key)
+            {
+                continue;
+            }
+            collect_folder_move(
+                &source_path,
+                &destination_path,
+                excluded_sources,
+                directories,
+                files,
+            )?;
+        } else if file_type.is_file() {
+            let size = entry
+                .metadata()
+                .map_err(|error| format!("Failed to inspect {}: {error}", source_path.display()))?
+                .len();
+            files.push(PlannedFileMove {
+                source: source_path,
+                destination: destination_path,
+                size,
+            });
+        } else {
+            return Err(format!(
+                "Unsupported file type in source folder: {}",
+                source_path.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn cleanup_copied_files(files: &[std::path::PathBuf], directories: &[std::path::PathBuf]) {
+    for path in files.iter().rev() {
+        let _ = std::fs::remove_file(path);
+    }
+    for path in directories.iter().rev() {
+        let _ = std::fs::remove_dir(path);
+    }
+}
+
+fn migrate_folders_blocking(moves: Vec<FolderMove>) -> Result<FolderMigrationResult, String> {
+    use std::collections::HashSet;
+    use std::path::PathBuf;
+
+    let moves: Vec<(PathBuf, PathBuf)> = moves
+        .into_iter()
+        .map(|entry| {
+            (
+                PathBuf::from(entry.source_path),
+                PathBuf::from(entry.destination_path),
+            )
+        })
+        .filter(|(source, destination)| {
+            normalized_path_key(source) != normalized_path_key(destination)
+        })
+        .collect();
+    let source_roots: Vec<PathBuf> = moves.iter().map(|(source, _)| source.clone()).collect();
+
+    for (source, destination) in &moves {
+        if source.exists() && !source.is_dir() {
+            return Err(format!("Source is not a folder: {}", source.display()));
+        }
+        for source_root in &source_roots {
+            if paths_overlap(destination, source_root) {
+                return Err(format!(
+                    "Source and destination folders must not overlap: {} -> {}",
+                    source.display(),
+                    destination.display()
+                ));
+            }
+        }
+    }
+
+    let mut directories = Vec::new();
+    let mut files = Vec::new();
+    for (source, destination) in &moves {
+        if !source.exists() {
+            continue;
+        }
+        let excluded_sources: Vec<PathBuf> = source_roots
+            .iter()
+            .filter(|candidate| normalized_path_key(candidate) != normalized_path_key(source))
+            .cloned()
+            .collect();
+        collect_folder_move(
+            source,
+            destination,
+            &excluded_sources,
+            &mut directories,
+            &mut files,
+        )?;
+    }
+
+    let mut destination_files = HashSet::new();
+    for file in &files {
+        let destination_key = normalized_path_key(&file.destination);
+        if !destination_files.insert(destination_key) {
+            return Err(format!(
+                "Multiple source files map to the same destination: {}",
+                file.destination.display()
+            ));
+        }
+        if file.destination.exists() {
+            return Err(format!(
+                "A file already exists in the destination: {}",
+                file.destination.display()
+            ));
+        }
+    }
+
+    directories.sort_by_key(|(_, destination)| destination.components().count());
+    let mut unique_destination_dirs = HashSet::new();
+    let mut created_directories = Vec::new();
+    for (_, destination) in &directories {
+        let key = normalized_path_key(destination);
+        if !unique_destination_dirs.insert(key) {
+            continue;
+        }
+        if destination.exists() {
+            if !destination.is_dir() {
+                return Err(format!(
+                    "Destination path is not a folder: {}",
+                    destination.display()
+                ));
+            }
+            continue;
+        }
+        if let Err(error) = std::fs::create_dir_all(destination) {
+            cleanup_copied_files(&[], &created_directories);
+            return Err(format!(
+                "Failed to create destination folder {}: {error}",
+                destination.display()
+            ));
+        }
+        created_directories.push(destination.clone());
+    }
+
+    let mut copied_files = Vec::new();
+    for file in &files {
+        if let Some(parent) = file.destination.parent() {
+            if let Err(error) = std::fs::create_dir_all(parent) {
+                cleanup_copied_files(&copied_files, &created_directories);
+                return Err(format!(
+                    "Failed to create destination folder {}: {error}",
+                    parent.display()
+                ));
+            }
+        }
+        if let Err(error) = std::fs::copy(&file.source, &file.destination) {
+            cleanup_copied_files(&copied_files, &created_directories);
+            return Err(format!("Failed to copy {}: {error}", file.source.display()));
+        }
+        copied_files.push(file.destination.clone());
+    }
+
+    for file in &files {
+        let copied_size = match std::fs::metadata(&file.destination) {
+            Ok(metadata) => metadata.len(),
+            Err(error) => {
+                cleanup_copied_files(&copied_files, &created_directories);
+                return Err(format!(
+                    "Failed to verify {}: {error}",
+                    file.destination.display()
+                ));
+            }
+        };
+        if copied_size != file.size {
+            cleanup_copied_files(&copied_files, &created_directories);
+            return Err(format!(
+                "Copied file verification failed: {}",
+                file.destination.display()
+            ));
+        }
+    }
+
+    let mut cleanup_failures = 0;
+    for file in &files {
+        if std::fs::remove_file(&file.source).is_err() {
+            cleanup_failures += 1;
+        }
+    }
+    directories.sort_by_key(|(source, _)| std::cmp::Reverse(source.components().count()));
+    let mut removed_source_dirs = HashSet::new();
+    for (source, _) in &directories {
+        if removed_source_dirs.insert(normalized_path_key(source))
+            && std::fs::remove_dir(source).is_err()
+        {
+            if source.exists() {
+                cleanup_failures += 1;
+            }
+        }
+    }
+
+    Ok(FolderMigrationResult {
+        files_moved: files.len(),
+        bytes_moved: files.iter().map(|file| file.size).sum(),
+        cleanup_failures,
+    })
+}
+
+#[tauri::command]
+async fn migrate_folders(moves: Vec<FolderMove>) -> Result<FolderMigrationResult, String> {
+    tokio::task::spawn_blocking(move || migrate_folders_blocking(moves))
+        .await
+        .map_err(|error| format!("Folder migration worker failed: {error}"))?
+}
+
+#[cfg(test)]
+mod folder_migration_tests {
+    use super::*;
+
+    fn test_root(name: &str) -> std::path::PathBuf {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("nais2-{name}-{nonce}"))
+    }
+
+    #[test]
+    fn migrates_files_after_verification() {
+        let root = test_root("folder-move");
+        let source = root.join("source");
+        let destination = root.join("destination");
+        std::fs::create_dir_all(source.join("nested")).unwrap();
+        std::fs::write(source.join("image.png"), b"image-data").unwrap();
+        std::fs::write(source.join("nested").join("thumb.webp"), b"thumbnail").unwrap();
+
+        let result = migrate_folders_blocking(vec![FolderMove {
+            source_path: source.to_string_lossy().into_owned(),
+            destination_path: destination.to_string_lossy().into_owned(),
+        }])
+        .unwrap();
+
+        assert_eq!(result.files_moved, 2);
+        assert!(!source.exists());
+        assert_eq!(
+            std::fs::read(destination.join("image.png")).unwrap(),
+            b"image-data"
+        );
+        assert_eq!(
+            std::fs::read(destination.join("nested").join("thumb.webp")).unwrap(),
+            b"thumbnail"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn maps_nested_scene_folder_only_once() {
+        let root = test_root("nested-folder-move");
+        let source_main = root.join("old-main");
+        let source_scene = source_main.join("NAIS_Scene");
+        let destination_main = root.join("new-main");
+        let destination_scene = root.join("new-scenes");
+        std::fs::create_dir_all(&source_scene).unwrap();
+        std::fs::write(source_main.join("main.png"), b"main").unwrap();
+        std::fs::write(source_scene.join("scene.png"), b"scene").unwrap();
+
+        let result = migrate_folders_blocking(vec![
+            FolderMove {
+                source_path: source_scene.to_string_lossy().into_owned(),
+                destination_path: destination_scene.to_string_lossy().into_owned(),
+            },
+            FolderMove {
+                source_path: source_main.to_string_lossy().into_owned(),
+                destination_path: destination_main.to_string_lossy().into_owned(),
+            },
+        ])
+        .unwrap();
+
+        assert_eq!(result.files_moved, 2);
+        assert!(destination_main.join("main.png").is_file());
+        assert!(destination_scene.join("scene.png").is_file());
+        assert!(!destination_main.join("NAIS_Scene").exists());
+        assert!(!source_main.exists());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct NativeCharacterReference {
     file_path: Option<String>,
     source_base64: Option<String>,
@@ -1529,6 +1867,7 @@ pub fn run() {
             create_reference_thumbnail,
             create_library_thumbnail,
             find_missing_files,
+            migrate_folders,
             generate_image_with_references,
             generate_image_stream_with_references,
             state_db_get,

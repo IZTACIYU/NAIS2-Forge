@@ -40,6 +40,7 @@ import {
     HardDrive,
     Cloud,
     SlidersHorizontal,
+    FolderInput,
 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
@@ -55,9 +56,21 @@ import { checkForAppUpdate } from '@/lib/app-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { getVersion } from '@tauri-apps/api/app'
 import { useUpdateStore, setCurrentUpdateObject, installPendingUpdate } from '@/stores/update-store'
-import { exportAllData, importAllData, getStoreSizes } from '@/lib/indexed-db'
+import { exportAllData, importAllData, getStoreSizes, flushAllPendingWrites } from '@/lib/indexed-db'
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useLibraryStore } from '@/stores/library-store'
+import { useSceneStore } from '@/stores/scene-store'
+import { useGenerationStore } from '@/stores/generation-store'
+import {
+    createSaveFolderMigration,
+    migrateFolders,
+    remapLibraryItems,
+    remapScenePresetImages,
+    resolveConfiguredFolder,
+    type FolderMigrationResult,
+    type PathMapping,
+} from '@/lib/storage-migration'
 
 const LANGUAGES = [
     { code: 'ko', name: '한국어' },
@@ -109,6 +122,12 @@ export default function Settings() {
     const [lastBackupTime, setLastBackupTime] = useState<string | null>(null)
     const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
     const [pendingRestore, setPendingRestore] = useState<Record<string, unknown> | null>(null)
+    const [pendingFolderMove, setPendingFolderMove] = useState<'save' | 'library' | null>(null)
+    const [movingFolder, setMovingFolder] = useState<'save' | 'library' | null>(null)
+
+    const savePathChanged = localSavePath !== savePath || isAbsolutePath !== useAbsolutePath
+    const libraryPathChanged = localLibraryPath !== libraryPath
+        || isAbsoluteLibraryPath !== useAbsoluteLibraryPath
 
     useEffect(() => {
         getVersion().then(setAppVersion).catch(() => setAppVersion('dev'))
@@ -201,6 +220,76 @@ export default function Settings() {
         setIsAbsoluteLibraryPath(false)
         setLibraryPath('NAIS_Library', false)
         toast({ title: t('settingsPage.saved'), variant: 'success' })
+    }
+
+    const showMigrationResult = (result: FolderMigrationResult) => {
+        const hasCleanupWarning = result.cleanupFailures > 0
+        toast({
+            title: t(hasCleanupWarning
+                ? 'settingsPage.storageMigration.completedWithWarning'
+                : 'settingsPage.storageMigration.completed'),
+            description: t('settingsPage.storageMigration.completedDesc', {
+                count: result.filesMoved,
+                size: formatSize(result.bytesMoved),
+                failures: result.cleanupFailures,
+            }),
+            variant: hasCleanupWarning ? 'destructive' : 'success',
+        })
+    }
+
+    const handleMoveFolder = async (target: 'save' | 'library') => {
+        setPendingFolderMove(null)
+        if (target === 'save'
+            && (useGenerationStore.getState().isGenerating || useSceneStore.getState().isGenerating)) {
+            toast({
+                title: t('settingsPage.storageMigration.busy'),
+                variant: 'destructive',
+            })
+            return
+        }
+
+        setMovingFolder(target)
+        try {
+            let result: FolderMigrationResult
+            if (target === 'save') {
+                const migration = await createSaveFolderMigration(
+                    savePath,
+                    useAbsolutePath,
+                    localSavePath,
+                    isAbsolutePath,
+                )
+                result = await migrateFolders(migration.moves)
+
+                if (migration.sceneMappings.length > 0) {
+                    const sceneState = useSceneStore.getState()
+                    const presets = remapScenePresetImages(sceneState.presets, migration.sceneMappings)
+                    if (presets !== sceneState.presets) useSceneStore.setState({ presets })
+                }
+                setSavePath(localSavePath, isAbsolutePath)
+            } else {
+                const oldRoot = await resolveConfiguredFolder(libraryPath, useAbsoluteLibraryPath, 'NAIS_Library')
+                const newRoot = await resolveConfiguredFolder(localLibraryPath, isAbsoluteLibraryPath, 'NAIS_Library')
+                result = await migrateFolders([{ sourcePath: oldRoot, destinationPath: newRoot }])
+
+                const mappings: PathMapping[] = [{ oldPath: oldRoot, newPath: newRoot }]
+                const libraryState = useLibraryStore.getState()
+                const items = remapLibraryItems(libraryState.items, mappings)
+                if (items !== libraryState.items) libraryState.setItems(items)
+                setLibraryPath(localLibraryPath, isAbsoluteLibraryPath)
+            }
+
+            await flushAllPendingWrites()
+            showMigrationResult(result)
+        } catch (error) {
+            console.error('Folder migration failed:', error)
+            toast({
+                title: t('settingsPage.storageMigration.failed'),
+                description: String(error),
+                variant: 'destructive',
+            })
+        } finally {
+            setMovingFolder(null)
+        }
     }
     
     // 백업 내보내기
@@ -337,6 +426,43 @@ export default function Settings() {
                         </Button>
                         <Button type="button" variant="destructive" onClick={confirmImportBackup}>
                             {t('settingsPage.backup.import')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            <Dialog open={pendingFolderMove !== null} onOpenChange={(open) => {
+                if (!open) setPendingFolderMove(null)
+            }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <FolderInput className="h-5 w-5 text-yellow-500" />
+                            {t('settingsPage.storageMigration.confirmTitle')}
+                        </DialogTitle>
+                        <DialogDescription className="space-y-3 pt-2">
+                            <span className="block">{t('settingsPage.storageMigration.confirmDesc')}</span>
+                            <span className="block rounded-md bg-muted px-3 py-2 font-mono text-xs text-foreground break-all">
+                                {pendingFolderMove === 'library' ? libraryPath : savePath}
+                            </span>
+                            <span className="block text-center text-muted-foreground">↓</span>
+                            <span className="block rounded-md bg-muted px-3 py-2 font-mono text-xs text-foreground break-all">
+                                {pendingFolderMove === 'library' ? localLibraryPath : localSavePath}
+                            </span>
+                            <span className="block font-medium text-yellow-600 dark:text-yellow-400">
+                                {t('settingsPage.storageMigration.confirmWarning')}
+                            </span>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setPendingFolderMove(null)}>
+                            {t('common.cancel')}
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={() => pendingFolderMove && void handleMoveFolder(pendingFolderMove)}
+                        >
+                            <FolderInput className="h-4 w-4 mr-2" />
+                            {t('settingsPage.storageMigration.moveFolder')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -824,6 +950,7 @@ export default function Settings() {
                                     <div className="flex gap-2">
                                         <Input
                                             value={localSavePath}
+                                            disabled={movingFolder !== null}
                                             onChange={(e) => {
                                                 setLocalSavePath(e.target.value)
                                                 // If user manually types, assume it's relative unless it looks like an absolute path
@@ -833,16 +960,31 @@ export default function Settings() {
                                             placeholder="NAIS_Output"
                                             className="flex-1"
                                         />
-                                        <Button variant="outline" onClick={handleBrowseFolder}>
+                                        <Button variant="outline" onClick={handleBrowseFolder} disabled={movingFolder !== null}>
                                             <FolderOpen className="h-4 w-4 mr-2" />
                                             {t('settingsPage.save.browse', 'Browse')}
                                         </Button>
+                                        {savePathChanged && (
+                                            <Tip content={t('settingsPage.storageMigration.moveFolder')}>
+                                                <Button
+                                                    variant="outline"
+                                                    size="icon"
+                                                    onClick={() => setPendingFolderMove('save')}
+                                                    disabled={movingFolder !== null}
+                                                >
+                                                    {movingFolder === 'save'
+                                                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                        : <FolderInput className="h-4 w-4" />}
+                                                </Button>
+                                            </Tip>
+                                        )}
                                         <Button
                                             onClick={handleSavePath}
-                                            variant={(localSavePath !== savePath || isAbsolutePath !== useAbsolutePath) ? "default" : "outline"}
-                                            className={(localSavePath !== savePath || isAbsolutePath !== useAbsolutePath)
+                                            variant={savePathChanged ? "default" : "outline"}
+                                            className={savePathChanged
                                                 ? "animate-pulse bg-yellow-500 hover:bg-yellow-600 text-black shadow-lg shadow-yellow-500/50"
                                                 : ""}
+                                            disabled={movingFolder !== null}
                                         >
                                             <Save className="h-4 w-4 mr-2" />
                                             {t('settingsPage.saveBtn')}
@@ -891,6 +1033,7 @@ export default function Settings() {
                                     <div className="flex gap-2">
                                         <Input
                                             value={localLibraryPath}
+                                            disabled={movingFolder !== null}
                                             onChange={(e) => {
                                                 setLocalLibraryPath(e.target.value)
                                                 const isAbsolute = /^[A-Za-z]:[\\/]/.test(e.target.value) || e.target.value.startsWith('/')
@@ -899,16 +1042,31 @@ export default function Settings() {
                                             placeholder="NAIS_Library"
                                             className="flex-1"
                                         />
-                                        <Button variant="outline" onClick={handleBrowseLibraryFolder}>
+                                        <Button variant="outline" onClick={handleBrowseLibraryFolder} disabled={movingFolder !== null}>
                                             <FolderOpen className="h-4 w-4 mr-2" />
                                             {t('settingsPage.save.browse', 'Browse')}
                                         </Button>
+                                        {libraryPathChanged && (
+                                            <Tip content={t('settingsPage.storageMigration.moveFolder')}>
+                                                <Button
+                                                    variant="outline"
+                                                    size="icon"
+                                                    onClick={() => setPendingFolderMove('library')}
+                                                    disabled={movingFolder !== null}
+                                                >
+                                                    {movingFolder === 'library'
+                                                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                        : <FolderInput className="h-4 w-4" />}
+                                                </Button>
+                                            </Tip>
+                                        )}
                                         <Button
                                             onClick={handleSaveLibraryPath}
-                                            variant={(localLibraryPath !== libraryPath || isAbsoluteLibraryPath !== useAbsoluteLibraryPath) ? "default" : "outline"}
-                                            className={(localLibraryPath !== libraryPath || isAbsoluteLibraryPath !== useAbsoluteLibraryPath)
+                                            variant={libraryPathChanged ? "default" : "outline"}
+                                            className={libraryPathChanged
                                                 ? "animate-pulse bg-yellow-500 hover:bg-yellow-600 text-black shadow-lg shadow-yellow-500/50"
                                                 : ""}
+                                            disabled={movingFolder !== null}
                                         >
                                             <Save className="h-4 w-4 mr-2" />
                                             {t('settingsPage.saveBtn')}

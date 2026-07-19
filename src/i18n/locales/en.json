@@ -640,6 +640,17 @@
       "absolutePathHelp": "Library files will be saved to this exact folder.",
       "selectFolder": "Select Library Folder"
     },
+    "storageMigration": {
+      "moveFolder": "Move Folder",
+      "confirmTitle": "Move the folder to the new location?",
+      "confirmDesc": "Files and linked path data will be migrated to the new location.",
+      "confirmWarning": "Do not close the application until copying and verification finish.",
+      "completed": "Folder migration complete",
+      "completedWithWarning": "Folder migration complete (some old files need cleanup)",
+      "completedDesc": "Moved {{count}} files ({{size}}). Cleanup failures: {{failures}}",
+      "failed": "Folder migration failed",
+      "busy": "The save folder cannot be moved while images are being generated."
+    },
     "streaming": {
       "title": "Streaming Generation",
       "description": "Show real-time progress during image generation"

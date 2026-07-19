@@ -639,6 +639,17 @@
       "absolutePathHelp": "ライブラリファイルはこのフォルダに直接保存されます。",
       "selectFolder": "ライブラリフォルダを選択"
     },
+    "storageMigration": {
+      "moveFolder": "フォルダを移動",
+      "confirmTitle": "フォルダを新しい場所へ移動しますか？",
+      "confirmDesc": "現在のファイルとリンクされたパスデータを新しい場所へ移行します。",
+      "confirmWarning": "コピーと検証が完了するまでアプリを終了しないでください。",
+      "completed": "フォルダの移行が完了しました",
+      "completedWithWarning": "フォルダの移行完了（旧ファイルの一部を整理してください）",
+      "completedDesc": "{{count}}個のファイル（{{size}}）を移行しました。整理失敗: {{failures}}個",
+      "failed": "フォルダの移行に失敗しました",
+      "busy": "画像生成中は保存フォルダを移動できません。"
+    },
     "streaming": {
       "title": "ストリーミング生成",
       "description": "画像生成中にリアルタイムの進行状況を表示します"
