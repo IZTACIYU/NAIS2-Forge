@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AutocompleteTextarea } from '@/components/ui/AutocompleteTextarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
     Dialog,
     DialogContent,
@@ -216,6 +217,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     const [editingGroupName, setEditingGroupName] = useState('')
     const [activeId, setActiveId] = useState<string | null>(null)
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+    const [genderFilter, setGenderFilter] = useState<'all' | CharacterGender>('all')
     const [folderPanelOpen, setFolderPanelOpen] = useState(true)
     const folderPanelRef = useRef<HTMLDivElement | null>(null)
     const [folderPanelWidth, setFolderPanelWidth] = useState(() => {
@@ -573,11 +575,14 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
 
     const normalizedSearch = searchQuery.trim().toLowerCase()
     const characterMatchesSearch = useCallback((character: CharacterPrompt) => {
+        if (expertCharacterPromptGenderIndicatorEnabled && genderFilter !== 'all' && getCharacterGender(character.prompt) !== genderFilter) {
+            return false
+        }
         if (!normalizedSearch) return true
         const name = character.name?.toLowerCase() || ''
         const promptPreview = character.prompt?.split(',')[0]?.trim().toLowerCase() || ''
         return name.includes(normalizedSearch) || promptPreview.includes(normalizedSearch)
-    }, [normalizedSearch])
+    }, [expertCharacterPromptGenderIndicatorEnabled, genderFilter, normalizedSearch])
     const groupById = useMemo(() => new Map(groups.map(group => [group.id, group])), [groups])
     const groupIds = useMemo(() => new Set(groupById.keys()), [groupById])
     const characterIndexById = useMemo(
@@ -600,25 +605,30 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         if (selectedGroupId && !groupIds.has(selectedGroupId)) setSelectedGroupId(null)
     }, [groupIds, selectedGroupId])
 
+    const visibleStackCharacters = useMemo(
+        () => getVisibleStackCharacters(characters),
+        [characters, getVisibleStackCharacters]
+    )
+
     const visibleCharacters = useMemo(() => {
-        const source = characters.filter(character => {
+        return visibleStackCharacters.filter(character => {
             if (normalizedSearch) return characterMatchesSearch(character)
+            if (!characterMatchesSearch(character)) return false
             return selectedGroupId
                 ? character.groupId === selectedGroupId
                 : !character.groupId || !groupIds.has(character.groupId)
         })
-        return getVisibleStackCharacters(source)
-    }, [characterMatchesSearch, characters, getVisibleStackCharacters, groupIds, normalizedSearch, selectedGroupId])
+    }, [characterMatchesSearch, groupIds, normalizedSearch, selectedGroupId, visibleStackCharacters])
 
     const legacyUngroupedCharacters = useMemo(() => getVisibleStackCharacters(
-        characters.filter(character =>
+        visibleStackCharacters.filter(character =>
             (!character.groupId || !groupIds.has(character.groupId)) && characterMatchesSearch(character)
         )
-    ), [characterMatchesSearch, characters, getVisibleStackCharacters, groupIds])
+    ), [characterMatchesSearch, getVisibleStackCharacters, groupIds, visibleStackCharacters])
 
     const groupCharacterCounts = useMemo(() => {
         const directCounts = new Map<string, number>()
-        for (const character of getVisibleStackCharacters(characters)) {
+        for (const character of visibleStackCharacters.filter(characterMatchesSearch)) {
             if (character.groupId && groupIds.has(character.groupId)) {
                 directCounts.set(character.groupId, (directCounts.get(character.groupId) || 0) + 1)
             }
@@ -638,16 +648,30 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         }
         for (const group of groups) countGroup(group.id, new Set())
         return totals
-    }, [characters, getVisibleStackCharacters, groupChildren, groupIds, groups])
+    }, [characterMatchesSearch, groupChildren, groupIds, groups, visibleStackCharacters])
 
     const ungroupedCount = useMemo(() => getVisibleStackCharacters(
-        characters.filter(character => !character.groupId || !groupIds.has(character.groupId))
-    ).length, [characters, getVisibleStackCharacters, groupIds])
+        visibleStackCharacters.filter(character => (!character.groupId || !groupIds.has(character.groupId)) && characterMatchesSearch(character))
+    ).length, [characterMatchesSearch, getVisibleStackCharacters, groupIds, visibleStackCharacters])
     const enabledCharacters = useMemo(
         () => characters.filter(character => character.enabled),
         [characters]
     )
     const enabledCharacterCount = enabledCharacters.length
+    const genderFilterActive = expertCharacterPromptGenderIndicatorEnabled && genderFilter !== 'all'
+    const shouldRenderGroup = useCallback(
+        (group: CharacterGroup) => !genderFilterActive || (groupCharacterCounts.get(group.id) || 0) > 0,
+        [genderFilterActive, groupCharacterCounts]
+    )
+    const visibleRootGroups = useMemo(
+        () => (groupChildren.get('root') || []).filter(shouldRenderGroup),
+        [groupChildren, shouldRenderGroup]
+    )
+
+    useEffect(() => {
+        const selectedGroup = selectedGroupId ? groupById.get(selectedGroupId) : undefined
+        if (selectedGroup && !shouldRenderGroup(selectedGroup)) setSelectedGroupId(null)
+    }, [groupById, selectedGroupId, shouldRenderGroup])
 
     const renderCharacterCard = (char: CharacterPrompt) => {
         const index = characterIndexById.get(char.id) ?? 0
@@ -708,8 +732,10 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     )
 
     const renderFolderTree = (group: CharacterGroup, depth = 0): React.ReactNode => {
+        if (!shouldRenderGroup(group)) return null
         const folderColor = FOLDER_COLORS[group.colorIndex ?? 0]
         const children = groupChildren.get(group.id) || []
+        const visibleChildren = children.filter(shouldRenderGroup)
         const descendants = getCharacterGroupDescendantIds(groups, group.id)
         const moveTargets = groups.filter(target => !descendants.has(target.id))
 
@@ -738,10 +764,10 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                 className="flex h-6 w-5 shrink-0 items-center justify-center"
                                 onClick={(event) => {
                                     event.stopPropagation()
-                                    if (children.length > 0) toggleGroupCollapsed(group.id)
+                                    if (visibleChildren.length > 0) toggleGroupCollapsed(group.id)
                                 }}
                             >
-                                {children.length > 0 && (group.collapsed
+                            {visibleChildren.length > 0 && (group.collapsed
                                     ? <ChevronRight className="h-3.5 w-3.5" />
                                     : <ChevronDown className="h-3.5 w-3.5" />
                                 )}
@@ -825,12 +851,12 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                     </ContextMenuContent>
                 </ContextMenu>
                 </DroppableFolder>
-                {!group.collapsed && children.length > 0 && (
+                {!group.collapsed && visibleChildren.length > 0 && (
                     <SortableContext
-                        items={children.map(child => `folder-${child.id}`)}
+                        items={visibleChildren.map(child => `folder-${child.id}`)}
                         strategy={verticalListSortingStrategy}
                     >
-                        {children.map(child => renderFolderTree(child, depth + 1))}
+                        {visibleChildren.map(child => renderFolderTree(child, depth + 1))}
                     </SortableContext>
                 )}
             </div>
@@ -838,11 +864,11 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     }
 
     const renderLegacyFolder = (group: CharacterGroup, depth = 0): React.ReactNode => {
+        if (!shouldRenderGroup(group)) return null
         const folderColor = FOLDER_COLORS[group.colorIndex ?? 0]
         const children = groupChildren.get(group.id) || []
-        const folderCharacters = getVisibleStackCharacters(
-            characters.filter(character => character.groupId === group.id && characterMatchesSearch(character))
-        )
+        const visibleChildren = children.filter(shouldRenderGroup)
+        const folderCharacters = visibleStackCharacters.filter(character => character.groupId === group.id && characterMatchesSearch(character))
         const descendants = getCharacterGroupDescendantIds(groups, group.id)
         const moveTargets = groups.filter(target => !descendants.has(target.id))
 
@@ -971,12 +997,12 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                 </DroppableFolder>
                 {!group.collapsed && (
                     <div className={cn("ml-2 min-h-8 space-y-1.5 border-l-2 pb-2 pl-2 pt-1", folderColor.border)}>
-                        {children.length > 0 && (
+                        {visibleChildren.length > 0 && (
                             <SortableContext
-                                items={children.map(child => `folder-${child.id}`)}
+                                items={visibleChildren.map(child => `folder-${child.id}`)}
                                 strategy={verticalListSortingStrategy}
                             >
-                                {children.map(child => renderLegacyFolder(child, depth + 1))}
+                                {visibleChildren.map(child => renderLegacyFolder(child, depth + 1))}
                             </SortableContext>
                         )}
                         <SortableContext
@@ -1157,6 +1183,37 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                             className="h-8 pl-8 text-sm"
                         />
                     </div>
+                    {expertCharacterPromptGenderIndicatorEnabled && (
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant={genderFilter === 'all' ? 'ghost' : 'secondary'}
+                                    size="icon"
+                                    className="h-8 w-8 shrink-0"
+                                    aria-label={t('characterPanel.genderFilter')}
+                                >
+                                    <SlidersHorizontal className="h-4 w-4" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" className="w-auto p-2">
+                                <div className="flex items-center gap-1.5">
+                                    <Button type="button" variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full", genderFilter === 'all' && "bg-muted text-foreground")} onClick={() => setGenderFilter('all')} aria-label={t('characterPanel.genderFilterAll')}>
+                                        <Users className="h-4 w-4" />
+                                    </Button>
+                                    <Button type="button" variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full text-blue-400", genderFilter === 'male' && "bg-blue-500/15 ring-1 ring-blue-400/60")} onClick={() => setGenderFilter('male')} aria-label={t('characterPanel.genderFilterMale')}>
+                                        <span aria-hidden="true" className="text-lg font-semibold leading-none">♂</span>
+                                    </Button>
+                                    <Button type="button" variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full text-pink-400", genderFilter === 'female' && "bg-pink-500/15 ring-1 ring-pink-400/60")} onClick={() => setGenderFilter('female')} aria-label={t('characterPanel.genderFilterFemale')}>
+                                        <span aria-hidden="true" className="text-lg font-semibold leading-none">♀</span>
+                                    </Button>
+                                    <Button type="button" variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full text-muted-foreground", genderFilter === 'unknown' && "bg-muted ring-1 ring-muted-foreground/60")} onClick={() => setGenderFilter('unknown')} aria-label={t('characterPanel.genderFilterOther')}>
+                                        <User className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                    )}
                 </div>
 
                 <DndContext
@@ -1205,10 +1262,10 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                         </button>
                                     </DroppableUngrouped>
                                     <SortableContext
-                                        items={(groupChildren.get('root') || []).map(group => `folder-${group.id}`)}
+                                        items={visibleRootGroups.map(group => `folder-${group.id}`)}
                                         strategy={verticalListSortingStrategy}
                                     >
-                                        {(groupChildren.get('root') || []).map(group => renderFolderTree(group))}
+                                        {visibleRootGroups.map(group => renderFolderTree(group))}
                                     </SortableContext>
                                 </div>
                             </ScrollArea>
@@ -1311,10 +1368,10 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                 ) : (
                                     <>
                                         <SortableContext
-                                            items={(groupChildren.get('root') || []).map(group => `folder-${group.id}`)}
+                                            items={visibleRootGroups.map(group => `folder-${group.id}`)}
                                             strategy={verticalListSortingStrategy}
                                         >
-                                            {(groupChildren.get('root') || []).map(group => renderLegacyFolder(group))}
+                                            {visibleRootGroups.map(group => renderLegacyFolder(group))}
                                         </SortableContext>
                                         <DroppableUngrouped isActive={activeId !== null}>
                                             <SortableContext
