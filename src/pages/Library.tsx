@@ -931,13 +931,13 @@ export default function Library() {
             {/* Full-Screen Image Viewer Overlay */}
             {viewerImageSrc && (
                 <div
-                    className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center cursor-pointer"
+                    className="absolute inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/90 p-4 cursor-pointer"
                     onClick={() => setViewerImageSrc(null)}
                 >
                     <img
                         src={viewerImageSrc}
                         alt="Full view"
-                        className="max-w-[90vw] max-h-[90vh] object-contain"
+                        className="min-h-0 min-w-0 max-h-full max-w-full object-contain"
                         onClick={(e) => e.stopPropagation()}
                     />
                     <Button

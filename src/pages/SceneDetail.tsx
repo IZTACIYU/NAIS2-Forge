@@ -334,7 +334,7 @@ export default function SceneDetail() {
         : scene.images
 
     return (
-        <div className="flex flex-col h-full gap-4">
+        <div className="relative flex h-full flex-col gap-4">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -726,7 +726,7 @@ export default function SceneDetail() {
             {/* Full-Screen Image Viewer Overlay with Context Menu */}
             {viewerImageSrc && viewerImage && (
                 <div
-                    className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center cursor-pointer"
+                    className="absolute inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/90 p-4 cursor-pointer"
                     onClick={() => {
                         setViewerImageSrc(null)
                         setViewerImage(null)
@@ -783,7 +783,7 @@ export default function SceneDetail() {
                         <img
                             src={viewerImageSrc}
                             alt="Full view"
-                            className="max-w-[90vw] max-h-[90vh] object-contain cursor-default"
+                            className="min-h-0 min-w-0 max-h-full max-w-full object-contain cursor-default"
                             onClick={(e) => e.stopPropagation()}
                             onContextMenu={(e) => e.stopPropagation()}
                         />
