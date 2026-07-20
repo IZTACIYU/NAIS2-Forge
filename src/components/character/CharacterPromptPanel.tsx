@@ -1642,7 +1642,7 @@ function CharacterCard({
                         {/* Card Header - Drag Handle */}
                         <div
                             className={cn(
-                                "flex w-full min-w-0 max-w-full items-center gap-3 overflow-hidden px-3.5 py-3 cursor-grab transition-colors active:cursor-grabbing",
+                                "flex w-full min-w-0 max-w-full items-center gap-2.5 overflow-hidden px-3 py-2.5 cursor-grab transition-colors active:cursor-grabbing",
                                 isGenderHeaderMode && gender === 'male' && "bg-blue-500/15 hover:bg-blue-500/20",
                                 isGenderHeaderMode && gender === 'female' && "bg-pink-500/15 hover:bg-pink-500/20",
                                 (!isGenderHeaderMode || gender === 'unknown') && "bg-muted/30 hover:bg-muted/50",
@@ -1652,18 +1652,18 @@ function CharacterCard({
                         >
                             {/* 캐릭터 아이콘 */}
                             <div className={cn(
-                                "h-8 w-8 shrink-0 rounded-lg border border-transparent flex items-center justify-center",
+                                "h-[30px] w-[30px] shrink-0 rounded-lg border border-transparent flex items-center justify-center",
                                 isGenderIconMode && gender === 'male' && "bg-blue-500/15 text-blue-400",
                                 isGenderIconMode && gender === 'female' && "bg-pink-500/15 text-pink-400",
                                 (!isGenderIconMode || gender === 'unknown') && "bg-primary/10 text-primary",
                             )}>
-                                <User className="h-4.5 w-4.5" />
+                                {isGenderIconMode && gender === 'male' ? <span aria-hidden="true" className="text-lg font-semibold leading-none">♂</span> : isGenderIconMode && gender === 'female' ? <span aria-hidden="true" className="text-lg font-semibold leading-none">♀</span> : <User className="h-4 w-4" />}
                             </div>
 
                             {/* 캐릭터 번호 뱃지 - 위치 활성화시 색상 표시 */}
                             <div
                                 className={cn(
-                                    "w-6 h-6 rounded-md flex items-center justify-center text-xs font-semibold shrink-0 transition-colors",
+                                    "h-[22px] w-[22px] rounded-md flex items-center justify-center text-[11px] font-semibold shrink-0 transition-colors",
                                     positionEnabled
                                         ? "text-white"
                                         : "bg-muted-foreground/20 text-muted-foreground"
@@ -1673,7 +1673,7 @@ function CharacterCard({
                                 {index + 1}
                             </div>
 
-                            <span className="w-0 min-w-0 flex-1 truncate text-[15px] font-semibold">
+                            <span className="w-0 min-w-0 flex-1 truncate text-[14.5px] font-semibold">
                                 {getVariantBaseName(
                                     character,
                                     character.prompt
@@ -1685,7 +1685,7 @@ function CharacterCard({
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 shrink-0"
+                                className="h-[26px] w-[26px] shrink-0"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     onToggleEnabled()
