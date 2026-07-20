@@ -1398,7 +1398,7 @@ function DroppableFolder({ folderId, isActive, isCollapsed, colorClass, children
             {...attributes}
             {...listeners}
             className={cn(
-                "transition-all duration-200 rounded-lg",
+                "transition-[background-color,box-shadow,opacity] duration-200 rounded-lg",
                 isActive && isCollapsed && "ring-2 ring-dashed ring-current/30",
                 isOver && cn("ring-2 ring-current", colorClass),
                 isDragging && "opacity-60 shadow-lg"
@@ -1424,7 +1424,7 @@ function DroppableUngrouped({ isActive, children }: DroppableUngroupedProps) {
         <div
             ref={setNodeRef}
             className={cn(
-                "transition-all duration-200 rounded-lg min-h-[40px]",
+                "transition-[background-color,box-shadow,opacity] duration-200 rounded-lg min-h-[40px]",
                 isActive && "ring-2 ring-dashed ring-primary/30",
                 isOver && "ring-2 ring-primary bg-primary/10"
             )}
@@ -1638,7 +1638,7 @@ function CharacterCard({
                     <div
                         data-character-prompt-id={character.id}
                         className={cn(
-                            "w-full min-w-0 max-w-full rounded-xl border border-border/50 bg-background/60 transition-all duration-200 overflow-hidden",
+                            "w-full min-w-0 max-w-full rounded-xl border border-border/50 bg-background/60 transition-[background-color,border-color,opacity] duration-200 overflow-hidden",
                             !character.enabled && "opacity-50"
                         )}
                     >
@@ -1716,7 +1716,7 @@ function CharacterCard({
                                     <div className="flex h-[332px] min-w-0 flex-col gap-3">
                                         <div
                                             className={cn(
-                                                "min-w-0 overflow-hidden flex flex-col transition-all duration-200",
+                                                "min-w-0 overflow-hidden flex flex-col transition-[height,flex-grow,flex-basis] duration-200",
                                                 primaryPromptCollapsed && "h-7 flex-none"
                                             )}
                                             style={primaryPromptCollapsed ? undefined : { flex: '150 1 0%' }}
@@ -1766,7 +1766,7 @@ function CharacterCard({
                                         </div>
                                         <div
                                             className={cn(
-                                                "min-w-0 overflow-hidden flex flex-col transition-all duration-200",
+                                                "min-w-0 overflow-hidden flex flex-col transition-[height,flex-grow,flex-basis] duration-200",
                                                 secondaryPromptCollapsed && "h-7 flex-none"
                                             )}
                                             style={secondaryPromptCollapsed ? undefined : { flex: '110 1 0%' }}
@@ -1797,7 +1797,7 @@ function CharacterCard({
                                     <div className="flex h-[376px] min-w-0 flex-col gap-3">
                                         <div
                                             className={cn(
-                                                "min-w-0 overflow-hidden flex flex-col transition-all duration-200",
+                                                "min-w-0 overflow-hidden flex flex-col transition-[height,flex-grow,flex-basis] duration-200",
                                                 primaryPromptCollapsed && "h-7 flex-none"
                                             )}
                                             style={primaryPromptCollapsed ? undefined : { flex: '180 1 0%' }}
@@ -1823,7 +1823,7 @@ function CharacterCard({
                                         </div>
                                         <div
                                             className={cn(
-                                                "min-w-0 overflow-hidden flex flex-col transition-all duration-200",
+                                                "min-w-0 overflow-hidden flex flex-col transition-[height,flex-grow,flex-basis] duration-200",
                                                 secondaryPromptCollapsed && "h-7 flex-none"
                                             )}
                                             style={secondaryPromptCollapsed ? undefined : { flex: '140 1 0%' }}
