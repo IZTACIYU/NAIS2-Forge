@@ -91,6 +91,15 @@ interface CharacterPromptPanelProps {
 const COSTUME_MARKER = '\n#!-\uc758\uc0c1\ud504\ub86c\n'
 const FOLDER_PANEL_WIDTH_STORAGE_KEY = 'nais2-forge-character-folder-panel-width'
 
+type CharacterGender = 'male' | 'female' | 'unknown'
+
+const getCharacterGender = (prompt: string): CharacterGender => {
+    const firstTag = prompt.split(',')[0]?.trim().toLowerCase()
+    if (['boy', '1boy', 'male', 'faceless male', 'monster boy'].includes(firstTag)) return 'male'
+    if (['girl', '1girl', 'female', 'faceless female', 'monster girl'].includes(firstTag)) return 'female'
+    return 'unknown'
+}
+
 const splitCostumePrompt = (prompt: string) => {
     const normalized = prompt.replace(/\r\n/g, '\n')
     const marker = '#!-\uc758\uc0c1\ud504\ub86c'
@@ -217,6 +226,8 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     const expertCharacterPromptFolderBrowserEnabled = useSettingsStore(state => state.expertCharacterPromptFolderBrowserEnabled)
     const expertCharacterPromptLayoutEnabled = useSettingsStore(state => state.expertCharacterPromptLayoutEnabled)
     const expertCharacterPromptVariantsEnabled = useSettingsStore(state => state.expertCharacterPromptVariantsEnabled)
+    const expertCharacterPromptGenderIndicatorEnabled = useSettingsStore(state => state.expertCharacterPromptGenderIndicatorEnabled)
+    const characterPromptGenderIndicatorMode = useSettingsStore(state => state.characterPromptGenderIndicatorMode)
 
     const startFolderPanelResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
         event.preventDefault()
@@ -658,6 +669,8 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                 expertCharacterPromptLayoutEnabled={expertCharacterPromptLayoutEnabled}
                 onAddVariant={() => handleAddVariant(char)}
                 expertCharacterPromptVariantsEnabled={expertCharacterPromptVariantsEnabled}
+                expertCharacterPromptGenderIndicatorEnabled={expertCharacterPromptGenderIndicatorEnabled}
+                characterPromptGenderIndicatorMode={characterPromptGenderIndicatorMode}
                 onSelectVariant={activateVariant}
                 onReorderVariants={handleReorderVariants}
             />
@@ -1428,6 +1441,8 @@ function haveSameCharacterCardProps(previous: CharacterCardProps, next: Characte
         || previous.groups !== next.groups
         || previous.expertCharacterPromptLayoutEnabled !== next.expertCharacterPromptLayoutEnabled
         || previous.expertCharacterPromptVariantsEnabled !== next.expertCharacterPromptVariantsEnabled
+        || previous.expertCharacterPromptGenderIndicatorEnabled !== next.expertCharacterPromptGenderIndicatorEnabled
+        || previous.characterPromptGenderIndicatorMode !== next.characterPromptGenderIndicatorMode
     ) return false
 
     if (!next.expertCharacterPromptVariantsEnabled) return true
@@ -1492,6 +1507,8 @@ interface CharacterCardProps {
     allCharacters: CharacterPrompt[]
     expertCharacterPromptLayoutEnabled: boolean
     expertCharacterPromptVariantsEnabled: boolean
+    expertCharacterPromptGenderIndicatorEnabled: boolean
+    characterPromptGenderIndicatorMode: 'icon' | 'header'
     onAddVariant: () => void
     onSelectVariant: (id: string) => void
     onReorderVariants: (activeId: string, overId: string) => void
@@ -1553,6 +1570,8 @@ function CharacterCard({
     allCharacters,
     expertCharacterPromptLayoutEnabled,
     expertCharacterPromptVariantsEnabled,
+    expertCharacterPromptGenderIndicatorEnabled,
+    characterPromptGenderIndicatorMode,
     onAddVariant,
     onSelectVariant,
     onReorderVariants,
@@ -1572,6 +1591,9 @@ function CharacterCard({
     const promptEnabled = character.promptEnabled ?? true
     const negativeEnabled = character.negativeEnabled ?? true
     const costumeEnabled = character.costumeEnabled ?? true
+    const gender = expertCharacterPromptGenderIndicatorEnabled ? getCharacterGender(character.prompt) : 'unknown'
+    const isGenderIconMode = characterPromptGenderIndicatorMode === 'icon'
+    const isGenderHeaderMode = characterPromptGenderIndicatorMode === 'header'
     const variants = expertCharacterPromptVariantsEnabled ? allCharacters
         .filter(c => getStackKey(c) === getStackKey(character))
         .sort((a, b) => getVariantIndex(a) - getVariantIndex(b)) : [character]
@@ -1619,19 +1641,29 @@ function CharacterCard({
                     >
                         {/* Card Header - Drag Handle */}
                         <div
-                            className="flex w-full min-w-0 max-w-full items-center gap-2.5 overflow-hidden px-3 py-2.5 cursor-grab hover:bg-muted/50 transition-colors bg-muted/30 active:cursor-grabbing"
+                            className={cn(
+                                "flex w-full min-w-0 max-w-full items-center gap-3 overflow-hidden px-3.5 py-3 cursor-grab transition-colors active:cursor-grabbing",
+                                isGenderHeaderMode && gender === 'male' && "bg-blue-500/15 hover:bg-blue-500/20",
+                                isGenderHeaderMode && gender === 'female' && "bg-pink-500/15 hover:bg-pink-500/20",
+                                (!isGenderHeaderMode || gender === 'unknown') && "bg-muted/30 hover:bg-muted/50",
+                            )}
                             onClick={onToggleExpand}
                             {...dragHandleProps}
                         >
                             {/* 캐릭터 아이콘 */}
-                            <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                <User className="h-4 w-4 text-primary" />
+                            <div className={cn(
+                                "h-8 w-8 shrink-0 rounded-lg border border-transparent flex items-center justify-center",
+                                isGenderIconMode && gender === 'male' && "bg-blue-500/15 text-blue-400",
+                                isGenderIconMode && gender === 'female' && "bg-pink-500/15 text-pink-400",
+                                (!isGenderIconMode || gender === 'unknown') && "bg-primary/10 text-primary",
+                            )}>
+                                <User className="h-4.5 w-4.5" />
                             </div>
 
                             {/* 캐릭터 번호 뱃지 - 위치 활성화시 색상 표시 */}
                             <div
                                 className={cn(
-                                    "w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-semibold shrink-0 transition-colors",
+                                    "w-6 h-6 rounded-md flex items-center justify-center text-xs font-semibold shrink-0 transition-colors",
                                     positionEnabled
                                         ? "text-white"
                                         : "bg-muted-foreground/20 text-muted-foreground"
@@ -1641,7 +1673,7 @@ function CharacterCard({
                                 {index + 1}
                             </div>
 
-                            <span className="w-0 min-w-0 flex-1 truncate text-sm font-medium">
+                            <span className="w-0 min-w-0 flex-1 truncate text-[15px] font-semibold">
                                 {getVariantBaseName(
                                     character,
                                     character.prompt
@@ -1653,23 +1685,23 @@ function CharacterCard({
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 shrink-0"
+                                className="h-7 w-7 shrink-0"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     onToggleEnabled()
                                 }}
                             >
                                 {character.enabled ? (
-                                    <Eye className="h-3.5 w-3.5 text-primary" />
+                                    <Eye className="h-4 w-4 text-primary" />
                                 ) : (
-                                    <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
                                 )}
                             </Button>
                             <div className="shrink-0">
                                 {isExpanded ? (
-                                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                    <ChevronUp className="h-4.5 w-4.5 text-muted-foreground" />
                                 ) : (
-                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                    <ChevronDown className="h-4.5 w-4.5 text-muted-foreground" />
                                 )}
                             </div>
                         </div>
