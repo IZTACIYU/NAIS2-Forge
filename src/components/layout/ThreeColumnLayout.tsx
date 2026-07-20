@@ -95,6 +95,10 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const [randomCharacterDialogOpen, setRandomCharacterDialogOpen] = useState(false)
 
     useEffect(() => {
+        if (location.pathname !== '/') setFragmentPanelOpen(false)
+    }, [location.pathname])
+
+    useEffect(() => {
         leftWidthRef.current = leftSidebarWidth
         rightWidthRef.current = rightSidebarWidth
     }, [leftSidebarWidth, rightSidebarWidth])
