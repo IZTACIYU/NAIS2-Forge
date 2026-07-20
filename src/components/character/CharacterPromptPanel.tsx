@@ -23,6 +23,7 @@ import {
     Save,
     Palette,
     Menu,
+    CircleHelp,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -1589,6 +1590,9 @@ function CharacterCard({
                                                         className={cn("px-2 py-1 rounded-md", activePromptTab === 'negative' ? "bg-destructive/15 text-destructive" : "text-muted-foreground hover:bg-muted")}
                                                         onClick={() => setActivePromptTab('negative')}
                                                     >{t('characterPanel.negative', 'Negative')}</button>
+                                                    <Tip content={t('characterPanel.commentHint', 'Use # followed by a space for comments. #target and #source are sent to NovelAI.') }>
+                                                        <CircleHelp className="h-3.5 w-3.5 text-muted-foreground" />
+                                                    </Tip>
                                                 </div>
                                                 <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => activePromptTab === 'prompt' ? onUpdate({ promptEnabled: !promptEnabled }) : onUpdate({ negativeEnabled: !negativeEnabled })}>
                                                     {(activePromptTab === 'prompt' ? promptEnabled : negativeEnabled) ? <Eye className="h-3.5 w-3.5 text-primary" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
@@ -1657,6 +1661,9 @@ function CharacterCard({
                                             >
                                                 {primaryPromptCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
                                                 <span className="whitespace-nowrap">{t('characterPanel.prompt', 'Prompt')}</span>
+                                                <Tip content={t('characterPanel.commentHint', 'Use # followed by a space for comments. #target and #source are sent to NovelAI.') }>
+                                                    <CircleHelp className="h-3.5 w-3.5 text-muted-foreground" />
+                                                </Tip>
                                             </button>
                                             {!primaryPromptCollapsed && <AutocompleteTextarea
                                                 value={character.prompt}

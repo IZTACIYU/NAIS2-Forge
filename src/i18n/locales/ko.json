@@ -284,6 +284,7 @@
     "noPresets": "저장된 캐릭터가 없습니다.",
     "promptPlaceholder": "캐릭터 프롬프트...",
     "negativePlaceholder": "네거티브 프롬프트 (선택)...",
+    "commentHint": "주석은 # 뒤에 공백을 넣은 줄만 제외됩니다. #target, #source는 NovelAI로 전송됩니다.",
     "positionGrid": "위치 그리드",
     "stage": "스테이지",
     "activeList": "활성 리스트",

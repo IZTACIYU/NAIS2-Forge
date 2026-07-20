@@ -283,6 +283,7 @@
     "noPresets": "No character presets saved.",
     "promptPlaceholder": "Character prompt...",
     "negativePlaceholder": "Negative prompt (optional)...",
+    "commentHint": "Use # followed by a space for comments. #target and #source are sent to NovelAI.",
     "positionGrid": "Position Grid",
     "stage": "Stage",
     "activeList": "Active List",

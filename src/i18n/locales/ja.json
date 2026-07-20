@@ -282,6 +282,7 @@
     "noPresets": "保存されたキャラクターがありません。",
     "promptPlaceholder": "キャラクタープロンプト...",
     "negativePlaceholder": "ネガティブプロンプト（任意）...",
+    "commentHint": "コメントは # の直後に空白を入れた行だけです。#target と #source は NovelAI へ送信されます。",
     "positionGrid": "位置グリッド",
     "stage": "ステージ",
     "activeList": "アクティブリスト",

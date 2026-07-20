@@ -5,6 +5,7 @@ import { getCaretCoordinates } from '@/utils/caret-coords'
 import { cn } from '@/lib/utils'
 import { searchTags } from '@/lib/tag-search-client'
 import { useFragmentStore } from '@/stores/fragment-store'
+import { isPromptCommentLine } from '@/lib/prompt-comments'
 
 // --- Types ---
 interface SuggestionItem {
@@ -410,7 +411,7 @@ export function AutocompleteTextarea({
         return (
             <Fragment>
                 {lines.map((line, lineIndex) => {
-                    const isComment = line.trimStart().startsWith('#')
+                    const isComment = isPromptCommentLine(line)
                     const isLastLine = lineIndex === lines.length - 1
 
                     // 二쇱꽍 以꾩씤 寃쎌슦 ?꾩껜瑜??뚯깋 諛곌꼍?쇰줈

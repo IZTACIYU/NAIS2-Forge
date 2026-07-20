@@ -11,6 +11,7 @@ import { generateImage, generateImageStream, GenerationParams } from '@/services
 import { BaseDirectory, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { processWildcards } from '@/lib/fragment-processor'
+import { removePromptComments } from '@/lib/prompt-comments'
 import { useCharacterStore } from '@/stores/character-store'
 import { sendSystemNotification } from '@/lib/system-notification'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
@@ -194,20 +195,14 @@ export function useSceneGeneration() {
                 // Get fresh generation store state
                 const genState = useGenerationStore.getState()
 
-                // Helper to remove comment lines (lines starting with #)
-                const removeComments = (text: string) => text
-                    .split('\n')
-                    .filter(line => !line.trimStart().startsWith('#'))
-                    .join('\n')
-
                 // Construct Prompt (including inpaintingPrompt if in inpaint mode)
                 const parts = [
-                    removeComments(genState.basePrompt),
+                    removePromptComments(genState.basePrompt),
                     // Add inpainting prompt after basePrompt (same as main mode)
-                    genState.i2iMode === 'inpaint' ? removeComments(genState.inpaintingPrompt) : null,
-                    removeComments(genState.additionalPrompt),
-                    removeComments(scene.scenePrompt),
-                    removeComments(genState.detailPrompt),
+                    genState.i2iMode === 'inpaint' ? removePromptComments(genState.inpaintingPrompt) : null,
+                    removePromptComments(genState.additionalPrompt),
+                    removePromptComments(scene.scenePrompt),
+                    removePromptComments(genState.detailPrompt),
                 ].filter(p => p && p.trim())
 
                 // Apply wildcard/fragment processing to final prompt (async)
@@ -353,7 +348,7 @@ export function useSceneGeneration() {
 
                 const params: GenerationParams = {
                     prompt: finalPrompt,
-                    negative_prompt: removeComments(genState.negativePrompt),
+                    negative_prompt: removePromptComments(genState.negativePrompt),
                     steps: genState.steps,
                     cfg_scale: genState.cfgScale,
                     cfg_rescale: genState.cfgRescale,

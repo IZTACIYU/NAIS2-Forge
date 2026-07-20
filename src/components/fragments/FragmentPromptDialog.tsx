@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { AutocompleteTextarea } from '@/components/ui/AutocompleteTextarea'
 import { useFragmentStore, FragmentFileMeta } from '@/stores/fragment-store'
+import { isPromptCommentLine } from '@/lib/prompt-comments'
 import {
     DndContext,
     closestCenter,
@@ -136,7 +137,7 @@ export function FragmentPromptDialog({ open, onOpenChange, embedded = false }: F
         const lines = editingContent
             .split('\n')
             .map(line => line.trim())
-            .filter(line => line.length > 0 && !line.startsWith('#'))
+            .filter(line => line.length > 0 && !isPromptCommentLine(line))
 
         await updateFile(selectedFileId, {
             name: editingName.trim(),
@@ -651,14 +652,14 @@ export function FragmentPromptDialog({ open, onOpenChange, embedded = false }: F
                                             setHasChanges(true)
                                         }}
                                         className="h-full w-full border-0 focus-within:ring-0 rounded-none bg-transparent font-mono"
-                                        placeholder={t('fragment.contentPlaceholder', '한 줄에 하나씩 옵션을 입력하세요.\n# 으로 시작하는 줄은 주석입니다.\n\n예시:\nlong hair, blue eyes\nshort hair, red eyes\ntwintails, green eyes')}
+                                        placeholder={t('fragment.contentPlaceholder', '한 줄에 하나씩 옵션을 입력하세요.\n# 뒤에 공백이 있는 줄은 주석입니다.\n#target, #source는 그대로 전송됩니다.\n\n예시:\nlong hair, blue eyes\nshort hair, red eyes\ntwintails, green eyes')}
                                         style={{ fontSize: '0.875rem' }}
                                     />
                                 </div>
 
                                 <div className="p-2 border-t bg-muted/50 flex justify-between items-center">
                                     <span className="text-xs text-muted-foreground">
-                                        {editingContent.split('\n').filter(l => l.trim() && !l.trim().startsWith('#')).length} {t('fragment.lines', '개 항목')}
+                                        {editingContent.split('\n').filter(l => l.trim() && !isPromptCommentLine(l)).length} {t('fragment.lines', '개 항목')}
                                     </span>
                                 </div>
                             </>

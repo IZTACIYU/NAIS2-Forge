@@ -415,8 +415,10 @@ export const useGenerationStore = create<GenerationState>()(
 
                         const buildCharacterPromptForGeneration = (char: typeof characterPrompts[number]) => {
                             const { expertCharacterPromptLayoutEnabled } = useSettingsStore.getState()
-                            if (!expertCharacterPromptLayoutEnabled) return char.prompt
                             const { characterPrompt, costumePrompt } = splitCharacterCostumePrompt(char.prompt)
+                            if (!expertCharacterPromptLayoutEnabled) {
+                                return [characterPrompt, costumePrompt].filter(part => part.trim()).join('\n')
+                            }
                             const parts: string[] = []
                             if (char.promptEnabled !== false && characterPrompt.trim()) parts.push(characterPrompt)
                             if (char.costumeEnabled !== false && costumePrompt.trim()) parts.push(costumePrompt)
