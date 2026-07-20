@@ -217,7 +217,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     const [activeId, setActiveId] = useState<string | null>(null)
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
     const [folderPanelOpen, setFolderPanelOpen] = useState(true)
-    const folderPanelResizeFrameRef = useRef<number | null>(null)
+    const folderPanelRef = useRef<HTMLDivElement | null>(null)
     const [folderPanelWidth, setFolderPanelWidth] = useState(() => {
         const savedWidth = Number(window.localStorage.getItem(FOLDER_PANEL_WIDTH_STORAGE_KEY))
         return Number.isFinite(savedWidth) && savedWidth > 0
@@ -242,17 +242,9 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
 
         const handleMouseMove = (moveEvent: MouseEvent) => {
             nextWidth = Math.min(maxWidth, Math.max(120, startWidth + moveEvent.clientX - startX))
-            if (folderPanelResizeFrameRef.current !== null) return
-            folderPanelResizeFrameRef.current = window.requestAnimationFrame(() => {
-                folderPanelResizeFrameRef.current = null
-                setFolderPanelWidth(currentWidth => currentWidth === nextWidth ? currentWidth : nextWidth)
-            })
+            folderPanelRef.current?.style.setProperty('width', `${nextWidth}px`)
         }
         const handleMouseUp = () => {
-            if (folderPanelResizeFrameRef.current !== null) {
-                window.cancelAnimationFrame(folderPanelResizeFrameRef.current)
-                folderPanelResizeFrameRef.current = null
-            }
             setFolderPanelWidth(currentWidth => currentWidth === nextWidth ? currentWidth : nextWidth)
             window.localStorage.setItem(FOLDER_PANEL_WIDTH_STORAGE_KEY, String(Math.round(nextWidth)))
             document.body.style.cursor = previousCursor
@@ -1179,6 +1171,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                         {folderPanelOpen && (
                         <>
                         <div
+                            ref={folderPanelRef}
                             className="flex min-w-[120px] shrink-0 flex-col bg-background/20"
                             style={{ width: folderPanelWidth, maxWidth: 'calc(100% - 180px)' }}
                         >
