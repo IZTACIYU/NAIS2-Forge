@@ -477,6 +477,9 @@ export function AutocompleteTextarea({
                     overflow-wrap: anywhere !important;
                     word-break: break-word !important;
                     box-sizing: border-box !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    overflow-x: hidden !important;
                 }
                 .prompt-editor-wrapper textarea {
                     overflow: hidden !important;
@@ -487,8 +490,8 @@ export function AutocompleteTextarea({
             {/* Scrollable Container */}
             <div
                 ref={containerRef}
-                className="flex-1 min-w-0 w-full max-w-full relative overflow-y-auto"
-                style={{ scrollBehavior: 'smooth' }} // Optional smooth scroll
+                className="flex-1 min-w-0 w-full max-w-full relative overflow-x-hidden overflow-y-auto"
+                style={{ scrollBehavior: 'smooth', overscrollBehaviorX: 'none' }}
             >
                 <Editor
                     value={internalValue}
@@ -504,6 +507,8 @@ export function AutocompleteTextarea({
                         minHeight: '100%',
                         height: 'auto',
                         overflow: 'visible',
+                        width: '100%',
+                        maxWidth: '100%',
                     }}
 
                     // Wrapper Class
