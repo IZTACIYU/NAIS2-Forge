@@ -93,10 +93,13 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const [presetDialogOpen, setPresetDialogOpen] = useState(false)
     const [fragmentPanelOpen, setFragmentPanelOpen] = useState(false)
     const [randomCharacterDialogOpen, setRandomCharacterDialogOpen] = useState(false)
+    const fragmentPanelPathRef = useRef<string | null>(null)
 
     useEffect(() => {
-        if (location.pathname !== '/') setFragmentPanelOpen(false)
-    }, [location.pathname])
+        if (!fragmentPanelOpen || fragmentPanelPathRef.current === location.pathname) return
+        fragmentPanelPathRef.current = null
+        setFragmentPanelOpen(false)
+    }, [fragmentPanelOpen, location.pathname])
 
     useEffect(() => {
         leftWidthRef.current = leftSidebarWidth
@@ -160,7 +163,13 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     // 프리셋 다이얼로그 단축키 이벤트 수신
     useEffect(() => {
         const handleOpenPreset = () => setPresetDialogOpen(prev => !prev)
-        const handleOpenFragment = () => setFragmentPanelOpen(prev => !prev)
+        const handleOpenFragment = () => {
+            setFragmentPanelOpen(prev => {
+                const next = !prev
+                fragmentPanelPathRef.current = next ? location.pathname : null
+                return next
+            })
+        }
 
         window.addEventListener(SHORTCUT_EVENTS.OPEN_PRESET_DIALOG, handleOpenPreset)
         window.addEventListener(SHORTCUT_EVENTS.OPEN_FRAGMENT_DIALOG, handleOpenFragment)
@@ -168,7 +177,7 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
             window.removeEventListener(SHORTCUT_EVENTS.OPEN_PRESET_DIALOG, handleOpenPreset)
             window.removeEventListener(SHORTCUT_EVENTS.OPEN_FRAGMENT_DIALOG, handleOpenFragment)
         }
-    }, [])
+    }, [location.pathname])
 
     // Calculate cached vs uncached vibes (only enabled ones)
     const enabledVibes = vibeImages.filter(v => v.enabled !== false)
@@ -345,7 +354,10 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                             <div data-native-webview-overlay="true" className="absolute inset-0 z-40 bg-card/95 backdrop-blur-sm">
                                 <FragmentPromptDialog
                                     open={fragmentPanelOpen}
-                                    onOpenChange={setFragmentPanelOpen}
+                                    onOpenChange={(open) => {
+                                        fragmentPanelPathRef.current = open ? location.pathname : null
+                                        setFragmentPanelOpen(open)
+                                    }}
                                     embedded
                                 />
                             </div>
