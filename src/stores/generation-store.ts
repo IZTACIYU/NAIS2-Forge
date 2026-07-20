@@ -9,6 +9,7 @@ import { pictureDir, join } from '@tauri-apps/api/path'
 import { useCharacterStore } from './character-store'
 import { useCharacterPromptStore } from './character-prompt-store'
 import { processWildcards } from '@/lib/fragment-processor'
+import { removePromptComments } from '@/lib/prompt-comments'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 import i18n from '@/i18n'
 import { toast } from '@/components/ui/use-toast'
@@ -351,17 +352,11 @@ export const useGenerationStore = create<GenerationState>()(
 
                         const startTime = Date.now()
                         
-                        // Helper to remove comment lines (lines starting with #)
-                        const removeComments = (text: string) => text
-                            .split('\n')
-                            .filter(line => !line.trimStart().startsWith('#'))
-                            .join('\n')
-                        
                         let finalPrompt = [
-                            removeComments(basePrompt),
-                            removeComments(inpaintingPrompt),
-                            removeComments(additionalPrompt),
-                            removeComments(detailPrompt)
+                            removePromptComments(basePrompt),
+                            removePromptComments(inpaintingPrompt),
+                            removePromptComments(additionalPrompt),
+                            removePromptComments(detailPrompt)
                         ].filter(Boolean).join(', ')
 
                         // Fragment Substitution - use processWildcards which handles <filename> syntax
@@ -431,8 +426,12 @@ export const useGenerationStore = create<GenerationState>()(
                         // Apply fragment/wildcard substitution to character prompts (async)
                         const processedCharacterPrompts = await Promise.all(
                             characterPromptsForGeneration.map(async c => {
-                                const processedPrompt = await processWildcards(buildCharacterPromptForGeneration(c))
-                                const processedNegative = await processWildcards(useSettingsStore.getState().expertCharacterPromptLayoutEnabled && c.negativeEnabled === false ? '' : c.negative)
+                                const characterPrompt = removePromptComments(buildCharacterPromptForGeneration(c))
+                                const characterNegative = useSettingsStore.getState().expertCharacterPromptLayoutEnabled && c.negativeEnabled === false
+                                    ? ''
+                                    : removePromptComments(c.negative)
+                                const processedPrompt = await processWildcards(characterPrompt)
+                                const processedNegative = await processWildcards(characterNegative)
                                 return {
                                     ...c,
                                     prompt: processedPrompt,
@@ -474,7 +473,7 @@ export const useGenerationStore = create<GenerationState>()(
 
                         const generationParams = {
                             prompt: finalPrompt,
-                            negative_prompt: removeComments(negativePrompt),
+                            negative_prompt: removePromptComments(negativePrompt),
                             model,
                             width: finalWidth,
                             height: finalHeight,

@@ -2,20 +2,11 @@ import JSZip from 'jszip'
 import { decode as msgpackDecode } from '@msgpack/msgpack'
 import { Channel, invoke } from '@tauri-apps/api/core'
 import { embedNais2Params } from '@/lib/nais2-png-meta'
+import { removePromptComments } from '@/lib/prompt-comments'
 
 // TESTING: Always use native window.fetch
 // Tauri's plugin-http causes 500 errors - the webview may handle CORS differently
 const CLIENT_FETCH = window.fetch.bind(window)
-
-/**
- * Remove comment lines from prompt (lines starting with #)
- */
-function removeComments(prompt: string): string {
-    return prompt
-        .split('\n')
-        .filter(line => !line.trimStart().startsWith('#'))
-        .join('\n')
-}
 
 const DEFAULT_HEADERS = {
     'Content-Type': 'application/json',
@@ -596,7 +587,7 @@ export async function generateImage(
             // V4 prompt format (with comments removed)
             v4_prompt: {
                 caption: {
-                    base_caption: removeComments(params.prompt),
+                    base_caption: removePromptComments(params.prompt),
                     char_captions: [] as { char_caption: string, centers: { x: number, y: number }[] }[],
                 },
                 use_coords: false,
@@ -604,7 +595,7 @@ export async function generateImage(
             },
             v4_negative_prompt: {
                 caption: {
-                    base_caption: removeComments(params.negative_prompt),
+                    base_caption: removePromptComments(params.negative_prompt),
                     char_captions: [] as { char_caption: string, centers: { x: number, y: number }[] }[],
                 },
                 legacy_uc: false,
@@ -621,13 +612,13 @@ export async function generateImage(
                         : [{ x: 0.5, y: 0.5 }]
 
                     apiParameters.v4_prompt.caption.char_captions.push({
-                        char_caption: removeComments(char.prompt),
+                        char_caption: removePromptComments(char.prompt),
                         centers: centers
                     })
                     // Always add negative char_caption (empty string if no negative)
                     // NAI requires 1:1 matching between positive and negative char_captions
                     apiParameters.v4_negative_prompt.caption.char_captions.push({
-                        char_caption: removeComments(char.negative?.trim() || ''),
+                        char_caption: removePromptComments(char.negative?.trim() || ''),
                         centers: centers
                     })
                 }
@@ -1125,7 +1116,7 @@ export async function generateImageStream(
             // V4 prompt format initialization (with comments removed)
             v4_prompt: {
                 caption: {
-                    base_caption: removeComments(params.prompt),
+                    base_caption: removePromptComments(params.prompt),
                     char_captions: [] as { char_caption: string, centers: { x: number, y: number }[] }[],
                 },
                 use_coords: false,
@@ -1133,7 +1124,7 @@ export async function generateImageStream(
             },
             v4_negative_prompt: {
                 caption: {
-                    base_caption: removeComments(params.negative_prompt),
+                    base_caption: removePromptComments(params.negative_prompt),
                     char_captions: [] as { char_caption: string, centers: { x: number, y: number }[] }[],
                 },
                 legacy_uc: false,
@@ -1150,13 +1141,13 @@ export async function generateImageStream(
                         : [{ x: 0.5, y: 0.5 }]
 
                     apiParameters.v4_prompt.caption.char_captions.push({
-                        char_caption: removeComments(char.prompt),
+                        char_caption: removePromptComments(char.prompt),
                         centers: centers
                     })
                     // Always add negative char_caption (empty string if no negative)
                     // NAI requires 1:1 matching between positive and negative char_captions
                     apiParameters.v4_negative_prompt.caption.char_captions.push({
-                        char_caption: removeComments(char.negative?.trim() || ''),
+                        char_caption: removePromptComments(char.negative?.trim() || ''),
                         centers: centers
                     })
                 }

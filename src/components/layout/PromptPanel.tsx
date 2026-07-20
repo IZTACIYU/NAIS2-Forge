@@ -50,6 +50,7 @@ import { useGenerationStore, AVAILABLE_MODELS } from '@/stores/generation-store'
 import { useSceneStore } from '@/stores/scene-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
+import { removePromptComments } from '@/lib/prompt-comments'
 import { useCharacterStore } from '@/stores/character-store'
 import { useFragmentStore } from '@/stores/fragment-store'
 import { ResolutionSelector } from '@/components/ui/ResolutionSelector'
@@ -171,21 +172,17 @@ export function PromptPanel() {
     const [tokenTotals, setTokenTotals] = useState({ positive: 0, negative: 0 })
 
     useEffect(() => {
-        const removeComments = (text: string) => text
-            .split('\n')
-            .filter(line => !line.trimStart().startsWith('#'))
-            .join('\n')
         const positive = [
             basePrompt,
             additionalPrompt,
             detailPrompt,
             activeScenePrompt,
             ...characters.filter(character => character.enabled).map(character => character.prompt),
-        ].map(removeComments).filter(text => text.trim()).join(', ')
+        ].map(removePromptComments).filter(text => text.trim()).join(', ')
         const negative = [
             negativePrompt,
             ...characters.filter(character => character.enabled).map(character => character.negative),
-        ].map(removeComments).filter(text => text.trim()).join(', ')
+        ].map(removePromptComments).filter(text => text.trim()).join(', ')
         if (!positive && !negative) {
             setTokenTotals({ positive: 0, negative: 0 })
             return
