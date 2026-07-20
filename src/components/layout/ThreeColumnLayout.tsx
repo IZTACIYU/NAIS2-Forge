@@ -342,7 +342,7 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                     )}>
                         {children}
                         {fragmentPanelOpen && (
-                            <div className="absolute inset-0 z-40 bg-card/95 backdrop-blur-sm">
+                            <div data-native-webview-overlay="true" className="absolute inset-0 z-40 bg-card/95 backdrop-blur-sm">
                                 <FragmentPromptDialog
                                     open={fragmentPanelOpen}
                                     onOpenChange={setFragmentPanelOpen}

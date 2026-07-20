@@ -49,6 +49,7 @@ export default function WebView() {
     const resizePendingRef = useRef(false)
     const lastResizeKeyRef = useRef('')
     const storeRef = useRef<Store | null>(null)
+    const hiddenForOverlayRef = useRef(false)
     const [zoomLevel, setZoomLevel] = useState(1.0)
 
     // Zoom function for buttons
@@ -71,15 +72,6 @@ export default function WebView() {
             console.error('Zoom reset failed:', error)
         }
     }, [])
-
-    // Hide WebView when dialog opens (z-index fix)
-    useEffect(() => {
-        if (isAddDialogOpen && isBrowserOpen) {
-            invoke('hide_embedded_browser').catch(() => { })
-        } else if (!isAddDialogOpen && isBrowserOpen) {
-            invoke('show_embedded_browser').catch(() => { })
-        }
-    }, [isAddDialogOpen, isBrowserOpen])
 
     // Initialize store and load quick links
     useEffect(() => {
@@ -166,6 +158,49 @@ export default function WebView() {
             }
         })
     }, [isBrowserOpen])
+
+    const syncBrowserOverlayVisibility = useCallback(() => {
+        if (!isBrowserOpen) return
+        const hasOverlay = Boolean(document.querySelector(
+            '[data-native-webview-overlay="true"], [role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]'
+        ))
+        if (hasOverlay === hiddenForOverlayRef.current) return
+        hiddenForOverlayRef.current = hasOverlay
+        if (hasOverlay) {
+            invoke('hide_embedded_browser').catch(() => { })
+        } else {
+            invoke('show_embedded_browser').then(updateWebViewSize).catch(() => { })
+        }
+    }, [isBrowserOpen, updateWebViewSize])
+
+    // Native webviews render above DOM content, so hide them while app dialogs
+    // or explicitly marked in-app overlays are open.
+    useEffect(() => {
+        if (!isBrowserOpen) {
+            hiddenForOverlayRef.current = false
+            return
+        }
+        let frameId: number | null = null
+        const scheduleSync = () => {
+            if (frameId !== null) return
+            frameId = requestAnimationFrame(() => {
+                frameId = null
+                syncBrowserOverlayVisibility()
+            })
+        }
+        const observer = new MutationObserver(scheduleSync)
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['data-state', 'data-native-webview-overlay'],
+        })
+        scheduleSync()
+        return () => {
+            observer.disconnect()
+            if (frameId !== null) cancelAnimationFrame(frameId)
+        }
+    }, [isBrowserOpen, syncBrowserOverlayVisibility])
 
     // Check if browser exists and restore on mount
     useEffect(() => {

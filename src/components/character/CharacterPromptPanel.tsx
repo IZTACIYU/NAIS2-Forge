@@ -984,6 +984,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         <>
             {/* 패널 - absolute로 프롬프트 영역 위에 오버레이 */}
             <div
+                data-native-webview-overlay="true"
                 className={cn(
                     "absolute inset-0 z-10 min-w-0 overflow-hidden flex flex-col bg-muted/95 backdrop-blur-sm rounded-xl border border-border/50",
                     "animate-in slide-in-from-bottom-4 duration-200"
