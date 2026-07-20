@@ -1574,6 +1574,11 @@ function CharacterCard({
     const variants = expertCharacterPromptVariantsEnabled ? allCharacters
         .filter(c => getStackKey(c) === getStackKey(character))
         .sort((a, b) => getVariantIndex(a) - getVariantIndex(b)) : [character]
+    const variantSensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: { distance: 6 },
+        })
+    )
     const [variantNames, setVariantNames] = useState<Record<string, string>>({})
 
     useEffect(() => {
@@ -1810,6 +1815,7 @@ function CharacterCard({
                                         <div className="flex items-center gap-1">
                                             {variants.length > 1 && (
                                                 <DndContext
+                                                    sensors={variantSensors}
                                                     onDragEnd={({ active, over }) => {
                                                         if (!over) return
                                                         onReorderVariants(
