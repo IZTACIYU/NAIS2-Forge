@@ -1147,6 +1147,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
+                    autoScroll={false}
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
                 >
@@ -1816,6 +1817,7 @@ function CharacterCard({
                                             {variants.length > 1 && (
                                                 <DndContext
                                                     sensors={variantSensors}
+                                                    autoScroll={false}
                                                     onDragEnd={({ active, over }) => {
                                                         if (!over) return
                                                         onReorderVariants(
