@@ -1652,18 +1652,18 @@ function CharacterCard({
                         >
                             {/* 캐릭터 아이콘 */}
                             <div className={cn(
-                                "h-[30px] w-[30px] shrink-0 rounded-lg border border-transparent flex items-center justify-center",
+                                "h-7 w-7 shrink-0 rounded-lg border border-transparent flex items-center justify-center",
                                 isGenderIconMode && gender === 'male' && "bg-blue-500/15 text-blue-400",
                                 isGenderIconMode && gender === 'female' && "bg-pink-500/15 text-pink-400",
                                 (!isGenderIconMode || gender === 'unknown') && "bg-primary/10 text-primary",
                             )}>
-                                {isGenderIconMode && gender === 'male' ? <span aria-hidden="true" className="text-lg font-semibold leading-none">♂</span> : isGenderIconMode && gender === 'female' ? <span aria-hidden="true" className="text-lg font-semibold leading-none">♀</span> : <User className="h-4 w-4" />}
+                                {isGenderIconMode && gender === 'male' ? <span aria-hidden="true" className="text-base font-semibold leading-none">♂</span> : isGenderIconMode && gender === 'female' ? <span aria-hidden="true" className="text-base font-semibold leading-none">♀</span> : <User className="h-4 w-4" />}
                             </div>
 
                             {/* 캐릭터 번호 뱃지 - 위치 활성화시 색상 표시 */}
                             <div
                                 className={cn(
-                                    "h-[22px] w-[22px] rounded-md flex items-center justify-center text-[11px] font-semibold shrink-0 transition-colors",
+                                    "h-5 w-5 rounded-md flex items-center justify-center text-[10px] font-semibold shrink-0 transition-colors",
                                     positionEnabled
                                         ? "text-white"
                                         : "bg-muted-foreground/20 text-muted-foreground"
@@ -1673,7 +1673,7 @@ function CharacterCard({
                                 {index + 1}
                             </div>
 
-                            <span className="w-0 min-w-0 flex-1 truncate text-[14.5px] font-semibold">
+                            <span className="w-0 min-w-0 flex-1 truncate text-sm font-medium">
                                 {getVariantBaseName(
                                     character,
                                     character.prompt
@@ -1685,23 +1685,23 @@ function CharacterCard({
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-[26px] w-[26px] shrink-0"
+                                className="h-6 w-6 shrink-0"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     onToggleEnabled()
                                 }}
                             >
                                 {character.enabled ? (
-                                    <Eye className="h-4 w-4 text-primary" />
+                                    <Eye className="h-3.5 w-3.5 text-primary" />
                                 ) : (
-                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                    <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
                                 )}
                             </Button>
                             <div className="shrink-0">
                                 {isExpanded ? (
-                                    <ChevronUp className="h-4.5 w-4.5 text-muted-foreground" />
+                                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
                                 ) : (
-                                    <ChevronDown className="h-4.5 w-4.5 text-muted-foreground" />
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
                                 )}
                             </div>
                         </div>
