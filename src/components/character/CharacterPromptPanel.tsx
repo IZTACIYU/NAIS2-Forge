@@ -77,6 +77,7 @@ import {
 import {
     SortableContext,
     useSortable,
+    horizontalListSortingStrategy,
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -257,7 +258,9 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     )
 
     const handleDragStart = (event: DragStartEvent) => {
-        setActiveId(event.active.id as string)
+        const dragId = event.active.id as string
+        if (dragId.startsWith('variant-')) return
+        setActiveId(dragId)
         setExpandedId(null)
     }
 
@@ -269,6 +272,8 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         
         const activeItemId = active.id as string
         const overId = over.id as string
+
+        if (activeItemId.startsWith('variant-')) return
 
         if (activeItemId.startsWith('folder-')) {
             if (overId.startsWith('folder-')) {
@@ -362,6 +367,50 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         })
         if (changed) useCharacterPromptStore.setState({ characters: nextCharacters })
         setExpandedId(id)
+    }, [])
+
+    const handleReorderVariants = useCallback((activeId: string, overId: string) => {
+        if (activeId === overId) return
+        useCharacterPromptStore.setState(state => {
+            const active = state.characters.find(character => character.id === activeId)
+            const over = state.characters.find(character => character.id === overId)
+            if (!active || !over || getStackKey(active) !== getStackKey(over)) return state
+
+            const stack = state.characters
+                .filter(character => getStackKey(character) === getStackKey(active))
+                .sort((a, b) => getVariantIndex(a) - getVariantIndex(b))
+            const fromIndex = stack.findIndex(character => character.id === activeId)
+            const toIndex = stack.findIndex(character => character.id === overId)
+            if (fromIndex === -1 || toIndex === -1) return state
+
+            const reordered = [...stack]
+            const [moved] = reordered.splice(fromIndex, 1)
+            reordered.splice(toIndex, 0, moved)
+            const hash = getVariantHash(active)
+            if (!hash) return state
+
+            const reorderedById = new Map(reordered.map((character, index) => [
+                character.id,
+                {
+                    ...character,
+                    name: getVariantName(getVariantBaseName(character, 'Character'), index, hash),
+                },
+            ]))
+            const stackIds = new Set(reorderedById.keys())
+            const nextCharacters: CharacterPrompt[] = []
+            let inserted = false
+            for (const character of state.characters) {
+                if (!stackIds.has(character.id)) {
+                    nextCharacters.push(character)
+                    continue
+                }
+                if (!inserted) {
+                    nextCharacters.push(...reordered.map(character => reorderedById.get(character.id)!))
+                    inserted = true
+                }
+            }
+            return { characters: nextCharacters }
+        })
     }, [])
 
 
@@ -610,6 +659,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                 onAddVariant={() => handleAddVariant(char)}
                 expertCharacterPromptVariantsEnabled={expertCharacterPromptVariantsEnabled}
                 onSelectVariant={activateVariant}
+                onReorderVariants={handleReorderVariants}
             />
         )
     }
@@ -1443,7 +1493,46 @@ interface CharacterCardProps {
     expertCharacterPromptVariantsEnabled: boolean
     onAddVariant: () => void
     onSelectVariant: (id: string) => void
+    onReorderVariants: (activeId: string, overId: string) => void
     dragHandleProps?: React.HTMLAttributes<HTMLElement>
+}
+
+function SortableVariantButton({
+    variant,
+    index,
+    selected,
+    onSelect,
+}: {
+    variant: CharacterPrompt
+    index: number
+    selected: boolean
+    onSelect: (id: string) => void
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id: `variant-${variant.id}`,
+    })
+    const style: React.CSSProperties = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.55 : 1,
+        zIndex: isDragging ? 20 : undefined,
+    }
+
+    return (
+        <Button
+            ref={setNodeRef}
+            type="button"
+            size="icon"
+            variant={selected ? 'default' : 'outline'}
+            className="h-8 w-8 shrink-0 cursor-grab rounded-md active:cursor-grabbing"
+            style={style}
+            onClick={() => onSelect(variant.id)}
+            {...attributes}
+            {...listeners}
+        >
+            {index + 1}
+        </Button>
+    )
 }
 
 function CharacterCard({
@@ -1465,6 +1554,7 @@ function CharacterCard({
     expertCharacterPromptVariantsEnabled,
     onAddVariant,
     onSelectVariant,
+    onReorderVariants,
     dragHandleProps,
 }: CharacterCardProps) {
     const color = CHARACTER_COLORS[index % CHARACTER_COLORS.length]
@@ -1716,13 +1806,36 @@ function CharacterCard({
                                     </div>
                                 )}
                                 {expertCharacterPromptVariantsEnabled && (
-                                    <div className="flex items-center justify-between gap-2 py-1">
+                                        <div className="flex items-center justify-between gap-2 py-1">
                                         <div className="flex items-center gap-1">
-                                            {variants.length > 1 && variants.map((variant, i) => (
-                                                <Button key={variant.id} size="icon" variant={variant.id === character.id ? "default" : "outline"} className="h-8 w-8 rounded-md" onClick={() => onSelectVariant(variant.id)} disabled={variant.id === character.id}>
-                                                    {i + 1}
-                                                </Button>
-                                            ))}
+                                            {variants.length > 1 && (
+                                                <DndContext
+                                                    onDragEnd={({ active, over }) => {
+                                                        if (!over) return
+                                                        onReorderVariants(
+                                                            String(active.id).replace('variant-', ''),
+                                                            String(over.id).replace('variant-', ''),
+                                                        )
+                                                    }}
+                                                >
+                                                    <SortableContext
+                                                        items={variants.map(variant => `variant-${variant.id}`)}
+                                                        strategy={horizontalListSortingStrategy}
+                                                    >
+                                                        <div className="flex items-center gap-1">
+                                                            {variants.map((variant, i) => (
+                                                                <SortableVariantButton
+                                                                    key={variant.id}
+                                                                    variant={variant}
+                                                                    index={i}
+                                                                    selected={variant.id === character.id}
+                                                                    onSelect={onSelectVariant}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </SortableContext>
+                                                </DndContext>
+                                            )}
                                             {variants.length < 5 && (
                                                 <Button size="icon" variant="outline" className="h-8 w-8 rounded-md border-dashed" onClick={onAddVariant}>
                                                     <Plus className="h-3.5 w-3.5" />
