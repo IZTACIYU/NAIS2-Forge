@@ -374,31 +374,48 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
             .sort((a, b) => getVariantIndex(a) - getVariantIndex(b))
         if (stackCharacters.length >= 5) return
 
-        if (!getVariantHash(char)) {
-            updateCharacter(char.id, { name: getVariantName(baseName, 0, hash) })
-        }
+        const selectedStackIndex = stackCharacters.findIndex(variant => variant.id === char.id)
+        if (selectedStackIndex === -1) return
 
-        const usedIndexes = new Set(stackCharacters.map(c => getVariantIndex(c)))
-        let nextIndex = 1
-        while (usedIndexes.has(nextIndex) && nextIndex < 5) nextIndex++
-
-        addCharacter({
-            name: getVariantName(baseName, nextIndex, hash),
+        const newVariantId = `${Date.now()}${Math.random().toString(36).slice(2, 11)}`
+        const insertAfterIndex = selectedStackIndex + 1
+        const reindexedNames = new Map(stackCharacters.map((variant, index) => [
+            variant.id,
+            getVariantName(
+                getVariantBaseName(variant, baseName),
+                index >= insertAfterIndex ? index + 1 : index,
+                hash,
+            ),
+        ]))
+        const newVariant: CharacterPrompt = {
+            id: newVariantId,
+            name: getVariantName(baseName, insertAfterIndex, hash),
             prompt: char.prompt,
             negative: char.negative,
+            enabled: true,
             groupId: char.groupId,
             promptEnabled: char.promptEnabled ?? true,
             negativeEnabled: char.negativeEnabled ?? true,
             costumeEnabled: char.costumeEnabled ?? true,
             position: char.position,
-        })
-        setTimeout(() => {
-            const newChar = useCharacterPromptStore.getState().characters.slice(-1)[0]
-            if (newChar) {
-                activateVariant(newChar.id)
+        }
+
+        useCharacterPromptStore.setState(state => {
+            const updatedCharacters = state.characters.map(variant => {
+                const name = reindexedNames.get(variant.id)
+                return name ? { ...variant, name } : variant
+            })
+            const characterIndex = updatedCharacters.findIndex(variant => variant.id === char.id)
+            return {
+                characters: [
+                    ...updatedCharacters.slice(0, characterIndex + 1),
+                    newVariant,
+                    ...updatedCharacters.slice(characterIndex + 1),
+                ],
             }
-        }, 0)
-    }, [activateVariant, addCharacter, characters, updateCharacter])
+        })
+        activateVariant(newVariantId)
+    }, [activateVariant, characters])
 
     const handleToggleExpand = useCallback((id: string) => {
         setExpandedId(prev => prev === id ? null : id)
