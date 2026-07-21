@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertCircle, Dices, FolderTree, Search, Users } from 'lucide-react'
+import { AlertCircle, Dices, FolderTree, Search, Users, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -123,6 +123,20 @@ export function SceneRandomCharacterDialog({ open, onOpenChange }: SceneRandomCh
         })
     }
 
+    const clearCurrentSelection = () => {
+        if (mode === 'characters') {
+            updateConfig({ sceneRandomCharacterIds: [] })
+        } else if (mode === 'folders') {
+            updateConfig({ sceneRandomCharacterGroupIds: [] })
+        }
+    }
+
+    const selectedCount = mode === 'characters'
+        ? characterIds.length
+        : mode === 'folders'
+            ? groupIds.length
+            : 0
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl h-[80vh] flex flex-col overflow-hidden">
@@ -181,14 +195,27 @@ export function SceneRandomCharacterDialog({ open, onOpenChange }: SceneRandomCh
                 </div>
 
                 {mode !== 'all' && (
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                        <Input
-                            value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                            placeholder={t('sceneRandomCharacters.searchPlaceholder')}
-                            className="pl-9"
-                        />
+                    <div className="flex gap-2">
+                        <div className="relative min-w-0 flex-1">
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                            <Input
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder={t('sceneRandomCharacters.searchPlaceholder')}
+                                className="pl-9"
+                            />
+                        </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            disabled={selectedCount === 0}
+                            onClick={clearCurrentSelection}
+                            title={t('common.clear')}
+                            aria-label={t('common.clear')}
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
                     </div>
                 )}
 

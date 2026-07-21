@@ -55,7 +55,6 @@ export const getRandomCharacterCandidates = (
 ) => {
     const stacks = new Map<string, CharacterPrompt[]>()
     for (const character of characters) {
-        if (!character.prompt.trim() && !character.negative.trim()) continue
         const key = getRandomCharacterStackKey(character)
         const stack = stacks.get(key)
         if (stack) stack.push(character)
@@ -79,7 +78,13 @@ export const getRandomCharacterCandidates = (
         const stack = unsortedStack.length > 1
             ? [...unsortedStack].sort((a, b) => getVariantParts(a.name).index - getVariantParts(b.name).index)
             : unsortedStack
-        candidates.push(stack.find(character => character.enabled) || stack[0])
+        const hasPrompt = (character: CharacterPrompt) =>
+            Boolean(character.prompt?.trim() || character.negative?.trim())
+        const fallback = stack.find(hasPrompt)
+
+        // Keep a stack available when its active page is blank but another version has prompt data.
+        if (!fallback) continue
+        candidates.push(stack.find(character => character.enabled && hasPrompt(character)) || fallback)
     }
     return candidates
 }
