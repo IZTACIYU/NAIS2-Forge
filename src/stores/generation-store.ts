@@ -339,6 +339,7 @@ export const useGenerationStore = create<GenerationState>()(
                     generationSessionId: sessionId,
                     estimatedTime: lastGenerationTime ? lastGenerationTime * batchCount : null,
                     previewImage: null, // Clear previous preview to free memory
+                    previewSeed: null, // A history preview seed must not label a new generation.
                     streamProgress: 0,  // Reset streaming progress
                 })
 
@@ -353,6 +354,14 @@ export const useGenerationStore = create<GenerationState>()(
                         set({ currentBatch: i + 1 })
 
                         const startTime = Date.now()
+
+                        // Fix the seed before any asynchronous preparation so the streaming image,
+                        // seed display, and API request always refer to the same value.
+                        const lockedSeed = get().seed
+                        const currentSeed = get().seedLocked && lockedSeed !== 0
+                            ? lockedSeed
+                            : Math.floor(Math.random() * 4294967295)
+                        set({ seed: currentSeed, activeImageSeed: currentSeed })
                         
                         let finalPrompt = [
                             removePromptComments(basePrompt),
@@ -365,12 +374,7 @@ export const useGenerationStore = create<GenerationState>()(
                         // Wildcard Processing (handles both <filename> fragments and (a/b/c) random selection) - async
                         finalPrompt = await processWildcards(finalPrompt)
 
-                        // Decide the seed at generation time and use the same value for API/UI.
-                        const lockedSeed = get().seed
-                        const currentSeed = get().seedLocked && lockedSeed !== 0
-                            ? lockedSeed
-                            : Math.floor(Math.random() * 4294967295)
-                        set({ seed: currentSeed, activeImageSeed: currentSeed })
+                        if (get().isCancelled || get().generationSessionId !== sessionId) break
 
                         const { characterImages: allCharImages, vibeImages: allVibeImages } = useCharacterStore.getState()
                         const characterImages = allCharImages.filter(img => img.enabled !== false && (img.filePath || img.base64 || img.cacheKey))
