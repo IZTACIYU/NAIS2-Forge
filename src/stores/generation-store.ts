@@ -260,7 +260,9 @@ export const useGenerationStore = create<GenerationState>()(
             setStrength: (v) => set({ strength: v }),
             setNoise: (v) => set({ noise: v }),
             setMask: (mask) => set({ mask }),
-            setI2IMode: (mode) => set({ i2iMode: mode }),
+            setI2IMode: (mode) => set(mode === 'i2i'
+                ? { i2iMode: mode, mask: null, inpaintingPrompt: '' }
+                : { i2iMode: mode }),
             resetI2IParams: () => set({ sourceImage: null, mask: null, strength: 0.7, noise: 0.0, inpaintingPrompt: '', i2iMode: null }),
 
             // Memory cleanup - release large runtime data (previewImage, sourceImage, mask)
