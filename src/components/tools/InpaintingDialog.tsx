@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { useGenerationStore } from '@/stores/generation-store'
 import { useToolsStore } from '@/stores/tools-store'
 import { useTranslation } from 'react-i18next'
-import { Paintbrush, Eraser, Undo, Trash2, Save } from 'lucide-react'
+import { Paintbrush, Eraser, Undo, Trash2, Save, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
 
 interface InpaintingDialogProps {
     open: boolean
@@ -43,10 +43,12 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     const brushSize = [inpaintingBrushSize]
     const setBrushSize = (val: number[]) => setInpaintingBrushSize(val[0])
     const [isErasing, setIsErasing] = useState(false)
+    const [zoom, setZoom] = useState(1)
 
     // Canvas & State
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
+    const brushCursorRef = useRef<HTMLDivElement>(null)
     const maskSavedRef = useRef(false)
     const isDrawingRef = useRef(false)
     const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null)
@@ -95,8 +97,13 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
             setHistoryStep(0)
             setImageSize(null)
             setDisplaySize(null)
+            setZoom(1)
         }
     }, [open, propSourceImage, resetI2IParams, setSourceImage])
+
+    useEffect(() => {
+        if (open) setZoom(1)
+    }, [open, propSourceImage])
 
     // Initial Canvas Setup - Now also restores existing mask
     useEffect(() => {
@@ -287,6 +294,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
 
         e.currentTarget.setPointerCapture(e.pointerId)
 
+        updateBrushCursor(e)
         const rect = canvas.getBoundingClientRect()
         const scaleX = canvas.width / rect.width
         const scaleY = canvas.height / rect.height
@@ -317,6 +325,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     }
 
     const draw = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+        updateBrushCursor(e)
         if (!isDrawingRef.current || !lastGridPosRef.current) return
 
         const canvas = canvasRef.current
@@ -337,6 +346,28 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
             drawGridLine(ctx, lastGridPosRef.current.gx, lastGridPosRef.current.gy, gx, gy, isErasing)
             lastGridPosRef.current = { gx, gy }
         }
+    }
+
+    const updateBrushCursor = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+        const canvas = canvasRef.current
+        const cursor = brushCursorRef.current
+        if (!canvas || !cursor) return
+
+        const rect = canvas.getBoundingClientRect()
+        const x = e.clientX - rect.left
+        const y = e.clientY - rect.top
+        const brushGridSize = Math.max(1, Math.floor(inpaintingBrushSize / GRID_SIZE))
+        const brushRadius = Math.floor(brushGridSize / 2)
+        const brushPixels = (brushRadius * 2 + 1) * GRID_SIZE
+        const renderedBrushSize = brushPixels * (rect.width / canvas.width)
+        cursor.style.width = `${renderedBrushSize}px`
+        cursor.style.height = `${renderedBrushSize}px`
+        cursor.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`
+        cursor.style.opacity = '1'
+    }
+
+    const hideBrushCursor = () => {
+        if (brushCursorRef.current) brushCursorRef.current.style.opacity = '0'
     }
 
     const commitHistory = (action: MaskHistoryAction) => {
@@ -480,6 +511,49 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                             <div className="h-6 w-px bg-border mx-2" />
 
                             <div className="flex items-center gap-1">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setZoom(current => Math.max(0.5, current - 0.25))}
+                                    disabled={zoom <= 0.5}
+                                    title={t('tools.inpainting.zoomOut', 'Zoom out')}
+                                    aria-label={t('tools.inpainting.zoomOut', 'Zoom out')}
+                                >
+                                    <ZoomOut className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-14 tabular-nums"
+                                    onClick={() => setZoom(1)}
+                                    title={t('tools.inpainting.resetZoom', 'Reset zoom')}
+                                >
+                                    {Math.round(zoom * 100)}%
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setZoom(current => Math.min(3, current + 0.25))}
+                                    disabled={zoom >= 3}
+                                    title={t('tools.inpainting.zoomIn', 'Zoom in')}
+                                    aria-label={t('tools.inpainting.zoomIn', 'Zoom in')}
+                                >
+                                    <ZoomIn className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setZoom(1)}
+                                    title={t('tools.inpainting.resetZoom', 'Reset zoom')}
+                                    aria-label={t('tools.inpainting.resetZoom', 'Reset zoom')}
+                                >
+                                    <RotateCcw className="w-4 h-4" />
+                                </Button>
+                            </div>
+
+                            <div className="h-6 w-px bg-border mx-2" />
+
+                            <div className="flex items-center gap-1">
                                 <Button variant="ghost" size="icon" onClick={undo} disabled={historyStep <= 0}>
                                     <Undo className="w-4 h-4" />
                                 </Button>
@@ -492,14 +566,14 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                         {/* Canvas Container */}
                         <div
                             ref={containerRef}
-                            className="flex-1 relative overflow-hidden rounded-lg bg-muted/50 flex items-center justify-center p-4 min-h-0"
+                            className="flex-1 relative overflow-auto rounded-lg bg-muted/50 flex items-center justify-center p-4 min-h-0"
                         >
                             {propSourceImage && (
                                 <div
                                     className="relative shrink-0"
                                     style={{
-                                        width: displaySize ? `${displaySize.width}px` : '1px',
-                                        height: displaySize ? `${displaySize.height}px` : '1px',
+                                        width: displaySize ? `${Math.round(displaySize.width * zoom)}px` : '1px',
+                                        height: displaySize ? `${Math.round(displaySize.height * zoom)}px` : '1px',
                                         visibility: displaySize ? 'visible' : 'hidden',
                                     }}
                                 >
@@ -541,6 +615,13 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                                         onPointerMove={draw}
                                         onPointerUp={stopDrawing}
                                         onPointerCancel={stopDrawing}
+                                        onPointerEnter={updateBrushCursor}
+                                        onPointerLeave={hideBrushCursor}
+                                    />
+                                    <div
+                                        ref={brushCursorRef}
+                                        className="pointer-events-none absolute left-0 top-0 rounded-full border-2 border-white/90 bg-primary/15 shadow-[0_0_0_1px_rgba(0,0,0,0.7)] transition-opacity duration-100"
+                                        style={{ opacity: 0 }}
                                     />
                                 </div>
                             )}
