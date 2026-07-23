@@ -1,4 +1,5 @@
 import type { CharacterGroup, CharacterPrompt } from '@/stores/character-prompt-store'
+import { getCharacterGender, type CharacterGender } from '@/lib/character-gender'
 
 export type SceneRandomCharacterMode = 'all' | 'characters' | 'folders'
 
@@ -52,6 +53,7 @@ export const getRandomCharacterCandidates = (
     mode: SceneRandomCharacterMode,
     selectedCharacterIds: string[],
     selectedGroupIds: string[],
+    gender: 'all' | CharacterGender = 'all',
 ) => {
     const stacks = new Map<string, CharacterPrompt[]>()
     for (const character of characters) {
@@ -84,7 +86,9 @@ export const getRandomCharacterCandidates = (
 
         // Keep a stack available when its active page is blank but another version has prompt data.
         if (!fallback) continue
-        candidates.push(stack.find(character => character.enabled && hasPrompt(character)) || fallback)
+        const candidate = stack.find(character => character.enabled && hasPrompt(character)) || fallback
+        if (gender !== 'all' && getCharacterGender(candidate.prompt) !== gender) continue
+        candidates.push(candidate)
     }
     return candidates
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertCircle, Dices, FolderTree, Search, Users, X } from 'lucide-react'
+import { AlertCircle, Dices, FolderTree, Search, UserRound, Users, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
-import { getCharacterGroupPath, useCharacterPromptStore } from '@/stores/character-prompt-store'
+import { getCharacterGroupDescendantIds, getCharacterGroupPath, useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import {
     getRandomCharacterCandidates,
@@ -37,16 +37,19 @@ export function SceneRandomCharacterDialog({ open, onOpenChange }: SceneRandomCh
     const count = useSettingsStore(state => state.sceneRandomCharacterCount)
     const characterIds = useSettingsStore(state => state.sceneRandomCharacterIds)
     const groupIds = useSettingsStore(state => state.sceneRandomCharacterGroupIds)
+    const randomGender = useSettingsStore(state => state.sceneRandomCharacterGender)
+    const expertCharacterPromptGenderIndicatorEnabled = useSettingsStore(state => state.expertCharacterPromptGenderIndicatorEnabled)
     const updateConfig = useSettingsStore(state => state.setSceneRandomCharacterConfig)
     const [search, setSearch] = useState('')
 
+    const effectiveGender = expertCharacterPromptGenderIndicatorEnabled ? randomGender : 'all'
     const allCandidates = useMemo(
-        () => getRandomCharacterCandidates(characters, groups, 'all', [], []),
-        [characters, groups],
+        () => getRandomCharacterCandidates(characters, groups, 'all', [], [], effectiveGender),
+        [characters, groups, effectiveGender],
     )
     const scopeCandidates = useMemo(
-        () => getRandomCharacterCandidates(characters, groups, mode, characterIds, groupIds),
-        [characters, groups, mode, characterIds, groupIds],
+        () => getRandomCharacterCandidates(characters, groups, mode, characterIds, groupIds, effectiveGender),
+        [characters, groups, mode, characterIds, groupIds, effectiveGender],
     )
     const charactersById = useMemo(
         () => new Map(characters.map(character => [character.id, character])),
@@ -89,9 +92,13 @@ export function SceneRandomCharacterDialog({ open, onOpenChange }: SceneRandomCh
         return ordered
     }, [groups])
     const filteredGroups = useMemo(() => orderedGroups.filter(({ group }) => {
-        if (!query) return true
-        return getCharacterGroupPath(groups, group.id).toLowerCase().includes(query)
-    }), [groups, orderedGroups, query])
+        const matchesQuery = !query || getCharacterGroupPath(groups, group.id).toLowerCase().includes(query)
+        if (!matchesQuery) return false
+        if (effectiveGender === 'all') return true
+
+        const descendantIds = getCharacterGroupDescendantIds(groups, group.id)
+        return allCandidates.some(character => character.groupId && descendantIds.has(character.groupId))
+    }), [allCandidates, effectiveGender, groups, orderedGroups, query])
 
     const isCharacterSelected = (characterId: string) => {
         const candidate = charactersById.get(characterId)
@@ -174,6 +181,26 @@ export function SceneRandomCharacterDialog({ open, onOpenChange }: SceneRandomCh
                         </Button>
                     ))}
                 </div>
+
+                {expertCharacterPromptGenderIndicatorEnabled && (
+                    <div className="flex items-center justify-between gap-3 border-y border-border/40 py-2">
+                        <span className="text-sm font-medium">{t('characterPanel.genderFilter')}</span>
+                        <div className="flex items-center gap-1">
+                            <Button type="button" variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full", randomGender === 'all' && "bg-muted text-foreground")} onClick={() => updateConfig({ sceneRandomCharacterGender: 'all' })} title={t('characterPanel.genderFilterAll')} aria-label={t('characterPanel.genderFilterAll')}>
+                                <Users className="h-4 w-4" />
+                            </Button>
+                            <Button type="button" variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full text-blue-400", randomGender === 'male' && "bg-blue-500/15 ring-1 ring-blue-400/60")} onClick={() => updateConfig({ sceneRandomCharacterGender: 'male' })} title={t('characterPanel.genderFilterMale')} aria-label={t('characterPanel.genderFilterMale')}>
+                                <span aria-hidden="true" className="text-xs font-bold">M</span>
+                            </Button>
+                            <Button type="button" variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full text-pink-400", randomGender === 'female' && "bg-pink-500/15 ring-1 ring-pink-400/60")} onClick={() => updateConfig({ sceneRandomCharacterGender: 'female' })} title={t('characterPanel.genderFilterFemale')} aria-label={t('characterPanel.genderFilterFemale')}>
+                                <span aria-hidden="true" className="text-xs font-bold">F</span>
+                            </Button>
+                            <Button type="button" variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full text-muted-foreground", randomGender === 'unknown' && "bg-muted ring-1 ring-muted-foreground/60")} onClick={() => updateConfig({ sceneRandomCharacterGender: 'unknown' })} title={t('characterPanel.genderFilterOther')} aria-label={t('characterPanel.genderFilterOther')}>
+                                <UserRound className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
 
                 <div className="flex items-center justify-between gap-4">
                     <div>

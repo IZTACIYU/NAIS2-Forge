@@ -153,6 +153,7 @@ interface SceneState {
     // Generation Status
     isGenerating: boolean
     isCancelling: boolean  // True when cancel requested but API call still in progress
+    activeAbortController: AbortController | null
     setIsGenerating: (isGenerating: boolean) => void
     cancelSceneGeneration: () => void  // Request cancel (keeps button locked until API completes)
     generationSessionId: number  // Incremented on each new generation session to invalidate old ones
@@ -948,10 +949,11 @@ export const useSceneStore = create<SceneState>()(
 
             isGenerating: false,
             isCancelling: false,
+            activeAbortController: null,
             setIsGenerating: (isGenerating) => {
                 // When stopping generation, increment session ID to invalidate any in-progress operations
                 if (!isGenerating) {
-                    set({ isGenerating: false, isCancelling: false, generationSessionId: Date.now(), generationSource: 'queue', characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
+                    set({ isGenerating: false, isCancelling: false, activeAbortController: null, generationSessionId: Date.now(), generationSource: 'queue', characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
                 } else {
                     set({ isGenerating: true, isCancelling: false })
                 }
@@ -959,7 +961,8 @@ export const useSceneStore = create<SceneState>()(
             cancelSceneGeneration: () => {
                 // Request cancel but keep isGenerating=true until API completes
                 // This prevents 429 errors from rapid cancel/restart
-                set({ isCancelling: true, generationSessionId: Date.now(), generationSource: 'queue', characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
+                get().activeAbortController?.abort()
+                set({ isCancelling: true, activeAbortController: null, streamingSceneId: null, streamingImage: null, streamingProgress: 0, generationSessionId: Date.now(), generationSource: 'queue', characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
             },
             generationSessionId: 0,
             generationSource: 'queue',

@@ -395,6 +395,9 @@ export const useGenerationStore = create<GenerationState>()(
                                 randomSettings.sceneRandomCharacterMode,
                                 randomSettings.sceneRandomCharacterIds,
                                 randomSettings.sceneRandomCharacterGroupIds,
+                                randomSettings.expertCharacterPromptGenderIndicatorEnabled
+                                    ? randomSettings.sceneRandomCharacterGender
+                                    : 'all',
                             )
                             : []
                         const randomCharacterIds = randomCharacterCandidates.length > 0

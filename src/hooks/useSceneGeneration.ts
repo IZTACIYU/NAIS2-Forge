@@ -235,6 +235,9 @@ export function useSceneGeneration() {
                         latestSettingsStore.sceneRandomCharacterMode,
                         latestSettingsStore.sceneRandomCharacterIds,
                         latestSettingsStore.sceneRandomCharacterGroupIds,
+                        latestSettingsStore.expertCharacterPromptGenderIndicatorEnabled
+                            ? latestSettingsStore.sceneRandomCharacterGender
+                            : 'all',
                     )
                     : []
                 const randomCharacterIds = randomCharacterCandidates.length > 0
@@ -393,11 +396,23 @@ export function useSceneGeneration() {
                 }
 
                 let result
+                const beforeRequestState = useSceneStore.getState()
+                if (beforeRequestState.isCancelling || beforeRequestState.generationSessionId !== sessionId) {
+                    isProcessing = false
+                    setStreamingData(null, null, 0)
+                    if (beforeRequestState.isCancelling) setIsGenerating(false)
+                    return
+                }
+                const abortController = new AbortController()
+                useSceneStore.setState({ activeAbortController: abortController })
+                params.abortSignal = abortController.signal
 
                 const streamMimeType = params.imageFormat === 'webp' ? 'image/webp' : 'image/png'
                 if (streamingView) {
                     // Streaming Generation - real-time preview updates
                     result = await generateImageStream(token, params, (progress, image) => {
+                        const latestState = useSceneStore.getState()
+                        if (latestState.isCancelling || latestState.generationSessionId !== sessionId) return
                         if (image) {
                             setStreamingData(scene.id, `data:${streamMimeType};base64,${image}`, progress / 100)
                         } else {
@@ -408,6 +423,14 @@ export function useSceneGeneration() {
                 } else {
                     // Normal Generation
                     result = await generateImage(token, params)
+                }
+
+                const completedState = useSceneStore.getState()
+                if (completedState.isCancelling || completedState.generationSessionId !== sessionId) {
+                    isProcessing = false
+                    setStreamingData(null, null, 0)
+                    if (completedState.isCancelling) setIsGenerating(false)
+                    return
                 }
 
                 // Persist newly encoded vibes before releasing transient source data.
@@ -568,6 +591,7 @@ export function useSceneGeneration() {
                 // Check if session is still valid before retrying
                 const latestState = useSceneStore.getState()
                 if (sessionId !== latestState.generationSessionId) {
+                    if (latestState.isCancelling) setIsGenerating(false)
                     return  // Session invalidated, don't retry
                 }
 

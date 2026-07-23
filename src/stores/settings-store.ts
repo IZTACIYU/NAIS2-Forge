@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { indexedDBStorage } from '@/lib/indexed-db'
 import type { SceneRandomCharacterMode } from '@/lib/random-character-selection'
+import type { CharacterGender } from '@/lib/character-gender'
 
 export interface CustomResolution {
     id: string
@@ -58,6 +59,7 @@ interface SettingsState {
     sceneRandomCharacterCount: number
     sceneRandomCharacterIds: string[]
     sceneRandomCharacterGroupIds: string[]
+    sceneRandomCharacterGender: 'all' | CharacterGender
     expertExifDirectActionEnabled: boolean
     expertExifManagerEnabled: boolean
     expertExifQuickActionEnabled: boolean
@@ -104,7 +106,7 @@ interface SettingsState {
     setExpertSceneCharacterRepeatEnabled: (enabled: boolean) => void
     setExpertSceneCharacterAdditionsEnabled: (enabled: boolean) => void
     setExpertSceneRandomCharactersEnabled: (enabled: boolean) => void
-    setSceneRandomCharacterConfig: (config: Partial<Pick<SettingsState, 'sceneRandomCharactersActive' | 'sceneRandomCharacterMode' | 'sceneRandomCharacterCount' | 'sceneRandomCharacterIds' | 'sceneRandomCharacterGroupIds'>>) => void
+    setSceneRandomCharacterConfig: (config: Partial<Pick<SettingsState, 'sceneRandomCharactersActive' | 'sceneRandomCharacterMode' | 'sceneRandomCharacterCount' | 'sceneRandomCharacterIds' | 'sceneRandomCharacterGroupIds' | 'sceneRandomCharacterGender'>>) => void
     setExpertExifDirectActionEnabled: (enabled: boolean) => void
     setExpertExifManagerEnabled: (enabled: boolean) => void
     setExpertExifQuickActionEnabled: (enabled: boolean) => void
@@ -154,6 +156,7 @@ export const useSettingsStore = create<SettingsState>()(
             sceneRandomCharacterCount: 1,
             sceneRandomCharacterIds: [],
             sceneRandomCharacterGroupIds: [],
+            sceneRandomCharacterGender: 'all',
             expertExifDirectActionEnabled: false,
             expertExifManagerEnabled: false,
             expertExifQuickActionEnabled: false,

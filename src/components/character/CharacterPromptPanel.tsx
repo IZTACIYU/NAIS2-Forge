@@ -59,6 +59,7 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { getCharacterGender, type CharacterGender } from '@/lib/character-gender'
 import {
     CHARACTER_POSITION_GRID_SIZE,
     getCharacterPositionBoardAspectRatio,
@@ -91,15 +92,6 @@ interface CharacterPromptPanelProps {
 
 const COSTUME_MARKER = '\n#!-\uc758\uc0c1\ud504\ub86c\n'
 const FOLDER_PANEL_WIDTH_STORAGE_KEY = 'nais2-forge-character-folder-panel-width'
-
-type CharacterGender = 'male' | 'female' | 'unknown'
-
-const getCharacterGender = (prompt: string): CharacterGender => {
-    const firstTag = prompt.split(',')[0]?.trim().toLowerCase()
-    if (['boy', '1boy', 'male', 'faceless male', 'monster boy'].includes(firstTag)) return 'male'
-    if (['girl', '1girl', 'female', 'faceless female', 'monster girl'].includes(firstTag)) return 'female'
-    return 'unknown'
-}
 
 const splitCostumePrompt = (prompt: string) => {
     const normalized = prompt.replace(/\r\n/g, '\n')
