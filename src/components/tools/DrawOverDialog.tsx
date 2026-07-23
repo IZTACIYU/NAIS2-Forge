@@ -35,6 +35,7 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
     const blurSourceRef = useRef<HTMLCanvasElement | null>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const brushCursorRef = useRef<HTMLDivElement>(null)
+    const panOffsetRef = useRef({ x: 0, y: 0 })
     const lastPointRef = useRef<{ x: number; y: number } | null>(null)
     const drawingRef = useRef(false)
     const panningRef = useRef(false)
@@ -43,6 +44,7 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
     const zoomRef = useRef(1)
     const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null)
     const [displaySize, setDisplaySize] = useState<{ width: number; height: number } | null>(null)
+    const [panOffset, setPanOffset] = useState({ x: 0, y: 0 })
     const [mode, setMode] = useState<DrawMode>('pen')
     const [brushShape, setBrushShape] = useState<BrushShape>('round')
     const [brushSize, setBrushSize] = useState(48)
@@ -66,9 +68,11 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         panStartRef.current = null
         undoHistoryRef.current = []
         zoomRef.current = 1
+        panOffsetRef.current = { x: 0, y: 0 }
         setImageSize(null)
         setDisplaySize(null)
         setZoom(1)
+        setPanOffset({ x: 0, y: 0 })
         setUndoCount(0)
     }, [])
 
@@ -97,6 +101,8 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
             setUndoCount(0)
             zoomRef.current = 1
             setZoom(1)
+            panOffsetRef.current = { x: 0, y: 0 }
+            setPanOffset({ x: 0, y: 0 })
             setImageSize({ width: image.naturalWidth, height: image.naturalHeight })
         }
         image.onerror = () => {
@@ -386,22 +392,49 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
             if (clampedZoom <= 1) {
                 container.scrollLeft = 0
                 container.scrollTop = 0
+                panOffsetRef.current = { x: 0, y: 0 }
+                setPanOffset({ x: 0, y: 0 })
                 return
             }
             const nextCanvasRect = editCanvasRef.current?.getBoundingClientRect()
             if (!nextCanvasRect) return
-            const nextScrollLeft = container.scrollLeft + nextCanvasRect.left
-                - (pivotClientX - pivotRatioX * nextCanvasRect.width)
-            const nextScrollTop = container.scrollTop + nextCanvasRect.top
-                - (pivotClientY - pivotRatioY * nextCanvasRect.height)
-            container.scrollLeft = Math.min(
-                Math.max(0, container.scrollWidth - container.clientWidth),
-                Math.max(0, nextScrollLeft),
-            )
-            container.scrollTop = Math.min(
-                Math.max(0, container.scrollHeight - container.clientHeight),
-                Math.max(0, nextScrollTop),
-            )
+            const containerRect = container.getBoundingClientRect()
+            const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
+            const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
+            let nextPanOffset = panOffsetRef.current
+
+            if (maxScrollLeft === 0) {
+                const desiredLeft = pivotClientX - pivotRatioX * nextCanvasRect.width
+                const clampedLeft = Math.min(
+                    containerRect.right - nextCanvasRect.width,
+                    Math.max(containerRect.left, desiredLeft),
+                )
+                nextPanOffset = { ...nextPanOffset, x: nextPanOffset.x + clampedLeft - nextCanvasRect.left }
+                container.scrollLeft = 0
+            } else {
+                const nextScrollLeft = container.scrollLeft + nextCanvasRect.left
+                    - (pivotClientX - pivotRatioX * nextCanvasRect.width)
+                container.scrollLeft = Math.min(maxScrollLeft, Math.max(0, nextScrollLeft))
+            }
+
+            if (maxScrollTop === 0) {
+                const desiredTop = pivotClientY - pivotRatioY * nextCanvasRect.height
+                const clampedTop = Math.min(
+                    containerRect.bottom - nextCanvasRect.height,
+                    Math.max(containerRect.top, desiredTop),
+                )
+                nextPanOffset = { ...nextPanOffset, y: nextPanOffset.y + clampedTop - nextCanvasRect.top }
+                container.scrollTop = 0
+            } else {
+                const nextScrollTop = container.scrollTop + nextCanvasRect.top
+                    - (pivotClientY - pivotRatioY * nextCanvasRect.height)
+                container.scrollTop = Math.min(maxScrollTop, Math.max(0, nextScrollTop))
+            }
+
+            if (nextPanOffset !== panOffsetRef.current) {
+                panOffsetRef.current = nextPanOffset
+                setPanOffset(nextPanOffset)
+            }
         })
     }
 
@@ -540,6 +573,7 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
                                 width: displaySize ? `${Math.round(displaySize.width * zoom)}px` : '1px',
                                 height: displaySize ? `${Math.round(displaySize.height * zoom)}px` : '1px',
                                 visibility: displaySize ? 'visible' : 'hidden',
+                                transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
                             }}
                         >
                             <canvas ref={baseCanvasRef} className="block h-full w-full object-contain" />

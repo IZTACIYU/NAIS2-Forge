@@ -50,6 +50,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const brushCursorRef = useRef<HTMLDivElement>(null)
+    const panOffsetRef = useRef({ x: 0, y: 0 })
     const maskSavedRef = useRef(false)
     const isDrawingRef = useRef(false)
     const isPanningRef = useRef(false)
@@ -57,6 +58,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null)
     const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null)
     const [displaySize, setDisplaySize] = useState<{ width: number; height: number } | null>(null)
+    const [panOffset, setPanOffset] = useState({ x: 0, y: 0 })
 
     // The mask is an 8x8 grid, so undo stores only changed cells instead of
     // retaining a full RGBA canvas snapshot for every brush stroke.
@@ -103,6 +105,8 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
             setDisplaySize(null)
             zoomRef.current = 1
             setZoom(1)
+            panOffsetRef.current = { x: 0, y: 0 }
+            setPanOffset({ x: 0, y: 0 })
         }
     }, [open, propSourceImage, resetI2IParams, setSourceImage])
 
@@ -110,6 +114,8 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         if (open) {
             zoomRef.current = 1
             setZoom(1)
+            panOffsetRef.current = { x: 0, y: 0 }
+            setPanOffset({ x: 0, y: 0 })
         }
     }, [open, propSourceImage])
 
@@ -487,22 +493,49 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
             if (clampedZoom <= 1) {
                 currentContainer.scrollLeft = 0
                 currentContainer.scrollTop = 0
+                panOffsetRef.current = { x: 0, y: 0 }
+                setPanOffset({ x: 0, y: 0 })
                 return
             }
             const nextCanvasRect = canvasRef.current?.getBoundingClientRect()
             if (!nextCanvasRect) return
-            const nextScrollLeft = currentContainer.scrollLeft + nextCanvasRect.left
-                - (pivotClientX - pivotRatioX * nextCanvasRect.width)
-            const nextScrollTop = currentContainer.scrollTop + nextCanvasRect.top
-                - (pivotClientY - pivotRatioY * nextCanvasRect.height)
-            currentContainer.scrollLeft = Math.min(
-                Math.max(0, currentContainer.scrollWidth - currentContainer.clientWidth),
-                Math.max(0, nextScrollLeft),
-            )
-            currentContainer.scrollTop = Math.min(
-                Math.max(0, currentContainer.scrollHeight - currentContainer.clientHeight),
-                Math.max(0, nextScrollTop),
-            )
+            const containerRect = currentContainer.getBoundingClientRect()
+            const maxScrollLeft = Math.max(0, currentContainer.scrollWidth - currentContainer.clientWidth)
+            const maxScrollTop = Math.max(0, currentContainer.scrollHeight - currentContainer.clientHeight)
+            let nextPanOffset = panOffsetRef.current
+
+            if (maxScrollLeft === 0) {
+                const desiredLeft = pivotClientX - pivotRatioX * nextCanvasRect.width
+                const clampedLeft = Math.min(
+                    containerRect.right - nextCanvasRect.width,
+                    Math.max(containerRect.left, desiredLeft),
+                )
+                nextPanOffset = { ...nextPanOffset, x: nextPanOffset.x + clampedLeft - nextCanvasRect.left }
+                currentContainer.scrollLeft = 0
+            } else {
+                const nextScrollLeft = currentContainer.scrollLeft + nextCanvasRect.left
+                    - (pivotClientX - pivotRatioX * nextCanvasRect.width)
+                currentContainer.scrollLeft = Math.min(maxScrollLeft, Math.max(0, nextScrollLeft))
+            }
+
+            if (maxScrollTop === 0) {
+                const desiredTop = pivotClientY - pivotRatioY * nextCanvasRect.height
+                const clampedTop = Math.min(
+                    containerRect.bottom - nextCanvasRect.height,
+                    Math.max(containerRect.top, desiredTop),
+                )
+                nextPanOffset = { ...nextPanOffset, y: nextPanOffset.y + clampedTop - nextCanvasRect.top }
+                currentContainer.scrollTop = 0
+            } else {
+                const nextScrollTop = currentContainer.scrollTop + nextCanvasRect.top
+                    - (pivotClientY - pivotRatioY * nextCanvasRect.height)
+                currentContainer.scrollTop = Math.min(maxScrollTop, Math.max(0, nextScrollTop))
+            }
+
+            if (nextPanOffset !== panOffsetRef.current) {
+                panOffsetRef.current = nextPanOffset
+                setPanOffset(nextPanOffset)
+            }
         })
     }
 
@@ -678,6 +711,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                                         width: displaySize ? `${Math.round(displaySize.width * zoom)}px` : '1px',
                                         height: displaySize ? `${Math.round(displaySize.height * zoom)}px` : '1px',
                                         visibility: displaySize ? 'visible' : 'hidden',
+                                        transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
                                     }}
                                 >
                                     <img
