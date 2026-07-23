@@ -1,5 +1,5 @@
 
-import { useState, useRef, useEffect, type PointerEvent as ReactPointerEvent } from 'react'
+import { useState, useRef, useEffect, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
@@ -51,6 +51,9 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     const brushCursorRef = useRef<HTMLDivElement>(null)
     const maskSavedRef = useRef(false)
     const isDrawingRef = useRef(false)
+    const isPanningRef = useRef(false)
+    const currentStrokeEraseRef = useRef(false)
+    const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null)
     const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null)
     const [displaySize, setDisplaySize] = useState<{ width: number; height: number } | null>(null)
 
@@ -290,11 +293,12 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     const startDrawing = (e: ReactPointerEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current
         const ctx = canvas?.getContext('2d')
-        if (!canvas || !ctx) return
+        if (!canvas || !ctx || (e.button !== 0 && e.button !== 2)) return
 
         e.currentTarget.setPointerCapture(e.pointerId)
 
-        updateBrushCursor(e)
+        const erase = e.button === 2 || isErasing
+        updateBrushCursor(e, erase)
         const rect = canvas.getBoundingClientRect()
         const scaleX = canvas.width / rect.width
         const scaleY = canvas.height / rect.height
@@ -303,15 +307,40 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
 
         const { gx, gy } = pixelToGrid(x, y, canvas.width, canvas.height)
         currentStrokeCellsRef.current = new Set()
-        currentStrokePaintedRef.current = !isErasing
+        currentStrokePaintedRef.current = !erase
+        currentStrokeEraseRef.current = erase
         lastGridPosRef.current = { gx, gy }
-        fillBrushArea(ctx, gx, gy, isErasing)
+        fillBrushArea(ctx, gx, gy, erase)
         isDrawingRef.current = true
+    }
+
+    const startPanning = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+        if (e.button !== 1 || !containerRef.current) return false
+        e.preventDefault()
+        e.currentTarget.setPointerCapture(e.pointerId)
+        isPanningRef.current = true
+        panStartRef.current = {
+            x: e.clientX,
+            y: e.clientY,
+            scrollLeft: containerRef.current.scrollLeft,
+            scrollTop: containerRef.current.scrollTop,
+        }
+        hideBrushCursor()
+        return true
+    }
+
+    const handlePointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+        if (!startPanning(e)) startDrawing(e)
     }
 
     const stopDrawing = (e?: ReactPointerEvent<HTMLCanvasElement>) => {
         if (e?.currentTarget.hasPointerCapture(e.pointerId)) {
             e.currentTarget.releasePointerCapture(e.pointerId)
+        }
+        if (isPanningRef.current) {
+            isPanningRef.current = false
+            panStartRef.current = null
+            return
         }
         if (isDrawingRef.current) {
             isDrawingRef.current = false
@@ -321,11 +350,18 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
             })
             currentStrokeCellsRef.current = new Set()
         }
+        currentStrokeEraseRef.current = false
         lastGridPosRef.current = null
     }
 
     const draw = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-        updateBrushCursor(e)
+        if (isPanningRef.current && panStartRef.current && containerRef.current) {
+            containerRef.current.scrollLeft = panStartRef.current.scrollLeft - (e.clientX - panStartRef.current.x)
+            containerRef.current.scrollTop = panStartRef.current.scrollTop - (e.clientY - panStartRef.current.y)
+            return
+        }
+
+        updateBrushCursor(e, currentStrokeEraseRef.current || isErasing)
         if (!isDrawingRef.current || !lastGridPosRef.current) return
 
         const canvas = canvasRef.current
@@ -343,12 +379,12 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
 
         // Only draw if moved to a different grid cell
         if (gx !== lastGridPosRef.current.gx || gy !== lastGridPosRef.current.gy) {
-            drawGridLine(ctx, lastGridPosRef.current.gx, lastGridPosRef.current.gy, gx, gy, isErasing)
+            drawGridLine(ctx, lastGridPosRef.current.gx, lastGridPosRef.current.gy, gx, gy, currentStrokeEraseRef.current)
             lastGridPosRef.current = { gx, gy }
         }
     }
 
-    const updateBrushCursor = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    const updateBrushCursor = (e: ReactPointerEvent<HTMLCanvasElement>, erase = isErasing) => {
         const canvas = canvasRef.current
         const cursor = brushCursorRef.current
         if (!canvas || !cursor) return
@@ -363,6 +399,8 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         cursor.style.width = `${renderedBrushSize}px`
         cursor.style.height = `${renderedBrushSize}px`
         cursor.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`
+        cursor.style.borderColor = erase ? 'rgba(248, 113, 113, 0.95)' : 'rgba(255, 255, 255, 0.9)'
+        cursor.style.backgroundColor = erase ? 'rgba(248, 113, 113, 0.1)' : 'rgba(99, 102, 241, 0.1)'
         cursor.style.opacity = '1'
     }
 
@@ -402,6 +440,23 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         const nextStep = currentStep - 1
         historyStepRef.current = nextStep
         setHistoryStep(nextStep)
+    }
+
+    useEffect(() => {
+        if (!open) return
+        const handleUndoShortcut = (event: KeyboardEvent) => {
+            if (!event.ctrlKey || event.shiftKey || event.key.toLowerCase() !== 'z') return
+            event.preventDefault()
+            undo()
+        }
+        window.addEventListener('keydown', handleUndoShortcut)
+        return () => window.removeEventListener('keydown', handleUndoShortcut)
+    }, [open])
+
+    const handleZoomWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+        if (!event.ctrlKey) return
+        event.preventDefault()
+        setZoom(current => Math.max(0.5, Math.min(3, current + (event.deltaY < 0 ? 0.25 : -0.25))))
     }
 
     // Clear canvas
@@ -567,6 +622,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                         <div
                             ref={containerRef}
                             className="flex-1 relative overflow-auto rounded-lg bg-muted/50 flex items-center justify-center p-4 min-h-0"
+                            onWheel={handleZoomWheel}
                         >
                             {propSourceImage && (
                                 <div
@@ -611,16 +667,17 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                                     <canvas
                                         ref={canvasRef}
                                         className="absolute top-0 left-0 w-full h-full touch-none cursor-crosshair opacity-50"
-                                        onPointerDown={startDrawing}
+                                        onPointerDown={handlePointerDown}
                                         onPointerMove={draw}
                                         onPointerUp={stopDrawing}
                                         onPointerCancel={stopDrawing}
                                         onPointerEnter={updateBrushCursor}
                                         onPointerLeave={hideBrushCursor}
+                                        onContextMenu={(event) => event.preventDefault()}
                                     />
                                     <div
                                         ref={brushCursorRef}
-                                        className="pointer-events-none absolute left-0 top-0 rounded-full border-2 border-white/90 bg-primary/15 shadow-[0_0_0_1px_rgba(0,0,0,0.7)] transition-opacity duration-100"
+                                        className="pointer-events-none absolute left-0 top-0 border border-white/90 transition-opacity duration-100"
                                         style={{ opacity: 0 }}
                                     />
                                 </div>
