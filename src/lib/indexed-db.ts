@@ -733,6 +733,54 @@ export async function migrateFromLocalStorage(keys: string[]): Promise<void> {
  * 재생성 가능한 캐시(encodedVibe, thumbnails)는 자동으로 제외됩니다.
  */
 
+const CHARACTER_VARIANT_NAME_PATTERN = /\s-\s([a-z0-9]{6})\s-\s(\d+)$/i
+const LEGACY_CHARACTER_VARIANT_HASH_PATTERN = /\s-\s([a-z0-9]{6})$/i
+
+type CharacterVariantBackupEntry = {
+    hash: string
+    index: number
+}
+
+type CharacterVariantBackupMetadata = {
+    version: 1
+    characters: Record<string, CharacterVariantBackupEntry>
+    presets: Record<string, CharacterVariantBackupEntry>
+}
+
+function getCharacterVariantBackupEntry(name: unknown): CharacterVariantBackupEntry | null {
+    if (typeof name !== 'string') return null
+    const match = name.trim().match(CHARACTER_VARIANT_NAME_PATTERN)
+    if (match) return { hash: match[1].toLowerCase(), index: Number(match[2]) }
+
+    const legacy = name.trim().match(LEGACY_CHARACTER_VARIANT_HASH_PATTERN)
+    return legacy ? { hash: legacy[1].toLowerCase(), index: 0 } : null
+}
+
+function collectCharacterVariantBackupEntries(items: unknown): Record<string, CharacterVariantBackupEntry> {
+    if (!Array.isArray(items)) return {}
+    return Object.fromEntries(items.flatMap(item => {
+        if (!item || typeof item !== 'object') return []
+        const { id, name } = item as { id?: unknown; name?: unknown }
+        const entry = typeof id === 'string' ? getCharacterVariantBackupEntry(name) : null
+        return entry ? [[id, entry] as const] : []
+    }))
+}
+
+function createCharacterVariantBackupMetadata(value: unknown): CharacterVariantBackupMetadata | null {
+    if (!value || typeof value !== 'object') return null
+    const state = (value as { state?: { characters?: unknown; presets?: unknown } }).state
+    if (!state) return null
+
+    const metadata: CharacterVariantBackupMetadata = {
+        version: 1,
+        characters: collectCharacterVariantBackupEntries(state.characters),
+        presets: collectCharacterVariantBackupEntries(state.presets),
+    }
+    return Object.keys(metadata.characters).length > 0 || Object.keys(metadata.presets).length > 0
+        ? metadata
+        : null
+}
+
 function stripCharacterVariantHashesForExport(value: unknown): unknown {
     const clone = JSON.parse(JSON.stringify(value))
     const stripName = (item: unknown) => {
@@ -748,6 +796,43 @@ function stripCharacterVariantHashesForExport(value: unknown): unknown {
         data.state?.characters?.forEach(stripName)
         data.state?.presets?.forEach(stripName)
     }
+    return clone
+}
+
+function readCharacterVariantBackupMetadata(value: unknown): CharacterVariantBackupMetadata | null {
+    if (!value || typeof value !== 'object') return null
+    const metadata = value as Partial<CharacterVariantBackupMetadata>
+    if (metadata.version !== 1 || !metadata.characters || !metadata.presets) return null
+    return metadata as CharacterVariantBackupMetadata
+}
+
+function restoreCharacterVariantHashesFromBackup(
+    value: unknown,
+    metadata: CharacterVariantBackupMetadata | null,
+): unknown {
+    if (!metadata) return value
+    const clone = JSON.parse(JSON.stringify(value))
+    if (!clone || typeof clone !== 'object') return clone
+
+    const restore = (items: unknown, entries: Record<string, CharacterVariantBackupEntry>) => {
+        if (!Array.isArray(items)) return
+        for (const item of items) {
+            if (!item || typeof item !== 'object') continue
+            const named = item as { id?: unknown; name?: unknown }
+            const entry = typeof named.id === 'string' ? entries[named.id] : undefined
+            if (!entry || typeof named.name !== 'string') continue
+            if (!/^[a-z0-9]{6}$/i.test(entry.hash) || !Number.isInteger(entry.index) || entry.index < 0) continue
+            const baseName = named.name
+                .replace(CHARACTER_VARIANT_NAME_PATTERN, '')
+                .replace(LEGACY_CHARACTER_VARIANT_HASH_PATTERN, '')
+                .trim()
+            named.name = baseName + ' - ' + entry.hash + ' - ' + entry.index
+        }
+    }
+
+    const data = clone as { state?: { characters?: unknown; presets?: unknown } }
+    restore(data.state?.characters, metadata.characters)
+    restore(data.state?.presets, metadata.presets)
     return clone
 }
 
@@ -781,7 +866,13 @@ export async function exportAllData(): Promise<{ [key: string]: unknown }> {
                 // Always filter out regenerable cache data
                 parsed = filterLargeImageData(key, parsed)
                 
-                backup[key] = key === 'nais2-forge-character-prompts' ? stripCharacterVariantHashesForExport(parsed) : parsed
+                if (key === 'nais2-forge-character-prompts') {
+                    const metadata = createCharacterVariantBackupMetadata(parsed)
+                    if (metadata) backup._nais2Forge = { characterVariants: metadata }
+                    backup[key] = stripCharacterVariantHashesForExport(parsed)
+                } else {
+                    backup[key] = parsed
+                }
             }
         } catch (err) {
             console.error(`[Backup] Failed to export ${key}:`, err)
@@ -973,6 +1064,8 @@ async function importWildcardContent(content: { [id: string]: string[] }): Promi
  */
 export async function importAllData(backup: { [key: string]: unknown }, overwrite = false): Promise<{ success: string[], failed: string[] }> {
     const result = { success: [] as string[], failed: [] as string[] }
+    const forgeMetadata = backup._nais2Forge as { characterVariants?: unknown } | undefined
+    const characterVariantMetadata = readCharacterVariantBackupMetadata(forgeMetadata?.characterVariants)
     
     const entries = new Map<string, unknown>()
     for (const [sourceKey, value] of Object.entries(backup)) {
@@ -1012,7 +1105,10 @@ export async function importAllData(backup: { [key: string]: unknown }, overwrit
                 }
             }
             
-            await setStorageItemImmediately(key, JSON.stringify(value))
+            const restoredValue = key === 'nais2-forge-character-prompts'
+                ? restoreCharacterVariantHashesFromBackup(value, characterVariantMetadata)
+                : value
+            await setStorageItemImmediately(key, JSON.stringify(restoredValue))
             result.success.push(key)
             console.log(`[Restore] ${key}: Restored`)
         } catch (err) {
