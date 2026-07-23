@@ -222,14 +222,27 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         ctx.save()
         ctx.globalCompositeOperation = mode === 'eraser' ? 'destination-out' : 'source-over'
         ctx.globalAlpha = mode === 'pen' ? opacity / 100 : 1
-        ctx.strokeStyle = color
-        ctx.lineWidth = brushSize
-        ctx.lineCap = brushShape === 'round' ? 'round' : 'square'
-        ctx.lineJoin = brushShape === 'round' ? 'round' : 'bevel'
-        ctx.beginPath()
-        ctx.moveTo(from.x, from.y)
-        ctx.lineTo(to.x, to.y)
-        ctx.stroke()
+        if (brushShape === 'square') {
+            ctx.fillStyle = color
+            const distance = Math.hypot(to.x - from.x, to.y - from.y)
+            const spacing = Math.max(1, brushSize / 4)
+            const steps = Math.max(1, Math.ceil(distance / spacing))
+            for (let index = 0; index <= steps; index++) {
+                const ratio = index / steps
+                const x = from.x + (to.x - from.x) * ratio
+                const y = from.y + (to.y - from.y) * ratio
+                ctx.fillRect(x - brushSize / 2, y - brushSize / 2, brushSize, brushSize)
+            }
+        } else {
+            ctx.strokeStyle = color
+            ctx.lineWidth = brushSize
+            ctx.lineCap = 'round'
+            ctx.lineJoin = 'round'
+            ctx.beginPath()
+            ctx.moveTo(from.x, from.y)
+            ctx.lineTo(to.x, to.y)
+            ctx.stroke()
+        }
         ctx.restore()
     }, [brushShape, brushSize, color, drawBlurPoint, mode, opacity])
 
