@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState, useCallback, memo, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { Clock, Trash2, FolderOpen, RefreshCw, FileSearch, Copy, RotateCcw, Save, Users, Image as ImageIcon, Paintbrush, Maximize2, Film, Zap, PenTool, Pencil, Droplets, Smile, Sparkles, Cloud, Eraser } from 'lucide-react'
+import { Clock, Trash2, FolderOpen, RefreshCw, FileSearch, Copy, RotateCcw, Save, Users, Image as ImageIcon, Paintbrush, Maximize2, Film, Zap, PenTool, Pencil, Droplets, Smile, Sparkles, Cloud, Eraser, Brush } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useAuthStore } from '@/stores/auth-store'
@@ -77,6 +77,7 @@ interface HistoryImageItemProps {
     onAddAsReference: (image: SavedImage) => void
     onInpaint: (image: SavedImage) => void
     onI2I: (image: SavedImage) => void
+    onDrawOver: (image: SavedImage) => void
     onOpenFolder: (image: SavedImage) => void
     onR2DirectUpload: (image: SavedImage) => void
     onLoadMetadata: (image: SavedImage) => void
@@ -87,7 +88,7 @@ interface HistoryImageItemProps {
 const HistoryImageItem = memo(function HistoryImageItem({
     image, thumbnail, index, getTypeIcon,
     onImageClick, onDelete, onSaveAs, onCopy, onRegenerate,
-    onOpenSmartTools, onOpenExifManager, onExifDirectAction, showExifDirectAction, showExifQuickAction, onAddAsReference, onInpaint, onI2I, onOpenFolder, onR2DirectUpload, onLoadMetadata,
+    onOpenSmartTools, onOpenExifManager, onExifDirectAction, showExifDirectAction, showExifQuickAction, onAddAsReference, onInpaint, onI2I, onDrawOver, onOpenFolder, onR2DirectUpload, onLoadMetadata,
     onLoadComplete, onMissing
 }: HistoryImageItemProps) {
     const { t } = useTranslation()
@@ -232,6 +233,10 @@ const HistoryImageItem = memo(function HistoryImageItem({
                     <ImageIcon className="h-4 w-4 mr-2 text-indigo-400" />
                     {t('tools.i2i.title', 'Image to Image')}
                 </ContextMenuItem>
+                <ContextMenuItem onClick={() => onDrawOver(image)}>
+                    <Brush className="h-4 w-4 mr-2 text-lime-400" />
+                    {t('smartTools.drawOver')}
+                </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem onClick={() => onAddAsReference(image)}>
                     <Users className="h-4 w-4 mr-2 text-emerald-400" />
@@ -288,7 +293,10 @@ export function HistoryPanel() {
     const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false)
     const [selectedImageForInpaint, setSelectedImageForInpaint] = useState<string | null>(null)
     const navigate = useNavigate()
-    const setActiveImage = useToolsStore(state => state.setActiveImage)
+    const { setActiveImage, setRequestedTool } = useToolsStore(useShallow(state => ({
+        setActiveImage: state.setActiveImage,
+        setRequestedTool: state.setRequestedTool,
+    })))
 
     const historyScanIdRef = useRef(0)
     const historyScanActiveRef = useRef(false)
@@ -1127,6 +1135,15 @@ export function HistoryPanel() {
         navigate('/')
     }
 
+    const handleDrawOver = async (image: SavedImage) => {
+        let imageData: string
+        try { imageData = await getFullImageData(image) } catch { return }
+
+        setActiveImage(imageData)
+        setRequestedTool('draw-over')
+        navigate('/tools')
+    }
+
     return (
         <div className="flex flex-col h-full">
             {/* Header */}
@@ -1192,6 +1209,7 @@ export function HistoryPanel() {
                                 onAddAsReference={handleAddAsReference}
                                 onInpaint={handleInpaint}
                                 onI2I={handleI2I}
+                                onDrawOver={handleDrawOver}
                                 onOpenFolder={handleOpenFolder}
                                 onR2DirectUpload={handleR2DirectUpload}
                                 onLoadMetadata={handleLoadMetadata}

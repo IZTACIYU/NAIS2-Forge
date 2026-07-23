@@ -6,7 +6,7 @@ import {
     ContextMenuSeparator,
 } from '@/components/ui/context-menu'
 import { useState } from 'react'
-import { Copy, FolderOpen, Save, Trash2, Wand2, Users, FileSearch, Paintbrush, Image as ImageIcon, Cloud, Eraser } from 'lucide-react'
+import { Brush, Copy, FolderOpen, Save, Trash2, Wand2, Users, FileSearch, Paintbrush, Image as ImageIcon, Cloud, Eraser } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/components/ui/use-toast'
 import { save } from '@tauri-apps/plugin-dialog'
@@ -34,7 +34,7 @@ interface SceneContextMenuProps {
 export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onLoadMetadata, onInpaint }: SceneContextMenuProps) {
     const { t } = useTranslation()
     const navigate = useNavigate()
-    const { setActiveImage } = useToolsStore()
+    const { setActiveImage, setRequestedTool } = useToolsStore()
     const { setSourceImage, setI2IMode } = useGenerationStore()
     const [r2DirectUploadOpen, setR2DirectUploadOpen] = useState(false)
     const showExifDirectAction = useSettingsStore(s => s.expertExifDirectActionEnabled)
@@ -193,6 +193,15 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
         navigate('/')
     }
 
+    const handleDrawOver = async () => {
+        const base64 = await getImageBase64()
+        if (!base64) return
+
+        setActiveImage(base64)
+        setRequestedTool('draw-over')
+        navigate('/tools')
+    }
+
     const handleDelete = async () => {
         if (isFile) {
             try {
@@ -245,6 +254,10 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
                 <ContextMenuItem onClick={handleI2I}>
                     <ImageIcon className="h-4 w-4 mr-2 text-indigo-400" />
                     {t('tools.i2i.title', 'Image to Image')}
+                </ContextMenuItem>
+                <ContextMenuItem onClick={handleDrawOver}>
+                    <Brush className="h-4 w-4 mr-2 text-lime-400" />
+                    {t('smartTools.drawOver')}
                 </ContextMenuItem>
                 <ContextMenuSeparator />
 

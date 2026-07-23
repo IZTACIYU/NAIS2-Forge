@@ -5,7 +5,7 @@ import {
     ContextMenuTrigger,
 } from '@/components/ui/context-menu'
 import { flattenLibraryItems, flattenLibraryLeaves, LibraryItem, useLibraryStore } from '@/stores/library-store'
-import { Copy, FolderOpen, Save, Trash2, Wand2, Users, Pencil, FileSearch, Eraser } from 'lucide-react'
+import { Brush, Copy, FolderOpen, Save, Trash2, Wand2, Users, Pencil, FileSearch, Eraser } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/components/ui/use-toast'
 import { save } from '@tauri-apps/plugin-dialog'
@@ -30,7 +30,7 @@ export function LibraryContextMenu({ item, children, onRename, onAddRef, onLoadM
     const { t } = useTranslation()
     const { removeItem } = useLibraryStore()
     const navigate = useNavigate()
-    const { setActiveImage } = useToolsStore()
+    const { setActiveImage, setRequestedTool } = useToolsStore()
     const showExifDirectAction = useSettingsStore(s => s.expertExifDirectActionEnabled)
     const showExifQuickAction = useSettingsStore(s => s.expertExifManagerEnabled && s.expertExifQuickActionEnabled)
 
@@ -79,6 +79,20 @@ export function LibraryContextMenu({ item, children, onRename, onAddRef, onLoadM
             navigate('/tools')
         } catch (e) {
             console.error('Failed to load for tools:', e)
+            toast({ title: t('smartTools.error', '이미지 로드 실패'), variant: 'destructive' })
+        }
+    }
+
+    const handleDrawOver = async () => {
+        try {
+            const data = await readFile(item.path)
+            let binary = ''
+            for (const byte of data) binary += String.fromCharCode(byte)
+            setActiveImage(`data:image/png;base64,${btoa(binary)}`)
+            setRequestedTool('draw-over')
+            navigate('/tools')
+        } catch (e) {
+            console.error('Failed to load for draw over:', e)
             toast({ title: t('smartTools.error', '이미지 로드 실패'), variant: 'destructive' })
         }
     }
@@ -165,6 +179,10 @@ export function LibraryContextMenu({ item, children, onRename, onAddRef, onLoadM
                 <ContextMenuItem onClick={handleSmartTools}>
                     <Wand2 className="h-4 w-4 mr-2 text-purple-400" />
                     {t('smartTools.title', '스마트 툴')}
+                </ContextMenuItem>
+                <ContextMenuItem onClick={handleDrawOver}>
+                    <Brush className="h-4 w-4 mr-2 text-lime-400" />
+                    {t('smartTools.drawOver')}
                 </ContextMenuItem>
                 <ContextMenuItem onClick={onAddRef}>
                     <Users className="h-4 w-4 mr-2 text-emerald-400" />

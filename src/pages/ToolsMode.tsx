@@ -22,9 +22,11 @@ import { DrawOverDialog } from '@/components/tools/DrawOverDialog'
 export default function ToolsMode() {
     const { t } = useTranslation()
     const navigate = useNavigate()
-    const { activeImage, setActiveImage } = useToolsStore(useShallow(state => ({
+    const { activeImage, setActiveImage, requestedTool, setRequestedTool } = useToolsStore(useShallow(state => ({
         activeImage: state.activeImage,
         setActiveImage: state.setActiveImage,
+        requestedTool: state.requestedTool,
+        setRequestedTool: state.setRequestedTool,
     })))
     const { token, tier } = useAuthStore(useShallow(state => ({
         token: state.token,
@@ -66,6 +68,12 @@ export default function ToolsMode() {
         setProcessedImage(activeImage)
         setImageDimensions(null)
     }, [activeImage])
+
+    useEffect(() => {
+        if (requestedTool !== 'draw-over' || !activeImage) return
+        setIsDrawOverOpen(true)
+        setRequestedTool(null)
+    }, [activeImage, requestedTool, setRequestedTool])
 
     // Handle File Upload
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -433,8 +441,8 @@ export default function ToolsMode() {
                     className="p-3 flex-1 overflow-y-auto overscroll-contain flex flex-col gap-2.5"
                     style={{ scrollbarGutter: 'stable' }}
                 >
-                    <ToolCard icon={ImageIcon} color="text-indigo-400" title={t('tools.i2i.title', 'I2I')} description={t('tools.i2i.open', '이 이미지로 img2img')} disabled={!processedImage || isLoading} onRun={handleOpenI2I} />
                     <ToolCard icon={Paintbrush} color="text-pink-400" title={t('tools.inpainting.title', '인페인트')} description={t('tools.inpainting.open', '마스크 칠해 부분 재생성')} disabled={!processedImage || isLoading} onRun={() => setIsInpaintingOpen(true)} />
+                    <ToolCard icon={ImageIcon} color="text-indigo-400" title={t('tools.i2i.title', 'I2I')} description={t('tools.i2i.open', '이 이미지로 img2img')} disabled={!processedImage || isLoading} onRun={handleOpenI2I} />
 
                     <ToolCard icon={Brush} color="text-lime-400" title={t('smartTools.drawOver')} description={t('smartTools.drawOverDesc')} disabled={!processedImage || isLoading} onRun={() => setIsDrawOverOpen(true)} />
 

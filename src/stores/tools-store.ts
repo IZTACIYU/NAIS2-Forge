@@ -5,6 +5,8 @@ import { indexedDBStorage } from '@/lib/indexed-db'
 interface ToolsState {
     activeImage: string | null
     setActiveImage: (image: string | null) => void
+    requestedTool: 'draw-over' | null
+    setRequestedTool: (tool: 'draw-over' | null) => void
 
     // Persisted Settings
     mosaicPixelSize: number
@@ -21,6 +23,8 @@ export const useToolsStore = create<ToolsState>()(
         (set) => ({
             activeImage: null,
             setActiveImage: (image) => set({ activeImage: image }),
+            requestedTool: null,
+            setRequestedTool: (tool) => set({ requestedTool: tool }),
 
             mosaicPixelSize: 10,
             setMosaicPixelSize: (size) => set({ mosaicPixelSize: size }),
