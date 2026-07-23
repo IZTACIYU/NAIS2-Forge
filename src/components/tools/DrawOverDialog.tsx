@@ -4,7 +4,7 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { toast } from '@/components/ui/use-toast'
@@ -430,16 +430,12 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="flex h-[85vh] w-[72vw] max-w-[72vw] flex-col gap-4 p-6">
-                <DialogHeader className="shrink-0">
-                    <DialogTitle className="flex items-center gap-2 text-xl">
-                        <Paintbrush className="h-5 w-5" />
-                        {t('smartTools.drawOverEditor')}
-                    </DialogTitle>
-                    <DialogDescription>{t('smartTools.drawOverEditorDesc')}</DialogDescription>
+            <DialogContent className="flex h-[92vh] w-[78vw] max-w-[78vw] flex-col gap-3 p-4">
+                <DialogHeader className="sr-only">
+                    <DialogTitle>{t('smartTools.drawOverEditor')}</DialogTitle>
                 </DialogHeader>
 
-                <div className="flex shrink-0 flex-wrap items-center justify-center gap-3 rounded-lg border bg-muted/20 p-2">
+                <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 rounded-lg border bg-muted/20 p-1.5">
                     <div className="flex items-center gap-1">
                         {toolButton('pen', Paintbrush, t('smartTools.solidPen'))}
                         {toolButton('blur', Droplets, t('smartTools.blurBrush'))}
@@ -506,7 +502,7 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
                     </Button>
                 </div>
 
-                <div ref={containerRef} className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-lg bg-muted/50 p-4" onWheel={handleZoomWheel}>
+                <div ref={containerRef} className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-lg bg-muted/50 p-2" onWheel={handleZoomWheel}>
                     {sourceImage && (
                         <div
                             className="relative shrink-0"

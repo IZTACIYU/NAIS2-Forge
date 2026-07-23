@@ -1,6 +1,6 @@
 
 import { useState, useRef, useEffect, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
@@ -546,22 +546,16 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
             }
             handleCloseWithoutSaving()
         }}>
-            <DialogContent className="flex flex-col p-6 gap-4" style={{ maxWidth: '60vw', maxHeight: '85vh', width: '60vw', height: '85vh' }}>
-                <DialogHeader className="mb-0 shrink-0">
-                    <DialogTitle className="flex items-center gap-2 text-xl">
-                        <Paintbrush className="w-5 h-5" />
-                        {t('tools.inpainting.title', 'Inpainting')}
-                    </DialogTitle>
-                    <DialogDescription>
-                        {t('tools.inpainting.description', 'Mask areas to regenerate.')}
-                    </DialogDescription>
+            <DialogContent className="flex flex-col gap-3 p-4" style={{ maxWidth: '78vw', maxHeight: '92vh', width: '78vw', height: '92vh' }}>
+                <DialogHeader className="sr-only">
+                    <DialogTitle>{t('tools.inpainting.title', 'Inpainting')}</DialogTitle>
                 </DialogHeader>
 
-                <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
+                <div className="flex min-h-0 flex-1 overflow-hidden">
                     {/* Canvas Area - now takes full width */}
                     <div className="flex-1 flex flex-col gap-2 min-w-0">
                         {/* Toolbar */}
-                        <div className="flex gap-6 shrink-0 items-center justify-center p-2 bg-muted/20 rounded-lg border">
+                        <div className="flex shrink-0 items-center justify-center gap-3 rounded-lg border bg-muted/20 p-1.5">
                             <div className="flex items-center gap-2">
                                 <Button
                                     variant={!isErasing ? "secondary" : "ghost"}
@@ -658,7 +652,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                         {/* Canvas Container */}
                         <div
                             ref={containerRef}
-                            className="flex-1 relative overflow-auto rounded-lg bg-muted/50 flex items-center justify-center p-4 min-h-0"
+                            className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-lg bg-muted/50 p-2"
                             onWheel={handleZoomWheel}
                         >
                             {propSourceImage && (
@@ -723,7 +717,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                     </div>
                 </div>
 
-                <DialogFooter className="mt-4 sm:justify-end items-center gap-2">
+                <DialogFooter className="items-center gap-2 sm:justify-end">
                     <Button variant="outline" onClick={handleCloseWithoutSaving}>
                         {t('common.cancel', 'Cancel')}
                     </Button>
