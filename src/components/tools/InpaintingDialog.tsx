@@ -703,19 +703,20 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                         {/* Canvas Container */}
                         <div
                             ref={containerRef}
-                            className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-lg bg-muted/50 p-2"
+                            className="relative min-h-0 flex-1 overflow-auto rounded-lg bg-muted/50 p-2"
                             onWheel={handleZoomWheel}
                         >
-                            {propSourceImage && (
-                                <div
-                                    className="relative shrink-0"
-                                    style={{
-                                        width: displaySize ? `${Math.round(displaySize.width * zoom)}px` : '1px',
-                                        height: displaySize ? `${Math.round(displaySize.height * zoom)}px` : '1px',
-                                        visibility: displaySize ? 'visible' : 'hidden',
-                                        transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
-                                    }}
-                                >
+                            <div className="flex h-max min-h-full w-max min-w-full items-center justify-center">
+                                {propSourceImage && (
+                                    <div
+                                        className="relative shrink-0"
+                                        style={{
+                                            width: displaySize ? `${Math.round(displaySize.width * zoom)}px` : '1px',
+                                            height: displaySize ? `${Math.round(displaySize.height * zoom)}px` : '1px',
+                                            visibility: displaySize ? 'visible' : 'hidden',
+                                            transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
+                                        }}
+                                    >
                                     <img
                                         src={propSourceImage}
                                         alt="Source"
@@ -763,8 +764,9 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                                         className="pointer-events-none absolute left-0 top-0 border border-white/90 transition-opacity duration-100"
                                         style={{ opacity: 0 }}
                                     />
-                                </div>
-                            )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

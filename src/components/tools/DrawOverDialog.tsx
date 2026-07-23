@@ -567,17 +567,18 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
                     </Button>
                 </div>
 
-                <div ref={containerRef} className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-lg bg-muted/50 p-2" onWheel={handleZoomWheel}>
-                    {sourceImage && (
-                        <div
-                            className="relative shrink-0"
-                            style={{
-                                width: displaySize ? `${Math.round(displaySize.width * zoom)}px` : '1px',
-                                height: displaySize ? `${Math.round(displaySize.height * zoom)}px` : '1px',
-                                visibility: displaySize ? 'visible' : 'hidden',
-                                transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
-                            }}
-                        >
+                <div ref={containerRef} className="relative min-h-0 flex-1 overflow-auto rounded-lg bg-muted/50 p-2" onWheel={handleZoomWheel}>
+                    <div className="flex h-max min-h-full w-max min-w-full items-center justify-center">
+                        {sourceImage && (
+                            <div
+                                className="relative shrink-0"
+                                style={{
+                                    width: displaySize ? `${Math.round(displaySize.width * zoom)}px` : '1px',
+                                    height: displaySize ? `${Math.round(displaySize.height * zoom)}px` : '1px',
+                                    visibility: displaySize ? 'visible' : 'hidden',
+                                    transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
+                                }}
+                            >
                             <canvas ref={baseCanvasRef} className="block h-full w-full object-contain" />
                             <canvas
                                 ref={editCanvasRef}
@@ -591,8 +592,9 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
                                 onContextMenu={event => event.preventDefault()}
                             />
                             <div ref={brushCursorRef} className="pointer-events-none absolute left-0 top-0 border border-white/90 transition-opacity duration-100" style={{ opacity: 0 }} />
-                        </div>
-                    )}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <DialogFooter className="shrink-0 items-center gap-2 sm:justify-between">
