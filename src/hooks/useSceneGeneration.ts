@@ -627,6 +627,9 @@ export function useSceneGeneration() {
     useEffect(() => {
         if (!isGenerating) {
             isProcessing = false
+            if (useGenerationStore.getState().generatingMode === 'scene') {
+                useGenerationStore.getState().setGeneratingMode(null)
+            }
             useCharacterStore.getState().releaseImageData(true)
         }
     }, [isGenerating])

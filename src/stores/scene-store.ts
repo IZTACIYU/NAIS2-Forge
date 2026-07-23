@@ -7,6 +7,13 @@ import { useSettingsStore } from './settings-store'
 import { notifySceneQueueChanged } from '@/lib/scene-queue-events'
 import { getSceneFolderFromImages, replaceSceneFolderPrefix, sanitizeSceneFolderName } from '@/lib/scene-path'
 
+// Date.now() alone can return the same value for a cancel/restart pair.
+let generationSessionSequence = Date.now()
+const nextGenerationSessionId = () => {
+    generationSessionSequence = Math.max(generationSessionSequence + 1, Date.now())
+    return generationSessionSequence
+}
+
 export interface SceneImage {
     id: string
     url: string  // data:image/png;base64,... format
@@ -953,21 +960,20 @@ export const useSceneStore = create<SceneState>()(
             setIsGenerating: (isGenerating) => {
                 // When stopping generation, increment session ID to invalidate any in-progress operations
                 if (!isGenerating) {
-                    set({ isGenerating: false, isCancelling: false, activeAbortController: null, generationSessionId: Date.now(), generationSource: 'queue', characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
+                    set({ isGenerating: false, isCancelling: false, activeAbortController: null, generationSessionId: nextGenerationSessionId(), generationSource: 'queue', characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
                 } else {
                     set({ isGenerating: true, isCancelling: false })
                 }
             },
             cancelSceneGeneration: () => {
-                // Request cancel but keep isGenerating=true until API completes
-                // This prevents 429 errors from rapid cancel/restart
+                // Abort the request and immediately make the next click a fresh generation.
                 get().activeAbortController?.abort()
-                set({ isCancelling: true, activeAbortController: null, streamingSceneId: null, streamingImage: null, streamingProgress: 0, generationSessionId: Date.now(), generationSource: 'queue', characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
+                set({ isGenerating: false, isCancelling: false, activeAbortController: null, streamingSceneId: null, streamingImage: null, streamingProgress: 0, generationSessionId: nextGenerationSessionId(), generationSource: 'queue', characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
             },
             generationSessionId: 0,
             generationSource: 'queue',
             startNewGenerationSession: (source = 'queue') => {
-                const newSessionId = Date.now()
+                const newSessionId = nextGenerationSessionId()
                 set({ generationSessionId: newSessionId, generationSource: source, isGenerating: true, isCancelling: false, characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
                 return newSessionId
             },
