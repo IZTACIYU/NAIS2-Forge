@@ -488,54 +488,56 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         hideBrushCursor()
 
         window.requestAnimationFrame(() => {
-            const currentContainer = containerRef.current
-            if (!currentContainer) return
-            if (clampedZoom <= 1) {
-                currentContainer.scrollLeft = 0
-                currentContainer.scrollTop = 0
-                panOffsetRef.current = { x: 0, y: 0 }
-                setPanOffset({ x: 0, y: 0 })
-                return
-            }
-            const nextCanvasRect = canvasRef.current?.getBoundingClientRect()
-            if (!nextCanvasRect) return
-            const containerRect = currentContainer.getBoundingClientRect()
-            const maxScrollLeft = Math.max(0, currentContainer.scrollWidth - currentContainer.clientWidth)
-            const maxScrollTop = Math.max(0, currentContainer.scrollHeight - currentContainer.clientHeight)
-            let nextPanOffset = panOffsetRef.current
+            window.requestAnimationFrame(() => {
+                const currentContainer = containerRef.current
+                if (!currentContainer) return
+                if (clampedZoom <= 1) {
+                    currentContainer.scrollLeft = 0
+                    currentContainer.scrollTop = 0
+                    panOffsetRef.current = { x: 0, y: 0 }
+                    setPanOffset({ x: 0, y: 0 })
+                    return
+                }
+                const nextCanvasRect = canvasRef.current?.getBoundingClientRect()
+                if (!nextCanvasRect) return
+                const containerRect = currentContainer.getBoundingClientRect()
+                const maxScrollLeft = Math.max(0, currentContainer.scrollWidth - currentContainer.clientWidth)
+                const maxScrollTop = Math.max(0, currentContainer.scrollHeight - currentContainer.clientHeight)
+                let nextPanOffset = panOffsetRef.current
 
-            if (maxScrollLeft === 0) {
-                const desiredLeft = pivotClientX - pivotRatioX * nextCanvasRect.width
-                const clampedLeft = Math.min(
-                    containerRect.right - nextCanvasRect.width,
-                    Math.max(containerRect.left, desiredLeft),
-                )
-                nextPanOffset = { ...nextPanOffset, x: nextPanOffset.x + clampedLeft - nextCanvasRect.left }
-                currentContainer.scrollLeft = 0
-            } else {
-                const nextScrollLeft = currentContainer.scrollLeft + nextCanvasRect.left
-                    - (pivotClientX - pivotRatioX * nextCanvasRect.width)
-                currentContainer.scrollLeft = Math.min(maxScrollLeft, Math.max(0, nextScrollLeft))
-            }
+                if (maxScrollLeft === 0) {
+                    const desiredLeft = pivotClientX - pivotRatioX * nextCanvasRect.width
+                    const clampedLeft = Math.min(
+                        containerRect.right - nextCanvasRect.width,
+                        Math.max(containerRect.left, desiredLeft),
+                    )
+                    nextPanOffset = { ...nextPanOffset, x: nextPanOffset.x + clampedLeft - nextCanvasRect.left }
+                    currentContainer.scrollLeft = 0
+                } else {
+                    const nextScrollLeft = currentContainer.scrollLeft + nextCanvasRect.left
+                        - (pivotClientX - pivotRatioX * nextCanvasRect.width)
+                    currentContainer.scrollLeft = Math.min(maxScrollLeft, Math.max(0, nextScrollLeft))
+                }
 
-            if (maxScrollTop === 0) {
-                const desiredTop = pivotClientY - pivotRatioY * nextCanvasRect.height
-                const clampedTop = Math.min(
-                    containerRect.bottom - nextCanvasRect.height,
-                    Math.max(containerRect.top, desiredTop),
-                )
-                nextPanOffset = { ...nextPanOffset, y: nextPanOffset.y + clampedTop - nextCanvasRect.top }
-                currentContainer.scrollTop = 0
-            } else {
-                const nextScrollTop = currentContainer.scrollTop + nextCanvasRect.top
-                    - (pivotClientY - pivotRatioY * nextCanvasRect.height)
-                currentContainer.scrollTop = Math.min(maxScrollTop, Math.max(0, nextScrollTop))
-            }
+                if (maxScrollTop === 0) {
+                    const desiredTop = pivotClientY - pivotRatioY * nextCanvasRect.height
+                    const clampedTop = Math.min(
+                        containerRect.bottom - nextCanvasRect.height,
+                        Math.max(containerRect.top, desiredTop),
+                    )
+                    nextPanOffset = { ...nextPanOffset, y: nextPanOffset.y + clampedTop - nextCanvasRect.top }
+                    currentContainer.scrollTop = 0
+                } else {
+                    const nextScrollTop = currentContainer.scrollTop + nextCanvasRect.top
+                        - (pivotClientY - pivotRatioY * nextCanvasRect.height)
+                    currentContainer.scrollTop = Math.min(maxScrollTop, Math.max(0, nextScrollTop))
+                }
 
-            if (nextPanOffset !== panOffsetRef.current) {
-                panOffsetRef.current = nextPanOffset
-                setPanOffset(nextPanOffset)
-            }
+                if (nextPanOffset !== panOffsetRef.current) {
+                    panOffsetRef.current = nextPanOffset
+                    setPanOffset(nextPanOffset)
+                }
+            })
         })
     }
 
