@@ -738,6 +738,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                     isActive={activeId !== null}
                     isCollapsed={group.collapsed}
                     colorClass={folderColor.bg}
+                    disabled={editingGroupId === group.id}
                 >
                 <ContextMenu>
                     <ContextMenuTrigger asChild>
@@ -782,6 +783,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                         }
                                     }}
                                     onClick={(event) => event.stopPropagation()}
+                                    onPointerDown={(event) => event.stopPropagation()}
                                     className="h-6 min-w-0 flex-1 px-1 text-xs"
                                 />
                             ) : (
@@ -871,6 +873,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                     isActive={activeId !== null}
                     isCollapsed={group.collapsed}
                     colorClass={folderColor.bg}
+                    disabled={editingGroupId === group.id}
                 >
                     <ContextMenu>
                         <ContextMenuTrigger asChild>
@@ -902,6 +905,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                                 }
                                             }}
                                             onClick={(event) => event.stopPropagation()}
+                                            onPointerDown={(event) => event.stopPropagation()}
                                             className="h-6 min-w-0 flex-1 px-1.5 py-0 text-sm"
                                         />
                                     ) : (
@@ -1417,10 +1421,11 @@ interface DroppableFolderProps {
     isActive: boolean
     isCollapsed: boolean
     colorClass?: string
+    disabled?: boolean
     children: React.ReactNode
 }
 
-function DroppableFolder({ folderId, isActive, isCollapsed, colorClass, children }: DroppableFolderProps) {
+function DroppableFolder({ folderId, isActive, isCollapsed, colorClass, disabled = false, children }: DroppableFolderProps) {
     const {
         attributes,
         listeners,
@@ -1431,6 +1436,7 @@ function DroppableFolder({ folderId, isActive, isCollapsed, colorClass, children
         isOver,
     } = useSortable({
         id: `folder-${folderId}`,
+        disabled,
     })
 
     const style = {
