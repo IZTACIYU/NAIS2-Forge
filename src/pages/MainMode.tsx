@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
-import { ImageIcon, ImagePlus, Download, Copy, RotateCcw, Save, Users, FolderOpen, Paintbrush, Cloud, Eraser } from 'lucide-react'
+import { ImageIcon, ImagePlus, Download, Copy, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useAuthStore } from '@/stores/auth-store'
@@ -14,9 +14,7 @@ import { toast } from '@/components/ui/use-toast'
 import {
     ContextMenu,
     ContextMenuContent,
-    ContextMenuItem,
     ContextMenuTrigger,
-    ContextMenuSeparator,
 } from '@/components/ui/context-menu'
 import { Command } from '@tauri-apps/plugin-shell'
 import { save } from '@tauri-apps/plugin-dialog'
@@ -24,11 +22,11 @@ import { pictureDir, join } from '@tauri-apps/api/path'
 import { writeFile, mkdir, exists, BaseDirectory } from '@tauri-apps/plugin-fs'
 import { useNavigate } from 'react-router-dom'
 import { useToolsStore } from '@/stores/tools-store'
-import { Wand2 } from 'lucide-react'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/SceneR2DirectUploadDialog'
 import { useExifStore } from '@/stores/exif-store'
 import { processAndSaveExifImage } from '@/lib/exif-actions'
+import { ImageQuickActionItems } from '@/components/image/ImageQuickActionItems'
 
 export default function MainMode() {
     const { t } = useTranslation()
@@ -77,9 +75,7 @@ export default function MainMode() {
 
     const navigate = useNavigate()
     const setActiveImage = useToolsStore(state => state.setActiveImage)
-    const expertR2DirectUploadEnabled = useSettingsStore(s => s.expertR2DirectUploadEnabled)
-    const expertExifDirectActionEnabled = useSettingsStore(s => s.expertExifDirectActionEnabled)
-    const expertExifQuickActionEnabled = useSettingsStore(s => s.expertExifManagerEnabled && s.expertExifQuickActionEnabled)
+    const setRequestedTool = useToolsStore(state => state.setRequestedTool)
 
     const [metadataDialogOpen, setMetadataDialogOpen] = useState(false)
     const [metadataImage, setMetadataImage] = useState<string | undefined>(undefined)
@@ -343,6 +339,13 @@ export default function MainMode() {
         setI2IMode('i2i')
     }
 
+    const handleDrawOver = () => {
+        if (!previewImage) return
+        setActiveImage(previewImage)
+        setRequestedTool('draw-over')
+        navigate('/tools')
+    }
+
     // Image Reference popup
     const handleAddAsReference = () => {
         if (previewImage) {
@@ -517,65 +520,22 @@ export default function MainMode() {
                             </div>
                         </ContextMenuTrigger>
                         <ContextMenuContent>
-                            <ContextMenuItem onClick={handleSaveAs}>
-                                <Save className="h-4 w-4 mr-2 text-cyan-400" />
-                                {t('actions.saveAs', '저장')}
-                            </ContextMenuItem>
-                            <ContextMenuItem onClick={handleCopy}>
-                                <Copy className="h-4 w-4 mr-2 text-blue-400" />
-                                {t('actions.copy', '복사')}
-                            </ContextMenuItem>
-                            <ContextMenuItem onClick={handleRegenerateWithMetadata} disabled={isGenerating}>
-                                <RotateCcw className="h-4 w-4 mr-2 text-amber-400" />
-                                {t('actions.regenerate', '재생성')}
-                            </ContextMenuItem>
-                            {expertExifDirectActionEnabled && (
-                                <ContextMenuItem onClick={handleExifDirectAction}>
-                                    <Eraser className="h-4 w-4 mr-2 text-rose-400" />
-                                    {t('exif.directAction')}
-                                </ContextMenuItem>
-                            )}
-                            {expertExifQuickActionEnabled && (
-                                <ContextMenuItem onClick={handleOpenExifManager}>
-                                    <Eraser className="h-4 w-4 mr-2 text-rose-400" />
-                                    {t('exif.quickAction')}
-                                </ContextMenuItem>
-                            )}
-                            <ContextMenuItem onClick={handleOpenSmartTools}>
-                                <Wand2 className="h-4 w-4 mr-2 text-purple-400" />
-                                {t('smartTools.title', '스마트 툴')}
-                            </ContextMenuItem>
-                            <ContextMenuSeparator />
-                            <ContextMenuItem onClick={handleInpaint}>
-                                <Paintbrush className="h-4 w-4 mr-2 text-pink-400" />
-                                {t('tools.inpainting.title', '인페인팅')}
-                            </ContextMenuItem>
-                            <ContextMenuItem onClick={handleI2I}>
-                                <ImageIcon className="h-4 w-4 mr-2 text-indigo-400" />
-                                {t('tools.i2i.title', 'Image to Image')}
-                            </ContextMenuItem>
-                            <ContextMenuSeparator />
-                            <ContextMenuItem onClick={handleAddAsReference}>
-                                <Users className="h-4 w-4 mr-2 text-emerald-400" />
-                                {t('actions.addAsRef', '이미지 참조')}
-                            </ContextMenuItem>
-                            <ContextMenuItem onClick={handleLoadMetadata}>
-                                <ImageIcon className="h-4 w-4 mr-2 text-yellow-400" />
-                                {t('metadata.loadFromImage', '메타데이터 불러오기')}
-                            </ContextMenuItem>
-                            <ContextMenuItem onClick={handleOpenFolder}>
-                                <FolderOpen className="h-4 w-4 mr-2 text-orange-400" />
-                                {t('actions.openFolder', '폴더 열기')}
-                            </ContextMenuItem>
-                            {expertR2DirectUploadEnabled && (
-                                <>
-                                    <ContextMenuSeparator />
-                                    <ContextMenuItem onClick={() => setR2DirectUploadOpen(true)}>
-                                        <Cloud className="h-4 w-4 mr-2 text-sky-400" />
-                                        {t('scene.r2DirectUpload.title', 'R2 Direct Upload')}
-                                    </ContextMenuItem>
-                                </>
-                            )}
+                            <ImageQuickActionItems
+                                onSaveAs={handleSaveAs}
+                                onCopy={handleCopy}
+                                onRegenerate={handleRegenerateWithMetadata}
+                                regenerateDisabled={isGenerating}
+                                onExifDirectAction={handleExifDirectAction}
+                                onOpenExifManager={handleOpenExifManager}
+                                onOpenSmartTools={handleOpenSmartTools}
+                                onInpaint={handleInpaint}
+                                onI2I={handleI2I}
+                                onDrawOver={handleDrawOver}
+                                onAddReference={handleAddAsReference}
+                                onLoadMetadata={handleLoadMetadata}
+                                onOpenFolder={handleOpenFolder}
+                                onR2DirectUpload={() => setR2DirectUploadOpen(true)}
+                            />
                         </ContextMenuContent>
                     </ContextMenu>
                 ) : isGenerating ? (

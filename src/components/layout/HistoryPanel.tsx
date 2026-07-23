@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState, useCallback, memo, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { Clock, Trash2, FolderOpen, RefreshCw, FileSearch, Copy, RotateCcw, Save, Users, Image as ImageIcon, Paintbrush, Maximize2, Film, Zap, PenTool, Pencil, Droplets, Smile, Sparkles, Cloud, Eraser, Brush } from 'lucide-react'
+import { Clock, Trash2, FolderOpen, RefreshCw, Image as ImageIcon, Paintbrush, Maximize2, Film, Zap, PenTool, Pencil, Droplets, Smile, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useAuthStore } from '@/stores/auth-store'
@@ -20,19 +20,17 @@ import { toast } from '@/components/ui/use-toast'
 import { useToolsStore } from '@/stores/tools-store'
 import { useLibraryStore } from '@/stores/library-store'
 import { useNavigate } from 'react-router-dom'
-import { Wand2 } from 'lucide-react'
 import {
     ContextMenu,
     ContextMenuContent,
-    ContextMenuItem,
     ContextMenuTrigger,
-    ContextMenuSeparator,
 } from '@/components/ui/context-menu'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/SceneR2DirectUploadDialog'
 import { useExifStore } from '@/stores/exif-store'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 import { processAndSaveExifImage } from '@/lib/exif-actions'
+import { ImageQuickActionItems } from '@/components/image/ImageQuickActionItems'
 import {
     createHistoryIndexScope,
     HistoryImageType,
@@ -72,8 +70,6 @@ interface HistoryImageItemProps {
     onOpenSmartTools: (image: SavedImage) => void
     onOpenExifManager: (image: SavedImage) => void
     onExifDirectAction: (image: SavedImage) => void
-    showExifDirectAction: boolean
-    showExifQuickAction: boolean
     onAddAsReference: (image: SavedImage) => void
     onInpaint: (image: SavedImage) => void
     onI2I: (image: SavedImage) => void
@@ -88,10 +84,9 @@ interface HistoryImageItemProps {
 const HistoryImageItem = memo(function HistoryImageItem({
     image, thumbnail, index, getTypeIcon,
     onImageClick, onDelete, onSaveAs, onCopy, onRegenerate,
-    onOpenSmartTools, onOpenExifManager, onExifDirectAction, showExifDirectAction, showExifQuickAction, onAddAsReference, onInpaint, onI2I, onDrawOver, onOpenFolder, onR2DirectUpload, onLoadMetadata,
+    onOpenSmartTools, onOpenExifManager, onExifDirectAction, onAddAsReference, onInpaint, onI2I, onDrawOver, onOpenFolder, onR2DirectUpload, onLoadMetadata,
     onLoadComplete, onMissing
 }: HistoryImageItemProps) {
-    const { t } = useTranslation()
     const [localThumbnail, setLocalThumbnail] = useState<string | undefined>(thumbnail)
 
     useEffect(() => {
@@ -196,69 +191,22 @@ const HistoryImageItem = memo(function HistoryImageItem({
                 </div>
             </ContextMenuTrigger>
             <ContextMenuContent>
-                <ContextMenuItem onClick={() => onSaveAs(image)}>
-                    <Save className="h-4 w-4 mr-2 text-cyan-400" />
-                    {t('actions.saveAs', '저장')}
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => onCopy(image)}>
-                    <Copy className="h-4 w-4 mr-2 text-blue-400" />
-                    {t('actions.copy', '복사')}
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => onRegenerate(image)}>
-                    <RotateCcw className="h-4 w-4 mr-2 text-amber-400" />
-                    {t('actions.regenerate', '재생성')}
-                </ContextMenuItem>
-                {showExifDirectAction && (
-                    <ContextMenuItem onClick={() => onExifDirectAction(image)}>
-                        <Eraser className="h-4 w-4 mr-2 text-rose-400" />
-                        {t('exif.directAction')}
-                    </ContextMenuItem>
-                )}
-                {showExifQuickAction && (
-                    <ContextMenuItem onClick={() => onOpenExifManager(image)}>
-                        <Eraser className="h-4 w-4 mr-2 text-rose-400" />
-                        {t('exif.quickAction')}
-                    </ContextMenuItem>
-                )}
-                <ContextMenuItem onClick={() => onOpenSmartTools(image)}>
-                    <Wand2 className="h-4 w-4 mr-2 text-purple-400" />
-                    {t('smartTools.title', '스마트 툴')}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem onClick={() => onInpaint(image)}>
-                    <Paintbrush className="h-4 w-4 mr-2 text-pink-400" />
-                    {t('tools.inpainting.title', '인페인팅')}
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => onI2I(image)}>
-                    <ImageIcon className="h-4 w-4 mr-2 text-indigo-400" />
-                    {t('tools.i2i.title', 'Image to Image')}
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => onDrawOver(image)}>
-                    <Brush className="h-4 w-4 mr-2 text-lime-400" />
-                    {t('smartTools.drawOver')}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem onClick={() => onAddAsReference(image)}>
-                    <Users className="h-4 w-4 mr-2 text-emerald-400" />
-                    {t('actions.addAsRef', '이미지 참조')}
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => onLoadMetadata(image)}>
-                    <FileSearch className="h-4 w-4 mr-2 text-yellow-400" />
-                    {t('metadata.loadFromImage', '메타데이터 불러오기')}
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => onOpenFolder(image)} disabled={image.isTemporary}>
-                    <FolderOpen className="h-4 w-4 mr-2 text-orange-400" />
-                    {t('actions.openFolder', '폴더 열기')}
-                </ContextMenuItem>
-                {useSettingsStore.getState().expertR2DirectUploadEnabled && (
-                    <>
-                        <ContextMenuSeparator />
-                        <ContextMenuItem onClick={() => onR2DirectUpload(image)}>
-                            <Cloud className="h-4 w-4 mr-2 text-sky-400" />
-                            {t('scene.r2DirectUpload.title', 'R2 Direct Upload')}
-                        </ContextMenuItem>
-                    </>
-                )}
+                <ImageQuickActionItems
+                    onSaveAs={() => onSaveAs(image)}
+                    onCopy={() => onCopy(image)}
+                    onRegenerate={() => onRegenerate(image)}
+                    onExifDirectAction={() => onExifDirectAction(image)}
+                    onOpenExifManager={() => onOpenExifManager(image)}
+                    onOpenSmartTools={() => onOpenSmartTools(image)}
+                    onInpaint={onInpaint ? () => onInpaint(image) : undefined}
+                    onI2I={() => onI2I(image)}
+                    onDrawOver={() => onDrawOver(image)}
+                    onAddReference={() => onAddAsReference(image)}
+                    onLoadMetadata={() => onLoadMetadata(image)}
+                    onOpenFolder={() => onOpenFolder(image)}
+                    folderDisabled={image.isTemporary}
+                    onR2DirectUpload={() => onR2DirectUpload(image)}
+                />
             </ContextMenuContent>
         </ContextMenu>
     )
@@ -273,12 +221,9 @@ export function HistoryPanel() {
         setSourceImage: state.setSourceImage,
         setI2IMode: state.setI2IMode,
     })))
-    const { savePath, useAbsolutePath, expertExifDirectActionEnabled, expertExifManagerEnabled, expertExifQuickActionEnabled } = useSettingsStore(useShallow(state => ({
+    const { savePath, useAbsolutePath } = useSettingsStore(useShallow(state => ({
         savePath: state.savePath,
         useAbsolutePath: state.useAbsolutePath,
-        expertExifDirectActionEnabled: state.expertExifDirectActionEnabled,
-        expertExifManagerEnabled: state.expertExifManagerEnabled,
-        expertExifQuickActionEnabled: state.expertExifQuickActionEnabled,
     })))
     const [savedImages, setSavedImages] = useState<SavedImage[]>([])
     const [imageThumbnails, setImageThumbnails] = useState<Record<string, string>>({})
@@ -1204,8 +1149,6 @@ export function HistoryPanel() {
                                 onOpenSmartTools={handleOpenSmartTools}
                                 onOpenExifManager={handleOpenExifManager}
                                 onExifDirectAction={handleExifDirectAction}
-                                showExifDirectAction={expertExifDirectActionEnabled}
-                                showExifQuickAction={expertExifManagerEnabled && expertExifQuickActionEnabled}
                                 onAddAsReference={handleAddAsReference}
                                 onInpaint={handleInpaint}
                                 onI2I={handleI2I}

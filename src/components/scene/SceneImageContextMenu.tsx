@@ -3,10 +3,9 @@ import {
     ContextMenuContent,
     ContextMenuItem,
     ContextMenuTrigger,
-    ContextMenuSeparator,
 } from '@/components/ui/context-menu'
 import { useState } from 'react'
-import { Brush, Copy, FolderOpen, Save, Trash2, Wand2, Users, FileSearch, Paintbrush, Image as ImageIcon, Cloud, Eraser } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/components/ui/use-toast'
 import { save } from '@tauri-apps/plugin-dialog'
@@ -21,6 +20,7 @@ import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/S
 import { useExifStore } from '@/stores/exif-store'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 import { processAndSaveExifImage } from '@/lib/exif-actions'
+import { ImageQuickActionItems } from '@/components/image/ImageQuickActionItems'
 
 interface SceneContextMenuProps {
     image: SceneImage
@@ -37,8 +37,6 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
     const { setActiveImage, setRequestedTool } = useToolsStore()
     const { setSourceImage, setI2IMode } = useGenerationStore()
     const [r2DirectUploadOpen, setR2DirectUploadOpen] = useState(false)
-    const showExifDirectAction = useSettingsStore(s => s.expertExifDirectActionEnabled)
-    const showExifQuickAction = useSettingsStore(s => s.expertExifManagerEnabled && s.expertExifQuickActionEnabled)
 
     // Determine file path. 
     // image.url is expected to be the full file path for saved images.
@@ -222,75 +220,20 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
                 {children}
             </ContextMenuTrigger>
             <ContextMenuContent className="w-64">
-                <ContextMenuItem onClick={handleSaveAs}>
-                    <Save className="h-4 w-4 mr-2 text-cyan-400" />
-                    {t('actions.saveAs', '다른 이름으로 저장')}
-                </ContextMenuItem>
-                <ContextMenuItem onClick={handleCopy}>
-                    <Copy className="h-4 w-4 mr-2 text-blue-400" />
-                    {t('actions.copy', '복사')}
-                </ContextMenuItem>
-                {showExifDirectAction && (
-                    <ContextMenuItem onClick={handleExifDirectAction}>
-                        <Eraser className="h-4 w-4 mr-2 text-rose-400" />
-                        {t('exif.directAction')}
-                    </ContextMenuItem>
-                )}
-                {showExifQuickAction && (
-                    <ContextMenuItem onClick={handleExifManager}>
-                        <Eraser className="h-4 w-4 mr-2 text-rose-400" />
-                        {t('exif.quickAction')}
-                    </ContextMenuItem>
-                )}
-                <ContextMenuItem onClick={handleSmartTools}>
-                    <Wand2 className="h-4 w-4 mr-2 text-purple-400" />
-                    {t('smartTools.title', '스마트 툴')}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem onClick={handleInpaint} disabled={!onInpaint}>
-                    <Paintbrush className="h-4 w-4 mr-2 text-pink-400" />
-                    {t('tools.inpainting.title', '인페인팅')}
-                </ContextMenuItem>
-                <ContextMenuItem onClick={handleI2I}>
-                    <ImageIcon className="h-4 w-4 mr-2 text-indigo-400" />
-                    {t('tools.i2i.title', 'Image to Image')}
-                </ContextMenuItem>
-                <ContextMenuItem onClick={handleDrawOver}>
-                    <Brush className="h-4 w-4 mr-2 text-lime-400" />
-                    {t('smartTools.drawOver')}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-
-                {onAddRef && (
-                    <ContextMenuItem onClick={onAddRef}>
-                        <Users className="h-4 w-4 mr-2 text-emerald-400" />
-                        {t('actions.addAsRef', '이미지 참조')}
-                    </ContextMenuItem>
-                )}
-
-                {onLoadMetadata && (
-                    <ContextMenuItem onClick={onLoadMetadata}>
-                        <FileSearch className="h-4 w-4 mr-2 text-yellow-400" />
-                        {t('metadata.loadFromImage', '메타데이터 불러오기')}
-                    </ContextMenuItem>
-                )}
-
-                {isFile && (
-                    <ContextMenuItem onClick={handleOpenFolder}>
-                        <FolderOpen className="h-4 w-4 mr-2 text-orange-400" />
-                        {t('actions.openFolder', '탐색기에서 열기')}
-                    </ContextMenuItem>
-                )}
-
-                {useSettingsStore.getState().expertR2DirectUploadEnabled && (
-                    <>
-                        <ContextMenuSeparator />
-                        <ContextMenuItem onClick={() => setR2DirectUploadOpen(true)}>
-                            <Cloud className="h-4 w-4 mr-2 text-sky-400" />
-                            {t('scene.r2DirectUpload.title', 'R2 Direct Upload')}
-                        </ContextMenuItem>
-                    </>
-                )}
+                <ImageQuickActionItems
+                    onSaveAs={handleSaveAs}
+                    onCopy={handleCopy}
+                    onExifDirectAction={handleExifDirectAction}
+                    onOpenExifManager={handleExifManager}
+                    onOpenSmartTools={handleSmartTools}
+                    onInpaint={onInpaint ? handleInpaint : undefined}
+                    onI2I={handleI2I}
+                    onDrawOver={handleDrawOver}
+                    onAddReference={onAddRef}
+                    onLoadMetadata={onLoadMetadata}
+                    onOpenFolder={isFile ? handleOpenFolder : undefined}
+                    onR2DirectUpload={() => setR2DirectUploadOpen(true)}
+                />
 
                 <ContextMenuItem onClick={handleDelete} className="text-red-500 focus:text-red-500">
                     <Trash2 className="h-4 w-4 mr-2 text-red-500" />
