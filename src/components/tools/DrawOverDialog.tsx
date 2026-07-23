@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { Download, Droplets, Eraser, Image as ImageIcon, Paintbrush, RotateCcw } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
+import { Circle, Download, Droplets, Eraser, Image as ImageIcon, Paintbrush, RotateCcw, Square, Undo, ZoomIn, ZoomOut } from 'lucide-react'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +12,9 @@ import { cn } from '@/lib/utils'
 
 type DrawMode = 'pen' | 'blur' | 'eraser'
 type TransferMode = 'i2i' | 'inpaint'
+type BrushShape = 'round' | 'square'
+
+const MAX_UNDO_STEPS = 12
 
 interface DrawOverDialogProps {
     open: boolean
@@ -30,14 +33,24 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
     const baseCanvasRef = useRef<HTMLCanvasElement>(null)
     const editCanvasRef = useRef<HTMLCanvasElement>(null)
     const blurSourceRef = useRef<HTMLCanvasElement | null>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
+    const brushCursorRef = useRef<HTMLDivElement>(null)
     const lastPointRef = useRef<{ x: number; y: number } | null>(null)
     const drawingRef = useRef(false)
+    const panningRef = useRef(false)
+    const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null)
+    const undoHistoryRef = useRef<string[]>([])
+    const zoomRef = useRef(1)
     const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null)
+    const [displaySize, setDisplaySize] = useState<{ width: number; height: number } | null>(null)
     const [mode, setMode] = useState<DrawMode>('pen')
+    const [brushShape, setBrushShape] = useState<BrushShape>('round')
     const [brushSize, setBrushSize] = useState(48)
     const [blurAmount, setBlurAmount] = useState(12)
     const [color, setColor] = useState('#000000')
     const [opacity, setOpacity] = useState(100)
+    const [zoom, setZoom] = useState(1)
+    const [undoCount, setUndoCount] = useState(0)
 
     const releaseCanvases = useCallback(() => {
         for (const canvas of [baseCanvasRef.current, editCanvasRef.current, blurSourceRef.current]) {
@@ -49,7 +62,14 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         blurSourceRef.current = null
         lastPointRef.current = null
         drawingRef.current = false
+        panningRef.current = false
+        panStartRef.current = null
+        undoHistoryRef.current = []
+        zoomRef.current = 1
         setImageSize(null)
+        setDisplaySize(null)
+        setZoom(1)
+        setUndoCount(0)
     }, [])
 
     useEffect(() => {
@@ -73,6 +93,10 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
             editCanvas.height = image.naturalHeight
             baseCanvas.getContext('2d')?.drawImage(image, 0, 0)
             editCanvas.getContext('2d')?.clearRect(0, 0, editCanvas.width, editCanvas.height)
+            undoHistoryRef.current = []
+            setUndoCount(0)
+            zoomRef.current = 1
+            setZoom(1)
             setImageSize({ width: image.naturalWidth, height: image.naturalHeight })
         }
         image.onerror = () => {
@@ -86,6 +110,31 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
             image.onerror = null
         }
     }, [open, releaseCanvases, sourceImage, t])
+
+    useEffect(() => {
+        const container = containerRef.current
+        if (!open || !container || !imageSize) {
+            setDisplaySize(null)
+            return
+        }
+
+        const updateDisplaySize = () => {
+            const style = window.getComputedStyle(container)
+            const availableWidth = Math.max(1, container.clientWidth - (Number.parseFloat(style.paddingLeft) || 0) - (Number.parseFloat(style.paddingRight) || 0))
+            const availableHeight = Math.max(1, container.clientHeight - (Number.parseFloat(style.paddingTop) || 0) - (Number.parseFloat(style.paddingBottom) || 0))
+            const scale = Math.min(availableWidth / imageSize.width, availableHeight / imageSize.height)
+            const nextSize = {
+                width: Math.max(1, Math.floor(imageSize.width * scale)),
+                height: Math.max(1, Math.floor(imageSize.height * scale)),
+            }
+            setDisplaySize(current => current?.width === nextSize.width && current.height === nextSize.height ? current : nextSize)
+        }
+
+        updateDisplaySize()
+        const observer = new ResizeObserver(updateDisplaySize)
+        observer.observe(container)
+        return () => observer.disconnect()
+    }, [imageSize, open])
 
     const composeToCanvas = useCallback(() => {
         const base = baseCanvasRef.current
@@ -122,21 +171,37 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         }
     }
 
+    const clearUndoHistory = () => {
+        undoHistoryRef.current = []
+        setUndoCount(0)
+    }
+
+    const captureUndoSnapshot = () => {
+        const canvas = editCanvasRef.current
+        if (!canvas || canvas.width === 0 || canvas.height === 0) return
+
+        undoHistoryRef.current = [...undoHistoryRef.current, canvas.toDataURL('image/webp', 0.9)].slice(-MAX_UNDO_STEPS)
+        setUndoCount(undoHistoryRef.current.length)
+    }
+
     const drawBlurPoint = useCallback((x: number, y: number) => {
         const canvas = editCanvasRef.current
         const source = blurSourceRef.current
         const ctx = canvas?.getContext('2d')
         if (!canvas || !source || !ctx) return
 
-        const radius = brushSize / 2
         ctx.save()
         ctx.beginPath()
-        ctx.arc(x, y, radius, 0, Math.PI * 2)
+        if (brushShape === 'round') {
+            ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2)
+        } else {
+            ctx.rect(x - brushSize / 2, y - brushSize / 2, brushSize, brushSize)
+        }
         ctx.clip()
         ctx.filter = `blur(${blurAmount}px)`
         ctx.drawImage(source, 0, 0)
         ctx.restore()
-    }, [blurAmount, brushSize])
+    }, [blurAmount, brushShape, brushSize])
 
     const drawSegment = useCallback((from: { x: number; y: number }, to: { x: number; y: number }) => {
         const canvas = editCanvasRef.current
@@ -159,26 +224,70 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         ctx.globalAlpha = mode === 'pen' ? opacity / 100 : 1
         ctx.strokeStyle = color
         ctx.lineWidth = brushSize
-        ctx.lineCap = 'round'
-        ctx.lineJoin = 'round'
+        ctx.lineCap = brushShape === 'round' ? 'round' : 'square'
+        ctx.lineJoin = brushShape === 'round' ? 'round' : 'bevel'
         ctx.beginPath()
         ctx.moveTo(from.x, from.y)
         ctx.lineTo(to.x, to.y)
         ctx.stroke()
         ctx.restore()
-    }, [brushSize, color, drawBlurPoint, mode, opacity])
+    }, [brushShape, brushSize, color, drawBlurPoint, mode, opacity])
+
+    const updateBrushCursor = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+        const canvas = editCanvasRef.current
+        const cursor = brushCursorRef.current
+        if (!canvas || !cursor) return
+
+        const rect = canvas.getBoundingClientRect()
+        cursor.style.width = `${brushSize * (rect.width / canvas.width)}px`
+        cursor.style.height = `${brushSize * (rect.height / canvas.height)}px`
+        cursor.style.transform = `translate(${event.clientX - rect.left}px, ${event.clientY - rect.top}px) translate(-50%, -50%)`
+        cursor.style.borderRadius = brushShape === 'round' ? '9999px' : '0'
+        cursor.style.borderColor = mode === 'eraser' ? 'rgba(248, 113, 113, 0.95)' : 'rgba(255, 255, 255, 0.9)'
+        cursor.style.backgroundColor = mode === 'eraser' ? 'rgba(248, 113, 113, 0.1)' : 'rgba(99, 102, 241, 0.1)'
+        cursor.style.opacity = '1'
+    }
+
+    const hideBrushCursor = () => {
+        if (brushCursorRef.current) brushCursorRef.current.style.opacity = '0'
+    }
+
+    const startPanning = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+        if (event.button !== 1 || !containerRef.current) return false
+        event.preventDefault()
+        event.currentTarget.setPointerCapture(event.pointerId)
+        panningRef.current = true
+        panStartRef.current = {
+            x: event.clientX,
+            y: event.clientY,
+            scrollLeft: containerRef.current.scrollLeft,
+            scrollTop: containerRef.current.scrollTop,
+        }
+        hideBrushCursor()
+        return true
+    }
 
     const handlePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+        if (startPanning(event)) return
+        if (event.button !== 0) return
         const point = getCanvasPoint(event)
         if (!point) return
         event.currentTarget.setPointerCapture(event.pointerId)
+        captureUndoSnapshot()
         if (mode === 'blur') captureBlurSource()
         drawingRef.current = true
         lastPointRef.current = point
+        updateBrushCursor(event)
         drawSegment(point, { x: point.x + 0.01, y: point.y + 0.01 })
     }
 
     const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+        if (panningRef.current && panStartRef.current && containerRef.current) {
+            containerRef.current.scrollLeft = panStartRef.current.scrollLeft - (event.clientX - panStartRef.current.x)
+            containerRef.current.scrollTop = panStartRef.current.scrollTop - (event.clientY - panStartRef.current.y)
+            return
+        }
+        updateBrushCursor(event)
         if (!drawingRef.current || !lastPointRef.current) return
         const point = getCanvasPoint(event)
         if (!point) return
@@ -189,6 +298,11 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
     const stopDrawing = (event?: ReactPointerEvent<HTMLCanvasElement>) => {
         if (event?.currentTarget.hasPointerCapture(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId)
+        }
+        if (panningRef.current) {
+            panningRef.current = false
+            panStartRef.current = null
+            return
         }
         drawingRef.current = false
         lastPointRef.current = null
@@ -202,6 +316,69 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
     const resetEdits = () => {
         const canvas = editCanvasRef.current
         canvas?.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
+        clearUndoHistory()
+    }
+
+    const undo = useCallback(() => {
+        const canvas = editCanvasRef.current
+        const snapshot = undoHistoryRef.current.pop()
+        if (!canvas || !snapshot) return
+
+        setUndoCount(undoHistoryRef.current.length)
+        const image = new Image()
+        image.onload = () => {
+            const ctx = canvas.getContext('2d')
+            if (!ctx) return
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
+        }
+        image.src = snapshot
+    }, [])
+
+    useEffect(() => {
+        if (!open) return
+        const handleUndoShortcut = (event: KeyboardEvent) => {
+            if (!event.ctrlKey || event.shiftKey || event.key.toLowerCase() !== 'z') return
+            event.preventDefault()
+            undo()
+        }
+        window.addEventListener('keydown', handleUndoShortcut)
+        return () => window.removeEventListener('keydown', handleUndoShortcut)
+    }, [open, undo])
+
+    const setZoomLevel = (nextZoom: number, pivot?: { clientX: number; clientY: number }) => {
+        const previousZoom = zoomRef.current
+        const clampedZoom = Math.max(0.5, Math.min(3, nextZoom))
+        if (clampedZoom === previousZoom) return
+
+        const container = containerRef.current
+        const rect = container?.getBoundingClientRect()
+        const pivotX = pivot && rect ? pivot.clientX - rect.left : 0
+        const pivotY = pivot && rect ? pivot.clientY - rect.top : 0
+        const contentX = container ? container.scrollLeft + pivotX : 0
+        const contentY = container ? container.scrollTop + pivotY : 0
+
+        zoomRef.current = clampedZoom
+        setZoom(clampedZoom)
+        hideBrushCursor()
+
+        window.requestAnimationFrame(() => {
+            if (!container) return
+            if (clampedZoom <= 1) {
+                container.scrollLeft = 0
+                container.scrollTop = 0
+                return
+            }
+            const scale = clampedZoom / previousZoom
+            container.scrollLeft = Math.max(0, contentX * scale - pivotX)
+            container.scrollTop = Math.max(0, contentY * scale - pivotY)
+        })
+    }
+
+    const handleZoomWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+        if (!event.ctrlKey) return
+        event.preventDefault()
+        setZoomLevel(zoomRef.current + (event.deltaY < 0 ? 0.25 : -0.25), event)
     }
 
     const getOutputDataUrl = () => {
@@ -269,6 +446,15 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
                         {toolButton('eraser', Eraser, t('common.eraser'))}
                     </div>
                     <div className="h-6 w-px bg-border" />
+                    <div className="flex items-center gap-1">
+                        <Button type="button" variant={brushShape === 'round' ? 'secondary' : 'ghost'} size="icon" className={cn('h-8 w-8', brushShape === 'round' && 'bg-primary text-primary-foreground hover:bg-primary/90')} onClick={() => setBrushShape('round')} title={t('smartTools.roundBrush')}>
+                            <Circle className="h-4 w-4" />
+                        </Button>
+                        <Button type="button" variant={brushShape === 'square' ? 'secondary' : 'ghost'} size="icon" className={cn('h-8 w-8', brushShape === 'square' && 'bg-primary text-primary-foreground hover:bg-primary/90')} onClick={() => setBrushShape('square')} title={t('smartTools.squareBrush')}>
+                            <Square className="h-4 w-4" />
+                        </Button>
+                    </div>
+                    <div className="h-6 w-px bg-border" />
                     <div className="flex items-center gap-2">
                         <Label className="text-xs">{t('common.size')}</Label>
                         <Slider value={[brushSize]} min={4} max={240} step={2} onValueChange={([value]) => setBrushSize(value)} className="w-28" />
@@ -299,19 +485,35 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
                         </>
                     )}
                     <div className="h-6 w-px bg-border" />
+                    <div className="flex items-center gap-1">
+                        <Button type="button" variant="ghost" size="icon" onClick={() => setZoomLevel(zoomRef.current - 0.25)} disabled={zoom <= 0.5} title={t('smartTools.zoomOut')}>
+                            <ZoomOut className="h-4 w-4" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" className="w-14 tabular-nums" onClick={() => setZoomLevel(1)} title={t('smartTools.resetZoom')}>
+                            {Math.round(zoom * 100)}%
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => setZoomLevel(zoomRef.current + 0.25)} disabled={zoom >= 3} title={t('smartTools.zoomIn')}>
+                            <ZoomIn className="h-4 w-4" />
+                        </Button>
+                    </div>
+                    <div className="h-6 w-px bg-border" />
+                    <Button type="button" variant="ghost" size="icon" onClick={undo} disabled={undoCount === 0} title={t('smartTools.undo')}>
+                        <Undo className="h-4 w-4" />
+                    </Button>
+                    <div className="h-6 w-px bg-border" />
                     <Button type="button" variant="ghost" size="icon" onClick={resetEdits} title={t('smartTools.reset')}>
                         <RotateCcw className="h-4 w-4" />
                     </Button>
                 </div>
 
-                <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-muted/50 p-4">
+                <div ref={containerRef} className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-lg bg-muted/50 p-4" onWheel={handleZoomWheel}>
                     {sourceImage && (
                         <div
-                            className="relative max-h-full max-w-full"
+                            className="relative shrink-0"
                             style={{
-                                aspectRatio: imageSize ? `${imageSize.width} / ${imageSize.height}` : undefined,
-                                width: imageSize ? `min(100%, calc((85vh - 210px) * ${imageSize.width / imageSize.height}))` : '100%',
-                                maxHeight: '100%',
+                                width: displaySize ? `${Math.round(displaySize.width * zoom)}px` : '1px',
+                                height: displaySize ? `${Math.round(displaySize.height * zoom)}px` : '1px',
+                                visibility: displaySize ? 'visible' : 'hidden',
                             }}
                         >
                             <canvas ref={baseCanvasRef} className="block h-full w-full object-contain" />
@@ -322,7 +524,11 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
                                 onPointerMove={handlePointerMove}
                                 onPointerUp={stopDrawing}
                                 onPointerCancel={stopDrawing}
+                                onPointerEnter={updateBrushCursor}
+                                onPointerLeave={hideBrushCursor}
+                                onContextMenu={event => event.preventDefault()}
                             />
+                            <div ref={brushCursorRef} className="pointer-events-none absolute left-0 top-0 border border-white/90 transition-opacity duration-100" style={{ opacity: 0 }} />
                         </div>
                     )}
                 </div>
