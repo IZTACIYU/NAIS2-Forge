@@ -36,6 +36,7 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
     const containerRef = useRef<HTMLDivElement>(null)
     const brushCursorRef = useRef<HTMLDivElement>(null)
     const panOffsetRef = useRef({ x: 0, y: 0 })
+    const zoomUpdateRef = useRef(0)
     const lastPointRef = useRef<{ x: number; y: number } | null>(null)
     const drawingRef = useRef(false)
     const panningRef = useRef(false)
@@ -369,6 +370,7 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         const previousZoom = zoomRef.current
         const clampedZoom = Math.max(0.5, Math.min(3, nextZoom))
         if (clampedZoom === previousZoom) return
+        const zoomUpdateId = ++zoomUpdateRef.current
 
         const container = containerRef.current
         const currentCanvasRect = editCanvasRef.current?.getBoundingClientRect()
@@ -388,7 +390,9 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         hideBrushCursor()
 
         window.requestAnimationFrame(() => {
+            if (zoomUpdateId !== zoomUpdateRef.current) return
             window.requestAnimationFrame(() => {
+                if (zoomUpdateId !== zoomUpdateRef.current) return
                 if (!container) return
                 if (clampedZoom <= 1) {
                     container.scrollLeft = 0

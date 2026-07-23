@@ -51,6 +51,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     const containerRef = useRef<HTMLDivElement>(null)
     const brushCursorRef = useRef<HTMLDivElement>(null)
     const panOffsetRef = useRef({ x: 0, y: 0 })
+    const zoomUpdateRef = useRef(0)
     const maskSavedRef = useRef(false)
     const isDrawingRef = useRef(false)
     const isPanningRef = useRef(false)
@@ -470,6 +471,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         const previousZoom = zoomRef.current
         const clampedZoom = Math.max(0.5, Math.min(3, nextZoom))
         if (clampedZoom === previousZoom) return
+        const zoomUpdateId = ++zoomUpdateRef.current
 
         const currentCanvasRect = canvasRef.current?.getBoundingClientRect()
         const fallbackX = currentCanvasRect ? currentCanvasRect.left + currentCanvasRect.width / 2 : 0
@@ -488,7 +490,9 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         hideBrushCursor()
 
         window.requestAnimationFrame(() => {
+            if (zoomUpdateId !== zoomUpdateRef.current) return
             window.requestAnimationFrame(() => {
+                if (zoomUpdateId !== zoomUpdateRef.current) return
                 const currentContainer = containerRef.current
                 if (!currentContainer) return
                 if (clampedZoom <= 1) {
