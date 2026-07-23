@@ -60,8 +60,8 @@ export function ImageQuickActionItems({
 
             {onOpenSmartTools && <ContextMenuItem onClick={onOpenSmartTools}><Wand2 className="mr-2 h-4 w-4 text-purple-400" />{t('smartTools.title')}</ContextMenuItem>}
             {(hasFileActions || hasExifActions || hasPrimaryActions) && hasEditorActions && <ContextMenuSeparator />}
-            {onI2I && <ContextMenuItem onClick={onI2I}><ImageIcon className="mr-2 h-4 w-4 text-indigo-400" />{t('tools.i2i.title')}</ContextMenuItem>}
             {onInpaint && <ContextMenuItem onClick={onInpaint}><Paintbrush className="mr-2 h-4 w-4 text-pink-400" />{t('tools.inpainting.title')}</ContextMenuItem>}
+            {onI2I && <ContextMenuItem onClick={onI2I}><ImageIcon className="mr-2 h-4 w-4 text-indigo-400" />{t('tools.i2i.title')}</ContextMenuItem>}
             {onDrawOver && <ContextMenuItem onClick={onDrawOver}><Brush className="mr-2 h-4 w-4 text-lime-400" />{t('smartTools.drawOver')}</ContextMenuItem>}
 
             {hasToolActions && hasReferenceActions && <ContextMenuSeparator />}
