@@ -44,6 +44,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     const setBrushSize = (val: number[]) => setInpaintingBrushSize(val[0])
     const [isErasing, setIsErasing] = useState(false)
     const [zoom, setZoom] = useState(1)
+    const zoomRef = useRef(1)
 
     // Canvas & State
     const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -100,12 +101,16 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
             setHistoryStep(0)
             setImageSize(null)
             setDisplaySize(null)
+            zoomRef.current = 1
             setZoom(1)
         }
     }, [open, propSourceImage, resetI2IParams, setSourceImage])
 
     useEffect(() => {
-        if (open) setZoom(1)
+        if (open) {
+            zoomRef.current = 1
+            setZoom(1)
+        }
     }, [open, propSourceImage])
 
     // Initial Canvas Setup - Now also restores existing mask
@@ -390,15 +395,17 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         if (!canvas || !cursor) return
 
         const rect = canvas.getBoundingClientRect()
-        const x = e.clientX - rect.left
-        const y = e.clientY - rect.top
         const brushGridSize = Math.max(1, Math.floor(inpaintingBrushSize / GRID_SIZE))
         const brushRadius = Math.floor(brushGridSize / 2)
         const brushPixels = (brushRadius * 2 + 1) * GRID_SIZE
-        const renderedBrushSize = brushPixels * (rect.width / canvas.width)
-        cursor.style.width = `${renderedBrushSize}px`
-        cursor.style.height = `${renderedBrushSize}px`
-        cursor.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`
+        const canvasX = (e.clientX - rect.left) * (canvas.width / rect.width)
+        const canvasY = (e.clientY - rect.top) * (canvas.height / rect.height)
+        const { gx, gy } = pixelToGrid(canvasX, canvasY, canvas.width, canvas.height)
+        const centerX = (gx * GRID_SIZE + GRID_SIZE / 2) * (rect.width / canvas.width)
+        const centerY = (gy * GRID_SIZE + GRID_SIZE / 2) * (rect.height / canvas.height)
+        cursor.style.width = `${brushPixels * (rect.width / canvas.width)}px`
+        cursor.style.height = `${brushPixels * (rect.height / canvas.height)}px`
+        cursor.style.transform = `translate(${centerX}px, ${centerY}px) translate(-50%, -50%)`
         cursor.style.borderColor = erase ? 'rgba(248, 113, 113, 0.95)' : 'rgba(255, 255, 255, 0.9)'
         cursor.style.backgroundColor = erase ? 'rgba(248, 113, 113, 0.1)' : 'rgba(99, 102, 241, 0.1)'
         cursor.style.opacity = '1'
@@ -453,10 +460,40 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         return () => window.removeEventListener('keydown', handleUndoShortcut)
     }, [open])
 
+    const setZoomLevel = (nextZoom: number, pivot?: { clientX: number; clientY: number }) => {
+        const previousZoom = zoomRef.current
+        const clampedZoom = Math.max(0.5, Math.min(3, nextZoom))
+        if (clampedZoom === previousZoom) return
+
+        const container = containerRef.current
+        const rect = container?.getBoundingClientRect()
+        const pivotX = pivot && rect ? pivot.clientX - rect.left : 0
+        const pivotY = pivot && rect ? pivot.clientY - rect.top : 0
+        const contentX = container ? container.scrollLeft + pivotX : 0
+        const contentY = container ? container.scrollTop + pivotY : 0
+
+        zoomRef.current = clampedZoom
+        setZoom(clampedZoom)
+        hideBrushCursor()
+
+        window.requestAnimationFrame(() => {
+            const currentContainer = containerRef.current
+            if (!currentContainer) return
+            if (clampedZoom <= 1) {
+                currentContainer.scrollLeft = 0
+                currentContainer.scrollTop = 0
+                return
+            }
+            const scale = clampedZoom / previousZoom
+            currentContainer.scrollLeft = Math.max(0, contentX * scale - pivotX)
+            currentContainer.scrollTop = Math.max(0, contentY * scale - pivotY)
+        })
+    }
+
     const handleZoomWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
         if (!event.ctrlKey) return
         event.preventDefault()
-        setZoom(current => Math.max(0.5, Math.min(3, current + (event.deltaY < 0 ? 0.25 : -0.25))))
+        setZoomLevel(zoomRef.current + (event.deltaY < 0 ? 0.25 : -0.25), event)
     }
 
     // Clear canvas
@@ -569,7 +606,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => setZoom(current => Math.max(0.5, current - 0.25))}
+                                    onClick={() => setZoomLevel(zoomRef.current - 0.25)}
                                     disabled={zoom <= 0.5}
                                     title={t('tools.inpainting.zoomOut', 'Zoom out')}
                                     aria-label={t('tools.inpainting.zoomOut', 'Zoom out')}
@@ -580,7 +617,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                                     variant="ghost"
                                     size="sm"
                                     className="w-14 tabular-nums"
-                                    onClick={() => setZoom(1)}
+                                    onClick={() => setZoomLevel(1)}
                                     title={t('tools.inpainting.resetZoom', 'Reset zoom')}
                                 >
                                     {Math.round(zoom * 100)}%
@@ -588,7 +625,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => setZoom(current => Math.min(3, current + 0.25))}
+                                    onClick={() => setZoomLevel(zoomRef.current + 0.25)}
                                     disabled={zoom >= 3}
                                     title={t('tools.inpainting.zoomIn', 'Zoom in')}
                                     aria-label={t('tools.inpainting.zoomIn', 'Zoom in')}
@@ -598,7 +635,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => setZoom(1)}
+                                    onClick={() => setZoomLevel(1)}
                                     title={t('tools.inpainting.resetZoom', 'Reset zoom')}
                                     aria-label={t('tools.inpainting.resetZoom', 'Reset zoom')}
                                 >

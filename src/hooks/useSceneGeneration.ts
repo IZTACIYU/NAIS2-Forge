@@ -120,6 +120,7 @@ export function useSceneGeneration() {
             
             // Session check: If session changed, this processQueue is stale
             if (sessionId !== useSceneStore.getState().generationSessionId) {
+                if (useSceneStore.getState().isCancelling) setIsGenerating(false)
                 isProcessing = false
                 return
             }
@@ -163,6 +164,7 @@ export function useSceneGeneration() {
 
             // Double-check session before modifying queue
             if (sessionId !== useSceneStore.getState().generationSessionId) {
+                if (useSceneStore.getState().isCancelling) setIsGenerating(false)
                 isProcessing = false
                 return
             }
