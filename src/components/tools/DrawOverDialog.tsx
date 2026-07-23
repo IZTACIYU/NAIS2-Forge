@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { Circle, Download, Droplets, Eraser, Image as ImageIcon, Paintbrush, RotateCcw, Square, Undo, ZoomIn, ZoomOut } from 'lucide-react'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
@@ -36,7 +36,13 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
     const containerRef = useRef<HTMLDivElement>(null)
     const brushCursorRef = useRef<HTMLDivElement>(null)
     const panOffsetRef = useRef({ x: 0, y: 0 })
-    const zoomUpdateRef = useRef(0)
+    const pendingZoomRef = useRef<{
+        zoom: number
+        pivotClientX: number
+        pivotClientY: number
+        pivotRatioX: number
+        pivotRatioY: number
+    } | null>(null)
     const lastPointRef = useRef<{ x: number; y: number } | null>(null)
     const drawingRef = useRef(false)
     const panningRef = useRef(false)
@@ -366,82 +372,87 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         return () => window.removeEventListener('keydown', handleUndoShortcut)
     }, [open, undo])
 
+    useLayoutEffect(() => {
+        const pendingZoom = pendingZoomRef.current
+        if (!pendingZoom) return
+        pendingZoomRef.current = null
+
+        const container = containerRef.current
+        if (!container) return
+        if (pendingZoom.zoom <= 1) {
+            container.scrollLeft = 0
+            container.scrollTop = 0
+            panOffsetRef.current = { x: 0, y: 0 }
+            setPanOffset({ x: 0, y: 0 })
+            return
+        }
+
+        const nextCanvasRect = editCanvasRef.current?.getBoundingClientRect()
+        if (!nextCanvasRect) return
+        const containerRect = container.getBoundingClientRect()
+        const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
+        const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
+        let nextPanOffset = panOffsetRef.current
+
+        if (maxScrollLeft === 0) {
+            const desiredLeft = pendingZoom.pivotClientX - pendingZoom.pivotRatioX * nextCanvasRect.width
+            const clampedLeft = Math.min(
+                containerRect.right - nextCanvasRect.width,
+                Math.max(containerRect.left, desiredLeft),
+            )
+            nextPanOffset = { ...nextPanOffset, x: nextPanOffset.x + clampedLeft - nextCanvasRect.left }
+            container.scrollLeft = 0
+        } else {
+            const nextScrollLeft = container.scrollLeft + nextCanvasRect.left
+                - (pendingZoom.pivotClientX - pendingZoom.pivotRatioX * nextCanvasRect.width)
+            container.scrollLeft = Math.min(maxScrollLeft, Math.max(0, nextScrollLeft))
+        }
+
+        if (maxScrollTop === 0) {
+            const desiredTop = pendingZoom.pivotClientY - pendingZoom.pivotRatioY * nextCanvasRect.height
+            const clampedTop = Math.min(
+                containerRect.bottom - nextCanvasRect.height,
+                Math.max(containerRect.top, desiredTop),
+            )
+            nextPanOffset = { ...nextPanOffset, y: nextPanOffset.y + clampedTop - nextCanvasRect.top }
+            container.scrollTop = 0
+        } else {
+            const nextScrollTop = container.scrollTop + nextCanvasRect.top
+                - (pendingZoom.pivotClientY - pendingZoom.pivotRatioY * nextCanvasRect.height)
+            container.scrollTop = Math.min(maxScrollTop, Math.max(0, nextScrollTop))
+        }
+
+        if (nextPanOffset !== panOffsetRef.current) {
+            panOffsetRef.current = nextPanOffset
+            setPanOffset(nextPanOffset)
+        }
+    }, [zoom])
+
     const setZoomLevel = (nextZoom: number, pivot?: { clientX: number; clientY: number }) => {
         const previousZoom = zoomRef.current
         const clampedZoom = Math.max(0.5, Math.min(3, nextZoom))
         if (clampedZoom === previousZoom) return
-        const zoomUpdateId = ++zoomUpdateRef.current
 
-        const container = containerRef.current
         const currentCanvasRect = editCanvasRef.current?.getBoundingClientRect()
         const fallbackX = currentCanvasRect ? currentCanvasRect.left + currentCanvasRect.width / 2 : 0
         const fallbackY = currentCanvasRect ? currentCanvasRect.top + currentCanvasRect.height / 2 : 0
         const pivotClientX = pivot?.clientX ?? fallbackX
         const pivotClientY = pivot?.clientY ?? fallbackY
-        const pivotRatioX = currentCanvasRect
-            ? Math.min(1, Math.max(0, (pivotClientX - currentCanvasRect.left) / currentCanvasRect.width))
-            : 0.5
-        const pivotRatioY = currentCanvasRect
-            ? Math.min(1, Math.max(0, (pivotClientY - currentCanvasRect.top) / currentCanvasRect.height))
-            : 0.5
+        pendingZoomRef.current = {
+            zoom: clampedZoom,
+            pivotClientX,
+            pivotClientY,
+            pivotRatioX: currentCanvasRect
+                ? Math.min(1, Math.max(0, (pivotClientX - currentCanvasRect.left) / currentCanvasRect.width))
+                : 0.5,
+            pivotRatioY: currentCanvasRect
+                ? Math.min(1, Math.max(0, (pivotClientY - currentCanvasRect.top) / currentCanvasRect.height))
+                : 0.5,
+        }
 
         zoomRef.current = clampedZoom
         setZoom(clampedZoom)
         hideBrushCursor()
-
-        window.requestAnimationFrame(() => {
-            if (zoomUpdateId !== zoomUpdateRef.current) return
-            window.requestAnimationFrame(() => {
-                if (zoomUpdateId !== zoomUpdateRef.current) return
-                if (!container) return
-                if (clampedZoom <= 1) {
-                    container.scrollLeft = 0
-                    container.scrollTop = 0
-                    panOffsetRef.current = { x: 0, y: 0 }
-                    setPanOffset({ x: 0, y: 0 })
-                    return
-                }
-                const nextCanvasRect = editCanvasRef.current?.getBoundingClientRect()
-                if (!nextCanvasRect) return
-                const containerRect = container.getBoundingClientRect()
-                const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
-                const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
-                let nextPanOffset = panOffsetRef.current
-
-                if (maxScrollLeft === 0) {
-                    const desiredLeft = pivotClientX - pivotRatioX * nextCanvasRect.width
-                    const clampedLeft = Math.min(
-                        containerRect.right - nextCanvasRect.width,
-                        Math.max(containerRect.left, desiredLeft),
-                    )
-                    nextPanOffset = { ...nextPanOffset, x: nextPanOffset.x + clampedLeft - nextCanvasRect.left }
-                    container.scrollLeft = 0
-                } else {
-                    const nextScrollLeft = container.scrollLeft + nextCanvasRect.left
-                        - (pivotClientX - pivotRatioX * nextCanvasRect.width)
-                    container.scrollLeft = Math.min(maxScrollLeft, Math.max(0, nextScrollLeft))
-                }
-
-                if (maxScrollTop === 0) {
-                    const desiredTop = pivotClientY - pivotRatioY * nextCanvasRect.height
-                    const clampedTop = Math.min(
-                        containerRect.bottom - nextCanvasRect.height,
-                        Math.max(containerRect.top, desiredTop),
-                    )
-                    nextPanOffset = { ...nextPanOffset, y: nextPanOffset.y + clampedTop - nextCanvasRect.top }
-                    container.scrollTop = 0
-                } else {
-                    const nextScrollTop = container.scrollTop + nextCanvasRect.top
-                        - (pivotClientY - pivotRatioY * nextCanvasRect.height)
-                    container.scrollTop = Math.min(maxScrollTop, Math.max(0, nextScrollTop))
-                }
-
-                if (nextPanOffset !== panOffsetRef.current) {
-                    panOffsetRef.current = nextPanOffset
-                    setPanOffset(nextPanOffset)
-                }
-            })
-        })
     }
 
     const handleZoomWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
