@@ -84,7 +84,6 @@ export function useSceneGeneration() {
 
     const {
         isGenerating,
-        setIsGenerating,
         activePresetId,
         getNextCharacterSequenceScene,
         getHasMoreSceneGeneration,
@@ -97,7 +96,6 @@ export function useSceneGeneration() {
         generationSessionId
     } = useSceneStore(useShallow(state => ({
         isGenerating: state.isGenerating,
-        setIsGenerating: state.setIsGenerating,
         activePresetId: state.activePresetId,
         getNextCharacterSequenceScene: state.getNextCharacterSequenceScene,
         getHasMoreSceneGeneration: state.getHasMoreSceneGeneration,
@@ -112,6 +110,13 @@ export function useSceneGeneration() {
 
     useEffect(() => {
         const processQueue = async (sessionId: number) => {
+            const finishSession = () => {
+                const currentState = useSceneStore.getState()
+                if (currentState.generationSessionId !== sessionId) return false
+                currentState.setIsGenerating(false)
+                return true
+            }
+
             // CRITICAL: Prevent concurrent API requests (429 error fix)
             // Check and SET immediately to prevent race condition
             if (isProcessing) {
@@ -120,7 +125,6 @@ export function useSceneGeneration() {
             
             // Session check: If session changed, this processQueue is stale
             if (sessionId !== useSceneStore.getState().generationSessionId) {
-                if (useSceneStore.getState().isCancelling) setIsGenerating(false)
                 isProcessing = false
                 return
             }
@@ -134,14 +138,14 @@ export function useSceneGeneration() {
                 if (useGenerationStore.getState().generatingMode === 'scene') {
                     useGenerationStore.getState().setGeneratingMode(null)
                 }
-                setIsGenerating(false)  // This will also reset isCancelling
+                finishSession()
                 isProcessing = false
                 return
             }
 
             // Conflict Check: If Main Mode is generating, stop Scene Mode
             if (useGenerationStore.getState().generatingMode === 'main') {
-                setIsGenerating(false)
+                finishSession()
                 isProcessing = false  // CRITICAL: Reset flag on early return
                 toast({
                     title: t('common.error', '오류'),
@@ -157,14 +161,13 @@ export function useSceneGeneration() {
             }
 
             if (!activePresetId || !token) {
-                setIsGenerating(false)
+                finishSession()
                 isProcessing = false  // CRITICAL: Reset flag on early return
                 return
             }
 
             // Double-check session before modifying queue
             if (sessionId !== useSceneStore.getState().generationSessionId) {
-                if (useSceneStore.getState().isCancelling) setIsGenerating(false)
                 isProcessing = false
                 return
             }
@@ -174,7 +177,7 @@ export function useSceneGeneration() {
             const sequenceEntry = nextGeneration?.entry ?? null
 
             if (!scene) {
-                setIsGenerating(false)
+                finishSession()
                 // Global mode will be cleared by the effect or next loop
                 useGenerationStore.getState().setGeneratingMode(null)
 
@@ -402,7 +405,7 @@ export function useSceneGeneration() {
                 if (beforeRequestState.isCancelling || beforeRequestState.generationSessionId !== sessionId) {
                     isProcessing = false
                     setStreamingData(null, null, 0)
-                    if (beforeRequestState.isCancelling) setIsGenerating(false)
+                    finishSession()
                     return
                 }
                 const abortController = new AbortController()
@@ -431,7 +434,7 @@ export function useSceneGeneration() {
                 if (completedState.isCancelling || completedState.generationSessionId !== sessionId) {
                     isProcessing = false
                     setStreamingData(null, null, 0)
-                    if (completedState.isCancelling) setIsGenerating(false)
+                    finishSession()
                     return
                 }
 
@@ -592,8 +595,11 @@ export function useSceneGeneration() {
 
                 // Check if session is still valid before retrying
                 const latestState = useSceneStore.getState()
+                if (latestState.isCancelling && latestState.generationSessionId === sessionId) {
+                    finishSession()
+                    return
+                }
                 if (sessionId !== latestState.generationSessionId) {
-                    if (latestState.isCancelling) setIsGenerating(false)
                     return  // Session invalidated, don't retry
                 }
 
@@ -608,7 +614,7 @@ export function useSceneGeneration() {
                     }
                 } else {
                     toast({ title: t('common.error', '오류'), description: errorMessage, variant: 'destructive' })
-                    setIsGenerating(false)
+                    finishSession()
                 }
             }
         }
@@ -621,7 +627,7 @@ export function useSceneGeneration() {
             // Pass current session ID to processQueue
             processQueue(generationSessionId)
         }
-    }, [isGenerating, activePresetId, token, savePath, t, addImageToScene, getNextCharacterSequenceScene, getHasMoreSceneGeneration, setIsGenerating, streamingView, setStreamingData, initGenerationProgress, setGenerationProgress, completedCount, totalQueuedCount, generationSessionId])
+    }, [isGenerating, activePresetId, token, savePath, t, addImageToScene, getNextCharacterSequenceScene, getHasMoreSceneGeneration, streamingView, setStreamingData, initGenerationProgress, setGenerationProgress, completedCount, totalQueuedCount, generationSessionId])
 
     // Reset processing when generation stops
     useEffect(() => {

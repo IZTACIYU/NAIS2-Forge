@@ -969,7 +969,7 @@ export const useSceneStore = create<SceneState>()(
                 // Match main generation cancellation: keep the button locked until the
                 // aborted request exits, then useSceneGeneration clears both flags.
                 get().activeAbortController?.abort()
-                set({ isCancelling: true, activeAbortController: null, streamingSceneId: null, streamingImage: null, streamingProgress: 0, generationSessionId: nextGenerationSessionId(), generationSource: 'queue', characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
+                set({ isCancelling: true, activeAbortController: null, streamingSceneId: null, streamingImage: null, streamingProgress: 0, characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
             },
             generationSessionId: 0,
             generationSource: 'queue',
