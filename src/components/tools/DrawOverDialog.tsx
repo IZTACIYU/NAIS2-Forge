@@ -365,11 +365,17 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         if (clampedZoom === previousZoom) return
 
         const container = containerRef.current
-        const rect = container?.getBoundingClientRect()
-        const pivotX = pivot && rect ? pivot.clientX - rect.left : 0
-        const pivotY = pivot && rect ? pivot.clientY - rect.top : 0
-        const contentX = container ? container.scrollLeft + pivotX : 0
-        const contentY = container ? container.scrollTop + pivotY : 0
+        const currentCanvasRect = editCanvasRef.current?.getBoundingClientRect()
+        const fallbackX = currentCanvasRect ? currentCanvasRect.left + currentCanvasRect.width / 2 : 0
+        const fallbackY = currentCanvasRect ? currentCanvasRect.top + currentCanvasRect.height / 2 : 0
+        const pivotClientX = pivot?.clientX ?? fallbackX
+        const pivotClientY = pivot?.clientY ?? fallbackY
+        const pivotRatioX = currentCanvasRect
+            ? Math.min(1, Math.max(0, (pivotClientX - currentCanvasRect.left) / currentCanvasRect.width))
+            : 0.5
+        const pivotRatioY = currentCanvasRect
+            ? Math.min(1, Math.max(0, (pivotClientY - currentCanvasRect.top) / currentCanvasRect.height))
+            : 0.5
 
         zoomRef.current = clampedZoom
         setZoom(clampedZoom)
@@ -382,9 +388,20 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
                 container.scrollTop = 0
                 return
             }
-            const scale = clampedZoom / previousZoom
-            container.scrollLeft = Math.max(0, contentX * scale - pivotX)
-            container.scrollTop = Math.max(0, contentY * scale - pivotY)
+            const nextCanvasRect = editCanvasRef.current?.getBoundingClientRect()
+            if (!nextCanvasRect) return
+            const nextScrollLeft = container.scrollLeft + nextCanvasRect.left
+                - (pivotClientX - pivotRatioX * nextCanvasRect.width)
+            const nextScrollTop = container.scrollTop + nextCanvasRect.top
+                - (pivotClientY - pivotRatioY * nextCanvasRect.height)
+            container.scrollLeft = Math.min(
+                Math.max(0, container.scrollWidth - container.clientWidth),
+                Math.max(0, nextScrollLeft),
+            )
+            container.scrollTop = Math.min(
+                Math.max(0, container.scrollHeight - container.clientHeight),
+                Math.max(0, nextScrollTop),
+            )
         })
     }
 
