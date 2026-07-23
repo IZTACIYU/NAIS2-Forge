@@ -207,6 +207,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     const [searchQuery, setSearchQuery] = useState('')
     const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
     const [editingGroupName, setEditingGroupName] = useState('')
+    const editingGroupInputRef = useRef<HTMLInputElement | null>(null)
     const [activeId, setActiveId] = useState<string | null>(null)
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
     const [genderFilter, setGenderFilter] = useState<'all' | CharacterGender>('all')
@@ -528,13 +529,25 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         setEditingGroupName(newName)
     }
 
-    const handleSaveGroupName = (groupId: string) => {
+    const handleSaveGroupName = useCallback((groupId: string) => {
         if (editingGroupName.trim()) {
             updateGroup(groupId, { name: editingGroupName.trim() })
         }
         setEditingGroupId(null)
         setEditingGroupName('')
-    }
+    }, [editingGroupName, updateGroup])
+
+    useEffect(() => {
+        if (!editingGroupId) return
+
+        const handleOutsidePointerDown = (event: PointerEvent) => {
+            if (editingGroupInputRef.current?.contains(event.target as Node)) return
+            handleSaveGroupName(editingGroupId)
+        }
+
+        document.addEventListener('pointerdown', handleOutsidePointerDown, true)
+        return () => document.removeEventListener('pointerdown', handleOutsidePointerDown, true)
+    }, [editingGroupId, handleSaveGroupName])
 
     const handleDeleteGroup = (groupId: string) => {
         const parentId = groups.find(group => group.id === groupId)?.parentId || null
@@ -771,6 +784,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                             }
                             {editingGroupId === group.id ? (
                                 <Input
+                                    ref={editingGroupInputRef}
                                     autoFocus
                                     value={editingGroupName}
                                     onChange={(event) => setEditingGroupName(event.target.value)}
@@ -893,6 +907,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                     }
                                     {editingGroupId === group.id ? (
                                         <Input
+                                            ref={editingGroupInputRef}
                                             autoFocus
                                             value={editingGroupName}
                                             onChange={(event) => setEditingGroupName(event.target.value)}
