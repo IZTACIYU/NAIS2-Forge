@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useShortcutStore, matchesBinding, ShortcutAction } from '@/stores/shortcut-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useFragmentStore } from '@/stores/fragment-store'
+import { useSceneStore } from '@/stores/scene-store'
 
 // 커스텀 이벤트 (다이얼로그 열기용)
 export const SHORTCUT_EVENTS = {
@@ -144,6 +145,30 @@ export function useShortcuts() {
                             } else {
                                 generate()
                             }
+                            return
+                        }
+
+                        if (location.pathname.startsWith('/scenes')) {
+                            e.preventDefault()
+                            if (e.repeat) return
+
+                            const sceneState = useSceneStore.getState()
+                            if (sceneState.isGenerating || sceneState.isCancelling || !sceneState.activePresetId) return
+
+                            const sceneId = location.pathname.match(/^\/scenes\/([^/]+)/)?.[1]
+                            if (sceneId) {
+                                const scene = sceneState.presets
+                                    .find(preset => preset.id === sceneState.activePresetId)
+                                    ?.scenes.find(candidate => candidate.id === sceneId)
+                                if (!scene) return
+                                if (scene.queueCount === 0) {
+                                    sceneState.incrementQueue(sceneState.activePresetId, sceneId)
+                                }
+                            } else if (sceneState.getTotalQueueCount(sceneState.activePresetId) === 0) {
+                                return
+                            }
+
+                            sceneState.startNewGenerationSession()
                             return
                         }
                     }
