@@ -68,8 +68,6 @@ export default function SceneDetail() {
         if (!state.activePresetId || !sceneId) return null
         return state.sceneCharacterAdditions[state.activePresetId]?.[sceneId] || null
     })
-    const sceneIsGenerating = useSceneStore(state => state.isGenerating)
-    const sceneIsCancelling = useSceneStore(state => state.isCancelling)
 
     const {
         renameScene,
@@ -295,12 +293,6 @@ export default function SceneDetail() {
     const handleGenerate = () => {
         if (!activePresetId || !scene) return
 
-        const sceneState = useSceneStore.getState()
-        if (sceneState.isGenerating || sceneState.isCancelling) {
-            sceneState.cancelSceneGeneration()
-            return
-        }
-
         // If queue count is 0, set it to 1 for single generation
         // Otherwise, use the existing queue count without incrementing
         if (sceneQueueCount === 0) {
@@ -308,7 +300,7 @@ export default function SceneDetail() {
         }
 
         // Start a new generation session to properly track and allow cancellation
-        useSceneStore.getState().startNewGenerationSession('detail')
+        useSceneStore.getState().startNewGenerationSession()
     }
 
     const handleOpenFolder = async () => {
@@ -421,9 +413,9 @@ export default function SceneDetail() {
                     </div>
 
 
-                    <Button size="sm" className="rounded-xl" onClick={handleGenerate} disabled={sceneIsCancelling}>
-                        {sceneIsGenerating || sceneIsCancelling ? <X className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
-                        {sceneIsGenerating || sceneIsCancelling ? t('common.cancel') : t('generate.button')}
+                    <Button size="sm" className="rounded-xl" onClick={handleGenerate}>
+                        <Play className="mr-2 h-4 w-4" />
+                        {t('generate.button')}
                     </Button>
                 </div>
             </div >

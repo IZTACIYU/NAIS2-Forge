@@ -89,7 +89,6 @@ export interface GenerationParams {
     // NAI UI options
     qualityToggle?: boolean // Add Quality Tags
     ucPreset?: number       // Undesired Content Preset (0=Heavy, 1=Light, 2=Furry, 3=Human, 4=None)
-    abortSignal?: AbortSignal
 
     // Pre-merge prompt sections. Only used for embedding into the image's
     // nais2-params chunk; NAI itself receives the merged `prompt` above.
@@ -747,7 +746,6 @@ export async function generateImage(
                     'Authorization': `Bearer ${token.trim()}`,
                 },
                 body: JSON.stringify(payload),
-                signal: params.abortSignal,
             })
 
             if (!response.ok) {
@@ -1313,8 +1311,7 @@ export async function generateImageStream(
                     'Authorization': `Bearer ${token.trim()}`,
                     'Accept': 'application/x-msgpack'
                 },
-                body: JSON.stringify(requestBody),
-                signal: params.abortSignal,
+                body: JSON.stringify(requestBody)
             })
             if (!response.ok) {
                 const errorText = await response.text()

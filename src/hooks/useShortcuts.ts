@@ -4,7 +4,6 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useShortcutStore, matchesBinding, ShortcutAction } from '@/stores/shortcut-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useFragmentStore } from '@/stores/fragment-store'
-import { useSceneStore } from '@/stores/scene-store'
 
 // 커스텀 이벤트 (다이얼로그 열기용)
 export const SHORTCUT_EVENTS = {
@@ -138,13 +137,6 @@ export function useShortcuts() {
 
                     // 이미지 생성 (메인 모드에서만)
                     if (action === 'action:generate') {
-                        // Holding Ctrl+Enter emits repeated keydown events. The first starts
-                        // generation; a repeat must not be interpreted as a cancel command.
-                        if (e.repeat) {
-                            e.preventDefault()
-                            return
-                        }
-
                         if (location.pathname === '/') {
                             e.preventDefault()
                             if (isGenerating) {
@@ -152,27 +144,6 @@ export function useShortcuts() {
                             } else {
                                 generate()
                             }
-                            return
-                        }
-
-                        if (location.pathname.startsWith('/scenes')) {
-                            e.preventDefault()
-                            const sceneState = useSceneStore.getState()
-                            if (sceneState.isGenerating || sceneState.isCancelling) {
-                                sceneState.cancelSceneGeneration()
-                                return
-                            }
-
-                            const sceneId = location.pathname.match(/^\/scenes\/([^/]+)/)?.[1]
-                            if (sceneId && sceneState.activePresetId) {
-                                const scene = sceneState.presets
-                                    .find(preset => preset.id === sceneState.activePresetId)
-                                    ?.scenes.find(candidate => candidate.id === sceneId)
-                                if (scene && scene.queueCount === 0) {
-                                    sceneState.incrementQueue(sceneState.activePresetId, sceneId)
-                                }
-                            }
-                            sceneState.startNewGenerationSession(sceneId ? 'detail' : 'queue')
                             return
                         }
                     }
