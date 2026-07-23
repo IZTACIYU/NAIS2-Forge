@@ -308,7 +308,7 @@ export default function SceneDetail() {
         }
 
         // Start a new generation session to properly track and allow cancellation
-        useSceneStore.getState().startNewGenerationSession()
+        useSceneStore.getState().startNewGenerationSession('detail')
     }
 
     const handleOpenFolder = async () => {
@@ -421,7 +421,7 @@ export default function SceneDetail() {
                     </div>
 
 
-                    <Button size="sm" className="rounded-xl" onClick={handleGenerate}>
+                    <Button size="sm" className="rounded-xl" onClick={handleGenerate} disabled={sceneIsCancelling}>
                         {sceneIsGenerating || sceneIsCancelling ? <X className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
                         {sceneIsGenerating || sceneIsCancelling ? t('common.cancel') : t('generate.button')}
                     </Button>

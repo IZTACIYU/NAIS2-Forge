@@ -138,6 +138,13 @@ export function useShortcuts() {
 
                     // 이미지 생성 (메인 모드에서만)
                     if (action === 'action:generate') {
+                        // Holding Ctrl+Enter emits repeated keydown events. The first starts
+                        // generation; a repeat must not be interpreted as a cancel command.
+                        if (e.repeat) {
+                            e.preventDefault()
+                            return
+                        }
+
                         if (location.pathname === '/') {
                             e.preventDefault()
                             if (isGenerating) {
@@ -165,7 +172,7 @@ export function useShortcuts() {
                                     sceneState.incrementQueue(sceneState.activePresetId, sceneId)
                                 }
                             }
-                            sceneState.startNewGenerationSession()
+                            sceneState.startNewGenerationSession(sceneId ? 'detail' : 'queue')
                             return
                         }
                     }
