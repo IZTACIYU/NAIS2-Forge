@@ -2,9 +2,9 @@ import { useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/components/ui/use-toast'
-import { useSceneStore, type SceneMultiCharacterSlot } from '@/stores/scene-store'
+import { useSceneStore } from '@/stores/scene-store'
 import { useGenerationStore } from '@/stores/generation-store'
-import { useCharacterPromptStore, CharacterPrompt } from '@/stores/character-prompt-store'
+import { useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { useAuthStore } from '@/stores/auth-store'
 import { generateImage, generateImageStream, GenerationParams } from '@/services/novelai-api'
@@ -15,100 +15,15 @@ import { removePromptComments } from '@/lib/prompt-comments'
 import { useCharacterStore } from '@/stores/character-store'
 import { sendSystemNotification } from '@/lib/system-notification'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
-import { getCharacterGender } from '@/lib/character-gender'
+import {
+    buildSceneCharacterPrompt,
+    getSceneMultiCharacterPromptMap,
+    getVariantStackKey,
+    selectSceneCharacters,
+} from '@/lib/scene-character-prompts'
 
 // Module-level variable to prevent concurrent processing
 let isProcessing = false
-
-const VARIANT_NAME_PATTERN = /\s-\s([a-z0-9]{6})\s-\s(\d+)$/i
-const LEGACY_VARIANT_HASH_PATTERN = /\s-\s([a-z0-9]{6})$/i
-
-const getVariantParts = (name?: string) => {
-    const rawName = name?.trim() || ''
-    const match = rawName.match(VARIANT_NAME_PATTERN)
-    if (match) return { hash: match[1], index: Number(match[2]) }
-    const legacy = rawName.match(LEGACY_VARIANT_HASH_PATTERN)
-    if (legacy) return { hash: legacy[1], index: 0 }
-    return { hash: '', index: 0 }
-}
-
-const getVariantStackKey = (character: CharacterPrompt) => {
-    const { hash } = getVariantParts(character.name)
-    return hash ? `${character.groupId || 'root'}:${hash}` : character.id
-}
-
-const buildVariantStacks = (characters: CharacterPrompt[]) => {
-    const stacks = new Map<string, CharacterPrompt[]>()
-    for (const character of characters) {
-        const key = getVariantStackKey(character)
-        const stack = stacks.get(key)
-        if (stack) stack.push(character)
-        else stacks.set(key, [character])
-    }
-    for (const stack of stacks.values()) {
-        if (stack.length > 1) stack.sort((a, b) => getVariantParts(a.name).index - getVariantParts(b.name).index)
-    }
-    return stacks
-}
-
-const splitCharacterCostumePrompt = (prompt: string) => {
-    const normalized = prompt.replace(/\r\n/g, '\n')
-    const marker = '#!-\uc758\uc0c1\ud504\ub86c'
-    const index = normalized.indexOf(marker)
-    if (index === -1) return { characterPrompt: prompt, costumePrompt: '' }
-    return {
-        characterPrompt: normalized.slice(0, index).replace(/\n+$/g, ''),
-        costumePrompt: normalized.slice(index + marker.length).replace(/^\n+/g, ''),
-    }
-}
-
-const buildSceneCharacterPrompt = (character: CharacterPrompt, costumeOverride?: boolean) => {
-    const { characterPrompt, costumePrompt } = splitCharacterCostumePrompt(character.prompt)
-    const parts: string[] = []
-    if (character.promptEnabled !== false && characterPrompt.trim()) parts.push(characterPrompt)
-    const costumeEnabled = costumeOverride ?? (character.costumeEnabled !== false)
-    if (costumeEnabled && costumePrompt.trim()) parts.push(costumePrompt)
-    return parts.join('\n')
-}
-
-const getSceneMultiCharacterPromptMap = (
-    slots: SceneMultiCharacterSlot[] | undefined,
-    selectedCharacters: CharacterPrompt[],
-    allCharacters: CharacterPrompt[],
-) => {
-    const promptsByCharacterId = new Map<string, string[]>()
-    const usedGenderCharacterIds = new Set<string>()
-    const allCharacterById = new Map(allCharacters.map(character => [character.id, character]))
-
-    const appendPrompt = (character: CharacterPrompt | undefined, prompt: string) => {
-        if (!character || !prompt.trim()) return
-        const prompts = promptsByCharacterId.get(character.id) || []
-        prompts.push(prompt.trim())
-        promptsByCharacterId.set(character.id, prompts)
-    }
-
-    for (const slot of slots || []) {
-        if (!slot.prompt.trim()) continue
-
-        if (slot.target === 'manual') {
-            const sourceCharacter = slot.characterId ? allCharacterById.get(slot.characterId) : undefined
-            const target = sourceCharacter
-                ? selectedCharacters.find(character => getVariantStackKey(character) === getVariantStackKey(sourceCharacter))
-                : undefined
-            appendPrompt(target, slot.prompt)
-            continue
-        }
-
-        const target = selectedCharacters.find(character => (
-            !usedGenderCharacterIds.has(character.id)
-            && getCharacterGender(character.prompt) === (slot.gender || 'unknown')
-        ))
-        if (target) usedGenderCharacterIds.add(target.id)
-        appendPrompt(target, slot.prompt)
-    }
-
-    return promptsByCharacterId
-}
 
 export function useSceneGeneration() {
     const { t } = useTranslation()
@@ -310,22 +225,11 @@ export function useSceneGeneration() {
                     && latestSettingsStore.expertCharacterPromptLayoutEnabled
                     ? sceneConfig?.characterCostumeEnabled
                     : undefined
-                const characterById = new Map(latestPromptStore.characters.map(character => [character.id, character]))
-                const variantStacks = requestedVariantIndex === undefined
-                    ? null
-                    : buildVariantStacks(latestPromptStore.characters)
-                const selectedByStack = new Map<string, CharacterPrompt>()
-                for (const id of finalCharacterPromptIds) {
-                    const selected = characterById.get(id)
-                    if (!selected) continue
-                    const stackKey = getVariantStackKey(selected)
-                    if (selectedByStack.has(stackKey)) continue
-                    const variants = variantStacks?.get(stackKey)
-                    selectedByStack.set(stackKey, variants
-                        ? variants[Math.min(requestedVariantIndex!, variants.length - 1)]
-                        : selected)
-                }
-                const characterPrompts = Array.from(selectedByStack.values())
+                const characterPrompts = selectSceneCharacters(
+                    latestPromptStore.characters,
+                    finalCharacterPromptIds,
+                    requestedVariantIndex,
+                )
                 const multiCharacterPromptMap = getSceneMultiCharacterPromptMap(
                     latestSettingsStore.expertSceneMultiCharacterEnabled ? scene.multiCharacterSlots : undefined,
                     characterPrompts,
@@ -333,7 +237,7 @@ export function useSceneGeneration() {
                 )
 
                 if (sequenceMode || requestedVariantIndex !== undefined) {
-                    const selectedStackKeys = new Set(selectedByStack.keys())
+                    const selectedStackKeys = new Set(characterPrompts.map(character => getVariantStackKey(character)))
                     const activeVariantIds = new Set(characterPrompts.map(character => character.id))
                     useCharacterPromptStore.setState(state => {
                         let changed = false
