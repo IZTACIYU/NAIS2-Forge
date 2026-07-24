@@ -189,6 +189,21 @@
     "emptyWarning": "선택한 범위에 사용할 수 있는 캐릭터가 없습니다.",
     "queuePriority": "캐릭터 큐 반복을 사용하는 작업에서는 큐 설정이 우선 적용됩니다."
   },
+  "sceneMultiCharacter": {
+    "title": "다인 씬 캐릭터",
+    "description": "대상 캐릭터의 프롬프트와 의상 뒤에 이 씬 전용 프롬프트를 추가합니다.",
+    "add": "인물 추가",
+    "empty": "등장 인물을 추가하면 현재 켜진 캐릭터에 씬 전용 프롬프트를 연결할 수 있습니다.",
+    "autoTarget": "성별 자동 연결",
+    "manualTarget": "캐릭터 직접 선택",
+    "selectCharacter": "현재 켜진 캐릭터 선택",
+    "male": "남성",
+    "female": "여성",
+    "other": "기타",
+    "prompt": "추가 프롬프트",
+    "promptPlaceholder": "이 캐릭터 프롬프트의 맨 뒤에 넣을 태그...",
+    "remove": "인물 제거"
+  },
   "preset": {
     "default": "기본",
     "add": "새 프리셋",

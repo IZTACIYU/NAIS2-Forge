@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/components/ui/use-toast'
-import { useSceneStore } from '@/stores/scene-store'
+import { useSceneStore, type SceneMultiCharacterSlot } from '@/stores/scene-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useCharacterPromptStore, CharacterPrompt } from '@/stores/character-prompt-store'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -15,6 +15,7 @@ import { removePromptComments } from '@/lib/prompt-comments'
 import { useCharacterStore } from '@/stores/character-store'
 import { sendSystemNotification } from '@/lib/system-notification'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
+import { getCharacterGender } from '@/lib/character-gender'
 
 // Module-level variable to prevent concurrent processing
 let isProcessing = false
@@ -68,6 +69,45 @@ const buildSceneCharacterPrompt = (character: CharacterPrompt, costumeOverride?:
     const costumeEnabled = costumeOverride ?? (character.costumeEnabled !== false)
     if (costumeEnabled && costumePrompt.trim()) parts.push(costumePrompt)
     return parts.join('\n')
+}
+
+const getSceneMultiCharacterPromptMap = (
+    slots: SceneMultiCharacterSlot[] | undefined,
+    selectedCharacters: CharacterPrompt[],
+    allCharacters: CharacterPrompt[],
+) => {
+    const promptsByCharacterId = new Map<string, string[]>()
+    const usedGenderCharacterIds = new Set<string>()
+    const allCharacterById = new Map(allCharacters.map(character => [character.id, character]))
+
+    const appendPrompt = (character: CharacterPrompt | undefined, prompt: string) => {
+        if (!character || !prompt.trim()) return
+        const prompts = promptsByCharacterId.get(character.id) || []
+        prompts.push(prompt.trim())
+        promptsByCharacterId.set(character.id, prompts)
+    }
+
+    for (const slot of slots || []) {
+        if (!slot.prompt.trim()) continue
+
+        if (slot.target === 'manual') {
+            const sourceCharacter = slot.characterId ? allCharacterById.get(slot.characterId) : undefined
+            const target = sourceCharacter
+                ? selectedCharacters.find(character => getVariantStackKey(character) === getVariantStackKey(sourceCharacter))
+                : undefined
+            appendPrompt(target, slot.prompt)
+            continue
+        }
+
+        const target = selectedCharacters.find(character => (
+            !usedGenderCharacterIds.has(character.id)
+            && getCharacterGender(character.prompt) === (slot.gender || 'unknown')
+        ))
+        if (target) usedGenderCharacterIds.add(target.id)
+        appendPrompt(target, slot.prompt)
+    }
+
+    return promptsByCharacterId
 }
 
 export function useSceneGeneration() {
@@ -286,6 +326,11 @@ export function useSceneGeneration() {
                         : selected)
                 }
                 const characterPrompts = Array.from(selectedByStack.values())
+                const multiCharacterPromptMap = getSceneMultiCharacterPromptMap(
+                    scene.multiCharacterSlots,
+                    characterPrompts,
+                    latestPromptStore.characters,
+                )
 
                 if (sequenceMode || requestedVariantIndex !== undefined) {
                     const selectedStackKeys = new Set(selectedByStack.keys())
@@ -305,14 +350,18 @@ export function useSceneGeneration() {
 
                 // Apply fragment/wildcard substitution to character prompts (async)
                 const processedCharacterPrompts = await Promise.all(
-                    characterPrompts.map(async c => ({
-                        prompt: await processWildcards(latestSettingsStore.expertCharacterPromptLayoutEnabled
+                    characterPrompts.map(async c => {
+                        const basePrompt = latestSettingsStore.expertCharacterPromptLayoutEnabled
                             ? buildSceneCharacterPrompt(c, costumeOverride)
-                            : c.prompt),
-                        negative: await processWildcards(latestSettingsStore.expertCharacterPromptLayoutEnabled && c.negativeEnabled === false ? '' : c.negative),
-                        enabled: true,
-                        position: c.position
-                    }))
+                            : c.prompt
+                        const appendedPrompts = multiCharacterPromptMap.get(c.id) || []
+                        return {
+                            prompt: await processWildcards([basePrompt, ...appendedPrompts].filter(Boolean).join('\n')),
+                            negative: await processWildcards(latestSettingsStore.expertCharacterPromptLayoutEnabled && c.negativeEnabled === false ? '' : c.negative),
+                            enabled: true,
+                            position: c.position
+                        }
+                    })
                 )
 
                 // Determine Seed (Randomize if not locked)

@@ -189,6 +189,21 @@
     "emptyWarning": "The selected scope has no available characters.",
     "queuePriority": "Character queue repeat settings take priority for queue-repeat jobs."
   },
+  "sceneMultiCharacter": {
+    "title": "Multi-character scene",
+    "description": "Adds this scene's prompt after the selected character prompt and costume.",
+    "add": "Add character",
+    "empty": "Add a role to attach a scene-specific prompt to an active character.",
+    "autoTarget": "Match by gender",
+    "manualTarget": "Choose character",
+    "selectCharacter": "Choose an active character",
+    "male": "Male",
+    "female": "Female",
+    "other": "Other",
+    "prompt": "Additional prompt",
+    "promptPlaceholder": "Tags to append to this character...",
+    "remove": "Remove character"
+  },
   "preset": {
     "default": "Default",
     "add": "New Preset",

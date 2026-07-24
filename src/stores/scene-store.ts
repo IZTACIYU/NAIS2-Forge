@@ -14,6 +14,16 @@ export interface SceneImage {
     isFavorite: boolean
 }
 
+export type SceneMultiCharacterTarget = 'manual' | 'gender'
+
+export interface SceneMultiCharacterSlot {
+    id: string
+    target: SceneMultiCharacterTarget
+    characterId?: string
+    gender?: 'male' | 'female' | 'unknown'
+    prompt: string
+}
+
 export interface SceneCard {
     id: string
     name: string
@@ -22,6 +32,7 @@ export interface SceneCard {
     images: SceneImage[]  // Generated images for this scene
     width?: number
     height?: number
+    multiCharacterSlots?: SceneMultiCharacterSlot[]
     createdAt: number
 }
 
@@ -52,6 +63,31 @@ export interface SceneCharacterAddition {
     vibeReferenceIds: string[]
     characterVariantIndex?: number
     characterCostumeEnabled?: boolean
+}
+
+function normalizeSceneMultiCharacterSlots(value: unknown): SceneMultiCharacterSlot[] | undefined {
+    if (!Array.isArray(value)) return undefined
+
+    return value.flatMap((item, index) => {
+        if (!item || typeof item !== 'object') return []
+        const source = item as Partial<SceneMultiCharacterSlot>
+        if (source.target !== 'manual' && source.target !== 'gender') return []
+
+        const slot: SceneMultiCharacterSlot = {
+            id: typeof source.id === 'string' && source.id ? source.id : `multi-character-${Date.now()}-${index}`,
+            target: source.target,
+            prompt: typeof source.prompt === 'string' ? source.prompt : '',
+        }
+
+        if (source.target === 'manual' && typeof source.characterId === 'string') {
+            slot.characterId = source.characterId
+        }
+        if (source.target === 'gender' && (source.gender === 'male' || source.gender === 'female' || source.gender === 'unknown')) {
+            slot.gender = source.gender
+        }
+
+        return [slot]
+    })
 }
 
 function normalizeSceneCharacterAddition(value: unknown): SceneCharacterAddition | null {
@@ -102,6 +138,7 @@ interface SceneState {
     renameScene: (presetId: string, sceneId: string, name: string) => Promise<void>
     updateScenePrompt: (presetId: string, sceneId: string, prompt: string) => void
     updateSceneSettings: (presetId: string, sceneId: string, settings: { width?: number, height?: number }) => void
+    updateSceneMultiCharacterSlots: (presetId: string, sceneId: string, slots: SceneMultiCharacterSlot[]) => void
     updateAllScenesResolution: (presetId: string, width: number, height: number) => void
     reorderScenes: (presetId: string, scenes: SceneCard[]) => void
     getScene: (presetId: string, sceneId: string) => SceneCard | undefined
@@ -397,6 +434,7 @@ export const useSceneStore = create<SceneState>()(
                             name: `${scene.name} (복사본)`,
                             queueCount: 0,
                             images: [],
+                            multiCharacterSlots: scene.multiCharacterSlots?.map(slot => ({ ...slot })),
                             createdAt: Date.now(),
                         }
                         const index = p.scenes.findIndex(s => s.id === sceneId)
@@ -886,6 +924,18 @@ export const useSceneStore = create<SceneState>()(
                     },
                 ],
             })),
+            updateSceneMultiCharacterSlots: (presetId, sceneId, slots) => set((state) => ({
+                presets: state.presets.map((preset) =>
+                    preset.id === presetId
+                        ? {
+                            ...preset,
+                            scenes: preset.scenes.map((scene) =>
+                                scene.id === sceneId ? { ...scene, multiCharacterSlots: slots } : scene
+                            ),
+                        }
+                        : preset
+                ),
+            })),
             updateCharacterSequenceEntry: (id, updates) => set(state => ({
                 characterSequenceEntries: state.characterSequenceEntries.map(entry =>
                     entry.id === id ? { ...entry, ...updates } : entry
@@ -1103,7 +1153,8 @@ export const useSceneStore = create<SceneState>()(
                         newScenes = jsonContent.scenes.map((s: any) => ({
                             ...s,
                             id: s.id || crypto.randomUUID(), // Ensure ID exists
-                            images: s.images || []
+                            images: s.images || [],
+                            multiCharacterSlots: normalizeSceneMultiCharacterSlots(s.multiCharacterSlots),
                         }))
                         // If importing a full preset object, try to preserve its ID if unique, otherwise gen new
                         if (jsonContent.id && !state.presets.some(p => p.id === jsonContent.id)) {

@@ -53,6 +53,7 @@ import { exists, mkdir, readFile, remove } from '@tauri-apps/plugin-fs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from '@/components/ui/use-toast'
 import { getSceneFolderFromImages, sanitizeSceneFolderName } from '@/lib/scene-path'
+import { SceneMultiCharacterPanel } from '@/components/scene/SceneMultiCharacterPanel'
 
 export default function SceneDetail() {
     const { id: sceneId } = useParams()
@@ -79,6 +80,7 @@ export default function SceneDetail() {
         validateSceneImages,
         updateSceneSettings,
         updateSceneCharacterAddition,
+        updateSceneMultiCharacterSlots,
     } = useSceneStore(useShallow(state => ({
         renameScene: state.renameScene,
         toggleFavorite: state.toggleFavorite,
@@ -89,6 +91,7 @@ export default function SceneDetail() {
         validateSceneImages: state.validateSceneImages,
         updateSceneSettings: state.updateSceneSettings,
         updateSceneCharacterAddition: state.updateSceneCharacterAddition,
+        updateSceneMultiCharacterSlots: state.updateSceneMultiCharacterSlots,
     })))
     const sceneQueueCount = useSceneQueueCount(activePresetId, sceneId || '')
     const promptFontSize = useSettingsStore(state => state.promptFontSize)
@@ -465,6 +468,11 @@ export default function SceneDetail() {
                     )}
                 </div>
             )}
+
+            <SceneMultiCharacterPanel
+                slots={scene.multiCharacterSlots || []}
+                onChange={(slots) => updateSceneMultiCharacterSlots(activePresetId, scene.id, slots)}
+            />
 
             {/* Scene Prompt - Clean Style like PromptPanel */}
             < div className="flex flex-col min-h-[140px] shrink-0" >
