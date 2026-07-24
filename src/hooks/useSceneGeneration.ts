@@ -325,9 +325,9 @@ export function useSceneGeneration() {
                 // Helper function to round to nearest multiple of 64 (NovelAI requirement)
                 const roundTo64 = (value: number): number => Math.round(value / 64) * 64
 
-                // For I2I and Inpainting, use source image dimensions instead of scene/global resolution
-                let finalWidth = roundTo64(scene.width || genState.selectedResolution.width)
-                let finalHeight = roundTo64(scene.height || genState.selectedResolution.height)
+                // Scene output must remain independent from the main generator resolution.
+                let finalWidth = roundTo64(scene.width && scene.width > 0 ? scene.width : 832)
+                let finalHeight = roundTo64(scene.height && scene.height > 0 ? scene.height : 1216)
 
                 if (genState.sourceImage) {
                     // Extract dimensions from base64 image

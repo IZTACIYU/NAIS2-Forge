@@ -366,6 +366,8 @@ export const useSceneStore = create<SceneState>()(
                             scenePrompt: '',
                             queueCount: 0,
                             images: [],
+                            width: 832,
+                            height: 1216,
                             createdAt: Date.now(),
                         }
                         return { ...p, scenes: [...p.scenes, newScene] }
