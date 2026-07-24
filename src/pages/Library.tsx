@@ -179,16 +179,19 @@ export default function Library() {
 
     useEffect(() => clearStackDropTarget, [clearStackDropTarget])
 
-    // ESC key handler for closing viewer
+    // ESC closes the image viewer first, then walks up one stack level.
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && viewerImageSrc) {
+            if (e.key !== 'Escape') return
+            if (viewerImageSrc) {
                 setViewerImageSrc(null)
+            } else if (currentStackId) {
+                setCurrentStackId(findLibraryParentStackId(items, currentStackId))
             }
         }
         window.addEventListener('keydown', handleEsc)
         return () => window.removeEventListener('keydown', handleEsc)
-    }, [viewerImageSrc])
+    }, [currentStackId, items, setCurrentStackId, viewerImageSrc])
 
     // Ensure Library Directory Exists & Sync Files
     useEffect(() => {
