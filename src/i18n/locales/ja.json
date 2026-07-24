@@ -203,6 +203,19 @@
     "promptPlaceholder": "このキャラクターの末尾に追加するタグ...",
     "remove": "人物を削除"
   },
+  "sceneEditor": {
+    "title": "シーン編集",
+    "positive": "プロンプト",
+    "negative": "ネガティブ",
+    "positivePlaceholder": "このシーンに追加するタグ...",
+    "negativePlaceholder": "このシーンから除外するタグ...",
+    "collapse": "シーン編集を閉じる",
+    "expand": "シーン編集を開く",
+    "hidePrompt": "プロンプトパネルを閉じる",
+    "showPrompt": "プロンプトパネルを開く",
+    "hideMultiCharacter": "複数キャラクターパネルを閉じる",
+    "showMultiCharacter": "複数キャラクターパネルを開く"
+  },
   "preset": {
     "default": "デフォルト",
     "add": "新規プリセット",

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link2, Plus, Trash2, UserRound, UsersRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,8 @@ import { cn } from '@/lib/utils'
 interface SceneMultiCharacterPanelProps {
     slots: SceneMultiCharacterSlot[]
     onChange: (slots: SceneMultiCharacterSlot[]) => void
+    embedded?: boolean
+    headerAction?: ReactNode
 }
 
 const VARIANT_NAME_PATTERN = /\s-\s([a-z0-9]{6})\s-\s(\d+)$/i
@@ -31,7 +33,7 @@ const cleanCharacterName = (character: CharacterPrompt, fallbackIndex: number) =
     return name || character.prompt.split(',')[0]?.trim() || `Character ${fallbackIndex + 1}`
 }
 
-export function SceneMultiCharacterPanel({ slots, onChange }: SceneMultiCharacterPanelProps) {
+export function SceneMultiCharacterPanel({ slots, onChange, embedded = false, headerAction }: SceneMultiCharacterPanelProps) {
     const { t } = useTranslation()
     const characters = useCharacterPromptStore(state => state.characters)
     const activeCharacters = useMemo(() => characters.filter(character => character.enabled), [characters])
@@ -71,7 +73,10 @@ export function SceneMultiCharacterPanel({ slots, onChange }: SceneMultiCharacte
     }
 
     return (
-        <section className="shrink-0 rounded-xl border border-border/60 bg-muted/20 p-3">
+        <section className={cn(
+            'min-w-0',
+            !embedded && 'shrink-0 rounded-xl border border-border/60 bg-muted/20 p-3',
+        )}>
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm font-semibold">
@@ -81,10 +86,13 @@ export function SceneMultiCharacterPanel({ slots, onChange }: SceneMultiCharacte
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">{t('sceneMultiCharacter.description')}</p>
                 </div>
-                <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 rounded-lg" onClick={addSlot}>
-                    <Plus className="mr-1.5 h-4 w-4" />
-                    {t('sceneMultiCharacter.add')}
-                </Button>
+                <div className="flex shrink-0 items-center gap-1">
+                    {headerAction}
+                    <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg" onClick={addSlot}>
+                        <Plus className="mr-1.5 h-4 w-4" />
+                        {t('sceneMultiCharacter.add')}
+                    </Button>
+                </div>
             </div>
 
             {slots.length === 0 ? (

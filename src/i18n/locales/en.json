@@ -204,6 +204,19 @@
     "promptPlaceholder": "Tags to append to this character...",
     "remove": "Remove character"
   },
+  "sceneEditor": {
+    "title": "Scene editor",
+    "positive": "Prompt",
+    "negative": "Negative",
+    "positivePlaceholder": "Tags to add to this scene...",
+    "negativePlaceholder": "Tags to exclude from this scene...",
+    "collapse": "Collapse scene editor",
+    "expand": "Expand scene editor",
+    "hidePrompt": "Collapse prompt panel",
+    "showPrompt": "Expand prompt panel",
+    "hideMultiCharacter": "Collapse multi-character panel",
+    "showMultiCharacter": "Expand multi-character panel"
+  },
   "preset": {
     "default": "Default",
     "add": "New Preset",

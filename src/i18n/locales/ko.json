@@ -204,6 +204,19 @@
     "promptPlaceholder": "이 캐릭터 프롬프트의 맨 뒤에 넣을 태그...",
     "remove": "인물 제거"
   },
+  "sceneEditor": {
+    "title": "씬 편집",
+    "positive": "프롬프트",
+    "negative": "네거티브",
+    "positivePlaceholder": "씬에 추가할 태그...",
+    "negativePlaceholder": "씬에서 제외할 태그...",
+    "collapse": "씬 편집 접기",
+    "expand": "씬 편집 펼치기",
+    "hidePrompt": "프롬프트 패널 접기",
+    "showPrompt": "프롬프트 패널 펼치기",
+    "hideMultiCharacter": "다인 씬 패널 접기",
+    "showMultiCharacter": "다인 씬 패널 펼치기"
+  },
   "preset": {
     "default": "기본",
     "add": "새 프리셋",

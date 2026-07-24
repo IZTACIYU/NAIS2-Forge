@@ -25,7 +25,13 @@ import {
     Trash2,
     CheckSquare,
     Square,
-    Shirt
+    Shirt,
+    ChevronDown,
+    ChevronUp,
+    PanelLeftClose,
+    PanelLeftOpen,
+    PanelRightClose,
+    PanelRightOpen,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { AutocompleteTextarea } from "@/components/ui/AutocompleteTextarea";
@@ -81,6 +87,7 @@ export default function SceneDetail() {
         updateSceneSettings,
         updateSceneCharacterAddition,
         updateSceneMultiCharacterSlots,
+        updateSceneNegativePrompt,
     } = useSceneStore(useShallow(state => ({
         renameScene: state.renameScene,
         toggleFavorite: state.toggleFavorite,
@@ -92,6 +99,7 @@ export default function SceneDetail() {
         updateSceneSettings: state.updateSceneSettings,
         updateSceneCharacterAddition: state.updateSceneCharacterAddition,
         updateSceneMultiCharacterSlots: state.updateSceneMultiCharacterSlots,
+        updateSceneNegativePrompt: state.updateSceneNegativePrompt,
     })))
     const sceneQueueCount = useSceneQueueCount(activePresetId, sceneId || '')
     const promptFontSize = useSettingsStore(state => state.promptFontSize)
@@ -158,6 +166,13 @@ export default function SceneDetail() {
     const [localPrompt, setLocalPrompt] = useState(scene?.scenePrompt || '')
     const localPromptRef = useRef(localPrompt)
     localPromptRef.current = localPrompt
+    const [localNegativePrompt, setLocalNegativePrompt] = useState(scene?.sceneNegativePrompt || '')
+    const localNegativePromptRef = useRef(localNegativePrompt)
+    localNegativePromptRef.current = localNegativePrompt
+    const [scenePromptMode, setScenePromptMode] = useState<'positive' | 'negative'>('positive')
+    const [sceneEditorCollapsed, setSceneEditorCollapsed] = useState(false)
+    const [scenePromptPanelCollapsed, setScenePromptPanelCollapsed] = useState(false)
+    const [multiCharacterPanelCollapsed, setMultiCharacterPanelCollapsed] = useState(false)
 
     const nav = useNavigate()
 
@@ -196,6 +211,7 @@ export default function SceneDetail() {
     useEffect(() => {
         if (scene) {
             setLocalPrompt(scene.scenePrompt)
+            setLocalNegativePrompt(scene.sceneNegativePrompt || '')
         }
     }, [scene?.id])
 
@@ -211,6 +227,17 @@ export default function SceneDetail() {
         return () => clearTimeout(timer)
     }, [localPrompt, scene?.id, scene?.scenePrompt, activePresetId, updateScenePrompt])
 
+    useEffect(() => {
+        if (!scene || !activePresetId) return
+        if (localNegativePrompt === (scene.sceneNegativePrompt || '')) return
+
+        const timer = setTimeout(() => {
+            updateSceneNegativePrompt(activePresetId, scene.id, localNegativePrompt)
+        }, 1000)
+
+        return () => clearTimeout(timer)
+    }, [localNegativePrompt, scene?.id, scene?.sceneNegativePrompt, activePresetId, updateSceneNegativePrompt])
+
     // Preserve the newest local edit when leaving the scene before debounce ends.
     useEffect(() => {
         if (!scene || !activePresetId) return
@@ -225,8 +252,12 @@ export default function SceneDetail() {
             if (currentScene && latestPrompt !== currentScene.scenePrompt) {
                 updateScenePrompt(presetIdToSave, sceneIdToSave, latestPrompt)
             }
+            const latestNegativePrompt = localNegativePromptRef.current
+            if (currentScene && latestNegativePrompt !== (currentScene.sceneNegativePrompt || '')) {
+                updateSceneNegativePrompt(presetIdToSave, sceneIdToSave, latestNegativePrompt)
+            }
         }
-    }, [scene?.id, activePresetId, updateScenePrompt])
+    }, [scene?.id, activePresetId, updateScenePrompt, updateSceneNegativePrompt])
 
     // Auto-validate images on mount - MUST be before conditional return to maintain hook order
     useEffect(() => {
@@ -469,23 +500,102 @@ export default function SceneDetail() {
                 </div>
             )}
 
-            <SceneMultiCharacterPanel
-                slots={scene.multiCharacterSlots || []}
-                onChange={(slots) => updateSceneMultiCharacterSlots(activePresetId, scene.id, slots)}
-            />
+            <section className="shrink-0 rounded-xl border border-border/60 bg-muted/20 p-3">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 text-sm font-semibold">{t('sceneEditor.title')}</div>
+                    <Tip content={sceneEditorCollapsed ? t('sceneEditor.expand') : t('sceneEditor.collapse')}>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0"
+                            onClick={() => setSceneEditorCollapsed(value => !value)}
+                        >
+                            {sceneEditorCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                        </Button>
+                    </Tip>
+                </div>
 
-            {/* Scene Prompt - Clean Style like PromptPanel */}
-            < div className="flex flex-col min-h-[140px] shrink-0" >
-                <label className="text-xs font-medium text-muted-foreground mb-1">{t('scene.scenePrompt')}</label>
-                <AutocompleteTextarea
-                    key={scene.id}
-                    placeholder=""
-                    className="flex-1 min-h-0 resize-none rounded-xl"
-                    style={{ fontSize: `${promptFontSize}px` }}
-                    value={localPrompt}
-                    onChange={(e: any) => setLocalPrompt(e.target.value)}
-                />
-            </div >
+                {!sceneEditorCollapsed && (
+                    <div className="mt-3 flex flex-col gap-3 lg:flex-row">
+                        {scenePromptPanelCollapsed ? (
+                            <div className="flex min-h-[170px] items-center justify-center border-b border-border/60 pb-3 lg:min-h-0 lg:w-9 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
+                                <Tip content={t('sceneEditor.showPrompt')}>
+                                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setScenePromptPanelCollapsed(false)}>
+                                        <PanelLeftOpen className="h-4 w-4" />
+                                    </Button>
+                                </Tip>
+                            </div>
+                        ) : (
+                            <div className="flex min-h-[220px] min-w-0 flex-1 flex-col border-b border-border/60 pb-3 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1 rounded-lg bg-background/50 p-1">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant={scenePromptMode === 'positive' ? 'secondary' : 'ghost'}
+                                            className="h-7 rounded-md px-2.5 text-xs"
+                                            onClick={() => setScenePromptMode('positive')}
+                                        >
+                                            {t('sceneEditor.positive')}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant={scenePromptMode === 'negative' ? 'secondary' : 'ghost'}
+                                            className="h-7 rounded-md px-2.5 text-xs"
+                                            onClick={() => setScenePromptMode('negative')}
+                                        >
+                                            {t('sceneEditor.negative')}
+                                        </Button>
+                                    </div>
+                                    <Tip content={t('sceneEditor.hidePrompt')}>
+                                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setScenePromptPanelCollapsed(true)}>
+                                            <PanelLeftClose className="h-4 w-4" />
+                                        </Button>
+                                    </Tip>
+                                </div>
+                                <AutocompleteTextarea
+                                    key={`${scene.id}-${scenePromptMode}`}
+                                    placeholder={scenePromptMode === 'positive' ? t('sceneEditor.positivePlaceholder') : t('sceneEditor.negativePlaceholder')}
+                                    className="min-h-[170px] flex-1 resize-none rounded-lg"
+                                    style={{ fontSize: `${promptFontSize}px` }}
+                                    value={scenePromptMode === 'positive' ? localPrompt : localNegativePrompt}
+                                    onChange={(event: any) => scenePromptMode === 'positive'
+                                        ? setLocalPrompt(event.target.value)
+                                        : setLocalNegativePrompt(event.target.value)
+                                    }
+                                />
+                            </div>
+                        )}
+
+                        {multiCharacterPanelCollapsed ? (
+                            <div className="flex min-h-[170px] items-center justify-center pt-3 lg:min-h-0 lg:w-9 lg:pt-0 lg:pl-0">
+                                <Tip content={t('sceneEditor.showMultiCharacter')}>
+                                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setMultiCharacterPanelCollapsed(false)}>
+                                        <PanelRightOpen className="h-4 w-4" />
+                                    </Button>
+                                </Tip>
+                            </div>
+                        ) : (
+                            <div className="min-w-0 flex-1">
+                                <SceneMultiCharacterPanel
+                                    embedded
+                                    slots={scene.multiCharacterSlots || []}
+                                    onChange={(slots) => updateSceneMultiCharacterSlots(activePresetId, scene.id, slots)}
+                                    headerAction={
+                                        <Tip content={t('sceneEditor.hideMultiCharacter')}>
+                                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setMultiCharacterPanelCollapsed(true)}>
+                                                <PanelRightClose className="h-4 w-4" />
+                                            </Button>
+                                        </Tip>
+                                    }
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
+            </section>
 
             {/* Generated Images - Large Section */}
             < Card glass className="flex-1 overflow-hidden flex flex-col mt-2" >

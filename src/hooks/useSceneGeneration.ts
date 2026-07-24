@@ -400,7 +400,10 @@ export function useSceneGeneration() {
 
                 const params: GenerationParams = {
                     prompt: finalPrompt,
-                    negative_prompt: removePromptComments(genState.negativePrompt),
+                    negative_prompt: [
+                        removePromptComments(genState.negativePrompt),
+                        removePromptComments(scene.sceneNegativePrompt || ''),
+                    ].filter(prompt => prompt && prompt.trim()).join(', '),
                     steps: genState.steps,
                     cfg_scale: genState.cfgScale,
                     cfg_rescale: genState.cfgRescale,

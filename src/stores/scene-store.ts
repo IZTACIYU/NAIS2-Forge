@@ -28,6 +28,7 @@ export interface SceneCard {
     id: string
     name: string
     scenePrompt: string
+    sceneNegativePrompt?: string
     queueCount: number  // Number of images to generate
     images: SceneImage[]  // Generated images for this scene
     width?: number
@@ -137,6 +138,7 @@ interface SceneState {
     duplicateScene: (presetId: string, sceneId: string) => void
     renameScene: (presetId: string, sceneId: string, name: string) => Promise<void>
     updateScenePrompt: (presetId: string, sceneId: string, prompt: string) => void
+    updateSceneNegativePrompt: (presetId: string, sceneId: string, prompt: string) => void
     updateSceneSettings: (presetId: string, sceneId: string, settings: { width?: number, height?: number }) => void
     updateSceneMultiCharacterSlots: (presetId: string, sceneId: string, slots: SceneMultiCharacterSlot[]) => void
     updateAllScenesResolution: (presetId: string, width: number, height: number) => void
@@ -401,6 +403,7 @@ export const useSceneStore = create<SceneState>()(
                             id: Date.now().toString(),
                             name: name || `씬 ${p.scenes.length + 1}`,
                             scenePrompt: '',
+                            sceneNegativePrompt: '',
                             queueCount: 0,
                             images: [],
                             width: 832,
@@ -923,6 +926,18 @@ export const useSceneStore = create<SceneState>()(
                         enabled: entry?.enabled ?? true,
                     },
                 ],
+            })),
+            updateSceneNegativePrompt: (presetId, sceneId, prompt) => set((state) => ({
+                presets: state.presets.map((preset) =>
+                    preset.id === presetId
+                        ? {
+                            ...preset,
+                            scenes: preset.scenes.map((scene) =>
+                                scene.id === sceneId ? { ...scene, sceneNegativePrompt: prompt } : scene
+                            ),
+                        }
+                        : preset
+                ),
             })),
             updateSceneMultiCharacterSlots: (presetId, sceneId, slots) => set((state) => ({
                 presets: state.presets.map((preset) =>
