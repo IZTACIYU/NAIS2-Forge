@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link2, Plus, Trash2, UserRound, UsersRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -18,7 +18,6 @@ interface SceneMultiCharacterPanelProps {
     slots: SceneMultiCharacterSlot[]
     onChange: (slots: SceneMultiCharacterSlot[]) => void
     embedded?: boolean
-    headerAction?: ReactNode
 }
 
 const VARIANT_NAME_PATTERN = /\s-\s([a-z0-9]{6})\s-\s(\d+)$/i
@@ -33,7 +32,7 @@ const cleanCharacterName = (character: CharacterPrompt, fallbackIndex: number) =
     return name || character.prompt.split(',')[0]?.trim() || `Character ${fallbackIndex + 1}`
 }
 
-export function SceneMultiCharacterPanel({ slots, onChange, embedded = false, headerAction }: SceneMultiCharacterPanelProps) {
+export function SceneMultiCharacterPanel({ slots, onChange, embedded = false }: SceneMultiCharacterPanelProps) {
     const { t } = useTranslation()
     const characters = useCharacterPromptStore(state => state.characters)
     const activeCharacters = useMemo(() => characters.filter(character => character.enabled), [characters])
@@ -87,7 +86,6 @@ export function SceneMultiCharacterPanel({ slots, onChange, embedded = false, he
                     <p className="mt-0.5 text-xs text-muted-foreground">{t('sceneMultiCharacter.description')}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                    {headerAction}
                     <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg" onClick={addSlot}>
                         <Plus className="mr-1.5 h-4 w-4" />
                         {t('sceneMultiCharacter.add')}

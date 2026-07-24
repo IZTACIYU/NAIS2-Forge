@@ -810,6 +810,8 @@
         "characterRepeatDesc": "\uc52c \ubaa8\ub4dc\uc5d0 \uac00\ubcbc\uc6b4 \uce90\ub9ad\ud130 \ud050\ub97c \ucd94\uac00\ud574, \uac19\uc740 \uc52c \uc608\uc57d\uc744 \uc5ec\ub7ec \uce90\ub9ad\ud130\uc5d0\uac8c \uc21c\uc11c\ub300\ub85c \uc2e4\ud589\ud569\ub2c8\ub2e4.",
         "characterAdditionsTitle": "\uc52c \uce90\ub9ad\ud130 \ucd94\uac00",
         "characterAdditionsDesc": "\uac01 \uc52c\ub9c8\ub2e4 \uce90\ub9ad\ud130 \ud504\ub86c\ud504\ud2b8, \uce90\ub9ad\ud130 \ub808\ud37c\ub7f0\uc2a4, \ubc14\uc774\ube0c \ub808\ud37c\ub7f0\uc2a4\ub97c \ucd94\uac00\ud560 \uc218 \uc788\uac8c \ud569\ub2c8\ub2e4."
+        ,"multiCharacterTitle": "다인 씬 캐릭터",
+        "multiCharacterDesc": "씬별 인물 프롬프트를 현재 켜진 캐릭터에 직접 또는 성별 기준으로 연결합니다."
       },
       "randomGeneration": {
         "header": "랜덤 생성",

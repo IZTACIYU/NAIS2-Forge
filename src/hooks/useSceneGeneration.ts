@@ -327,7 +327,7 @@ export function useSceneGeneration() {
                 }
                 const characterPrompts = Array.from(selectedByStack.values())
                 const multiCharacterPromptMap = getSceneMultiCharacterPromptMap(
-                    scene.multiCharacterSlots,
+                    latestSettingsStore.expertSceneMultiCharacterEnabled ? scene.multiCharacterSlots : undefined,
                     characterPrompts,
                     latestPromptStore.characters,
                 )

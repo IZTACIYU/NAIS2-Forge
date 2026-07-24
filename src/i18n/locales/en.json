@@ -779,7 +779,9 @@
         "characterRepeatTitle": "Character Repeat",
         "characterRepeatDesc": "Adds a lightweight character queue to Scene Mode so the same scene reservations can run for multiple characters in order.",
         "characterAdditionsTitle": "Scene Character Additions",
-        "characterAdditionsDesc": "Adds per-scene character prompt, character reference, and vibe reference controls."
+        "characterAdditionsDesc": "Adds per-scene character prompt, character reference, and vibe reference controls.",
+        "multiCharacterTitle": "Multi-character scene",
+        "multiCharacterDesc": "Connect scene-specific role prompts to active characters directly or by gender."
       },
       "randomGeneration": {
         "header": "Random Generation",

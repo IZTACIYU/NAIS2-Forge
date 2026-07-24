@@ -53,6 +53,7 @@ interface SettingsState {
     expertSceneCharacterCostumeOverrideEnabled: boolean
     expertSceneCharacterRepeatEnabled: boolean
     expertSceneCharacterAdditionsEnabled: boolean
+    expertSceneMultiCharacterEnabled: boolean
     expertSceneRandomCharactersEnabled: boolean
     sceneRandomCharactersActive: boolean
     sceneRandomCharacterMode: SceneRandomCharacterMode
@@ -105,6 +106,7 @@ interface SettingsState {
     setExpertSceneCharacterCostumeOverrideEnabled: (enabled: boolean) => void
     setExpertSceneCharacterRepeatEnabled: (enabled: boolean) => void
     setExpertSceneCharacterAdditionsEnabled: (enabled: boolean) => void
+    setExpertSceneMultiCharacterEnabled: (enabled: boolean) => void
     setExpertSceneRandomCharactersEnabled: (enabled: boolean) => void
     setSceneRandomCharacterConfig: (config: Partial<Pick<SettingsState, 'sceneRandomCharactersActive' | 'sceneRandomCharacterMode' | 'sceneRandomCharacterCount' | 'sceneRandomCharacterIds' | 'sceneRandomCharacterGroupIds' | 'sceneRandomCharacterGender'>>) => void
     setExpertExifDirectActionEnabled: (enabled: boolean) => void
@@ -150,6 +152,7 @@ export const useSettingsStore = create<SettingsState>()(
             expertSceneCharacterCostumeOverrideEnabled: false,
             expertSceneCharacterRepeatEnabled: false,
             expertSceneCharacterAdditionsEnabled: false,
+            expertSceneMultiCharacterEnabled: false,
             expertSceneRandomCharactersEnabled: false,
             sceneRandomCharactersActive: false,
             sceneRandomCharacterMode: 'all',
@@ -214,6 +217,7 @@ export const useSettingsStore = create<SettingsState>()(
             setExpertSceneCharacterCostumeOverrideEnabled: (expertSceneCharacterCostumeOverrideEnabled) => set({ expertSceneCharacterCostumeOverrideEnabled }),
             setExpertSceneCharacterRepeatEnabled: (expertSceneCharacterRepeatEnabled) => set({ expertSceneCharacterRepeatEnabled }),
             setExpertSceneCharacterAdditionsEnabled: (expertSceneCharacterAdditionsEnabled) => set({ expertSceneCharacterAdditionsEnabled }),
+            setExpertSceneMultiCharacterEnabled: (expertSceneMultiCharacterEnabled) => set({ expertSceneMultiCharacterEnabled }),
             setExpertSceneRandomCharactersEnabled: (expertSceneRandomCharactersEnabled) => set({ expertSceneRandomCharactersEnabled }),
             setSceneRandomCharacterConfig: (config) => set(config),
             setExpertExifDirectActionEnabled: (expertExifDirectActionEnabled) => set({ expertExifDirectActionEnabled }),
