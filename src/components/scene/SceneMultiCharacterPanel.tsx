@@ -175,7 +175,7 @@ export function SceneMultiCharacterPanel({ slots, onChange, embedded = false }: 
                                     value={slot.prompt}
                                     onChange={(event) => updateSlot(slot.id, { prompt: event.target.value })}
                                     placeholder={t('sceneMultiCharacter.promptPlaceholder')}
-                                    className="min-h-[72px] rounded-md text-sm"
+                                    className="!h-[96px] min-h-0 rounded-md text-sm"
                                     maxSuggestions={8}
                                 />
                             </div>

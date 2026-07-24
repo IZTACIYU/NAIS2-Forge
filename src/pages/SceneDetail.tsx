@@ -519,14 +519,17 @@ export default function SceneDetail() {
                 </div>
             )}
 
-            <section className="shrink-0 rounded-xl border border-border/60 bg-muted/20 p-3">
-                <div className="flex items-center justify-between gap-3 border-b border-border/50 pb-2">
+            <section className="shrink-0">
+                <div className="flex h-8 items-center justify-between gap-3 border-b border-border/50">
                     <div className="flex items-center gap-1">
                         <Button
                             type="button"
                             size="sm"
-                            variant={scenePromptMode === 'positive' ? 'secondary' : 'ghost'}
-                            className="h-8 rounded-lg px-3 text-xs"
+                            variant="ghost"
+                            className={cn(
+                                'h-8 rounded-none px-2.5 text-xs text-muted-foreground hover:text-foreground',
+                                scenePromptMode === 'positive' && 'border-b-2 border-primary text-foreground',
+                            )}
                             onClick={() => setScenePromptMode('positive')}
                         >
                             {t('sceneEditor.positive')}
@@ -534,8 +537,11 @@ export default function SceneDetail() {
                         <Button
                             type="button"
                             size="sm"
-                            variant={scenePromptMode === 'negative' ? 'secondary' : 'ghost'}
-                            className="h-8 rounded-lg px-3 text-xs"
+                            variant="ghost"
+                            className={cn(
+                                'h-8 rounded-none px-2.5 text-xs text-muted-foreground hover:text-foreground',
+                                scenePromptMode === 'negative' && 'border-b-2 border-primary text-foreground',
+                            )}
                             onClick={() => setScenePromptMode('negative')}
                         >
                             {t('sceneEditor.negative')}
@@ -546,7 +552,7 @@ export default function SceneDetail() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 shrink-0"
+                            className="h-7 w-7 shrink-0"
                             onClick={() => setSceneEditorCollapsed(value => !value)}
                         >
                             {sceneEditorCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
@@ -558,7 +564,7 @@ export default function SceneDetail() {
                     <AutocompleteTextarea
                         key={`${scene.id}-${scenePromptMode}`}
                         placeholder={scenePromptMode === 'positive' ? t('sceneEditor.positivePlaceholder') : t('sceneEditor.negativePlaceholder')}
-                        className="mt-3 min-h-[140px] resize-none rounded-lg"
+                        className="mt-2 !h-[164px] min-h-0 resize-none rounded-md"
                         style={{ fontSize: `${promptFontSize}px` }}
                         value={scenePromptMode === 'positive' ? localPrompt : localNegativePrompt}
                         onChange={(event: any) => scenePromptMode === 'positive'
