@@ -39,6 +39,7 @@ import { ImagePlus, X, Grid3x3, Edit3, Trash2, Layers, ArrowLeft, CheckSquare, F
 import { Button } from '@/components/ui/button'
 import { Tip } from '@/components/ui/tooltip'
 import { useSettingsStore } from '@/stores/settings-store'
+import { useSearchParams } from 'react-router-dom'
 
 const STACK_DROP_HOVER_MS = 1000
 
@@ -82,6 +83,7 @@ import { readFile } from '@tauri-apps/plugin-fs'
 
 export default function Library() {
     const { t } = useTranslation()
+    const [searchParams, setSearchParams] = useSearchParams()
     const { 
         items,
         folders,
@@ -118,6 +120,24 @@ export default function Library() {
     const [folderPanelOpen, setFolderPanelOpen] = useState(true)
     const [selectedFolderId, setSelectedFolderId] = useState<LibraryFolderSelection>(LIBRARY_ALL_FOLDER_ID)
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    const setStackNavigation = useCallback((stackId: string | null) => {
+        setCurrentStackId(stackId)
+        setSearchParams(current => {
+            const next = new URLSearchParams(current)
+            if (stackId) next.set('stack', stackId)
+            else next.delete('stack')
+            return next
+        })
+    }, [setCurrentStackId, setSearchParams])
+
+    useEffect(() => {
+        const requestedStackId = searchParams.get('stack')
+        const validStackId = requestedStackId && findLibraryItem(items, requestedStackId)?.isStack
+            ? requestedStackId
+            : null
+        if (validStackId !== currentStackId) setCurrentStackId(validStackId)
+    }, [currentStackId, items, searchParams, setCurrentStackId])
 
     // Get current view items (main library or inside a stack)
     const currentStack = currentStackId ? findLibraryItem(items, currentStackId) : null
@@ -186,12 +206,12 @@ export default function Library() {
             if (viewerImageSrc) {
                 setViewerImageSrc(null)
             } else if (currentStackId) {
-                setCurrentStackId(findLibraryParentStackId(items, currentStackId))
+                setStackNavigation(findLibraryParentStackId(items, currentStackId))
             }
         }
         window.addEventListener('keydown', handleEsc)
         return () => window.removeEventListener('keydown', handleEsc)
-    }, [currentStackId, items, setCurrentStackId, viewerImageSrc])
+    }, [currentStackId, items, setStackNavigation, viewerImageSrc])
 
     // Ensure Library Directory Exists & Sync Files
     useEffect(() => {
@@ -529,11 +549,11 @@ export default function Library() {
         if (store.isEditMode && !item.isStack) {
             store.toggleItemSelection(item.id, false)
         } else if (item.isStack) {
-            store.setCurrentStackId(item.id)
+            setStackNavigation(item.id)
         } else {
             setViewerImageSrc(imageUrl)
         }
-    }, [])
+    }, [setStackNavigation])
 
     const handleItemSelectionClick = useCallback((item: LibraryItem, event: React.MouseEvent) => {
         if (item.isStack) return
@@ -710,7 +730,7 @@ export default function Library() {
                                         variant="ghost"
                                         size="sm"
                                         className="h-9 hover:bg-white/10"
-                                        onClick={() => setCurrentStackId(findLibraryParentStackId(items, currentStackId))}
+                                        onClick={() => setStackNavigation(findLibraryParentStackId(items, currentStackId))}
                                     >
                                         <ArrowLeft className="h-4 w-4 mr-2" /> {t('actions.back', '뒤로')}
                                     </Button>
