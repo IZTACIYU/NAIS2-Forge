@@ -57,7 +57,6 @@ import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { exists, mkdir, readFile, remove } from '@tauri-apps/plugin-fs'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from '@/components/ui/use-toast'
 import { getSceneFolderFromImages, sanitizeSceneFolderName } from '@/lib/scene-path'
 import { SceneMultiCharacterPanel } from '@/components/scene/SceneMultiCharacterPanel'
@@ -702,10 +701,10 @@ export default function SceneDetail() {
                 )}
             </section>
 
-            {/* Generated Images - Large Section */}
-            < Card glass className="flex-1 overflow-hidden flex flex-col mt-2" >
-                <CardHeader className="py-3 flex-row items-center justify-between shrink-0">
-                    <CardTitle className="text-sm flex items-center gap-2">
+            {/* Generated Images */}
+            <section className="flex min-h-0 flex-1 flex-col">
+                <div className="flex h-8 shrink-0 items-center justify-between gap-3 border-b border-border/50">
+                    <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
                         {t('scene.generatedImages')}
                         <span className="text-muted-foreground font-normal">({scene.images.length})</span>
                         {isEditMode && selectedImageIds.size > 0 && (
@@ -713,8 +712,8 @@ export default function SceneDetail() {
                                 {t('scene.selectedCount', '{{count}}개 선택됨', { count: selectedImageIds.size })}
                             </span>
                         )}
-                    </CardTitle>
-                    <div className="flex items-center gap-2">
+                    </div>
+                    <div className="flex items-center gap-1">
                         {isEditMode ? (
                             <>
                                 {/* Select All / Deselect All */}
@@ -832,15 +831,15 @@ export default function SceneDetail() {
                             </>
                         )}
                     </div>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-y-auto custom-scrollbar p-4">
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pt-3 pr-1">
                     {sortedImages.length === 0 && !isStreaming ? (
                         <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
                             <ImageIcon className="h-16 w-16 mb-4 stroke-1" />
                             <p>{t('scene.noImages', '생성된 이미지가 없습니다')}</p>
                         </div>
                     ) : (
-                        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
                             {/* Streaming Card Slot */}
                             {isStreaming && streamingImage && (
                                 <div className={cn("rounded-xl overflow-hidden bg-muted/30 relative border border-primary/50 shadow-[0_0_15px_rgba(59,130,246,0.5)]", getThumbnailAspectClass(thumbnailLayout))}>
@@ -919,8 +918,8 @@ export default function SceneDetail() {
                             ))}
                         </div>
                     )}
-                </CardContent>
-            </Card >
+                </div>
+            </section>
 
             <MetadataDialog
                 open={metadataDialogOpen}
