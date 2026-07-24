@@ -47,9 +47,6 @@ const getThumbnailAspectClass = (layout: 'vertical' | 'horizontal' | 'square') =
 
 import { useSceneStore, SceneImage } from '@/stores/scene-store'
 import { useSettingsStore } from '@/stores/settings-store'
-import { useGenerationStore } from '@/stores/generation-store'
-import { useCharacterPromptStore } from '@/stores/character-prompt-store'
-import { useFragmentStore } from '@/stores/fragment-store'
 import { Command } from '@tauri-apps/plugin-shell'
 import { MetadataDialog } from '@/components/metadata/MetadataDialog'
 import { ImageReferenceDialog } from '@/components/metadata/ImageReferenceDialog'
@@ -60,12 +57,6 @@ import { exists, mkdir, readFile, remove } from '@tauri-apps/plugin-fs'
 import { toast } from '@/components/ui/use-toast'
 import { getSceneFolderFromImages, sanitizeSceneFolderName } from '@/lib/scene-path'
 import { SceneMultiCharacterPanel } from '@/components/scene/SceneMultiCharacterPanel'
-import { removePromptComments } from '@/lib/prompt-comments'
-import {
-    buildSceneCharacterPrompt,
-    getSceneMultiCharacterPromptMap,
-    selectSceneCharacters,
-} from '@/lib/scene-character-prompts'
 
 export default function SceneDetail() {
     const { id: sceneId } = useParams()
@@ -81,7 +72,6 @@ export default function SceneDetail() {
         if (!state.activePresetId || !sceneId) return null
         return state.sceneCharacterAdditions[state.activePresetId]?.[sceneId] || null
     })
-    const sceneCharacterAdditionsEnabled = useSceneStore(state => state.sceneCharacterAdditionsEnabled)
 
     const {
         renameScene,
@@ -115,27 +105,9 @@ export default function SceneDetail() {
     const expertSceneCharacterVariantOverrideEnabled = useSettingsStore(state => state.expertSceneCharacterVariantOverrideEnabled)
     const expertSceneCharacterCostumeOverrideEnabled = useSettingsStore(state => state.expertSceneCharacterCostumeOverrideEnabled)
     const expertSceneMultiCharacterEnabled = useSettingsStore(state => state.expertSceneMultiCharacterEnabled)
-    const expertSceneCharacterAdditionsEnabled = useSettingsStore(state => state.expertSceneCharacterAdditionsEnabled)
     const sceneVariantOverrideEnabled = expertSceneCharacterVariantOverrideEnabled && expertCharacterPromptVariantsEnabled
     const sceneCostumeOverrideEnabled = expertSceneCharacterCostumeOverrideEnabled && expertCharacterPromptLayoutEnabled
     const hasCostumeOverride = sceneCharacterAddition?.characterCostumeEnabled === false
-    const characters = useCharacterPromptStore(state => state.characters)
-    const fragmentRevision = useFragmentStore(state => state.files.map(file => `${file.id}:${file.updatedAt}`).join('|'))
-    const {
-        basePrompt,
-        additionalPrompt,
-        detailPrompt,
-        negativePrompt,
-        inpaintingPrompt,
-        i2iMode,
-    } = useGenerationStore(useShallow(state => ({
-        basePrompt: state.basePrompt,
-        additionalPrompt: state.additionalPrompt,
-        detailPrompt: state.detailPrompt,
-        negativePrompt: state.negativePrompt,
-        inpaintingPrompt: state.inpaintingPrompt,
-        i2iMode: state.i2iMode,
-    })))
 
     const updateScenePromptOverride = (updates: { characterVariantIndex?: number; characterCostumeEnabled?: boolean }) => {
         if (!activePresetId || !sceneId) return
@@ -198,7 +170,6 @@ export default function SceneDetail() {
     const [scenePromptMode, setScenePromptMode] = useState<'positive' | 'negative'>('positive')
     const [sceneEditorCollapsed, setSceneEditorCollapsed] = useState(false)
     const [multiCharacterPanelOpen, setMultiCharacterPanelOpen] = useState(false)
-    const [sceneTokenTotals, setSceneTokenTotals] = useState({ positive: 0, negative: 0 })
 
     const nav = useNavigate()
 
@@ -263,101 +234,6 @@ export default function SceneDetail() {
 
         return () => clearTimeout(timer)
     }, [localNegativePrompt, scene?.id, scene?.sceneNegativePrompt, activePresetId, updateSceneNegativePrompt])
-
-    useEffect(() => {
-        if (!scene) return
-
-        const sceneAddition = expertSceneCharacterAdditionsEnabled && sceneCharacterAdditionsEnabled
-            ? sceneCharacterAddition
-            : null
-        const requestedVariantIndex = sceneVariantOverrideEnabled
-            ? sceneCharacterAddition?.characterVariantIndex
-            : undefined
-        const costumeOverride = sceneCostumeOverrideEnabled
-            ? sceneCharacterAddition?.characterCostumeEnabled
-            : undefined
-        const characterIds = Array.from(new Set([
-            ...characters.filter(character => character.enabled).map(character => character.id),
-            ...(sceneAddition?.characterPromptIds || []),
-        ]))
-        const selectedCharacters = selectSceneCharacters(characters, characterIds, requestedVariantIndex)
-        const multiCharacterPrompts = getSceneMultiCharacterPromptMap(
-            expertSceneMultiCharacterEnabled ? scene.multiCharacterSlots : undefined,
-            selectedCharacters,
-            characters,
-        )
-        const characterPositivePrompts = selectedCharacters.map(character => [
-            expertCharacterPromptLayoutEnabled
-                ? buildSceneCharacterPrompt(character, costumeOverride)
-                : character.prompt,
-            ...(multiCharacterPrompts.get(character.id) || []),
-        ].filter(Boolean).join('\n'))
-        const characterNegativePrompts = selectedCharacters.map(character => (
-            expertCharacterPromptLayoutEnabled && character.negativeEnabled === false ? '' : character.negative
-        ))
-        const positive = [
-            basePrompt,
-            i2iMode === 'inpaint' ? inpaintingPrompt : '',
-            additionalPrompt,
-            localPrompt,
-            detailPrompt,
-            ...characterPositivePrompts,
-        ].map(removePromptComments).filter(prompt => prompt.trim()).join(', ')
-        const negative = [
-            negativePrompt,
-            localNegativePrompt,
-            ...characterNegativePrompts,
-        ].map(removePromptComments).filter(prompt => prompt.trim()).join(', ')
-
-        if (!positive && !negative) {
-            setSceneTokenTotals({ positive: 0, negative: 0 })
-            return
-        }
-
-        let cancelled = false
-        const timer = window.setTimeout(() => {
-            void Promise.all([
-                import('@/lib/token-counter'),
-                import('@/lib/fragment-processor'),
-            ]).then(async ([{ countTokens }, { resolveFragmentsForTokenCount }]) => {
-                const [resolvedPositive, resolvedNegative] = await Promise.all([
-                    resolveFragmentsForTokenCount(positive),
-                    resolveFragmentsForTokenCount(negative),
-                ])
-                if (!cancelled) {
-                    setSceneTokenTotals({
-                        positive: countTokens(resolvedPositive),
-                        negative: countTokens(resolvedNegative),
-                    })
-                }
-            })
-        }, 250)
-
-        return () => {
-            cancelled = true
-            window.clearTimeout(timer)
-        }
-    }, [
-        scene?.id,
-        scene?.multiCharacterSlots,
-        sceneCharacterAddition,
-        sceneCharacterAdditionsEnabled,
-        expertSceneCharacterAdditionsEnabled,
-        sceneVariantOverrideEnabled,
-        sceneCostumeOverrideEnabled,
-        expertSceneMultiCharacterEnabled,
-        expertCharacterPromptLayoutEnabled,
-        characters,
-        basePrompt,
-        additionalPrompt,
-        detailPrompt,
-        negativePrompt,
-        inpaintingPrompt,
-        i2iMode,
-        localPrompt,
-        localNegativePrompt,
-        fragmentRevision,
-    ])
 
     // Preserve the newest local edit when leaving the scene before debounce ends.
     useEffect(() => {
@@ -684,26 +560,23 @@ export default function SceneDetail() {
                 </div>
 
                 {!sceneEditorCollapsed && (
-                    <div className="relative mt-2">
-                        <AutocompleteTextarea
-                            key={`${scene.id}-${scenePromptMode}`}
-                            placeholder={scenePromptMode === 'positive' ? t('sceneEditor.positivePlaceholder') : t('sceneEditor.negativePlaceholder')}
-                            className="!h-[164px] min-h-0 resize-none rounded-md"
-                            style={{ fontSize: `${promptFontSize}px` }}
-                            value={scenePromptMode === 'positive' ? localPrompt : localNegativePrompt}
-                            onChange={(event: any) => scenePromptMode === 'positive'
-                                ? setLocalPrompt(event.target.value)
-                                : setLocalNegativePrompt(event.target.value)
-                            }
-                        />
-                        <SceneTokenCountOverlay count={scenePromptMode === 'positive' ? sceneTokenTotals.positive : sceneTokenTotals.negative} />
-                    </div>
+                    <AutocompleteTextarea
+                        key={`${scene.id}-${scenePromptMode}`}
+                        placeholder={scenePromptMode === 'positive' ? t('sceneEditor.positivePlaceholder') : t('sceneEditor.negativePlaceholder')}
+                        className="mt-2 !h-[164px] min-h-0 resize-none rounded-md"
+                        style={{ fontSize: `${promptFontSize}px` }}
+                        value={scenePromptMode === 'positive' ? localPrompt : localNegativePrompt}
+                        onChange={(event: any) => scenePromptMode === 'positive'
+                            ? setLocalPrompt(event.target.value)
+                            : setLocalNegativePrompt(event.target.value)
+                        }
+                    />
                 )}
             </section>
 
             {/* Generated Images */}
             <section className="flex min-h-0 flex-1 flex-col">
-                <div className="flex h-8 shrink-0 items-center justify-between gap-3 border-b border-border/50">
+                <div className="flex h-9 shrink-0 items-center justify-between gap-3 border-b border-border/50 py-1">
                     <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
                         {t('scene.generatedImages')}
                         <span className="text-muted-foreground font-normal">({scene.images.length})</span>
@@ -1028,20 +901,6 @@ export default function SceneDetail() {
 }
 
 import { SceneImageContextMenu } from '@/components/scene/SceneImageContextMenu'
-
-function SceneTokenCountOverlay({ count }: { count: number }) {
-    const exceeded = count > 512
-    return (
-        <span className={cn(
-            'pointer-events-none absolute bottom-2 right-3 z-[1] rounded border px-1.5 py-0.5 font-mono text-[10px] shadow-sm backdrop-blur-sm',
-            exceeded
-                ? 'border-destructive/70 bg-destructive/90 text-destructive-foreground'
-                : 'border-border/60 bg-background/70 text-muted-foreground',
-        )}>
-            {count}/512
-        </span>
-    )
-}
 
 function SceneImageCard({
     image,

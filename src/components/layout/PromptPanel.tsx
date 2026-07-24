@@ -51,6 +51,11 @@ import { useSceneStore } from '@/stores/scene-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { removePromptComments } from '@/lib/prompt-comments'
+import {
+    buildSceneCharacterPrompt,
+    getSceneMultiCharacterPromptMap,
+    selectSceneCharacters,
+} from '@/lib/scene-character-prompts'
 import { useCharacterStore } from '@/stores/character-store'
 import { useFragmentStore } from '@/stores/fragment-store'
 import { ResolutionSelector } from '@/components/ui/ResolutionSelector'
@@ -87,6 +92,21 @@ export function PromptPanel() {
         return state.presets.find(preset => preset.id === state.activePresetId)
             ?.scenes.find(scene => scene.id === routeSceneId)?.scenePrompt || ''
     })
+    const activeSceneNegativePrompt = useSceneStore(state => {
+        if (!routeSceneId || !state.activePresetId) return ''
+        return state.presets.find(preset => preset.id === state.activePresetId)
+            ?.scenes.find(scene => scene.id === routeSceneId)?.sceneNegativePrompt || ''
+    })
+    const activeSceneMultiCharacterSlots = useSceneStore(state => {
+        if (!routeSceneId || !state.activePresetId) return undefined
+        return state.presets.find(preset => preset.id === state.activePresetId)
+            ?.scenes.find(scene => scene.id === routeSceneId)?.multiCharacterSlots
+    })
+    const sceneCharacterAddition = useSceneStore(state => {
+        if (!routeSceneId || !state.activePresetId) return null
+        return state.sceneCharacterAdditions[state.activePresetId]?.[routeSceneId] || null
+    })
+    const sceneCharacterAdditionsEnabled = useSceneStore(state => state.sceneCharacterAdditionsEnabled)
     const sceneHasQueue = useSceneQueueHasItems(activePresetId)
     const sceneIsGenerating = useSceneStore(state => state.isGenerating)
     const sceneIsCancelling = useSceneStore(state => state.isCancelling)
@@ -100,6 +120,8 @@ export function PromptPanel() {
     const additionalPrompt = useGenerationStore(state => state.additionalPrompt)
     const detailPrompt = useGenerationStore(state => state.detailPrompt)
     const negativePrompt = useGenerationStore(state => state.negativePrompt)
+    const inpaintingPrompt = useGenerationStore(state => state.inpaintingPrompt)
+    const i2iMode = useGenerationStore(state => state.i2iMode)
     const seed = useGenerationStore(state => state.seed)
     const seedLocked = useGenerationStore(state => state.seedLocked)
     const selectedResolution = useGenerationStore(state => state.selectedResolution)
@@ -153,6 +175,12 @@ export function PromptPanel() {
     const setDetailPromptCollapsed = useSettingsStore(state => state.setDetailPromptCollapsed)
     const negativePromptCollapsed = useSettingsStore(state => state.negativePromptCollapsed)
     const setNegativePromptCollapsed = useSettingsStore(state => state.setNegativePromptCollapsed)
+    const expertCharacterPromptLayoutEnabled = useSettingsStore(state => state.expertCharacterPromptLayoutEnabled)
+    const expertCharacterPromptVariantsEnabled = useSettingsStore(state => state.expertCharacterPromptVariantsEnabled)
+    const expertSceneCharacterVariantOverrideEnabled = useSettingsStore(state => state.expertSceneCharacterVariantOverrideEnabled)
+    const expertSceneCharacterCostumeOverrideEnabled = useSettingsStore(state => state.expertSceneCharacterCostumeOverrideEnabled)
+    const expertSceneCharacterAdditionsEnabled = useSettingsStore(state => state.expertSceneCharacterAdditionsEnabled)
+    const expertSceneMultiCharacterEnabled = useSettingsStore(state => state.expertSceneMultiCharacterEnabled)
 
     // Zustand 선택적 구독 - characterPromptStore
     const characterCount = useCharacterPromptStore(state => state.characters.filter(c => c.enabled).length)
@@ -172,16 +200,58 @@ export function PromptPanel() {
     const [tokenTotals, setTokenTotals] = useState({ positive: 0, negative: 0 })
 
     useEffect(() => {
+        const isActiveScene = isSceneMode && !!routeSceneId
+        const sceneAddition = isActiveScene && expertSceneCharacterAdditionsEnabled && sceneCharacterAdditionsEnabled
+            ? sceneCharacterAddition
+            : null
+        const requestedVariantIndex = isActiveScene && expertSceneCharacterVariantOverrideEnabled && expertCharacterPromptVariantsEnabled
+            ? sceneCharacterAddition?.characterVariantIndex
+            : undefined
+        const costumeOverride = isActiveScene && expertSceneCharacterCostumeOverrideEnabled && expertCharacterPromptLayoutEnabled
+            ? sceneCharacterAddition?.characterCostumeEnabled
+            : undefined
+        const characterIds = isActiveScene
+            ? Array.from(new Set([
+                ...characters.filter(character => character.enabled).map(character => character.id),
+                ...(sceneAddition?.characterPromptIds || []),
+            ]))
+            : characters.filter(character => character.enabled).map(character => character.id)
+        const selectedCharacters = isActiveScene
+            ? selectSceneCharacters(characters, characterIds, requestedVariantIndex)
+            : characters.filter(character => character.enabled)
+        const multiCharacterPrompts = isActiveScene
+            ? getSceneMultiCharacterPromptMap(
+                expertSceneMultiCharacterEnabled ? activeSceneMultiCharacterSlots : undefined,
+                selectedCharacters,
+                characters,
+            )
+            : new Map<string, string[]>()
+        const characterPositivePrompts = selectedCharacters.map(character => isActiveScene
+            ? [
+                expertCharacterPromptLayoutEnabled
+                    ? buildSceneCharacterPrompt(character, costumeOverride)
+                    : character.prompt,
+                ...(multiCharacterPrompts.get(character.id) || []),
+            ].filter(Boolean).join('\n')
+            : character.prompt
+        )
+        const characterNegativePrompts = selectedCharacters.map(character => (
+            isActiveScene && expertCharacterPromptLayoutEnabled && character.negativeEnabled === false
+                ? ''
+                : character.negative
+        ))
         const positive = [
             basePrompt,
+            isActiveScene && i2iMode === 'inpaint' ? inpaintingPrompt : '',
             additionalPrompt,
-            detailPrompt,
             activeScenePrompt,
-            ...characters.filter(character => character.enabled).map(character => character.prompt),
+            detailPrompt,
+            ...characterPositivePrompts,
         ].map(removePromptComments).filter(text => text.trim()).join(', ')
         const negative = [
             negativePrompt,
-            ...characters.filter(character => character.enabled).map(character => character.negative),
+            isActiveScene ? activeSceneNegativePrompt : '',
+            ...characterNegativePrompts,
         ].map(removePromptComments).filter(text => text.trim()).join(', ')
         if (!positive && !negative) {
             setTokenTotals({ positive: 0, negative: 0 })
@@ -209,7 +279,29 @@ export function PromptPanel() {
             cancelled = true
             window.clearTimeout(timer)
         }
-    }, [basePrompt, additionalPrompt, detailPrompt, negativePrompt, activeScenePrompt, characters, fragmentRevision])
+    }, [
+        basePrompt,
+        additionalPrompt,
+        detailPrompt,
+        negativePrompt,
+        inpaintingPrompt,
+        i2iMode,
+        isSceneMode,
+        routeSceneId,
+        activeScenePrompt,
+        activeSceneNegativePrompt,
+        activeSceneMultiCharacterSlots,
+        sceneCharacterAddition,
+        sceneCharacterAdditionsEnabled,
+        expertCharacterPromptLayoutEnabled,
+        expertCharacterPromptVariantsEnabled,
+        expertSceneCharacterVariantOverrideEnabled,
+        expertSceneCharacterCostumeOverrideEnabled,
+        expertSceneCharacterAdditionsEnabled,
+        expertSceneMultiCharacterEnabled,
+        characters,
+        fragmentRevision,
+    ])
 
     // 전역 단축키 이벤트 수신
     useEffect(() => {
