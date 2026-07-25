@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { useGenerationStore } from '@/stores/generation-store'
 import { useToolsStore } from '@/stores/tools-store'
 import { useTranslation } from 'react-i18next'
-import { Paintbrush, Eraser, Undo, Trash2, Save, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
+import { Paintbrush, Eraser, Undo, Trash2, Save, ZoomIn, ZoomOut, RotateCcw, Circle, Square } from 'lucide-react'
 
 interface InpaintingDialogProps {
     open: boolean
@@ -23,6 +23,8 @@ interface MaskHistoryAction {
     painted: boolean
     cells: number[]
 }
+
+type BrushShape = 'square' | 'circle'
 
 export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceImage, onMaskSaved }: InpaintingDialogProps) {
     const { t } = useTranslation()
@@ -43,6 +45,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     const brushSize = [inpaintingBrushSize]
     const setBrushSize = (val: number[]) => setInpaintingBrushSize(val[0])
     const [isErasing, setIsErasing] = useState(false)
+    const [brushShape, setBrushShape] = useState<BrushShape>('square')
     const [zoom, setZoom] = useState(1)
     const zoomRef = useRef(1)
 
@@ -269,6 +272,8 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
 
         for (let offsetY = -halfBrush; offsetY <= halfBrush; offsetY++) {
             for (let offsetX = -halfBrush; offsetX <= halfBrush; offsetX++) {
+                if (brushShape === 'circle' && offsetX * offsetX + offsetY * offsetY > halfBrush * halfBrush) continue
+
                 const targetGx = gx + offsetX
                 const targetGy = gy + offsetY
 
@@ -421,6 +426,7 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         cursor.style.transform = `translate(${centerX}px, ${centerY}px) translate(-50%, -50%)`
         cursor.style.borderColor = erase ? 'rgba(248, 113, 113, 0.95)' : 'rgba(255, 255, 255, 0.9)'
         cursor.style.backgroundColor = erase ? 'rgba(248, 113, 113, 0.1)' : 'rgba(99, 102, 241, 0.1)'
+        cursor.style.borderRadius = brushShape === 'circle' ? '9999px' : '2px'
         cursor.style.opacity = '1'
     }
 
@@ -640,6 +646,29 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                                 >
                                     <Eraser className="w-4 h-4 mr-2" />
                                     {t('common.eraser', 'Eraser')}
+                                </Button>
+                            </div>
+
+                            <div className="h-6 w-px bg-border mx-2" />
+
+                            <div className="flex items-center gap-1" role="group" aria-label={t('tools.inpainting.brushShape', 'Brush shape')}>
+                                <Button
+                                    variant={brushShape === 'square' ? 'secondary' : 'ghost'}
+                                    size="icon"
+                                    onClick={() => setBrushShape('square')}
+                                    title={t('tools.inpainting.squareBrush', 'Square brush')}
+                                    aria-label={t('tools.inpainting.squareBrush', 'Square brush')}
+                                >
+                                    <Square className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                    variant={brushShape === 'circle' ? 'secondary' : 'ghost'}
+                                    size="icon"
+                                    onClick={() => setBrushShape('circle')}
+                                    title={t('tools.inpainting.circleBrush', 'Round brush')}
+                                    aria-label={t('tools.inpainting.circleBrush', 'Round brush')}
+                                >
+                                    <Circle className="w-4 h-4" />
                                 </Button>
                             </div>
 

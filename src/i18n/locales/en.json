@@ -865,7 +865,10 @@
       "description": "Edit parts of an image.",
       "open": "Use Inpainting",
       "dropzone": "Upload image to inpaint",
-      "generate": "Generate Inpaint"
+      "generate": "Generate Inpaint",
+      "brushShape": "Brush shape",
+      "squareBrush": "Square brush",
+      "circleBrush": "Round brush"
     }
   },
   "sourcePanel": {

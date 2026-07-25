@@ -505,7 +505,10 @@
       "description": "이미지의 일부분을 수정합니다.",
       "open": "인페인팅 사용",
       "dropzone": "이미지를 업로드하여 인페인팅",
-      "generate": "인페인팅 생성"
+      "generate": "인페인팅 생성",
+      "brushShape": "브러시 모양",
+      "squareBrush": "사각 브러시",
+      "circleBrush": "원형 브러시"
     }
   },
   "sourcePanel": {

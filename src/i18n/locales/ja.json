@@ -864,7 +864,10 @@
       "description": "画像の一部を修正します。",
       "open": "インペインティングを使用",
       "dropzone": "画像をアップロードしてインペイント",
-      "generate": "インペイント生成"
+      "generate": "インペイント生成",
+      "brushShape": "ブラシ形状",
+      "squareBrush": "四角ブラシ",
+      "circleBrush": "円形ブラシ"
     }
   },
   "sourcePanel": {
