@@ -11,6 +11,8 @@ import JSZip from 'jszip'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile, readFile } from '@tauri-apps/plugin-fs'
 import { toast } from '@/components/ui/use-toast'
+import { useSettingsStore } from '@/stores/settings-store'
+import { getSceneExportName } from '@/lib/scene-export-name'
 
 interface ExportDialogProps {
     open: boolean
@@ -23,6 +25,8 @@ type ExportFormat = 'png' | 'jpeg' | 'webp'
 
 export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: ExportDialogProps) {
     const { t } = useTranslation()
+    const expertSceneExportNameEnabled = useSettingsStore(state => state.expertSceneExportNameEnabled)
+    const sceneExportNamePart = useSettingsStore(state => state.sceneExportNamePart)
     const [format, setFormat] = useState<ExportFormat>('png')
     const [quality, setQuality] = useState(90)
     const [isExporting, setIsExporting] = useState(false)
@@ -35,6 +39,7 @@ export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: E
 
         try {
             const zip = new JSZip()
+            const usedFileNames = new Set<string>()
             let count = 0
             
             // Calculate total: each scene exports 1 image OR all favorites if multiple
@@ -109,12 +114,20 @@ export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: E
                     }
 
                     if (finalBlob) {
-                        const safeName = scene.name.replace(/[<>:"/\\|?*]/g, '_').trim() || `Scene_${count}`
+                        const exportName = getSceneExportName(scene.name, expertSceneExportNameEnabled, sceneExportNamePart)
+                        const safeName = exportName.replace(/[<>:"/\\|?*]/g, '_').trim() || `Scene_${count}`
                         const ext = format === 'jpeg' ? 'jpg' : format
                         // Add suffix if multiple favorites (_1, _2, etc.)
                         const suffix = imagesToExport.length > 1 ? `_${imgIndex + 1}` : ''
+                        let fileName = `${safeName}${suffix}.${ext}`
+                        let duplicateIndex = 2
+                        while (usedFileNames.has(fileName.toLocaleLowerCase())) {
+                            fileName = `${safeName}${suffix}_${duplicateIndex}.${ext}`
+                            duplicateIndex++
+                        }
+                        usedFileNames.add(fileName.toLocaleLowerCase())
                         const arrayBuffer = await finalBlob.arrayBuffer()
-                        zip.file(`${safeName}${suffix}.${ext}`, new Uint8Array(arrayBuffer) as any)
+                        zip.file(fileName, new Uint8Array(arrayBuffer) as any)
                         count++
                         setProgress(Math.round((count / total) * 100))
                     }

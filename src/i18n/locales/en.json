@@ -781,7 +781,14 @@
         "characterAdditionsTitle": "Scene Character Additions",
         "characterAdditionsDesc": "Adds per-scene character prompt, character reference, and vibe reference controls.",
         "multiCharacterTitle": "Multi-character scene",
-        "multiCharacterDesc": "Connect scene-specific role prompts to active characters directly or by gender."
+        "multiCharacterDesc": "Connect scene-specific role prompts to active characters directly or by gender.",
+        "exportNameTitle": "Use part of scene name for exports",
+        "exportNameDesc": "Uses the prefix, middle, or suffix around special characters for ZIP and R2 filenames.",
+        "exportNamePartTitle": "Name part",
+        "exportNamePartDesc": "For example, in at:love, the prefix is at and the suffix is love.",
+        "exportNamePrefix": "Prefix",
+        "exportNameMiddle": "Middle",
+        "exportNameSuffix": "Suffix"
       },
       "randomGeneration": {
         "header": "Random Generation",

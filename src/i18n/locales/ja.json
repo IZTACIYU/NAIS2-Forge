@@ -780,7 +780,14 @@
         "characterAdditionsTitle": "\u30b7\u30fc\u30f3\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u8ffd\u52a0",
         "characterAdditionsDesc": "\u30b7\u30fc\u30f3\u3054\u3068\u306b\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u30d7\u30ed\u30f3\u30d7\u30c8\u3001\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u30ea\u30d5\u30a1\u30ec\u30f3\u30b9\u3001Vibe\u30ea\u30d5\u30a1\u30ec\u30f3\u30b9\u3092\u8ffd\u52a0\u3067\u304d\u308b\u3088\u3046\u306b\u3057\u307e\u3059\u3002"
         ,"multiCharacterTitle": "複数キャラクターシーン",
-        "multiCharacterDesc": "シーン専用の役割プロンプトを、有効なキャラクターへ直接または性別で接続します。"
+        "multiCharacterDesc": "シーン専用の役割プロンプトを、有効なキャラクターへ直接または性別で接続します。",
+        "exportNameTitle": "シーン名の一部でエクスポート",
+        "exportNameDesc": "ZIPとR2アップロードのファイル名に、特殊記号の前・中央・後ろの部分を使います。",
+        "exportNamePartTitle": "使用する名前の位置",
+        "exportNamePartDesc": "例: at:love では前が at、後ろが love です。",
+        "exportNamePrefix": "前",
+        "exportNameMiddle": "中央",
+        "exportNameSuffix": "後ろ"
       },
       "randomGeneration": {
         "header": "ランダム生成",

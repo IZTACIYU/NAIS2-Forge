@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { indexedDBStorage } from '@/lib/indexed-db'
 import type { SceneRandomCharacterMode } from '@/lib/random-character-selection'
 import type { CharacterGender } from '@/lib/character-gender'
+import type { SceneExportNamePart } from '@/lib/scene-export-name'
 
 export interface CustomResolution {
     id: string
@@ -54,6 +55,8 @@ interface SettingsState {
     expertSceneCharacterRepeatEnabled: boolean
     expertSceneCharacterAdditionsEnabled: boolean
     expertSceneMultiCharacterEnabled: boolean
+    expertSceneExportNameEnabled: boolean
+    sceneExportNamePart: SceneExportNamePart
     expertSceneRandomCharactersEnabled: boolean
     sceneRandomCharactersActive: boolean
     sceneRandomCharacterMode: SceneRandomCharacterMode
@@ -107,6 +110,8 @@ interface SettingsState {
     setExpertSceneCharacterRepeatEnabled: (enabled: boolean) => void
     setExpertSceneCharacterAdditionsEnabled: (enabled: boolean) => void
     setExpertSceneMultiCharacterEnabled: (enabled: boolean) => void
+    setExpertSceneExportNameEnabled: (enabled: boolean) => void
+    setSceneExportNamePart: (part: SceneExportNamePart) => void
     setExpertSceneRandomCharactersEnabled: (enabled: boolean) => void
     setSceneRandomCharacterConfig: (config: Partial<Pick<SettingsState, 'sceneRandomCharactersActive' | 'sceneRandomCharacterMode' | 'sceneRandomCharacterCount' | 'sceneRandomCharacterIds' | 'sceneRandomCharacterGroupIds' | 'sceneRandomCharacterGender'>>) => void
     setExpertExifDirectActionEnabled: (enabled: boolean) => void
@@ -153,6 +158,8 @@ export const useSettingsStore = create<SettingsState>()(
             expertSceneCharacterRepeatEnabled: false,
             expertSceneCharacterAdditionsEnabled: false,
             expertSceneMultiCharacterEnabled: false,
+            expertSceneExportNameEnabled: false,
+            sceneExportNamePart: 'prefix',
             expertSceneRandomCharactersEnabled: false,
             sceneRandomCharactersActive: false,
             sceneRandomCharacterMode: 'all',
@@ -218,6 +225,8 @@ export const useSettingsStore = create<SettingsState>()(
             setExpertSceneCharacterRepeatEnabled: (expertSceneCharacterRepeatEnabled) => set({ expertSceneCharacterRepeatEnabled }),
             setExpertSceneCharacterAdditionsEnabled: (expertSceneCharacterAdditionsEnabled) => set({ expertSceneCharacterAdditionsEnabled }),
             setExpertSceneMultiCharacterEnabled: (expertSceneMultiCharacterEnabled) => set({ expertSceneMultiCharacterEnabled }),
+            setExpertSceneExportNameEnabled: (expertSceneExportNameEnabled) => set({ expertSceneExportNameEnabled }),
+            setSceneExportNamePart: (sceneExportNamePart) => set({ sceneExportNamePart }),
             setExpertSceneRandomCharactersEnabled: (expertSceneRandomCharactersEnabled) => set({ expertSceneRandomCharactersEnabled }),
             setSceneRandomCharacterConfig: (config) => set(config),
             setExpertExifDirectActionEnabled: (expertExifDirectActionEnabled) => set({ expertExifDirectActionEnabled }),

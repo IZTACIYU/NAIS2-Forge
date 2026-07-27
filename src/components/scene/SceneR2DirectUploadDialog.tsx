@@ -11,6 +11,7 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { SceneCard, SceneImage } from '@/stores/scene-store'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 import { exifFormatExtension, stripExifForUpload } from '@/lib/exif-actions'
+import { getSceneExportName } from '@/lib/scene-export-name'
 
 interface SceneR2DirectUploadDialogProps {
     open: boolean
@@ -70,6 +71,8 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
         r2Bucket,
         expertR2ExifRemovalEnabled,
         exifOutputFormat,
+        expertSceneExportNameEnabled,
+        sceneExportNamePart,
     } = useSettingsStore()
     const config: R2Config = useMemo(() => ({
         accountId: r2AccountId,
@@ -168,10 +171,11 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
         setUploading(true)
         setProgress(0)
         try {
+            const usedFileNames = new Set<string>()
             for (let index = 0; index < candidates.length; index++) {
                 const candidate = candidates[index]
                 let ext = getExt(candidate.image.url)
-                const baseName = sanitizeName(candidate.sceneName)
+                const baseName = sanitizeName(getSceneExportName(candidate.sceneName, expertSceneExportNameEnabled, sceneExportNamePart))
                 let contentBase64: string
                 let contentType: string
                 if (expertR2ExifRemovalEnabled) {
@@ -183,7 +187,14 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
                     contentBase64 = await readImageBase64(candidate.image)
                     contentType = getContentType(ext)
                 }
-                const key = `${prefix}${baseName}.${ext}`
+                let fileName = `${baseName}.${ext}`
+                let duplicateIndex = 2
+                while (usedFileNames.has(fileName.toLocaleLowerCase())) {
+                    fileName = `${baseName}_${duplicateIndex}.${ext}`
+                    duplicateIndex++
+                }
+                usedFileNames.add(fileName.toLocaleLowerCase())
+                const key = `${prefix}${fileName}`
                 await uploadR2Object(config, key, contentBase64, contentType)
                 setProgress(Math.round(((index + 1) / candidates.length) * 100))
             }
