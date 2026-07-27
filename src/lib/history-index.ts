@@ -78,6 +78,18 @@ export function createHistoryIndexScope(useAbsolutePath: boolean, savePath: stri
     return `absolute:${normalizedPath}`
 }
 
+export function replaceHistoryPathPrefix(path: string, oldFolder: string, newFolder: string) {
+    const normalizedPath = path.toLocaleLowerCase()
+    const normalizedFolder = oldFolder.toLocaleLowerCase()
+    if (normalizedPath !== normalizedFolder
+        && !normalizedPath.startsWith(normalizedFolder + '\\')
+        && !normalizedPath.startsWith(normalizedFolder + '/')) {
+        return path
+    }
+
+    return newFolder + path.slice(oldFolder.length)
+}
+
 export async function loadHistoryIndex(scope: string): Promise<HistoryIndexEntry[] | null> {
     try {
         const native = await readNativeState(HISTORY_INDEX_KEY)
@@ -140,4 +152,19 @@ export async function saveHistoryIndex(scope: string, images: HistoryIndexEntry[
 
     await indexedDBStorage.setItem(HISTORY_INDEX_KEY, serialized)
     lastSerializedIndex = serialized
+}
+
+export async function moveHistoryIndexPathPrefix(scope: string, oldFolder: string, newFolder: string) {
+    const images = await loadHistoryIndex(scope)
+    if (!images) return
+
+    let changed = false
+    const updated = images.map(image => {
+        const path = replaceHistoryPathPrefix(image.path, oldFolder, newFolder)
+        if (path === image.path) return image
+        changed = true
+        return { ...image, path }
+    })
+
+    if (changed) await saveHistoryIndex(scope, updated)
 }

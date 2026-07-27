@@ -6,6 +6,7 @@ import { pictureDir, join, dirname } from '@tauri-apps/api/path'
 import { useSettingsStore } from './settings-store'
 import { notifySceneQueueChanged } from '@/lib/scene-queue-events'
 import { getSceneFolderFromImages, replaceSceneFolderPrefix, sanitizeSceneFolderName } from '@/lib/scene-path'
+import { createHistoryIndexScope, moveHistoryIndexPathPrefix } from '@/lib/history-index'
 
 export interface SceneImage {
     id: string
@@ -515,6 +516,12 @@ export const useSceneStore = create<SceneState>()(
                                     }
                                     : p
                             ),
+                        }))
+                        const historyScope = createHistoryIndexScope(useAbsolutePath, savePath)
+                        void moveHistoryIndexPathPrefix(historyScope, oldFolderPath, newFolderPath)
+                            .catch(error => console.warn('Failed to update history paths after scene rename:', error))
+                        window.dispatchEvent(new CustomEvent('historyPathsMoved', {
+                            detail: { oldFolder: oldFolderPath, newFolder: newFolderPath },
                         }))
                         return
                     }

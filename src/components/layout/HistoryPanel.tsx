@@ -35,6 +35,7 @@ import {
     createHistoryIndexScope,
     HistoryImageType,
     loadHistoryIndex,
+    replaceHistoryPathPrefix,
     saveHistoryIndex,
 } from '@/lib/history-index'
 
@@ -678,6 +679,40 @@ export function HistoryPanel() {
 
         window.addEventListener('imageDeleted', handler as EventListener)
         return () => window.removeEventListener('imageDeleted', handler as EventListener)
+    }, [])
+
+    // Keep in-memory history entries aligned when a scene folder is renamed.
+    useEffect(() => {
+        const handler = (e: CustomEvent<{ oldFolder: string; newFolder: string }>) => {
+            const { oldFolder, newFolder } = e.detail
+            if (!oldFolder || !newFolder) return
+
+            setSavedImages(prev => {
+                let changed = false
+                const next = prev.map(image => {
+                    const path = replaceHistoryPathPrefix(image.path, oldFolder, newFolder)
+                    if (path === image.path) return image
+                    changed = true
+                    return { ...image, path }
+                })
+                return changed ? next : prev
+            })
+            setImageThumbnails(prev => {
+                let changed = false
+                const next = { ...prev }
+                for (const [path, thumbnail] of Object.entries(prev)) {
+                    const nextPath = replaceHistoryPathPrefix(path, oldFolder, newFolder)
+                    if (nextPath === path) continue
+                    delete next[path]
+                    next[nextPath] = path.startsWith('memory://') ? thumbnail : convertFileSrc(nextPath)
+                    changed = true
+                }
+                return changed ? next : prev
+            })
+        }
+
+        window.addEventListener('historyPathsMoved', handler as EventListener)
+        return () => window.removeEventListener('historyPathsMoved', handler as EventListener)
     }, [])
 
     useEffect(() => {
