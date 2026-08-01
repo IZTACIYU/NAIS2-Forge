@@ -17,6 +17,7 @@ import { sendSystemNotification } from '@/lib/system-notification'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 import {
     buildSceneCharacterPrompt,
+    getSceneMultiCharacterPositionMap,
     getSceneMultiCharacterPromptMap,
     getVariantStackKey,
     selectSceneCharacters,
@@ -235,6 +236,11 @@ export function useSceneGeneration() {
                     characterPrompts,
                     latestPromptStore.characters,
                 )
+                const multiCharacterPositionMap = getSceneMultiCharacterPositionMap(
+                    latestSettingsStore.expertSceneMultiCharacterEnabled ? scene.multiCharacterSlots : undefined,
+                    characterPrompts,
+                    latestPromptStore.characters,
+                )
 
                 if (sequenceMode || requestedVariantIndex !== undefined) {
                     const selectedStackKeys = new Set(characterPrompts.map(character => getVariantStackKey(character)))
@@ -263,7 +269,7 @@ export function useSceneGeneration() {
                             prompt: await processWildcards([basePrompt, ...appendedPrompts].filter(Boolean).join('\n')),
                             negative: await processWildcards(latestSettingsStore.expertCharacterPromptLayoutEnabled && c.negativeEnabled === false ? '' : c.negative),
                             enabled: true,
-                            position: c.position
+                            position: multiCharacterPositionMap.get(c.id) || c.position
                         }
                     })
                 )
@@ -346,6 +352,7 @@ export function useSceneGeneration() {
 
                     // Character Prompts - already processed with fragment substitution
                     characterPrompts: processedCharacterPrompts,
+                    characterPositionEnabled: latestPromptStore.positionEnabled || multiCharacterPositionMap.size > 0,
 
                     // Image format from settings
                     imageFormat: useSettingsStore.getState().imageFormat,

@@ -76,31 +76,30 @@ export const buildSceneCharacterPrompt = (character: CharacterPrompt, costumeOve
     return parts.join('\n')
 }
 
-export const getSceneMultiCharacterPromptMap = (
+interface SceneMultiCharacterAssignment {
+    characterId: string
+    prompt: string
+    position?: { x: number; y: number }
+}
+
+const resolveSceneMultiCharacterAssignments = (
     slots: SceneMultiCharacterSlot[] | undefined,
     selectedCharacters: CharacterPrompt[],
     allCharacters: CharacterPrompt[],
-) => {
-    const promptsByCharacterId = new Map<string, string[]>()
+): SceneMultiCharacterAssignment[] => {
+    const assignments: SceneMultiCharacterAssignment[] = []
     const usedGenderCharacterIds = new Set<string>()
     const allCharacterById = new Map(allCharacters.map(character => [character.id, character]))
 
-    const appendPrompt = (character: CharacterPrompt | undefined, prompt: string) => {
-        if (!character || !prompt.trim()) return
-        const prompts = promptsByCharacterId.get(character.id) || []
-        prompts.push(prompt.trim())
-        promptsByCharacterId.set(character.id, prompts)
-    }
-
     for (const slot of slots || []) {
-        if (!slot.prompt.trim()) continue
+        if (slot.enabled === false || (!slot.prompt.trim() && !slot.position)) continue
 
         if (slot.target === 'manual') {
             const sourceCharacter = slot.characterId ? allCharacterById.get(slot.characterId) : undefined
             const target = sourceCharacter
                 ? selectedCharacters.find(character => getVariantStackKey(character) === getVariantStackKey(sourceCharacter))
                 : undefined
-            appendPrompt(target, slot.prompt)
+            if (target) assignments.push({ characterId: target.id, prompt: slot.prompt.trim(), position: slot.position })
             continue
         }
 
@@ -108,9 +107,38 @@ export const getSceneMultiCharacterPromptMap = (
             !usedGenderCharacterIds.has(character.id)
             && getCharacterGender(character.prompt) === (slot.gender || 'unknown')
         ))
-        if (target) usedGenderCharacterIds.add(target.id)
-        appendPrompt(target, slot.prompt)
+        if (!target) continue
+        usedGenderCharacterIds.add(target.id)
+        assignments.push({ characterId: target.id, prompt: slot.prompt.trim(), position: slot.position })
+    }
+
+    return assignments
+}
+
+export const getSceneMultiCharacterPromptMap = (
+    slots: SceneMultiCharacterSlot[] | undefined,
+    selectedCharacters: CharacterPrompt[],
+    allCharacters: CharacterPrompt[],
+) => {
+    const promptsByCharacterId = new Map<string, string[]>()
+    for (const assignment of resolveSceneMultiCharacterAssignments(slots, selectedCharacters, allCharacters)) {
+        if (!assignment.prompt) continue
+        const prompts = promptsByCharacterId.get(assignment.characterId) || []
+        prompts.push(assignment.prompt)
+        promptsByCharacterId.set(assignment.characterId, prompts)
     }
 
     return promptsByCharacterId
+}
+
+export const getSceneMultiCharacterPositionMap = (
+    slots: SceneMultiCharacterSlot[] | undefined,
+    selectedCharacters: CharacterPrompt[],
+    allCharacters: CharacterPrompt[],
+) => {
+    const positionsByCharacterId = new Map<string, { x: number; y: number }>()
+    for (const assignment of resolveSceneMultiCharacterAssignments(slots, selectedCharacters, allCharacters)) {
+        if (assignment.position) positionsByCharacterId.set(assignment.characterId, assignment.position)
+    }
+    return positionsByCharacterId
 }

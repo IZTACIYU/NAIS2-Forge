@@ -202,7 +202,12 @@
     "other": "Other",
     "prompt": "Additional prompt",
     "promptPlaceholder": "Tags to append to this character...",
-    "remove": "Remove character"
+    "remove": "Remove character",
+    "cycleGender": "Cycle gender",
+    "position": "Character position",
+    "clearPosition": "Clear position",
+    "enable": "Enable multi-character slot",
+    "disable": "Disable multi-character slot"
   },
   "sceneEditor": {
     "title": "Scene editor",
@@ -782,6 +787,10 @@
         "characterAdditionsDesc": "Adds per-scene character prompt, character reference, and vibe reference controls.",
         "multiCharacterTitle": "Multi-character scene",
         "multiCharacterDesc": "Connect scene-specific role prompts to active characters directly or by gender.",
+        "multiCharacterGenderModeTitle": "Multi-character gender selection",
+        "multiCharacterGenderModeDesc": "Use a gender dropdown or cycle genders by clicking the portrait button.",
+        "multiCharacterGenderDropdown": "Dropdown",
+        "multiCharacterGenderPortrait": "Portrait click",
         "exportNameTitle": "Use part of scene name for exports",
         "exportNameDesc": "Uses the prefix, middle, or suffix around special characters for ZIP and R2 filenames.",
         "exportNamePartTitle": "Name part",

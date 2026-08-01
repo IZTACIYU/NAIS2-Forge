@@ -55,6 +55,7 @@ interface SettingsState {
     expertSceneCharacterRepeatEnabled: boolean
     expertSceneCharacterAdditionsEnabled: boolean
     expertSceneMultiCharacterEnabled: boolean
+    sceneMultiCharacterGenderSelectionMode: 'dropdown' | 'portrait'
     expertSceneExportNameEnabled: boolean
     sceneExportNamePart: SceneExportNamePart
     expertSceneRandomCharactersEnabled: boolean
@@ -110,6 +111,7 @@ interface SettingsState {
     setExpertSceneCharacterRepeatEnabled: (enabled: boolean) => void
     setExpertSceneCharacterAdditionsEnabled: (enabled: boolean) => void
     setExpertSceneMultiCharacterEnabled: (enabled: boolean) => void
+    setSceneMultiCharacterGenderSelectionMode: (mode: 'dropdown' | 'portrait') => void
     setExpertSceneExportNameEnabled: (enabled: boolean) => void
     setSceneExportNamePart: (part: SceneExportNamePart) => void
     setExpertSceneRandomCharactersEnabled: (enabled: boolean) => void
@@ -158,6 +160,7 @@ export const useSettingsStore = create<SettingsState>()(
             expertSceneCharacterRepeatEnabled: false,
             expertSceneCharacterAdditionsEnabled: false,
             expertSceneMultiCharacterEnabled: false,
+            sceneMultiCharacterGenderSelectionMode: 'dropdown',
             expertSceneExportNameEnabled: false,
             sceneExportNamePart: 'prefix',
             expertSceneRandomCharactersEnabled: false,
@@ -225,6 +228,7 @@ export const useSettingsStore = create<SettingsState>()(
             setExpertSceneCharacterRepeatEnabled: (expertSceneCharacterRepeatEnabled) => set({ expertSceneCharacterRepeatEnabled }),
             setExpertSceneCharacterAdditionsEnabled: (expertSceneCharacterAdditionsEnabled) => set({ expertSceneCharacterAdditionsEnabled }),
             setExpertSceneMultiCharacterEnabled: (expertSceneMultiCharacterEnabled) => set({ expertSceneMultiCharacterEnabled }),
+            setSceneMultiCharacterGenderSelectionMode: (sceneMultiCharacterGenderSelectionMode) => set({ sceneMultiCharacterGenderSelectionMode }),
             setExpertSceneExportNameEnabled: (expertSceneExportNameEnabled) => set({ expertSceneExportNameEnabled }),
             setSceneExportNamePart: (sceneExportNamePart) => set({ sceneExportNamePart }),
             setExpertSceneRandomCharactersEnabled: (expertSceneRandomCharactersEnabled) => set({ expertSceneRandomCharactersEnabled }),

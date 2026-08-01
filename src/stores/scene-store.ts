@@ -23,6 +23,8 @@ export interface SceneMultiCharacterSlot {
     characterId?: string
     gender?: 'male' | 'female' | 'unknown'
     prompt: string
+    enabled?: boolean
+    position?: { x: number; y: number }
 }
 
 export interface SceneCard {
@@ -86,6 +88,17 @@ function normalizeSceneMultiCharacterSlots(value: unknown): SceneMultiCharacterS
         }
         if (source.target === 'gender' && (source.gender === 'male' || source.gender === 'female' || source.gender === 'unknown')) {
             slot.gender = source.gender
+        }
+        if (typeof source.enabled === 'boolean') slot.enabled = source.enabled
+        if (source.position
+            && typeof source.position.x === 'number'
+            && Number.isFinite(source.position.x)
+            && typeof source.position.y === 'number'
+            && Number.isFinite(source.position.y)) {
+            slot.position = {
+                x: Math.max(0, Math.min(1, source.position.x)),
+                y: Math.max(0, Math.min(1, source.position.y)),
+            }
         }
 
         return [slot]
