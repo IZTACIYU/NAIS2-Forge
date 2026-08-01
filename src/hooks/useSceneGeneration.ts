@@ -7,16 +7,14 @@ import { useGenerationStore } from '@/stores/generation-store'
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { useAuthStore } from '@/stores/auth-store'
-import { generateImage, generateImageStream, GenerationParams } from '@/services/novelai-api'
+import { generateImage, generateImageStream } from '@/services/novelai-api'
 import { BaseDirectory, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
-import { processWildcards } from '@/lib/fragment-processor'
-import { removePromptComments } from '@/lib/prompt-comments'
+import { buildGenerationRequest } from '@/lib/generation-request'
 import { useCharacterStore } from '@/stores/character-store'
 import { sendSystemNotification } from '@/lib/system-notification'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 import {
-    buildSceneCharacterPrompt,
     getSceneMultiCharacterPositionMap,
     getSceneMultiCharacterPromptMap,
     getVariantStackKey,
@@ -151,20 +149,6 @@ export function useSceneGeneration() {
                 // Get fresh generation store state
                 const genState = useGenerationStore.getState()
 
-                // Construct Prompt (including inpaintingPrompt if in inpaint mode)
-                const parts = [
-                    removePromptComments(genState.basePrompt),
-                    // Add inpainting prompt after basePrompt (same as main mode)
-                    genState.i2iMode === 'inpaint' ? removePromptComments(genState.inpaintingPrompt) : null,
-                    removePromptComments(genState.additionalPrompt),
-                    removePromptComments(scene.scenePrompt),
-                    removePromptComments(genState.detailPrompt),
-                ].filter(p => p && p.trim())
-
-                // Apply wildcard/fragment processing to final prompt (async)
-                // processWildcards handles both <filename> fragments and (a/b/c) random selection
-                const finalPrompt = await processWildcards(parts.join(', '))
-
                 // Get Character & Vibe Data (활성화된 이미지만 필터링)
                 const referenceState = useCharacterStore.getState()
                 const latestPromptStore = useCharacterPromptStore.getState()
@@ -258,22 +242,6 @@ export function useSceneGeneration() {
                     })
                 }
 
-                // Apply fragment/wildcard substitution to character prompts (async)
-                const processedCharacterPrompts = await Promise.all(
-                    characterPrompts.map(async c => {
-                        const basePrompt = latestSettingsStore.expertCharacterPromptLayoutEnabled
-                            ? buildSceneCharacterPrompt(c, costumeOverride)
-                            : c.prompt
-                        const appendedPrompts = multiCharacterPromptMap.get(c.id) || []
-                        return {
-                            prompt: await processWildcards([basePrompt, ...appendedPrompts].filter(Boolean).join('\n')),
-                            negative: await processWildcards(latestSettingsStore.expertCharacterPromptLayoutEnabled && c.negativeEnabled === false ? '' : c.negative),
-                            enabled: true,
-                            position: multiCharacterPositionMap.get(c.id) || c.position
-                        }
-                    })
-                )
-
                 // Determine Seed (Randomize if not locked)
                 // If seed is 0, treat it as "random seed" request
                 let finalSeed = genState.seedLocked ? genState.seed : Math.floor(Math.random() * 4294967295)
@@ -308,55 +276,52 @@ export function useSceneGeneration() {
                     }
                 }
 
-                const params: GenerationParams = {
-                    prompt: finalPrompt,
-                    negative_prompt: [
-                        removePromptComments(genState.negativePrompt),
-                        removePromptComments(scene.sceneNegativePrompt || ''),
-                    ].filter(prompt => prompt && prompt.trim()).join(', '),
+                const params = await buildGenerationRequest({
+                    positiveParts: [
+                        genState.basePrompt,
+                        genState.i2iMode === 'inpaint' ? genState.inpaintingPrompt : '',
+                        genState.additionalPrompt,
+                        scene.scenePrompt,
+                        genState.detailPrompt,
+                    ],
+                    negativeParts: [genState.negativePrompt, scene.sceneNegativePrompt || ''],
+                    characterInputs: characterPrompts.map(character => ({
+                        character,
+                        appendedPrompts: multiCharacterPromptMap.get(character.id),
+                        costumeEnabled: costumeOverride,
+                        position: multiCharacterPositionMap.get(character.id) || character.position,
+                    })),
+                    characterPromptLayoutEnabled: latestSettingsStore.expertCharacterPromptLayoutEnabled,
+                    characterPositionEnabled: latestPromptStore.positionEnabled || multiCharacterPositionMap.size > 0,
+                    characterImages,
+                    vibeImages,
+                    model: genState.model,
+                    width: finalWidth,
+                    height: finalHeight,
                     steps: genState.steps,
-                    cfg_scale: genState.cfgScale,
-                    cfg_rescale: genState.cfgRescale,
+                    cfgScale: genState.cfgScale,
+                    cfgRescale: genState.cfgRescale,
                     sampler: genState.sampler,
                     scheduler: genState.scheduler,
                     smea: genState.smea,
-                    smea_dyn: genState.smeaDyn,
+                    smeaDyn: genState.smeaDyn,
                     variety: genState.variety ?? false,
                     seed: finalSeed,
-
-                    width: finalWidth,
-                    height: finalHeight,
-
-                    model: genState.model,
-
-                    // I2I / Inpainting parameters
                     sourceImage: genState.sourceImage || undefined,
                     strength: genState.strength,
                     noise: genState.noise,
                     mask: genState.mask || undefined,
-
-                    // File-backed originals are read and transferred by Rust.
-                    charImages: characterImages.map(img => img.base64 || ''),
-                    charImagePaths: characterImages.map(img => img.filePath || null),
-                    charStrength: characterImages.map(img => img.strength),
-                    charFidelity: characterImages.map(img => img.fidelity ?? 0.6),
-                    charReferenceType: characterImages.map(img => img.referenceType ?? 'character&style'),
-                    charCacheKeys: characterImages.map(img => img.cacheKey || null),
-
-                    vibeImages: vibeImages.map(img => img.base64 || ''),
-                    vibeImagePaths: vibeImages.map(img => img.filePath || null),
-                    vibeEncodedPaths: vibeImages.map(img => img.encodedVibePath || null),
-                    vibeInfo: vibeImages.map(img => img.informationExtracted),
-                    vibeStrength: vibeImages.map(img => img.strength),
-                    preEncodedVibes: vibeImages.map(img => img.encodedVibe || null),
-
-                    // Character Prompts - already processed with fragment substitution
-                    characterPrompts: processedCharacterPrompts,
-                    characterPositionEnabled: latestPromptStore.positionEnabled || multiCharacterPositionMap.size > 0,
-
-                    // Image format from settings
-                    imageFormat: useSettingsStore.getState().imageFormat,
-                }
+                    imageFormat: latestSettingsStore.imageFormat,
+                    qualityToggle: genState.qualityToggle,
+                    ucPreset: genState.ucPreset,
+                    promptParts: {
+                        base: genState.basePrompt,
+                        additional: genState.additionalPrompt,
+                        detail: genState.detailPrompt,
+                        negative: genState.negativePrompt,
+                        inpainting: genState.inpaintingPrompt,
+                    },
+                })
 
                 let result
 

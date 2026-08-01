@@ -8,8 +8,7 @@ import { writeFile, mkdir, exists, BaseDirectory } from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { useCharacterStore } from './character-store'
 import { useCharacterPromptStore } from './character-prompt-store'
-import { processWildcards } from '@/lib/fragment-processor'
-import { removePromptComments } from '@/lib/prompt-comments'
+import { buildGenerationRequest } from '@/lib/generation-request'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 import i18n from '@/i18n'
 import { toast } from '@/components/ui/use-toast'
@@ -300,7 +299,7 @@ export const useGenerationStore = create<GenerationState>()(
                     basePrompt, additionalPrompt, detailPrompt, negativePrompt, inpaintingPrompt,
                     model, steps, cfgScale, cfgRescale, sampler, scheduler, smea, smeaDyn, variety,
                     selectedResolution, batchCount, lastGenerationTime,
-                    sourceImage, strength, noise, mask
+                    sourceImage, strength, noise, mask, i2iMode
                 } = get()
 
                 const token = useAuthStore.getState().token
@@ -363,19 +362,6 @@ export const useGenerationStore = create<GenerationState>()(
                             : Math.floor(Math.random() * 4294967295)
                         set({ seed: currentSeed, activeImageSeed: currentSeed })
                         
-                        let finalPrompt = [
-                            removePromptComments(basePrompt),
-                            removePromptComments(inpaintingPrompt),
-                            removePromptComments(additionalPrompt),
-                            removePromptComments(detailPrompt)
-                        ].filter(Boolean).join(', ')
-
-                        // Fragment Substitution - use processWildcards which handles <filename> syntax
-                        // Wildcard Processing (handles both <filename> fragments and (a/b/c) random selection) - async
-                        finalPrompt = await processWildcards(finalPrompt)
-
-                        if (get().isCancelled || get().generationSessionId !== sessionId) break
-
                         const { characterImages: allCharImages, vibeImages: allVibeImages } = useCharacterStore.getState()
                         const characterImages = allCharImages.filter(img => img.enabled !== false && (img.filePath || img.base64 || img.cacheKey))
                         const vibeImages = allVibeImages.filter(img => img.enabled !== false && (img.filePath || img.base64 || img.encodedVibe || img.encodedVibePath))
@@ -409,51 +395,8 @@ export const useGenerationStore = create<GenerationState>()(
                         const characterPromptsForGeneration = randomCharacterIds
                             ? characterPrompts.filter(character => randomCharacterIds.has(character.id))
                             : characterPrompts.filter(character => character.enabled)
-
-
-                        const splitCharacterCostumePrompt = (prompt: string) => {
-                            const normalized = prompt.replace(/\r\n/g, '\n')
-                            const marker = '#!-\uc758\uc0c1\ud504\ub86c'
-                            const index = normalized.indexOf(marker)
-                            if (index === -1) return { characterPrompt: prompt, costumePrompt: '' }
-                            return {
-                                characterPrompt: normalized.slice(0, index).replace(/\n+$/g, ''),
-                                costumePrompt: normalized.slice(index + marker.length).replace(/^\n+/g, ''),
-                            }
-                        }
-
-                        const buildCharacterPromptForGeneration = (char: typeof characterPrompts[number]) => {
-                            const { expertCharacterPromptLayoutEnabled } = useSettingsStore.getState()
-                            const { characterPrompt, costumePrompt } = splitCharacterCostumePrompt(char.prompt)
-                            if (!expertCharacterPromptLayoutEnabled) {
-                                return [characterPrompt, costumePrompt].filter(part => part.trim()).join('\n')
-                            }
-                            const parts: string[] = []
-                            if (char.promptEnabled !== false && characterPrompt.trim()) parts.push(characterPrompt)
-                            if (char.costumeEnabled !== false && costumePrompt.trim()) parts.push(costumePrompt)
-                            return parts.join('\n')
-                        }
-
-                        // Apply fragment/wildcard substitution to character prompts (async)
-                        const processedCharacterPrompts = await Promise.all(
-                            characterPromptsForGeneration.map(async c => {
-                                const characterPrompt = removePromptComments(buildCharacterPromptForGeneration(c))
-                                const characterNegative = useSettingsStore.getState().expertCharacterPromptLayoutEnabled && c.negativeEnabled === false
-                                    ? ''
-                                    : removePromptComments(c.negative)
-                                const processedPrompt = await processWildcards(characterPrompt)
-                                const processedNegative = await processWildcards(characterNegative)
-                                return {
-                                    ...c,
-                                    prompt: processedPrompt,
-                                    negative: processedNegative,
-                                    enabled: true,
-                                }
-                            })
-                        )
-
                         // Check if streaming is enabled and get image format
-                        const { useStreaming, imageFormat } = useSettingsStore.getState()
+                        const { useStreaming, imageFormat, expertCharacterPromptLayoutEnabled } = useSettingsStore.getState()
 
                         // Helper function to round to nearest multiple of 64 (NovelAI requirement)
                         const roundTo64 = (value: number): number => Math.round(value / 64) * 64
@@ -482,57 +425,33 @@ export const useGenerationStore = create<GenerationState>()(
                             }
                         }
 
-                        const generationParams = {
-                            prompt: finalPrompt,
-                            negative_prompt: removePromptComments(negativePrompt),
+                        const generationParams = await buildGenerationRequest({
+                            positiveParts: [basePrompt, i2iMode === 'inpaint' ? inpaintingPrompt : '', additionalPrompt, detailPrompt],
+                            negativeParts: [negativePrompt],
+                            characterInputs: characterPromptsForGeneration.map(character => ({ character })),
+                            characterPromptLayoutEnabled: expertCharacterPromptLayoutEnabled,
+                            characterPositionEnabled: positionEnabled,
+                            characterImages,
+                            vibeImages,
                             model,
                             width: finalWidth,
                             height: finalHeight,
                             steps,
-                            cfg_scale: cfgScale,
-                            cfg_rescale: cfgRescale,
+                            cfgScale,
+                            cfgRescale,
                             sampler,
                             scheduler,
                             smea,
-                            smea_dyn: smeaDyn,
+                            smeaDyn,
                             variety,
                             seed: currentSeed,
-
-                            // I2I & Inpainting
                             sourceImage: sourceImage || undefined,
                             strength,
                             noise,
                             mask: mask || undefined,
-
-                            // File-backed originals are read and transferred by Rust.
-                            charImages: characterImages.map(img => img.base64 || ''),
-                            charImagePaths: characterImages.map(img => img.filePath || null),
-                            charStrength: characterImages.map(img => img.strength),
-                            charFidelity: characterImages.map(img => img.fidelity ?? 0.6),
-                            charReferenceType: characterImages.map(img => img.referenceType ?? 'character&style'),
-                            charCacheKeys: characterImages.map(img => img.cacheKey || null),
-
-                            vibeImages: vibeImages.map(img => img.base64 || ''),
-                            vibeImagePaths: vibeImages.map(img => img.filePath || null),
-                            vibeEncodedPaths: vibeImages.map(img => img.encodedVibePath || null),
-                            vibeInfo: vibeImages.map(img => img.informationExtracted),
-                            vibeStrength: vibeImages.map(img => img.strength),
-                            preEncodedVibes: vibeImages.map(img => img.encodedVibe || null),
-
-                            // Character Prompts (V4 char_captions with positions)
-                            characterPrompts: processedCharacterPrompts,
-                            characterPositionEnabled: positionEnabled,
-
-                            // Image format (PNG or WebP)
                             imageFormat,
-
-                            // NAI UI options (Quality Tags & UC Preset)
                             qualityToggle: get().qualityToggle,
                             ucPreset: get().ucPreset,
-
-                            // Original prompt parts (pre-merge). Embedded into the image
-                            // as nais2-params so re-importing restores each section instead
-                            // of dumping everything into basePrompt.
                             promptParts: {
                                 base: basePrompt,
                                 additional: additionalPrompt,
@@ -540,7 +459,9 @@ export const useGenerationStore = create<GenerationState>()(
                                 negative: negativePrompt,
                                 inpainting: inpaintingPrompt,
                             },
-                        }
+                        })
+
+                        if (get().isCancelled || get().generationSessionId !== sessionId) break
 
                         // Reset progress
                         set({ streamProgress: 0 })
