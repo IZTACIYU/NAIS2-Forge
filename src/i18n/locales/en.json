@@ -273,11 +273,16 @@
     "library": "Library",
     "settings": "Settings",
     "cloudR2": "R2 Cloud",
-    "exifManager": "EXIF Cleaner"
+    "exifManager": "EXIF Manager"
   },
   "exif": {
-    "title": "EXIF Cleaner",
-    "description": "Redraw an image to a clean canvas and export it without embedded metadata.",
+    "title": "EXIF Manager",
+    "description": "Manage image metadata removal and editing.",
+    "tabs": {
+      "remove": "EXIF Removal",
+      "edit": "EXIF Edit"
+    },
+    "editComingSoon": "EXIF editing is being prepared.",
     "disabled": "Enable the EXIF Manager in Extensions.",
     "open": "Open image",
     "drop": "Drop an image here or click to open",
@@ -289,9 +294,9 @@
     "complete": "EXIF removal complete",
     "failed": "EXIF removal failed",
     "autoSaved": "Clean image saved",
-    "quickAction": "Send to EXIF Cleaner",
+    "quickAction": "Send to EXIF Manager",
     "directAction": "Remove EXIF and save now",
-    "loadFailed": "Failed to load image for EXIF Cleaner"
+    "loadFailed": "Failed to load image for EXIF Manager"
   },
   "prompt": {
     "base": "Base Prompt",
@@ -819,10 +824,10 @@
         "characterDesc": "Selects the requested number of characters from all characters, a custom character range, or selected folders for every image."
       },
       "exif": {
-        "header": "EXIF Handling",
+        "header": "EXIF Manager",
         "description": "Manage image metadata removal and export behavior.",
-        "managerTitle": "EXIF Manager Page",
-        "managerDesc": "Adds a dedicated workspace for removing image metadata.",
+        "managerTitle": "EXIF Manager",
+        "managerDesc": "Adds a dedicated workspace for EXIF removal and editing.",
         "quickActionTitle": "EXIF Quick Action",
         "quickActionDesc": "Adds an action that sends images directly to the EXIF Manager.",
         "autoSaveTitle": "Immediate Download",

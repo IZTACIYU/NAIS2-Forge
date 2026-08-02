@@ -272,11 +272,16 @@
     "library": "ライブラリ",
     "settings": "設定",
     "cloudR2": "R2クラウド",
-    "exifManager": "EXIF削除"
+    "exifManager": "EXIF\u30de\u30cd\u30fc\u30b8\u30e3\u30fc"
   },
   "exif": {
-    "title": "EXIF削除",
-    "description": "画像を新しいキャンバスに再描画し、埋め込みメタデータなしで書き出します。",
+    "title": "EXIF\u30de\u30cd\u30fc\u30b8\u30e3\u30fc",
+    "description": "\u753b\u50cf\u30e1\u30bf\u30c7\u30fc\u30bf\u306e\u524a\u9664\u3068\u7de8\u96c6\u3092\u7ba1\u7406\u3057\u307e\u3059\u3002",
+    "tabs": {
+      "remove": "EXIF\u524a\u9664",
+      "edit": "EXIF\u7de8\u96c6"
+    },
+    "editComingSoon": "EXIF\u7de8\u96c6\u6a5f\u80fd\u306f\u6e96\u5099\u4e2d\u3067\u3059\u3002",
     "disabled": "拡張機能でEXIF管理ページを有効にしてください。",
     "open": "画像を開く",
     "drop": "画像をドロップするかクリックして開く",
@@ -288,9 +293,9 @@
     "complete": "EXIF削除完了",
     "failed": "EXIF削除失敗",
     "autoSaved": "クリーン画像を保存しました",
-    "quickAction": "EXIF削除へ送る",
+    "quickAction": "EXIF\u30de\u30cd\u30fc\u30b8\u30e3\u30fc\u3078\u9001\u308b",
     "directAction": "EXIF\u524a\u9664\u5f8c\u3059\u3050\u4fdd\u5b58",
-    "loadFailed": "EXIF削除用画像の読み込みに失敗しました"
+    "loadFailed": "EXIF\u30de\u30cd\u30fc\u30b8\u30e3\u30fc\u7528\u753b\u50cf\u306e\u8aad\u307f\u8fbc\u307f\u306b\u5931\u6557\u3057\u307e\u3057\u305f"
   },
   "prompt": {
     "base": "基本プロンプト",
@@ -818,10 +823,10 @@
         "characterDesc": "画像ごとに、全キャラクター、個別範囲、またはフォルダー範囲から指定人数をランダムに選択します。"
       },
       "exif": {
-        "header": "EXIF管理",
+        "header": "EXIF\u30de\u30cd\u30fc\u30b8\u30e3\u30fc",
         "description": "画像メタデータの削除と保存方法を管理します。",
-        "managerTitle": "EXIF管理ページ",
-        "managerDesc": "画像メタデータ削除用の専用ページを追加します。",
+        "managerTitle": "EXIF\u30de\u30cd\u30fc\u30b8\u30e3\u30fc",
+        "managerDesc": "EXIF\u524a\u9664\u3068\u7de8\u96c6\u306e\u305f\u3081\u306e\u5c02\u7528\u30ef\u30fc\u30af\u30b9\u30da\u30fc\u30b9\u3092\u8ffd\u52a0\u3057\u307e\u3059\u3002",
         "quickActionTitle": "EXIFクイックアクション",
         "quickActionDesc": "画像をEXIF管理ページに直接送る機能を追加します。",
         "autoSaveTitle": "即時ダウンロード",

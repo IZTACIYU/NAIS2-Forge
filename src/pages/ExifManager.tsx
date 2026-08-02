@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, Eraser, ImagePlus, Trash2, Upload } from 'lucide-react'
+import { Download, Eraser, FilePenLine, ImagePlus, Trash2, Upload } from 'lucide-react'
 import { save } from '@tauri-apps/plugin-dialog'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from '@/components/ui/use-toast'
 import { useExifStore } from '@/stores/exif-store'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -22,6 +23,7 @@ export default function ExifManager() {
     const [resultUrl, setResultUrl] = useState<string | null>(null)
     const [processing, setProcessing] = useState(false)
     const [dragging, setDragging] = useState(false)
+    const [activeTab, setActiveTab] = useState<'remove' | 'edit'>('remove')
     const inputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
@@ -95,46 +97,61 @@ export default function ExifManager() {
                     <h1 className="text-xl font-semibold">{t('exif.title')}</h1>
                     <p className="text-sm text-muted-foreground mt-1">{t('exif.description')}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => inputRef.current?.click()}>
-                        <Upload className="h-4 w-4 mr-2" />{t('exif.open')}
-                    </Button>
-                    <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={event => loadFile(event.target.files?.[0])} />
-                    <Button onClick={processImage} disabled={!activeImage || processing}>
-                        <Eraser className="h-4 w-4 mr-2" />{processing ? t('exif.processing') : t('exif.process')}
-                    </Button>
-                    <Button variant="outline" onClick={saveResult} disabled={!result}>
-                        <Download className="h-4 w-4 mr-2" />{t('common.download')}
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={clearSource} disabled={!activeImage}>
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
-                </div>
             </div>
+            <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={event => loadFile(event.target.files?.[0])} />
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
-                <div className="min-h-0 border border-border/50 rounded-lg bg-muted/15 overflow-hidden flex flex-col">
-                    <div className="px-3 py-2 text-xs font-medium border-b border-border/50">{t('exif.original')}</div>
-                    <div className="flex-1 min-h-0 flex items-center justify-center p-4 relative">
-                        {activeImage ? <img src={activeImage} alt="" className="max-w-full max-h-full object-contain" /> : (
-                            <button type="button" onClick={() => inputRef.current?.click()} className="w-full h-full border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center text-muted-foreground hover:border-primary/50">
-                                <ImagePlus className="h-10 w-10 mb-3 opacity-50" />
-                                <span className="text-sm">{t('exif.drop')}</span>
-                            </button>
-                        )}
-                        {dragging && <div className="absolute inset-3 border-2 border-dashed border-primary bg-primary/10 rounded-lg pointer-events-none" />}
+            <Tabs value={activeTab} onValueChange={value => setActiveTab(value as 'remove' | 'edit')} className="flex flex-1 min-h-0 flex-col">
+                <TabsList className="w-fit shrink-0">
+                    <TabsTrigger value="remove">{t('exif.tabs.remove')}</TabsTrigger>
+                    <TabsTrigger value="edit">{t('exif.tabs.edit')}</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="remove" className="mt-4 flex flex-1 min-h-0 flex-col gap-4">
+                    <div className="flex justify-end gap-2 shrink-0">
+                        <Button variant="outline" onClick={() => inputRef.current?.click()}>
+                            <Upload className="h-4 w-4 mr-2" />{t('exif.open')}
+                        </Button>
+                        <Button onClick={processImage} disabled={!activeImage || processing}>
+                            <Eraser className="h-4 w-4 mr-2" />{processing ? t('exif.processing') : t('exif.process')}
+                        </Button>
+                        <Button variant="outline" onClick={saveResult} disabled={!result}>
+                            <Download className="h-4 w-4 mr-2" />{t('common.download')}
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={clearSource} disabled={!activeImage}>
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
                     </div>
-                </div>
-                <div className="min-h-0 border border-border/50 rounded-lg bg-muted/15 overflow-hidden flex flex-col">
-                    <div className="px-3 py-2 text-xs font-medium border-b border-border/50 flex items-center justify-between">
-                        <span>{t('exif.result')}</span>
-                        {result && <span className="text-muted-foreground">{result.width} x {result.height}</span>}
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
+                        <div className="min-h-0 border border-border/50 rounded-lg bg-muted/15 overflow-hidden flex flex-col">
+                            <div className="px-3 py-2 text-xs font-medium border-b border-border/50">{t('exif.original')}</div>
+                            <div className="flex-1 min-h-0 flex items-center justify-center p-4 relative">
+                                {activeImage ? <img src={activeImage} alt="" className="max-w-full max-h-full object-contain" /> : (
+                                    <button type="button" onClick={() => inputRef.current?.click()} className="w-full h-full border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center text-muted-foreground hover:border-primary/50">
+                                        <ImagePlus className="h-10 w-10 mb-3 opacity-50" />
+                                        <span className="text-sm">{t('exif.drop')}</span>
+                                    </button>
+                                )}
+                                {dragging && <div className="absolute inset-3 border-2 border-dashed border-primary bg-primary/10 rounded-lg pointer-events-none" />}
+                            </div>
+                        </div>
+                        <div className="min-h-0 border border-border/50 rounded-lg bg-muted/15 overflow-hidden flex flex-col">
+                            <div className="px-3 py-2 text-xs font-medium border-b border-border/50 flex items-center justify-between">
+                                <span>{t('exif.result')}</span>
+                                {result && <span className="text-muted-foreground">{result.width} x {result.height}</span>}
+                            </div>
+                            <div className="flex-1 min-h-0 flex items-center justify-center p-4">
+                                {resultUrl ? <img src={resultUrl} alt="" className="max-w-full max-h-full object-contain" /> : <span className="text-sm text-muted-foreground">{t('exif.noResult')}</span>}
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex-1 min-h-0 flex items-center justify-center p-4">
-                        {resultUrl ? <img src={resultUrl} alt="" className="max-w-full max-h-full object-contain" /> : <span className="text-sm text-muted-foreground">{t('exif.noResult')}</span>}
-                    </div>
-                </div>
-            </div>
+                </TabsContent>
+
+                <TabsContent value="edit" className="mt-4 flex flex-1 min-h-0 items-center justify-center border border-dashed border-border/60 rounded-lg text-sm text-muted-foreground">
+                    <FilePenLine className="h-5 w-5 mr-2" />
+                    {t('exif.editComingSoon')}
+                </TabsContent>
+            </Tabs>
         </div>
     )
 }
