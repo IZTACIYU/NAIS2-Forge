@@ -754,22 +754,15 @@
       "description": "Enable only the optional extensions you want while keeping the default behavior available.",
       "promptFormatting": {
         "header": "Prompt formatting",
-        "description": "Choose per input whether to preserve line breaks and spaces or normalize them to commas and single spaces.",
+        "description": "Configure line break and whitespace handling for every prompt used during generation.",
+        "modeTitle": "Line breaks and spaces",
+        "modeDesc": "Preserve keeps your input formatting. Normalize uses commas and single spaces like the previous behavior.",
         "preserve": "Preserve",
         "compact": "Normalize",
-        "mainBase": "Base prompt",
-        "mainAdditional": "Additional prompt",
-        "mainDetail": "Detail prompt",
-        "mainNegative": "Main negative prompt",
-        "inpainting": "Inpainting prompt",
-        "scene": "Scene prompt",
-        "sceneNegative": "Scene negative prompt",
-        "multiCharacter": "Multi-character prompt",
-        "character": "Character prompt",
-        "costume": "Costume prompt",
-        "characterNegative": "Character negative prompt",
         "emptySeparatorTitle": "Remove empty comma sections",
-        "emptySeparatorDesc": "Only removes empty sections written exactly as `, ,`. Other spaces and line breaks are preserved."
+        "emptySeparatorDesc": "Only removes empty sections written exactly as `, ,`. Other spaces and line breaks are preserved.",
+        "blankLinesTitle": "Blank lines between prompts",
+        "blankLinesDesc": "Adds one blank line between combined main, scene, inpainting, multi-character, character, and costume prompts."
       },
       "characterPrompt": {
         "header": "Character Prompt",

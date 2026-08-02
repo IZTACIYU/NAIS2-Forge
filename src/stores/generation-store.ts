@@ -400,8 +400,9 @@ export const useGenerationStore = create<GenerationState>()(
                             useStreaming,
                             imageFormat,
                             expertCharacterPromptLayoutEnabled,
-                            promptWhitespaceModes,
+                            promptWhitespaceMode,
                             removeEmptyPromptSeparators,
+                            insertBlankLinesBetweenPromptParts,
                         } = useSettingsStore.getState()
 
                         // Helper function to round to nearest multiple of 64 (NovelAI requirement)
@@ -433,18 +434,13 @@ export const useGenerationStore = create<GenerationState>()(
 
                         const generationParams = await buildGenerationRequest({
                             positiveParts: [
-                                { value: basePrompt, whitespaceMode: promptWhitespaceModes.mainBase },
-                                { value: i2iMode === 'inpaint' ? inpaintingPrompt : '', whitespaceMode: promptWhitespaceModes.inpainting },
-                                { value: additionalPrompt, whitespaceMode: promptWhitespaceModes.mainAdditional },
-                                { value: detailPrompt, whitespaceMode: promptWhitespaceModes.mainDetail },
+                                { value: basePrompt },
+                                { value: i2iMode === 'inpaint' ? inpaintingPrompt : '' },
+                                { value: additionalPrompt },
+                                { value: detailPrompt },
                             ],
-                            negativeParts: [{ value: negativePrompt, whitespaceMode: promptWhitespaceModes.mainNegative }],
-                            characterInputs: characterPromptsForGeneration.map(character => ({
-                                character,
-                                promptWhitespaceMode: promptWhitespaceModes.character,
-                                costumeWhitespaceMode: promptWhitespaceModes.costume,
-                                negativeWhitespaceMode: promptWhitespaceModes.characterNegative,
-                            })),
+                            negativeParts: [{ value: negativePrompt }],
+                            characterInputs: characterPromptsForGeneration.map(character => ({ character })),
                             characterPromptLayoutEnabled: expertCharacterPromptLayoutEnabled,
                             characterPositionEnabled: positionEnabled,
                             characterImages,
@@ -468,7 +464,9 @@ export const useGenerationStore = create<GenerationState>()(
                             imageFormat,
                             qualityToggle: get().qualityToggle,
                             ucPreset: get().ucPreset,
+                            promptWhitespaceMode,
                             removeEmptyPromptSeparators,
+                            insertBlankLinesBetweenPromptParts,
                             promptParts: {
                                 base: basePrompt,
                                 additional: additionalPrompt,

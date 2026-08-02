@@ -16,15 +16,10 @@ export interface GenerationCharacterInput {
     appendedPrompts?: string[]
     costumeEnabled?: boolean
     position?: { x: number, y: number }
-    promptWhitespaceMode?: PromptWhitespaceMode
-    costumeWhitespaceMode?: PromptWhitespaceMode
-    negativeWhitespaceMode?: PromptWhitespaceMode
-    appendedPromptWhitespaceMode?: PromptWhitespaceMode
 }
 
 export interface GenerationPromptPart {
     value: string | null | undefined
-    whitespaceMode?: PromptWhitespaceMode
 }
 
 export interface GenerationRequestInput {
@@ -54,7 +49,9 @@ export interface GenerationRequestInput {
     imageFormat: 'png' | 'webp'
     qualityToggle: boolean
     ucPreset: number
+    promptWhitespaceMode: PromptWhitespaceMode
     removeEmptyPromptSeparators: boolean
+    insertBlankLinesBetweenPromptParts: boolean
     promptParts?: GenerationParams['promptParts']
 }
 
@@ -68,52 +65,60 @@ const splitCharacterCostumePrompt = (prompt: string) => {
     }
 }
 
-const joinPromptParts = (parts: GenerationPromptPart[]) =>
+const joinPromptParts = (
+    parts: GenerationPromptPart[],
+    whitespaceMode: PromptWhitespaceMode,
+    insertBlankLines: boolean,
+) =>
     parts
-        .map(({ value, whitespaceMode = 'preserve' }) =>
+        .map(({ value }) =>
             removePromptComments(formatPromptWhitespace(value || '', whitespaceMode))
         )
         .filter(part => part.trim())
-        .join(', ')
+        .join(insertBlankLines ? '\n\n' : ', ')
 
 export const buildGenerationRequest = async (input: GenerationRequestInput): Promise<GenerationParams> => {
     const cleanup = (prompt: string) => input.removeEmptyPromptSeparators
         ? removeExactEmptyPromptSeparators(prompt)
         : prompt
-    const prompt = cleanup(await processWildcards(joinPromptParts(input.positiveParts)))
-    const negativePrompt = cleanup(joinPromptParts(input.negativeParts))
+    const prompt = cleanup(await processWildcards(joinPromptParts(
+        input.positiveParts,
+        input.promptWhitespaceMode,
+        input.insertBlankLinesBetweenPromptParts,
+    )))
+    const negativePrompt = cleanup(joinPromptParts(
+        input.negativeParts,
+        input.promptWhitespaceMode,
+        input.insertBlankLinesBetweenPromptParts,
+    ))
 
     const characterPrompts = await Promise.all(input.characterInputs.map(async ({
         character,
         appendedPrompts = [],
         costumeEnabled,
         position,
-        promptWhitespaceMode,
-        costumeWhitespaceMode,
-        negativeWhitespaceMode,
-        appendedPromptWhitespaceMode,
     }) => {
         const { characterPrompt, costumePrompt } = splitCharacterCostumePrompt(character.prompt)
         const characterParts = input.characterPromptLayoutEnabled
             ? [
                 character.promptEnabled !== false
-                    ? formatPromptWhitespace(characterPrompt, promptWhitespaceMode ?? 'preserve')
+                    ? formatPromptWhitespace(characterPrompt, input.promptWhitespaceMode)
                     : '',
                 (costumeEnabled ?? character.costumeEnabled) !== false
-                    ? formatPromptWhitespace(costumePrompt, costumeWhitespaceMode ?? 'preserve')
+                    ? formatPromptWhitespace(costumePrompt, input.promptWhitespaceMode)
                     : '',
             ]
             : [
-                formatPromptWhitespace(characterPrompt, promptWhitespaceMode ?? 'preserve'),
-                formatPromptWhitespace(costumePrompt, costumeWhitespaceMode ?? 'preserve'),
+                formatPromptWhitespace(characterPrompt, input.promptWhitespaceMode),
+                formatPromptWhitespace(costumePrompt, input.promptWhitespaceMode),
             ]
         const rawPrompt = [
             ...characterParts,
-            ...appendedPrompts.map(prompt => formatPromptWhitespace(prompt, appendedPromptWhitespaceMode ?? 'preserve')),
-        ].filter(part => part?.trim()).join('\n')
+            ...appendedPrompts.map(prompt => formatPromptWhitespace(prompt, input.promptWhitespaceMode)),
+        ].filter(part => part?.trim()).join(input.insertBlankLinesBetweenPromptParts ? '\n\n' : '\n')
         const rawNegative = input.characterPromptLayoutEnabled && character.negativeEnabled === false
             ? ''
-            : formatPromptWhitespace(character.negative, negativeWhitespaceMode ?? 'preserve')
+            : formatPromptWhitespace(character.negative, input.promptWhitespaceMode)
 
         return {
             prompt: cleanup(await processWildcards(removePromptComments(rawPrompt))),
