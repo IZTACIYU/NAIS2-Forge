@@ -35,13 +35,19 @@ import { mkdir, exists, writeFile, remove, BaseDirectory } from '@tauri-apps/plu
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { Command } from '@tauri-apps/plugin-shell'
 import { toast } from '@/components/ui/use-toast'
-import { ImagePlus, X, Grid3x3, Edit3, Trash2, Layers, ArrowLeft, CheckSquare, FolderOpen, Upload, Menu } from 'lucide-react'
+import { ImagePlus, X, Grid3x3, Edit3, Trash2, Layers, ArrowLeft, CheckSquare, FolderOpen, Upload, Menu, LayoutGrid, LayoutList, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tip } from '@/components/ui/tooltip'
 import { useSettingsStore } from '@/stores/settings-store'
 import { useSearchParams } from 'react-router-dom'
 
 const STACK_DROP_HOVER_MS = 1000
+
+const getNextThumbnailLayout = (layout: 'vertical' | 'horizontal' | 'square') => {
+    if (layout === 'vertical') return 'horizontal'
+    if (layout === 'horizontal') return 'square'
+    return 'vertical'
+}
 
 const waitForLibraryMaintenance = () => new Promise<void>(resolve => {
     if ('requestIdleCallback' in window) {
@@ -92,6 +98,8 @@ export default function Library() {
         updateItem, 
         gridColumns, 
         setGridColumns,
+        thumbnailLayout,
+        setThumbnailLayout,
         // Edit Mode
         isEditMode,
         setEditMode,
@@ -808,6 +816,20 @@ export default function Library() {
                                     </Button>
                                 </Tip>
                             )}
+                            <Tip content={t('library.thumbnailLayout', '세로/가로/정사각형 썸네일 전환')}>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-9 w-9 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                                    onClick={() => setThumbnailLayout(getNextThumbnailLayout(thumbnailLayout))}
+                                >
+                                    {thumbnailLayout === 'vertical'
+                                        ? <LayoutGrid className="h-4 w-4" />
+                                        : thumbnailLayout === 'horizontal'
+                                            ? <LayoutList className="h-4 w-4" />
+                                            : <Square className="h-4 w-4" />}
+                                </Button>
+                            </Tip>
                             <Tip content={t('library.gridColumnsDesc', '그리드 열 개수 변경')}>
                                 <Button variant="ghost" size="sm" className="h-9 text-muted-foreground hover:text-foreground hover:bg-white/10" onClick={handleToggleGrid}>
                                     <Grid3x3 className="h-4 w-4 mr-1.5" />
@@ -865,6 +887,7 @@ export default function Library() {
                                     isStackDropTarget={stackDropTargetId === item.id}
                                     onSelectionClick={handleItemSelectionClick}
                                     disabled={isEditMode}
+                                    thumbnailLayout={thumbnailLayout}
                                 />
                             ))}
                         </div>
@@ -891,7 +914,7 @@ export default function Library() {
                     style={{ willChange: 'transform' }}
                 >
                     {activeItem ? (
-                        <LibraryItemComponent item={activeItem} isOverlay />
+                        <LibraryItemComponent item={activeItem} isOverlay thumbnailLayout={thumbnailLayout} />
                     ) : null}
                 </DragOverlay>
             </DndContext>

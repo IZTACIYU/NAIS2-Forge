@@ -1,7 +1,7 @@
 import { memo, useCallback } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { LibraryItem as LibraryItemType } from '@/stores/library-store'
+import { LibraryItem as LibraryItemType, type LibraryThumbnailLayout } from '@/stores/library-store'
 import { LibraryItem } from './LibraryItem'
 
 interface SortableLibraryItemProps {
@@ -15,9 +15,10 @@ interface SortableLibraryItemProps {
     onSelectionClick?: (item: LibraryItemType, e: React.MouseEvent) => void
     isStackDropTarget?: boolean
     disabled?: boolean
+    thumbnailLayout: LibraryThumbnailLayout
 }
 
-export const SortableLibraryItem = memo(function SortableLibraryItem({ item, onRename, onAddRef, onLoadMetadata, onImageClick, isEditMode, isSelected, onSelectionClick, isStackDropTarget, disabled }: SortableLibraryItemProps) {
+export const SortableLibraryItem = memo(function SortableLibraryItem({ item, onRename, onAddRef, onLoadMetadata, onImageClick, isEditMode, isSelected, onSelectionClick, isStackDropTarget, disabled, thumbnailLayout }: SortableLibraryItemProps) {
     const {
         attributes,
         listeners,
@@ -54,6 +55,7 @@ export const SortableLibraryItem = memo(function SortableLibraryItem({ item, onR
                 isSelected={isSelected}
                 onSelectionClick={onSelectionClick ? handleSelectionClick : undefined}
                 isDropTarget={item.isStack && isStackDropTarget}
+                thumbnailLayout={thumbnailLayout}
             />
         </div>
     )

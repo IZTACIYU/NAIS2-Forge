@@ -24,6 +24,8 @@ export interface LibraryFolder {
     colorIndex?: number
 }
 
+export type LibraryThumbnailLayout = 'vertical' | 'horizontal' | 'square'
+
 export function getLibraryFolderDescendantIds(folders: LibraryFolder[], folderId: string): Set<string> {
     const descendants = new Set<string>()
     const pending = [folderId]
@@ -230,12 +232,14 @@ interface LibraryState {
     folders: LibraryFolder[]
     draggedSource: { name: string, path: string } | null
     gridColumns: number
+    thumbnailLayout: LibraryThumbnailLayout
     isEditMode: boolean
     selectedItemIds: string[]
     lastSelectedItemId: string | null
     currentStackId: string | null
 
     setGridColumns: (columns: number) => void
+    setThumbnailLayout: (layout: LibraryThumbnailLayout) => void
     addItem: (item: LibraryItem) => void
     removeItem: (id: string) => void
     removeItems: (ids: string[]) => void
@@ -271,12 +275,14 @@ export const useLibraryStore = create<LibraryState>()(
             folders: [],
             draggedSource: null,
             gridColumns: 4,
+            thumbnailLayout: 'vertical',
             isEditMode: false,
             selectedItemIds: [],
             lastSelectedItemId: null,
             currentStackId: null,
 
             setGridColumns: (columns) => set({ gridColumns: columns }),
+            setThumbnailLayout: (thumbnailLayout) => set({ thumbnailLayout }),
 
             addItem: (item) => set(state => {
                 if (!state.currentStackId) return { items: [item, ...state.items] }
@@ -536,7 +542,12 @@ export const useLibraryStore = create<LibraryState>()(
         {
             name: 'nais2-forge-library',
             storage: createNativeDeferredJSONStorage(1000, 5000),
-            partialize: state => ({ items: state.items, folders: state.folders, gridColumns: state.gridColumns }),
+            partialize: state => ({
+                items: state.items,
+                folders: state.folders,
+                gridColumns: state.gridColumns,
+                thumbnailLayout: state.thumbnailLayout,
+            }),
         }
     )
 )

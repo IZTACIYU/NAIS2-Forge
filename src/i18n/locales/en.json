@@ -593,6 +593,7 @@
     "importDesc": "Import image files",
     "editModeDesc": "Select multiple images for batch editing",
     "gridColumnsDesc": "Change grid column count",
+    "thumbnailLayout": "Cycle portrait, landscape, and square thumbnails",
     "folders": "Folders",
     "allView": "All Images",
     "ungrouped": "Uncategorized",

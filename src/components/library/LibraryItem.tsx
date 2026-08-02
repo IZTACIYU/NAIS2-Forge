@@ -1,6 +1,6 @@
 import { memo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getFirstLibraryLeaf, LibraryItem as LibraryItemType, useLibraryStore } from '@/stores/library-store'
+import { getFirstLibraryLeaf, LibraryItem as LibraryItemType, type LibraryThumbnailLayout, useLibraryStore } from '@/stores/library-store'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { LibraryContextMenu } from './LibraryContextMenu'
 import { cn } from '@/lib/utils'
@@ -20,9 +20,16 @@ interface LibraryItemProps {
     isSelected?: boolean
     onSelectionClick?: (e: React.MouseEvent) => void
     isDropTarget?: boolean
+    thumbnailLayout?: LibraryThumbnailLayout
 }
 
-export const LibraryItem = memo(function LibraryItem({ item, className, isOverlay, onRename, onAddRef, onLoadMetadata, onImageClick, isEditMode, isSelected, onSelectionClick, isDropTarget }: LibraryItemProps) {
+const getThumbnailAspectClass = (layout: LibraryThumbnailLayout) => {
+    if (layout === 'horizontal') return 'aspect-[3/2]'
+    if (layout === 'square') return 'aspect-square'
+    return 'aspect-[2/3]'
+}
+
+export const LibraryItem = memo(function LibraryItem({ item, className, isOverlay, onRename, onAddRef, onLoadMetadata, onImageClick, isEditMode, isSelected, onSelectionClick, isDropTarget, thumbnailLayout = 'vertical' }: LibraryItemProps) {
     const { t } = useTranslation()
     const [imageUrl, setImageUrl] = useState<string>('')
     const [isLoading, setIsLoading] = useState(true)
@@ -116,7 +123,8 @@ export const LibraryItem = memo(function LibraryItem({ item, className, isOverla
         <div
             ref={containerRef}
             className={cn(
-                "relative group aspect-[2/3] rounded-xl overflow-hidden bg-muted/30 border border-border/50 shadow-sm transition-all hover:ring-2 hover:ring-primary/50",
+                "relative group rounded-xl overflow-hidden bg-muted/30 border border-border/50 shadow-sm transition-all hover:ring-2 hover:ring-primary/50",
+                getThumbnailAspectClass(thumbnailLayout),
                 isOverlay && "pointer-events-none opacity-50 ring-2 ring-primary shadow-xl cursor-grabbing z-50",
                 isEditMode && isSelected && "ring-2 ring-orange-500",
                 isDropTarget && "ring-2 ring-purple-400 bg-purple-500/15",
