@@ -510,6 +510,8 @@ export default function SceneDetail() {
                                 <SceneMultiCharacterPanel
                                     embedded
                                     slots={scene.multiCharacterSlots || []}
+                                    width={scene.width}
+                                    height={scene.height}
                                     onChange={(slots) => updateSceneMultiCharacterSlots(activePresetId, scene.id, slots)}
                                 />
                             </PopoverContent>

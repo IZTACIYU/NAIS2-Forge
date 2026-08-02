@@ -60,12 +60,9 @@ import { useGenerationStore } from '@/stores/generation-store'
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { getCharacterGender, type CharacterGender } from '@/lib/character-gender'
-import {
-    CHARACTER_POSITION_GRID_SIZE,
-    getCharacterPositionBoardAspectRatio,
-    snapCharacterPosition,
-} from '@/lib/character-position-grid'
+import { getCharacterPositionBoardAspectRatio } from '@/lib/character-position-grid'
 import { toast } from '@/components/ui/use-toast'
+import { CharacterPositionBoard } from '@/components/character/CharacterPositionBoard'
 import {
     DndContext,
     closestCenter,
@@ -2086,49 +2083,11 @@ interface PositionDialogProps {
 
 function PositionDialog({ open, onOpenChange, characters, onPositionChange }: PositionDialogProps) {
     const { t } = useTranslation()
-    const gridRef = useRef<HTMLDivElement>(null)
-    const [dragging, setDragging] = useState<string | null>(null)
-    const [selectedId, setSelectedId] = useState<string | null>(null)
     const selectedResolution = useGenerationStore(state => state.selectedResolution)
     const boardAspectRatio = getCharacterPositionBoardAspectRatio(
         selectedResolution.width,
         selectedResolution.height
     )
-
-    const updatePositionFromPointer = (id: string, clientX: number, clientY: number) => {
-        if (!gridRef.current) return
-        const rect = gridRef.current.getBoundingClientRect()
-        const x = snapCharacterPosition((clientX - rect.left) / rect.width)
-        const y = snapCharacterPosition((clientY - rect.top) / rect.height)
-        onPositionChange(id, x, y)
-    }
-
-    const handleMouseDown = (e: ReactMouseEvent, id: string) => {
-        e.preventDefault()
-        setDragging(id)
-        setSelectedId(id)
-    }
-
-    const handleMouseMove = (e: ReactMouseEvent) => {
-        if (!dragging) return
-        updatePositionFromPointer(dragging, e.clientX, e.clientY)
-    }
-
-    const handleGridMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
-        if (e.button !== 0 || e.target !== e.currentTarget || !selectedId) return
-        updatePositionFromPointer(selectedId, e.clientX, e.clientY)
-    }
-
-    const handleMouseUp = () => {
-        setDragging(null)
-    }
-
-    useEffect(() => {
-        const handleGlobalMouseUp = () => setDragging(null)
-        window.addEventListener('mouseup', handleGlobalMouseUp)
-        return () => window.removeEventListener('mouseup', handleGlobalMouseUp)
-    }, [])
-
     const enabledCharacters = characters.filter(c => c.enabled)
 
     return (
@@ -2141,56 +2100,27 @@ function PositionDialog({ open, onOpenChange, characters, onPositionChange }: Po
                     </DialogTitle>
                 </DialogHeader>
 
-                <div
-                    ref={gridRef}
-                    className="relative mx-auto w-full bg-muted/30 rounded-lg border cursor-crosshair select-none overflow-hidden shadow-inner"
-                    style={{ aspectRatio: boardAspectRatio }}
-                    onMouseDown={handleGridMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseUp}
-                >
-                    {/* Grid lines */}
-                    <div className="absolute inset-0 grid grid-cols-5 grid-rows-5 pointer-events-none">
-                        {Array.from({ length: CHARACTER_POSITION_GRID_SIZE ** 2 }, (_, i) => (
-                            <div key={i} className="border border-border/20" />
-                        ))}
-                    </div>
-
-                    {/* Character markers */}
-                    {enabledCharacters.map((char) => {
-                        const colorIndex = characters.findIndex(c => c.id === char.id)
-                        return (
-                            <div
-                                key={char.id}
-                                className={cn(
-                                    "absolute w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold cursor-grab active:cursor-grabbing shadow-lg transition-transform",
-                                    selectedId === char.id && "ring-2 ring-white ring-offset-2 ring-offset-black/50 scale-110 z-10",
-                                    dragging === char.id && "scale-125 z-20"
-                                )}
-                                style={{
-                                    left: `${char.position.x * 100}%`,
-                                    top: `${char.position.y * 100}%`,
-                                    transform: 'translate(-50%, -50%)',
-                                    backgroundColor: CHARACTER_COLORS[colorIndex % CHARACTER_COLORS.length],
-                                }}
-                                onMouseDown={(e) => handleMouseDown(e, char.id)}
-                            >
-                                {colorIndex + 1}
-                            </div>
-                        )
+                <CharacterPositionBoard
+                    aspectRatio={boardAspectRatio}
+                    markers={enabledCharacters.map((character) => {
+                        const colorIndex = characters.findIndex(candidate => candidate.id === character.id)
+                        return {
+                            id: character.id,
+                            label: String(colorIndex + 1),
+                            position: character.position,
+                            color: CHARACTER_COLORS[colorIndex % CHARACTER_COLORS.length],
+                        }
                     })}
-
-                    {/* Empty state */}
-                    {enabledCharacters.length === 0 && (
+                    onPositionChange={onPositionChange}
+                    emptyContent={(
                         <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-muted-foreground text-sm text-center">
-                                <Users className="w-8 h-8 opacity-30 mx-auto mb-2" />
+                            <div className="text-center text-sm text-muted-foreground">
+                                <Users className="mx-auto mb-2 h-8 w-8 opacity-30" />
                                 <p>{t('characterPanel.noActiveCharacters', '활성화된 캐릭터가 없습니다')}</p>
                             </div>
                         </div>
                     )}
-                </div>
+                />
 
                 <p className="text-xs text-muted-foreground text-center">
                     {t('characterPanel.positionHelp', '캐릭터를 드래그하여 위치를 지정하세요')}
