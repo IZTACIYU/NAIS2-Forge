@@ -86,11 +86,11 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         input.promptWhitespaceMode,
         input.insertBlankLinesBetweenPromptParts,
     )))
-    const negativePrompt = cleanup(joinPromptParts(
+    const negativePrompt = cleanup(await processWildcards(joinPromptParts(
         input.negativeParts,
         input.promptWhitespaceMode,
         input.insertBlankLinesBetweenPromptParts,
-    ))
+    )))
 
     const characterPrompts = await Promise.all(input.characterInputs.map(async ({
         character,
