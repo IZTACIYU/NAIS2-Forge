@@ -3,6 +3,11 @@ import type { ReferenceImage } from '@/stores/character-store'
 import type { CharacterPrompt } from '@/stores/character-prompt-store'
 import { processWildcards } from '@/lib/fragment-processor'
 import { removePromptComments } from '@/lib/prompt-comments'
+import {
+    formatPromptWhitespace,
+    removeExactEmptyPromptSeparators,
+    type PromptWhitespaceMode,
+} from '@/lib/prompt-formatting'
 
 const COSTUME_MARKER = '#!-\uc758\uc0c1\ud504\ub86c'
 
@@ -11,11 +16,20 @@ export interface GenerationCharacterInput {
     appendedPrompts?: string[]
     costumeEnabled?: boolean
     position?: { x: number, y: number }
+    promptWhitespaceMode?: PromptWhitespaceMode
+    costumeWhitespaceMode?: PromptWhitespaceMode
+    negativeWhitespaceMode?: PromptWhitespaceMode
+    appendedPromptWhitespaceMode?: PromptWhitespaceMode
+}
+
+export interface GenerationPromptPart {
+    value: string | null | undefined
+    whitespaceMode?: PromptWhitespaceMode
 }
 
 export interface GenerationRequestInput {
-    positiveParts: Array<string | null | undefined>
-    negativeParts: Array<string | null | undefined>
+    positiveParts: GenerationPromptPart[]
+    negativeParts: GenerationPromptPart[]
     characterInputs: GenerationCharacterInput[]
     characterPromptLayoutEnabled: boolean
     characterPositionEnabled: boolean
@@ -40,6 +54,7 @@ export interface GenerationRequestInput {
     imageFormat: 'png' | 'webp'
     qualityToggle: boolean
     ucPreset: number
+    removeEmptyPromptSeparators: boolean
     promptParts?: GenerationParams['promptParts']
 }
 
@@ -53,37 +68,56 @@ const splitCharacterCostumePrompt = (prompt: string) => {
     }
 }
 
-const joinPromptParts = (parts: Array<string | null | undefined>) =>
+const joinPromptParts = (parts: GenerationPromptPart[]) =>
     parts
-        .map(part => removePromptComments(part || ''))
+        .map(({ value, whitespaceMode = 'preserve' }) =>
+            removePromptComments(formatPromptWhitespace(value || '', whitespaceMode))
+        )
         .filter(part => part.trim())
         .join(', ')
 
 export const buildGenerationRequest = async (input: GenerationRequestInput): Promise<GenerationParams> => {
-    const prompt = await processWildcards(joinPromptParts(input.positiveParts))
-    const negativePrompt = joinPromptParts(input.negativeParts)
+    const cleanup = (prompt: string) => input.removeEmptyPromptSeparators
+        ? removeExactEmptyPromptSeparators(prompt)
+        : prompt
+    const prompt = cleanup(await processWildcards(joinPromptParts(input.positiveParts)))
+    const negativePrompt = cleanup(joinPromptParts(input.negativeParts))
 
     const characterPrompts = await Promise.all(input.characterInputs.map(async ({
         character,
         appendedPrompts = [],
         costumeEnabled,
         position,
+        promptWhitespaceMode,
+        costumeWhitespaceMode,
+        negativeWhitespaceMode,
+        appendedPromptWhitespaceMode,
     }) => {
         const { characterPrompt, costumePrompt } = splitCharacterCostumePrompt(character.prompt)
-        const promptParts = input.characterPromptLayoutEnabled
+        const characterParts = input.characterPromptLayoutEnabled
             ? [
-                character.promptEnabled !== false ? characterPrompt : '',
-                (costumeEnabled ?? character.costumeEnabled) !== false ? costumePrompt : '',
+                character.promptEnabled !== false
+                    ? formatPromptWhitespace(characterPrompt, promptWhitespaceMode ?? 'preserve')
+                    : '',
+                (costumeEnabled ?? character.costumeEnabled) !== false
+                    ? formatPromptWhitespace(costumePrompt, costumeWhitespaceMode ?? 'preserve')
+                    : '',
             ]
-            : [characterPrompt, costumePrompt]
-        const rawPrompt = [...promptParts, ...appendedPrompts].filter(part => part?.trim()).join('\n')
+            : [
+                formatPromptWhitespace(characterPrompt, promptWhitespaceMode ?? 'preserve'),
+                formatPromptWhitespace(costumePrompt, costumeWhitespaceMode ?? 'preserve'),
+            ]
+        const rawPrompt = [
+            ...characterParts,
+            ...appendedPrompts.map(prompt => formatPromptWhitespace(prompt, appendedPromptWhitespaceMode ?? 'preserve')),
+        ].filter(part => part?.trim()).join('\n')
         const rawNegative = input.characterPromptLayoutEnabled && character.negativeEnabled === false
             ? ''
-            : character.negative
+            : formatPromptWhitespace(character.negative, negativeWhitespaceMode ?? 'preserve')
 
         return {
-            prompt: await processWildcards(removePromptComments(rawPrompt)),
-            negative: await processWildcards(removePromptComments(rawNegative)),
+            prompt: cleanup(await processWildcards(removePromptComments(rawPrompt))),
+            negative: cleanup(await processWildcards(removePromptComments(rawNegative))),
             enabled: true,
             position: position || character.position,
         }

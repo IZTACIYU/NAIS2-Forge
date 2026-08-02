@@ -94,7 +94,7 @@ export default function Settings() {
     const { t, i18n } = useTranslation()
     const { theme, setTheme } = useThemeStore()
     const { token, isVerified, anlas, isLoading, verifyAndSave } = useAuthStore()
-    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, expertCharacterPromptFolderBrowserEnabled, setExpertCharacterPromptFolderBrowserEnabled, expertLibraryFolderBrowserEnabled, setExpertLibraryFolderBrowserEnabled, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertCharacterPromptGenderIndicatorEnabled, setExpertCharacterPromptGenderIndicatorEnabled, characterPromptGenderIndicatorMode, setCharacterPromptGenderIndicatorMode, expertSceneCharacterVariantOverrideEnabled, setExpertSceneCharacterVariantOverrideEnabled, expertSceneCharacterCostumeOverrideEnabled, setExpertSceneCharacterCostumeOverrideEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, expertSceneMultiCharacterEnabled, setExpertSceneMultiCharacterEnabled, sceneMultiCharacterGenderSelectionMode, setSceneMultiCharacterGenderSelectionMode, expertSceneExportNameEnabled, setExpertSceneExportNameEnabled, sceneExportNamePart, setSceneExportNamePart, expertSceneRandomCharactersEnabled, setExpertSceneRandomCharactersEnabled, expertExifDirectActionEnabled, setExpertExifDirectActionEnabled, expertExifManagerEnabled, setExpertExifManagerEnabled, expertExifQuickActionEnabled, setExpertExifQuickActionEnabled, expertExifAutoSaveEnabled, setExpertExifAutoSaveEnabled, exifAutoSaveName, setExifAutoSaveName, exifAutoSavePath, setExifAutoSavePath, exifOutputFormat, setExifOutputFormat, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertR2ExifRemovalEnabled, setExpertR2ExifRemovalEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
+    const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, promptWhitespaceModes, setPromptWhitespaceMode, removeEmptyPromptSeparators, setRemoveEmptyPromptSeparators, expertCharacterPromptFolderBrowserEnabled, setExpertCharacterPromptFolderBrowserEnabled, expertLibraryFolderBrowserEnabled, setExpertLibraryFolderBrowserEnabled, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertCharacterPromptGenderIndicatorEnabled, setExpertCharacterPromptGenderIndicatorEnabled, characterPromptGenderIndicatorMode, setCharacterPromptGenderIndicatorMode, expertSceneCharacterVariantOverrideEnabled, setExpertSceneCharacterVariantOverrideEnabled, expertSceneCharacterCostumeOverrideEnabled, setExpertSceneCharacterCostumeOverrideEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, expertSceneMultiCharacterEnabled, setExpertSceneMultiCharacterEnabled, sceneMultiCharacterGenderSelectionMode, setSceneMultiCharacterGenderSelectionMode, expertSceneExportNameEnabled, setExpertSceneExportNameEnabled, sceneExportNamePart, setSceneExportNamePart, expertSceneRandomCharactersEnabled, setExpertSceneRandomCharactersEnabled, expertExifDirectActionEnabled, setExpertExifDirectActionEnabled, expertExifManagerEnabled, setExpertExifManagerEnabled, expertExifQuickActionEnabled, setExpertExifQuickActionEnabled, expertExifAutoSaveEnabled, setExpertExifAutoSaveEnabled, exifAutoSaveName, setExifAutoSaveName, exifAutoSavePath, setExifAutoSavePath, exifOutputFormat, setExifOutputFormat, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertR2ExifRemovalEnabled, setExpertR2ExifRemovalEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
     const { bindings, enabled: shortcutsEnabled, setBinding, resetBinding, resetAllBindings, setEnabled: setShortcutsEnabled } = useShortcutStore()
     const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey)
 
@@ -124,6 +124,20 @@ export default function Settings() {
     const [pendingRestore, setPendingRestore] = useState<Record<string, unknown> | null>(null)
     const [pendingFolderMove, setPendingFolderMove] = useState<'save' | 'library' | null>(null)
     const [movingFolder, setMovingFolder] = useState<'save' | 'library' | null>(null)
+
+    const promptFormattingFields = [
+        ['mainBase', 'settingsPage.expert.promptFormatting.mainBase'],
+        ['mainAdditional', 'settingsPage.expert.promptFormatting.mainAdditional'],
+        ['mainDetail', 'settingsPage.expert.promptFormatting.mainDetail'],
+        ['mainNegative', 'settingsPage.expert.promptFormatting.mainNegative'],
+        ['inpainting', 'settingsPage.expert.promptFormatting.inpainting'],
+        ['scene', 'settingsPage.expert.promptFormatting.scene'],
+        ['sceneNegative', 'settingsPage.expert.promptFormatting.sceneNegative'],
+        ['multiCharacter', 'settingsPage.expert.promptFormatting.multiCharacter'],
+        ['character', 'settingsPage.expert.promptFormatting.character'],
+        ['costume', 'settingsPage.expert.promptFormatting.costume'],
+        ['characterNegative', 'settingsPage.expert.promptFormatting.characterNegative'],
+    ] as const
 
     const savePathChanged = localSavePath !== savePath || isAbsolutePath !== useAbsolutePath
     const libraryPathChanged = localLibraryPath !== libraryPath
@@ -1261,6 +1275,37 @@ export default function Settings() {
                                 <p className="text-sm text-muted-foreground mt-1">
                                     {t('settingsPage.expert.description')}
                                 </p>
+                            </div>
+
+                            <div className="space-y-1">
+                                <h3 className="text-sm font-semibold">{t('settingsPage.expert.promptFormatting.header')}</h3>
+                                <p className="text-xs text-muted-foreground">
+                                    {t('settingsPage.expert.promptFormatting.description')}
+                                </p>
+                            </div>
+
+                            <div className="space-y-4 rounded-xl border border-border/50 bg-card/30 p-6">
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                    {promptFormattingFields.map(([field, labelKey]) => (
+                                        <div key={field} className="flex items-center justify-between gap-3 rounded-lg border border-border/30 bg-background/30 px-3 py-2">
+                                            <label className="min-w-0 truncate text-sm font-medium">{t(labelKey)}</label>
+                                            <Select value={promptWhitespaceModes[field] || 'preserve'} onValueChange={(value) => setPromptWhitespaceMode(field, value as 'preserve' | 'compact')}>
+                                                <SelectTrigger className="h-8 w-28 shrink-0 text-xs"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="preserve">{t('settingsPage.expert.promptFormatting.preserve')}</SelectItem>
+                                                    <SelectItem value="compact">{t('settingsPage.expert.promptFormatting.compact')}</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-4">
+                                    <div>
+                                        <label className="text-sm font-medium">{t('settingsPage.expert.promptFormatting.emptySeparatorTitle')}</label>
+                                        <p className="mt-1 text-xs text-muted-foreground">{t('settingsPage.expert.promptFormatting.emptySeparatorDesc')}</p>
+                                    </div>
+                                    <Switch checked={removeEmptyPromptSeparators} onChange={(event) => setRemoveEmptyPromptSeparators(event.target.checked)} />
+                                </div>
                             </div>
 
                             <div className="space-y-1">

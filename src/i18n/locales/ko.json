@@ -785,6 +785,25 @@
     "expert": {
       "title": "확장 기능",
       "description": "기본 동작은 유지하면서 필요한 확장 기능만 개별로 켜고 끄세요.",
+      "promptFormatting": {
+        "header": "프롬프트 정리",
+        "description": "입력칸마다 줄바꿈과 공백을 그대로 보낼지, 쉼표와 한 칸으로 정리할지 선택합니다.",
+        "preserve": "그대로 유지",
+        "compact": "정리 (기존 방식)",
+        "mainBase": "기본 프롬프트",
+        "mainAdditional": "추가 프롬프트",
+        "mainDetail": "세부 프롬프트",
+        "mainNegative": "메인 네거티브",
+        "inpainting": "인페인팅 프롬프트",
+        "scene": "씬 프롬프트",
+        "sceneNegative": "씬 네거티브",
+        "multiCharacter": "다인 캐릭터 프롬프트",
+        "character": "캐릭터 프롬프트",
+        "costume": "의상 프롬프트",
+        "characterNegative": "캐릭터 네거티브",
+        "emptySeparatorTitle": "빈 쉼표 정리",
+        "emptySeparatorDesc": "정확히 `, ,`로만 이루어진 빈 구간만 제거합니다. 다른 공백과 줄바꿈은 건드리지 않습니다."
+      },
       "characterPrompt": {
         "header": "캐릭터 프롬프트",
         "description": "캐릭터 프롬프트 카드의 입력 구조와 버전 관리 방식을 변경합니다.",

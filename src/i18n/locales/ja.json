@@ -751,6 +751,25 @@
     "expert": {
       "title": "拡張機能",
       "description": "基本動作を保ちながら、必要な拡張機能だけを個別に切り替えます。",
+      "promptFormatting": {
+        "header": "プロンプト整形",
+        "description": "入力欄ごとに改行と空白を維持するか、カンマと半角スペースに整形するかを選択します。",
+        "preserve": "そのまま維持",
+        "compact": "整形する",
+        "mainBase": "基本プロンプト",
+        "mainAdditional": "追加プロンプト",
+        "mainDetail": "詳細プロンプト",
+        "mainNegative": "メインネガティブ",
+        "inpainting": "インペイントプロンプト",
+        "scene": "シーンプロンプト",
+        "sceneNegative": "シーンネガティブ",
+        "multiCharacter": "複数キャラクタープロンプト",
+        "character": "キャラクタープロンプト",
+        "costume": "衣装プロンプト",
+        "characterNegative": "キャラクターネガティブ",
+        "emptySeparatorTitle": "空のカンマ区間を削除",
+        "emptySeparatorDesc": "正確に `, ,` と書かれた空の区間だけを削除します。その他の空白や改行は維持されます。"
+      },
       "characterPrompt": {
         "header": "キャラクタープロンプト",
         "description": "キャラクタープロンプトカードの入力構造とバージョン管理を変更します。",

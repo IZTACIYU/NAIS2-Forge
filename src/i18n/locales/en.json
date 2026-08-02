@@ -752,6 +752,25 @@
     "expert": {
       "title": "Extensions",
       "description": "Enable only the optional extensions you want while keeping the default behavior available.",
+      "promptFormatting": {
+        "header": "Prompt formatting",
+        "description": "Choose per input whether to preserve line breaks and spaces or normalize them to commas and single spaces.",
+        "preserve": "Preserve",
+        "compact": "Normalize",
+        "mainBase": "Base prompt",
+        "mainAdditional": "Additional prompt",
+        "mainDetail": "Detail prompt",
+        "mainNegative": "Main negative prompt",
+        "inpainting": "Inpainting prompt",
+        "scene": "Scene prompt",
+        "sceneNegative": "Scene negative prompt",
+        "multiCharacter": "Multi-character prompt",
+        "character": "Character prompt",
+        "costume": "Costume prompt",
+        "characterNegative": "Character negative prompt",
+        "emptySeparatorTitle": "Remove empty comma sections",
+        "emptySeparatorDesc": "Only removes empty sections written exactly as `, ,`. Other spaces and line breaks are preserved."
+      },
       "characterPrompt": {
         "header": "Character Prompt",
         "description": "Change the input layout and version handling for character prompt cards.",

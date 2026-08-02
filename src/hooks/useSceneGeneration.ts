@@ -278,18 +278,25 @@ export function useSceneGeneration() {
 
                 const params = await buildGenerationRequest({
                     positiveParts: [
-                        genState.basePrompt,
-                        genState.i2iMode === 'inpaint' ? genState.inpaintingPrompt : '',
-                        genState.additionalPrompt,
-                        scene.scenePrompt,
-                        genState.detailPrompt,
+                        { value: genState.basePrompt, whitespaceMode: latestSettingsStore.promptWhitespaceModes.mainBase },
+                        { value: genState.i2iMode === 'inpaint' ? genState.inpaintingPrompt : '', whitespaceMode: latestSettingsStore.promptWhitespaceModes.inpainting },
+                        { value: genState.additionalPrompt, whitespaceMode: latestSettingsStore.promptWhitespaceModes.mainAdditional },
+                        { value: scene.scenePrompt, whitespaceMode: latestSettingsStore.promptWhitespaceModes.scene },
+                        { value: genState.detailPrompt, whitespaceMode: latestSettingsStore.promptWhitespaceModes.mainDetail },
                     ],
-                    negativeParts: [genState.negativePrompt, scene.sceneNegativePrompt || ''],
+                    negativeParts: [
+                        { value: genState.negativePrompt, whitespaceMode: latestSettingsStore.promptWhitespaceModes.mainNegative },
+                        { value: scene.sceneNegativePrompt || '', whitespaceMode: latestSettingsStore.promptWhitespaceModes.sceneNegative },
+                    ],
                     characterInputs: characterPrompts.map(character => ({
                         character,
                         appendedPrompts: multiCharacterPromptMap.get(character.id),
                         costumeEnabled: costumeOverride,
                         position: multiCharacterPositionMap.get(character.id) || character.position,
+                        promptWhitespaceMode: latestSettingsStore.promptWhitespaceModes.character,
+                        costumeWhitespaceMode: latestSettingsStore.promptWhitespaceModes.costume,
+                        negativeWhitespaceMode: latestSettingsStore.promptWhitespaceModes.characterNegative,
+                        appendedPromptWhitespaceMode: latestSettingsStore.promptWhitespaceModes.multiCharacter,
                     })),
                     characterPromptLayoutEnabled: latestSettingsStore.expertCharacterPromptLayoutEnabled,
                     characterPositionEnabled: latestPromptStore.positionEnabled || multiCharacterPositionMap.size > 0,
@@ -314,6 +321,7 @@ export function useSceneGeneration() {
                     imageFormat: latestSettingsStore.imageFormat,
                     qualityToggle: genState.qualityToggle,
                     ucPreset: genState.ucPreset,
+                    removeEmptyPromptSeparators: latestSettingsStore.removeEmptyPromptSeparators,
                     promptParts: {
                         base: genState.basePrompt,
                         additional: genState.additionalPrompt,

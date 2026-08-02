@@ -4,6 +4,11 @@ import { indexedDBStorage } from '@/lib/indexed-db'
 import type { SceneRandomCharacterMode } from '@/lib/random-character-selection'
 import type { CharacterGender } from '@/lib/character-gender'
 import type { SceneExportNamePart } from '@/lib/scene-export-name'
+import {
+    DEFAULT_PROMPT_WHITESPACE_MODES,
+    type PromptWhitespaceField,
+    type PromptWhitespaceMode,
+} from '@/lib/prompt-formatting'
 
 export interface CustomResolution {
     id: string
@@ -44,6 +49,8 @@ interface SettingsState {
 
     // Expert options
     expertOptionsEnabled: boolean
+    promptWhitespaceModes: Record<PromptWhitespaceField, PromptWhitespaceMode>
+    removeEmptyPromptSeparators: boolean
     expertCharacterPromptFolderBrowserEnabled: boolean
     expertLibraryFolderBrowserEnabled: boolean
     expertCharacterPromptLayoutEnabled: boolean
@@ -100,6 +107,8 @@ interface SettingsState {
     setLibraryPath: (path: string, useAbsolute?: boolean) => void
     setImageFormat: (format: 'png' | 'webp') => void
     setExpertOptionsEnabled: (enabled: boolean) => void
+    setPromptWhitespaceMode: (field: PromptWhitespaceField, mode: PromptWhitespaceMode) => void
+    setRemoveEmptyPromptSeparators: (enabled: boolean) => void
     setExpertCharacterPromptFolderBrowserEnabled: (enabled: boolean) => void
     setExpertLibraryFolderBrowserEnabled: (enabled: boolean) => void
     setExpertCharacterPromptLayoutEnabled: (enabled: boolean) => void
@@ -149,6 +158,8 @@ export const useSettingsStore = create<SettingsState>()(
             useAbsoluteLibraryPath: false, // Default: relative to Pictures folder
             imageFormat: 'png', // Default: PNG format
             expertOptionsEnabled: false,
+            promptWhitespaceModes: DEFAULT_PROMPT_WHITESPACE_MODES,
+            removeEmptyPromptSeparators: false,
             expertCharacterPromptFolderBrowserEnabled: true,
             expertLibraryFolderBrowserEnabled: false,
             expertCharacterPromptLayoutEnabled: false,
@@ -217,6 +228,14 @@ export const useSettingsStore = create<SettingsState>()(
             }),
             setImageFormat: (format) => set({ imageFormat: format }),
             setExpertOptionsEnabled: (expertOptionsEnabled) => set({ expertOptionsEnabled }),
+            setPromptWhitespaceMode: (field, mode) => set((state) => ({
+                promptWhitespaceModes: {
+                    ...DEFAULT_PROMPT_WHITESPACE_MODES,
+                    ...state.promptWhitespaceModes,
+                    [field]: mode,
+                },
+            })),
+            setRemoveEmptyPromptSeparators: (removeEmptyPromptSeparators) => set({ removeEmptyPromptSeparators }),
             setExpertCharacterPromptFolderBrowserEnabled: (expertCharacterPromptFolderBrowserEnabled) => set({ expertCharacterPromptFolderBrowserEnabled }),
             setExpertLibraryFolderBrowserEnabled: (expertLibraryFolderBrowserEnabled) => set({ expertLibraryFolderBrowserEnabled }),
             setExpertCharacterPromptLayoutEnabled: (expertCharacterPromptLayoutEnabled) => set({ expertCharacterPromptLayoutEnabled }),
