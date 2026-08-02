@@ -175,11 +175,19 @@ function processParenthesisWildcards(prompt: string): string {
  * 주의: 공백이 포함된 옵션은 괄호 형식 사용 필요
  */
 function processSimpleWildcards(prompt: string): string {
-    // 쉼표로 태그 분리
-    const tags = prompt.split(',')
+    // Keep separators and whitespace intact. This processor runs for every
+    // prompt, so rebuilding comma-separated tags would erase user newlines.
+    const segments = prompt.split(/(,)/)
 
-    const processedTags = tags.map(tag => {
-        const trimmed = tag.trim()
+    return segments.map(segment => {
+        if (segment === ',') return segment
+
+        const leadingWhitespace = segment.match(/^\s*/)?.[0] || ''
+        const trailingWhitespace = segment.match(/\s*$/)?.[0] || ''
+        const trimmed = segment.slice(
+            leadingWhitespace.length,
+            segment.length - trailingWhitespace.length
+        )
 
         // 슬래시가 있고, URL이 아니며, 공백이 없는 단순 형태만 처리
         // 공백이 있으면 괄호 형식을 사용해야 함
@@ -191,14 +199,12 @@ function processSimpleWildcards(prompt: string): string {
             const options = trimmed.split('/').map(o => o.trim()).filter(o => o.length > 0)
             if (options.length > 1) {
                 const randomIndex = Math.floor(Math.random() * options.length)
-                return options[randomIndex]
+                return `${leadingWhitespace}${options[randomIndex]}${trailingWhitespace}`
             }
         }
 
-        return trimmed
-    })
-
-    return processedTags.join(', ')
+        return segment
+    }).join('')
 }
 
 /**
