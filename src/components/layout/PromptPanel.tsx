@@ -777,33 +777,36 @@ export function PromptPanel() {
                                 </div>
                             </div>
 
-                            {/* SMEA & SMEA DYN */}
-                            <div className="flex items-center justify-between pt-2">
-                                <div className="flex flex-col gap-1">
-                                    <Label className="cursor-pointer" onClick={() => setSmea(!smea)}>
-                                        {t('parameters.smea')}
-                                    </Label>
-                                    <span className="text-xs text-muted-foreground">Switchable Multi-head External Attention</span>
-                                </div>
-                                <Switch
-                                    checked={smea}
-                                    onChange={(e) => setSmea(e.target.checked)}
-                                />
-                            </div>
+                            {modelCapabilities.supportsSmea && (
+                                <>
+                                    <div className="flex items-center justify-between pt-2">
+                                        <div className="flex flex-col gap-1">
+                                            <Label className="cursor-pointer" onClick={() => setSmea(!smea)}>
+                                                {t('parameters.smea')}
+                                            </Label>
+                                            <span className="text-xs text-muted-foreground">Switchable Multi-head External Attention</span>
+                                        </div>
+                                        <Switch
+                                            checked={smea}
+                                            onChange={(e) => setSmea(e.target.checked)}
+                                        />
+                                    </div>
 
-                            <div className="flex items-center justify-between">
-                                <div className="flex flex-col gap-1">
-                                    <Label className="cursor-pointer" onClick={() => setSmeaDyn(!smeaDyn)}>
-                                        {t('parameters.smeaDyn')}
-                                    </Label>
-                                    <span className="text-xs text-muted-foreground">Dynamic SMEA</span>
-                                </div>
-                                <Switch
-                                    checked={smeaDyn}
-                                    disabled={!smea}
-                                    onChange={(e) => setSmeaDyn(e.target.checked)}
-                                />
-                            </div>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex flex-col gap-1">
+                                            <Label className="cursor-pointer" onClick={() => setSmeaDyn(!smeaDyn)}>
+                                                {t('parameters.smeaDyn')}
+                                            </Label>
+                                            <span className="text-xs text-muted-foreground">Dynamic SMEA</span>
+                                        </div>
+                                        <Switch
+                                            checked={smeaDyn}
+                                            disabled={!smea}
+                                            onChange={(e) => setSmeaDyn(e.target.checked)}
+                                        />
+                                    </div>
+                                </>
+                            )}
 
                             {/* Variety+ */}
                             <div className="flex items-center justify-between">

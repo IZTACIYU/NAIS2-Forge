@@ -9,6 +9,7 @@ export interface ModelCapabilities {
     maxCharacterPrompts: number
     maxPromptTokens: number
     ucPresets: readonly UcPresetOption[]
+    supportsSmea: boolean
 }
 
 export interface AvailableModel extends ModelCapabilities {
@@ -19,6 +20,7 @@ export interface AvailableModel extends ModelCapabilities {
 const V4_CAPABILITIES: ModelCapabilities = {
     maxCharacterPrompts: 6,
     maxPromptTokens: 512,
+    supportsSmea: false,
     ucPresets: [
         { value: 0, label: 'heavy' },
         { value: 1, label: 'light' },
@@ -37,14 +39,19 @@ const V45_CAPABILITIES: ModelCapabilities = {
     ],
 }
 
+const V3_CAPABILITIES: ModelCapabilities = {
+    ...V4_CAPABILITIES,
+    supportsSmea: true,
+}
+
 // Add new model versions and their limits here. All UI and generation paths use this table.
 export const AVAILABLE_MODELS: readonly AvailableModel[] = [
     { id: 'nai-diffusion-4-5-curated', name: 'NAI Diffusion V4.5 Curated', ...V45_CAPABILITIES },
     { id: 'nai-diffusion-4-5-full', name: 'NAI Diffusion V4.5 Full', ...V45_CAPABILITIES },
     { id: 'nai-diffusion-4-curated-preview', name: 'NAI Diffusion V4 Curated', ...V4_CAPABILITIES },
     { id: 'nai-diffusion-4-full', name: 'NAI Diffusion V4 Full', ...V4_CAPABILITIES },
-    { id: 'nai-diffusion-3', name: 'NAI Diffusion V3 (Anime)', ...V4_CAPABILITIES },
-    { id: 'nai-diffusion-furry-3', name: 'NAI Diffusion Furry V3', ...V4_CAPABILITIES },
+    { id: 'nai-diffusion-3', name: 'NAI Diffusion V3 (Anime)', ...V3_CAPABILITIES },
+    { id: 'nai-diffusion-furry-3', name: 'NAI Diffusion Furry V3', ...V3_CAPABILITIES },
 ]
 
 export const getModelCapabilities = (modelId: string): ModelCapabilities =>
