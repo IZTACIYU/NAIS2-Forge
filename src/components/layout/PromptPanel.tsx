@@ -24,7 +24,6 @@ import {
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -632,15 +631,12 @@ export function PromptPanel() {
                     <DialogContent className="sm:max-w-[440px] max-h-[85vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>{t('parameters.title')}</DialogTitle>
-                            <DialogDescription>
-                                {t('parameters.description')}
-                            </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 pb-3">
-                            <div className="grid gap-5 pt-5">
+                            <div className="grid gap-3">
                             {/* Model Selection */}
-                            <div className="relative h-9">
-                                <Label className="pointer-events-none absolute -top-5 left-0 flex items-center gap-1 text-sm font-medium leading-none text-foreground">
+                            <div className="grid gap-2">
+                                <Label className="flex items-center gap-1">
                                     <Cpu className="h-3.5 w-3.5" />
                                     {t('parameters.model')}
                                 </Label>
@@ -658,8 +654,8 @@ export function PromptPanel() {
 
                             {/* Resolution (Moved here) */}
                             {/* Resolution (Moved here) */}
-                            <div className="relative h-9">
-                                <Label className="pointer-events-none absolute -top-5 left-0 text-sm font-medium leading-none text-foreground">
+                            <div className="grid gap-2">
+                                <Label>
                                     {t('settingsPage.general.resolution', '해상도')}
                                 </Label>
                                 <ResolutionSelector
@@ -671,8 +667,8 @@ export function PromptPanel() {
                             </div>
 
                             {/* Seed (Moved here) */}
-                            <div className="relative flex h-9 gap-2">
-                                <label className="pointer-events-none absolute -top-5 left-0 text-sm font-medium leading-none text-foreground">{t('settings.seed')}</label>
+                            <div className="grid gap-2">
+                                <Label>{t('settings.seed')}</Label>
                                 <div className="flex min-w-0 flex-1 gap-2">
                                     <Input
                                         type="number"
