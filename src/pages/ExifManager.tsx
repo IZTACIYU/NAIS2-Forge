@@ -145,8 +145,8 @@ export default function ExifManager() {
                 </TabsContent>
 
                 {activeTab === 'edit' && (
-                    <TabsContent value="edit" className="mt-4 grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-2 gap-4">
-                        <div className="min-h-[520px] overflow-hidden rounded-lg border border-border/50 bg-muted/15">
+                    <TabsContent value="edit" className="mt-4 grid flex-1 min-h-0 content-start items-start grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="h-[520px] self-start overflow-hidden rounded-lg border border-border/50 bg-muted/15">
                             <div className="h-full min-h-0 flex items-center justify-center p-3 relative">
                                 {activeImage ? <img src={activeImage} alt="" className="max-w-full max-h-full object-contain" /> : (
                                     <button type="button" onClick={() => inputRef.current?.click()} className="w-full h-full flex flex-col items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
