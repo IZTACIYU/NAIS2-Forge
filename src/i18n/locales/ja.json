@@ -262,6 +262,8 @@
     "loadFromImage": "メタデータを読み込む",
     "extractDesc": "PNGファイルからプロンプトと設定を抽出します",
     "optVibeVersion": "バイブトランスファー (データのみ)",
+    "optReferences": "画像リファレンス",
+    "referencesDesc": "保存済みのリファレンスとVibeを再び有効にします。見つからないVibeはエンコード済みデータから復元します。",
     "vibeDesc": "元の画像はありませんが、エンコードされたバイブデータは復元されます。",
     "charRefWarning": "キャラクター参照が検出されました。Director Tools経由で抽出がサポートされています。"
   },

@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
 import { decode as msgpackDecode } from '@msgpack/msgpack'
 import { Channel, invoke } from '@tauri-apps/api/core'
-import { embedNais2Params } from '@/lib/nais2-png-meta'
+import { embedNais2Params, type Nais2GenerationSources } from '@/lib/nais2-png-meta'
 import { removePromptComments } from '@/lib/prompt-comments'
 import type { ImageGenerationEntitlement } from '@/lib/anlas-calculator'
 
@@ -100,6 +100,7 @@ export interface GenerationParams {
         negative?: string
         inpainting?: string
     }
+    generationSources?: Nais2GenerationSources
 }
 
 interface NativeGenerationResult {
@@ -799,6 +800,7 @@ export async function generateImage(
                 negative: params.promptParts.negative ?? '',
                 inpainting: params.promptParts.inpainting ?? '',
             },
+            generationSources: params.generationSources,
         })
 
         return {
@@ -1356,6 +1358,7 @@ export async function generateImageStream(
                     negative: params.promptParts.negative ?? '',
                     inpainting: params.promptParts.inpainting ?? '',
                 },
+                generationSources: params.generationSources,
             })
             return {
                 success: true,

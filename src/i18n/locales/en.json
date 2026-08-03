@@ -263,6 +263,8 @@
     "loadFromImage": "Load Metadata",
     "extractDesc": "Extract prompts and settings from PNG file",
     "optVibeVersion": "Vibe Transfer (Data Only)",
+    "optReferences": "Image References",
+    "referencesDesc": "Restores saved references and Vibes. Missing Vibes fall back to encoded data.",
     "vibeDesc": "Original image missing; restoring encoded Vibe data.",
     "charRefWarning": "Character Reference detected. Extraction supported via Director Tools."
   },

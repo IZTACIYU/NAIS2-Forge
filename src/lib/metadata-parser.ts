@@ -8,7 +8,7 @@
  * This parser extracts metadata from both sources.
  */
 
-import { readNais2Params } from '@/lib/nais2-png-meta'
+import { readNais2Params, type Nais2GenerationSources } from '@/lib/nais2-png-meta'
 
 /**
  * Decompress gzip data using native Web API or fallback
@@ -133,6 +133,70 @@ export interface NAIMetadata {
         detail: string
         negative?: string
         inpainting?: string
+    }
+
+    // Active Forge-local sources, used to restore existing character and
+    // reference entries without embedding original image data.
+    generationSources?: Nais2GenerationSources
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null
+}
+
+function isFiniteNumber(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value)
+}
+
+function parseGenerationSources(value: unknown): Nais2GenerationSources | undefined {
+    if (!isRecord(value)
+        || !Array.isArray(value.characterPrompts)
+        || !Array.isArray(value.characterReferences)
+        || !Array.isArray(value.vibeReferences)
+    ) return undefined
+
+    const characterPrompts = value.characterPrompts.flatMap((entry) => {
+        if (!isRecord(entry) || typeof entry.id !== 'string' || typeof entry.prompt !== 'string'
+            || typeof entry.negative !== 'string' || !isRecord(entry.position)
+            || !isFiniteNumber(entry.position.x) || !isFiniteNumber(entry.position.y)
+        ) return []
+
+        return [{
+            id: entry.id,
+            presetId: typeof entry.presetId === 'string' ? entry.presetId : undefined,
+            name: typeof entry.name === 'string' ? entry.name : undefined,
+            prompt: entry.prompt,
+            negative: entry.negative,
+            promptEnabled: typeof entry.promptEnabled === 'boolean' ? entry.promptEnabled : undefined,
+            negativeEnabled: typeof entry.negativeEnabled === 'boolean' ? entry.negativeEnabled : undefined,
+            costumeEnabled: typeof entry.costumeEnabled === 'boolean' ? entry.costumeEnabled : undefined,
+            position: { x: entry.position.x, y: entry.position.y },
+        }]
+    })
+
+    const parseReferences = (entries: unknown[]): Nais2GenerationSources['characterReferences'] => entries.flatMap((entry) => {
+        if (!isRecord(entry) || typeof entry.id !== 'string'
+            || !isFiniteNumber(entry.informationExtracted)
+            || !isFiniteNumber(entry.strength)
+            || !isFiniteNumber(entry.fidelity)
+            || (entry.referenceType !== 'character' && entry.referenceType !== 'style' && entry.referenceType !== 'character&style')
+        ) return []
+
+        return [{
+            id: entry.id,
+            name: typeof entry.name === 'string' ? entry.name : undefined,
+            informationExtracted: entry.informationExtracted,
+            strength: entry.strength,
+            fidelity: entry.fidelity,
+            referenceType: entry.referenceType,
+        }]
+    })
+
+    return {
+        characterPrompts,
+        characterReferences: parseReferences(value.characterReferences),
+        vibeReferences: parseReferences(value.vibeReferences),
+        characterPositionEnabled: value.characterPositionEnabled === true,
     }
 }
 
@@ -550,6 +614,8 @@ async function extractTextChunkMetadata(bytes: Uint8Array): Promise<NAIMetadata 
                 inpainting: pp.inpainting,
             }
         }
+        const generationSources = parseGenerationSources(nais2.generationSources)
+        if (generationSources) metadata.generationSources = generationSources
     }
 
     // Heuristically recover qualityToggle / ucPreset from prompt/uc text only

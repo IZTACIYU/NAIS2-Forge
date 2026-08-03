@@ -1,6 +1,7 @@
 import type { GenerationParams } from '@/services/novelai-api'
 import type { ReferenceImage } from '@/stores/character-store'
 import type { CharacterPrompt } from '@/stores/character-prompt-store'
+import type { Nais2GenerationSources } from '@/lib/nais2-png-meta'
 import { processWildcards } from '@/lib/fragment-processor'
 import { getModelCapabilities } from '@/lib/model-capabilities'
 import { removePromptComments } from '@/lib/prompt-comments'
@@ -54,6 +55,7 @@ export interface GenerationRequestInput {
     removeEmptyPromptSeparators: boolean
     insertBlankLinesBetweenPromptParts: boolean
     promptParts?: GenerationParams['promptParts']
+    generationSources?: Nais2GenerationSources
 }
 
 const splitCharacterCostumePrompt = (prompt: string) => {
@@ -131,6 +133,39 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         }
     }))
 
+    const generationSources = input.generationSources ?? {
+        characterPrompts: input.characterInputs
+            .slice(0, getModelCapabilities(input.model).maxCharacterPrompts)
+            .map(({ character, costumeEnabled, position }) => ({
+                id: character.id,
+                presetId: character.presetId,
+                name: character.name,
+                prompt: character.prompt,
+                negative: character.negative,
+                promptEnabled: character.promptEnabled,
+                negativeEnabled: character.negativeEnabled,
+                costumeEnabled: costumeEnabled ?? character.costumeEnabled,
+                position: position || character.position,
+            })),
+        characterReferences: input.characterImages.map(image => ({
+            id: image.id,
+            name: image.name,
+            informationExtracted: image.informationExtracted,
+            strength: image.strength,
+            fidelity: image.fidelity,
+            referenceType: image.referenceType,
+        })),
+        vibeReferences: input.vibeImages.map(image => ({
+            id: image.id,
+            name: image.name,
+            informationExtracted: image.informationExtracted,
+            strength: image.strength,
+            fidelity: image.fidelity,
+            referenceType: image.referenceType,
+        })),
+        characterPositionEnabled: input.characterPositionEnabled,
+    }
+
     return {
         prompt,
         negative_prompt: negativePrompt,
@@ -168,5 +203,6 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         qualityToggle: input.qualityToggle,
         ucPreset: input.ucPreset,
         promptParts: input.promptParts,
+        generationSources,
     }
 }

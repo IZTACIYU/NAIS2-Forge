@@ -48,7 +48,7 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
     const { presets, activePresetId, loadPreset, syncFromGenerationStore } = usePresetStore()
     const genStore = useGenerationStore()
     const charStore = useCharacterPromptStore()
-    const { addVibeImage } = useCharacterStore()
+    const referenceStore = useCharacterStore()
 
     const [metadata, setMetadata] = useState<NAIMetadata | null>(null)
     const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
@@ -159,7 +159,7 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
         setIsDragOver(false)
     }
 
-    const handleApply = () => {
+    const handleApply = async () => {
         if (!metadata) return
 
         // First, load the target preset
@@ -221,50 +221,104 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
             genStore.setSeedLocked(true)
         }
 
-        if (loadOptions.characterPrompts && metadata.v4_prompt?.caption?.char_captions) {
-            // 기존 캐릭터 프롬프트 유지하고 새 캐릭터 추가 (병합 방식)
-            const negativeCharCaptions = metadata.v4_negative_prompt?.caption?.char_captions || []
+        if (loadOptions.characterPrompts) {
+            const sourceCharacters = metadata.generationSources?.characterPrompts
+            if (sourceCharacters) {
+                const generationSources = metadata.generationSources
+                // Restore the stage entries used by this Forge image instead of
+                // creating duplicate cards from V4 captions.
+                charStore.disableAll()
+                for (const source of sourceCharacters) {
+                    const existing = charStore.characters.find(character =>
+                        character.id === source.id
+                        || (source.presetId !== undefined && character.presetId === source.presetId)
+                    )
+                    if (existing) {
+                        charStore.updateCharacter(existing.id, {
+                            name: source.name,
+                            prompt: source.prompt,
+                            negative: source.negative,
+                            promptEnabled: source.promptEnabled,
+                            negativeEnabled: source.negativeEnabled,
+                            costumeEnabled: source.costumeEnabled,
+                            position: source.position,
+                            enabled: true,
+                        })
+                        continue
+                    }
 
-            metadata.v4_prompt.caption.char_captions.forEach((cap, index) => {
-                const presetId = Date.now().toString() + Math.random().toString(36).substr(2, 9) + index
-
-                // 해당 인덱스의 캐릭터 네거티브 프롬프트 가져오기
-                const charNegative = negativeCharCaptions[index]?.char_caption || ''
-
-                // 1. Add to Library (Presets)
-                charStore.addPreset({
-                    id: presetId,
-                    name: `Imported ${index + 1}`,
-                    prompt: cap.char_caption,
-                    negative: charNegative
-                })
-
-                // 2. Add to Stage (Linked)
-                cap.centers.forEach(center => {
+                    const presetId = `imported-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+                    charStore.addPreset({
+                        id: presetId,
+                        name: source.name || `Imported ${charStore.presets.length + 1}`,
+                        prompt: source.prompt,
+                        negative: source.negative,
+                    })
                     charStore.addCharacter({
-                        presetId: presetId,
-                        prompt: cap.char_caption,
-                        negative: charNegative,
-                        position: center,
-                        enabled: true
+                        presetId,
+                        name: source.name,
+                        prompt: source.prompt,
+                        negative: source.negative,
+                        promptEnabled: source.promptEnabled,
+                        negativeEnabled: source.negativeEnabled,
+                        costumeEnabled: source.costumeEnabled,
+                        position: source.position,
+                        enabled: true,
+                    })
+                }
+                if (typeof generationSources?.characterPositionEnabled === 'boolean') {
+                    charStore.setPositionEnabled(generationSources.characterPositionEnabled)
+                }
+            } else if (metadata.v4_prompt?.caption?.char_captions) {
+                // Legacy / external image fallback: recreate characters from NAI captions.
+                const negativeCharCaptions = metadata.v4_negative_prompt?.caption?.char_captions || []
+                metadata.v4_prompt.caption.char_captions.forEach((cap, index) => {
+                    const presetId = `imported-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+                    const charNegative = negativeCharCaptions[index]?.char_caption || ''
+                    charStore.addPreset({ id: presetId, name: `Imported ${index + 1}`, prompt: cap.char_caption, negative: charNegative })
+                    cap.centers.forEach(center => {
+                        charStore.addCharacter({ presetId, prompt: cap.char_caption, negative: charNegative, position: center, enabled: true })
                     })
                 })
-            })
+            }
         }
 
-        if (loadOptions.vibeTransfer && metadata.encodedVibes && metadata.encodedVibes.length > 0) {
-            // Import Vibe Transfers (Encoded only)
-            const infos = metadata.vibeTransferInfo || []
-            metadata.encodedVibes.forEach((encoded, index) => {
-                // We don't have the original image, so we pass empty string for base64
-                // The CharacterList component will handle displaying a placeholder
-                addVibeImage(
-                    '',
-                    encoded,
-                    infos[index]?.informationExtracted ?? 1.0,
-                    infos[index]?.strength ?? 0.6
-                )
-            })
+        if (loadOptions.vibeTransfer) {
+            const sources = metadata.generationSources
+            if (sources) {
+                // Original reference images never leave local storage. Match by
+                // stable local ID and restore only the settings used to generate.
+                referenceStore.disableAllReferenceImages('character')
+                referenceStore.disableAllReferenceImages('vibe')
+
+                for (const source of sources.characterReferences) {
+                    const existing = referenceStore.characterImages.find(image => image.id === source.id)
+                    if (existing) referenceStore.updateCharacterImage(existing.id, { ...source, enabled: true })
+                }
+
+                const restoredVibeIds = new Set<string>()
+                for (const source of sources.vibeReferences) {
+                    const existing = referenceStore.vibeImages.find(image => image.id === source.id)
+                    if (!existing) continue
+                    restoredVibeIds.add(source.id)
+                    referenceStore.updateVibeImage(existing.id, { ...source, enabled: true })
+                }
+
+                // Missing Vibe originals can still use NAI's encoded payload.
+                for (let index = 0; index < sources.vibeReferences.length; index++) {
+                    const source = sources.vibeReferences[index]
+                    if (restoredVibeIds.has(source.id)) continue
+                    const encoded = metadata.encodedVibes?.[index]
+                    if (!encoded) continue
+                    await referenceStore.addVibeImage('', encoded, source.informationExtracted, source.strength, source.name)
+                }
+            } else if (metadata.encodedVibes && metadata.encodedVibes.length > 0) {
+                // Legacy / external image fallback: only encoded Vibe data is available.
+                const infos = metadata.vibeTransferInfo || []
+                for (const [index, encoded] of metadata.encodedVibes.entries()) {
+                    await referenceStore.addVibeImage('', encoded, infos[index]?.informationExtracted ?? 1.0, infos[index]?.strength ?? 0.6)
+                }
+            }
         }
 
         // Save to preset
@@ -496,7 +550,7 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
                                     </div>
 
                                     {/* Character Prompts */}
-                                    {metadata.v4_prompt?.caption?.char_captions && metadata.v4_prompt.caption.char_captions.length > 0 && (
+                                    {((metadata.generationSources?.characterPrompts.length ?? 0) > 0 || (metadata.v4_prompt?.caption?.char_captions?.length ?? 0) > 0) && (
                                         <div className="space-y-2">
                                             <div className="flex items-center gap-2">
                                                 <Checkbox
@@ -509,7 +563,14 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
                                                 </Label>
                                             </div>
                                             <div className="pl-6 space-y-1">
-                                                {metadata.v4_prompt.caption.char_captions.map((cap, idx) => (
+                                                {metadata.generationSources?.characterPrompts.map((source, idx) => (
+                                                    <div key={source.id} className="bg-muted/30 rounded-lg p-2 text-xs">
+                                                        <div className="font-medium text-muted-foreground">
+                                                            {source.name || `#${idx + 1}`}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {!metadata.generationSources?.characterPrompts.length && metadata.v4_prompt?.caption?.char_captions?.map((cap, idx) => (
                                                     <div key={idx} className="bg-muted/30 rounded-lg p-2 text-xs">
                                                         <div className="font-medium text-muted-foreground mb-1">
                                                             Pos: {cap.centers.map(c => `(${c.x.toFixed(2)}, ${c.y.toFixed(2)})`).join(', ')}
@@ -526,7 +587,7 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
                                     )}
 
                                     {/* Warnings / Vibe Transfer Info */}
-                                    {metadata.hasVibeTransfer && (
+                                    {(metadata.hasVibeTransfer || metadata.hasCharacterReference || (metadata.generationSources?.characterReferences.length ?? 0) > 0 || (metadata.generationSources?.vibeReferences.length ?? 0) > 0) && (
                                         <div className="space-y-2">
                                             <div className="flex items-center gap-2">
                                                 <Checkbox
@@ -535,16 +596,16 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
                                                     onCheckedChange={() => toggleOption('vibeTransfer')}
                                                 />
                                                 <Label htmlFor="opt-vibe" className="text-sm font-medium cursor-pointer">
-                                                    {t('metadata.optVibeVersion', '바이브 트랜스퍼 (데이터만 포함)')}
+                                                    {t('metadata.optReferences', '이미지 참조')}
                                                 </Label>
                                             </div>
                                             <p className="text-xs text-muted-foreground pl-6">
-                                                {t('metadata.vibeDesc', '원본 이미지는 없지만, 인코딩된 바이브 데이터를 복원합니다.')}
+                                                {t('metadata.referencesDesc', '저장된 레퍼런스와 바이브를 다시 활성화합니다. 없는 바이브는 데이터 복원으로 처리합니다.')}
                                             </p>
                                         </div>
                                     )}
 
-                                    {metadata.hasCharacterReference && (
+                                    {metadata.hasCharacterReference && !metadata.generationSources && (
                                         <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
                                             <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
                                             <p className="text-xs text-amber-600 dark:text-amber-400">

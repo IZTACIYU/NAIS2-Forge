@@ -16,10 +16,39 @@ export interface Nais2PromptParts {
     inpainting?: string
 }
 
+export interface Nais2CharacterPromptSource {
+    id: string
+    presetId?: string
+    name?: string
+    prompt: string
+    negative: string
+    promptEnabled?: boolean
+    negativeEnabled?: boolean
+    costumeEnabled?: boolean
+    position: { x: number; y: number }
+}
+
+export interface Nais2ReferenceSource {
+    id: string
+    name?: string
+    informationExtracted: number
+    strength: number
+    fidelity: number
+    referenceType: 'character' | 'style' | 'character&style'
+}
+
+export interface Nais2GenerationSources {
+    characterPrompts: Nais2CharacterPromptSource[]
+    characterReferences: Nais2ReferenceSource[]
+    vibeReferences: Nais2ReferenceSource[]
+    characterPositionEnabled: boolean
+}
+
 export interface Nais2Params {
     qualityToggle?: boolean
     ucPreset?: number
     promptParts?: Nais2PromptParts
+    generationSources?: Nais2GenerationSources
     version?: number
     [k: string]: unknown
 }
