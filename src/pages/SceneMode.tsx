@@ -612,6 +612,7 @@ export default function SceneMode() {
                                     value={editModeResolution}
                                     onChange={setEditModeResolution}
                                     disabled={selectedSceneIds.length === 0}
+                                    presetOnly
                                 />
                             </div>
                             <Tip content={t('scene.applyResolution', '선택한 씬에 해상도 적용')}>

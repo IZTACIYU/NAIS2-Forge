@@ -419,6 +419,7 @@ export default function SceneDetail() {
                         <ResolutionSelector
                             value={currentResolution}
                             onChange={handleResolutionChange}
+                            presetOnly
                         />
                     </div>
 
