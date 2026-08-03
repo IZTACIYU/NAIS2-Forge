@@ -34,7 +34,9 @@ function isUnlimitedBaseGeneration(input: GenerationCostInput, baseCost: number)
         return false
     }
 
-    return input.imageCount === 1 && baseCost <= OPUS_FREE_BASE_COST_LIMIT
+    // The free allowance is evaluated for each generated image, not for the
+    // complete batch. A batch of individually free images remains free.
+    return baseCost <= OPUS_FREE_BASE_COST_LIMIT
 }
 
 /** Returns null until NovelAI has provided the current entitlement state. */
