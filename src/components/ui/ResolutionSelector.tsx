@@ -64,6 +64,7 @@ export function ResolutionSelector({ value, onChange, disabled }: ResolutionSele
     const customPreset = customResolutions.find(
         preset => preset.width === value.width && preset.height === value.height
     )
+    const isSavedPreset = Boolean(standardPreset || customPreset)
     const displayText = standardPreset
         ? t(`resolutions.${standardPreset.key}`)
         : customPreset?.label || `${value.width} × ${value.height}`
@@ -99,7 +100,7 @@ export function ResolutionSelector({ value, onChange, disabled }: ResolutionSele
 
     const savePreset = () => {
         const label = presetName.trim()
-        if (!label || customPreset) return
+        if (!label || isSavedPreset) return
 
         addCustomResolution({ label, width: value.width, height: value.height })
         onChange({ label, width: value.width, height: value.height })
@@ -113,17 +114,17 @@ export function ResolutionSelector({ value, onChange, disabled }: ResolutionSele
         <>
             <div className="grid gap-2">
                 <div className="flex items-center justify-between">
-                    <Label>{t('settingsPage.general.resolution')}</Label>
-                    <Tip content={customPreset ? t('resolutions.alreadySaved') : t('resolutions.savePreset')}>
+                    <Label>{t('resolutions.title')}</Label>
+                    <Tip content={isSavedPreset ? t('resolutions.alreadySaved') : t('resolutions.savePreset')}>
                         <span>
                             <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-5 w-5 rounded-md"
                                 onClick={openSaveDialog}
-                                disabled={disabled || Boolean(customPreset)}
+                                disabled={disabled || isSavedPreset}
                             >
-                                {customPreset ? <Lock className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                                {isSavedPreset ? <Lock className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                             </Button>
                         </span>
                     </Tip>

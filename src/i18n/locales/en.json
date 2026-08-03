@@ -554,6 +554,7 @@
     "toggleRightSidebar": "Toggle Right Sidebar"
   },
   "resolutions": {
+    "title": "Resolution",
     "portrait": "Portrait",
     "landscape": "Landscape",
     "square": "Square",

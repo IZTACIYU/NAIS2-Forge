@@ -553,6 +553,7 @@
     "toggleRightSidebar": "右サイドバー切替"
   },
   "resolutions": {
+    "title": "解像度",
     "portrait": "縦長",
     "landscape": "横長",
     "square": "正方形",

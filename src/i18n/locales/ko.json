@@ -586,6 +586,7 @@
     "toggleRightSidebar": "오른쪽 사이드바 토글"
   },
   "resolutions": {
+    "title": "해상도",
     "portrait": "세로",
     "landscape": "가로",
     "square": "정사각형",
