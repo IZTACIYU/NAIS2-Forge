@@ -298,7 +298,31 @@
     "autoSaved": "Clean image saved",
     "quickAction": "Send to EXIF Manager",
     "directAction": "Remove EXIF and save now",
-    "loadFailed": "Failed to load image for EXIF Manager"
+    "loadFailed": "Failed to load image for EXIF Manager",
+    "editor": {
+      "title": "Metadata editor",
+      "stored": "Stored data",
+      "raw": "RAW data",
+      "formatted": "Form",
+      "loadImage": "Select a PNG image to edit its metadata.",
+      "name": "Name",
+      "tags": "Tags",
+      "basePrompt": "Base prompt",
+      "negativePrompt": "Undesired content",
+      "characters": "Characters",
+      "characterPrompt": "Character prompt",
+      "characterNegative": "Character negative",
+      "invalidComment": "The Comment JSON cannot be parsed. Edit it in RAW data.",
+      "jsonHint": "Edit all PNG tEXt metadata directly as JSON.",
+      "overwrite": "Overwrite",
+      "saveAs": "Save as",
+      "copyImage": "Copy to clipboard",
+      "cancelImage": "Cancel selection",
+      "overwriteNeedsPath": "Overwrite is available only for PNG files opened with the file picker.",
+      "saved": "Metadata saved",
+      "copied": "Edited image copied to clipboard",
+      "loadFailed": "Failed to load PNG metadata"
+    }
   },
   "prompt": {
     "base": "Base Prompt",
