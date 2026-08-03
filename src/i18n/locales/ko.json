@@ -595,6 +595,8 @@
     "addCustom": "커스텀 해상도 추가",
     "addCustomDesc": "새로운 해상도 프리셋을 추가합니다 (64의 배수로 자동 보정)",
     "presetName": "프리셋 이름",
+    "savePreset": "해상도 프리셋 저장",
+    "alreadySaved": "이미 저장된 프리셋입니다",
     "width": "너비",
     "height": "높이",
     "finalResolution": "최종 해상도"

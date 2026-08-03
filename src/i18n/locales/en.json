@@ -563,6 +563,8 @@
     "addCustom": "Add Custom Resolution",
     "addCustomDesc": "Add a new resolution preset (auto-adjusted to multiples of 64)",
     "presetName": "Preset Name",
+    "savePreset": "Save resolution preset",
+    "alreadySaved": "This resolution is already saved",
     "width": "Width",
     "height": "Height",
     "finalResolution": "Final Resolution"

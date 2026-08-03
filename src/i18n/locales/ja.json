@@ -562,6 +562,8 @@
     "addCustom": "カスタム解像度を追加",
     "addCustomDesc": "新しい解像度プリセットを追加します（64の倍数に自動調整）",
     "presetName": "プリセット名",
+    "savePreset": "解像度プリセットを保存",
+    "alreadySaved": "この解像度はすでに保存されています",
     "width": "幅",
     "height": "高さ",
     "finalResolution": "最終解像度"

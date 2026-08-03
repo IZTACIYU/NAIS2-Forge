@@ -1,23 +1,22 @@
 import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
+import {
     Popover,
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover'
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
 import { Tip } from '@/components/ui/tooltip'
-import { Plus, ChevronDown, Check, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, Lock, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useState } from 'react'
 import { useSettingsStore } from '@/stores/settings-store'
 import { cn } from '@/lib/utils'
 
@@ -29,7 +28,6 @@ export const RESOLUTION_PRESETS = [
     { key: 'wideLandscape', width: 1536, height: 640 },
 ]
 
-// NovelAI requires dimensions to be multiples of 64
 export const roundTo64 = (value: number): number => Math.round(value / 64) * 64
 
 export interface Resolution {
@@ -42,259 +40,237 @@ interface ResolutionSelectorProps {
     value: Resolution
     onChange: (resolution: Resolution) => void
     disabled?: boolean
-    triggerClassName?: string
 }
 
-
-export function ResolutionSelector({ value, onChange, disabled, triggerClassName }: ResolutionSelectorProps) {
+export function ResolutionSelector({ value, onChange, disabled }: ResolutionSelectorProps) {
     const { t } = useTranslation()
     const customResolutions = useSettingsStore(state => state.customResolutions)
     const addCustomResolution = useSettingsStore(state => state.addCustomResolution)
     const removeCustomResolution = useSettingsStore(state => state.removeCustomResolution)
-
     const [open, setOpen] = useState(false)
-    const [customWidth, setCustomWidth] = useState(1024)
-    const [customHeight, setCustomHeight] = useState(1024)
-    const [customDialogOpen, setCustomDialogOpen] = useState(false)
-    const [customLabel, setCustomLabel] = useState('Custom')
+    const [widthInput, setWidthInput] = useState(() => String(value.width))
+    const [heightInput, setHeightInput] = useState(() => String(value.height))
+    const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+    const [presetName, setPresetName] = useState('')
 
-    // Find if current value matches a standard preset
+    useEffect(() => {
+        setWidthInput(String(value.width))
+        setHeightInput(String(value.height))
+    }, [value.width, value.height])
+
     const standardPreset = RESOLUTION_PRESETS.find(
-        (p) => p.width === value.width && p.height === value.height
+        preset => preset.width === value.width && preset.height === value.height
     )
-
-    // Find if current value matches a custom preset
     const customPreset = customResolutions.find(
-        (p) => p.width === value.width && p.height === value.height
+        preset => preset.width === value.width && preset.height === value.height
     )
-
-    // Display text
     const displayText = standardPreset
         ? t(`resolutions.${standardPreset.key}`)
-        : customPreset
-            ? customPreset.label
-            : `${value.width} × ${value.height}`
+        : customPreset?.label || `${value.width} × ${value.height}`
 
-    const handleSelect = (preset: { key?: string; id?: string; width: number; height: number; label?: string }) => {
-        if (preset.key) {
-            onChange({
-                label: t(`resolutions.${preset.key}`),
-                width: preset.width,
-                height: preset.height,
-            })
-        } else {
-            onChange({
-                label: preset.label || `${preset.width}×${preset.height}`,
-                width: preset.width,
-                height: preset.height,
-            })
+    const selectResolution = (preset: { key?: string; width: number; height: number; label?: string }) => {
+        const label = preset.key
+            ? t(`resolutions.${preset.key}`)
+            : preset.label || `${preset.width}x${preset.height}`
+        onChange({ label, width: preset.width, height: preset.height })
+        setOpen(false)
+    }
+
+    const commitDimensions = () => {
+        const rawWidth = Number(widthInput)
+        const rawHeight = Number(heightInput)
+        if (!Number.isFinite(rawWidth) || !Number.isFinite(rawHeight) || rawWidth < 64 || rawHeight < 64) {
+            setWidthInput(String(value.width))
+            setHeightInput(String(value.height))
+            return
         }
-        setOpen(false)
+
+        const width = roundTo64(rawWidth)
+        const height = roundTo64(rawHeight)
+        if (width !== value.width || height !== value.height) {
+            onChange({ label: `${width}x${height}`, width, height })
+        }
     }
 
-    const handleAddCustom = () => {
-        setOpen(false)
-        setCustomDialogOpen(true)
+    const openSaveDialog = () => {
+        setPresetName('')
+        setSaveDialogOpen(true)
     }
 
-    const handleCustomSave = () => {
-        // Round to nearest multiple of 64 (NovelAI requirement)
-        const width = roundTo64(Number(customWidth))
-        const height = roundTo64(Number(customHeight))
-        const label = customLabel || `${width}x${height}`
+    const savePreset = () => {
+        const label = presetName.trim()
+        if (!label || customPreset) return
 
-        addCustomResolution({ label, width, height })
-        onChange({ label, width, height })
-        setCustomDialogOpen(false)
-        
-        // Reset for next time
-        setCustomWidth(1024)
-        setCustomHeight(1024)
-        setCustomLabel('Custom')
+        addCustomResolution({ label, width: value.width, height: value.height })
+        onChange({ label, width: value.width, height: value.height })
+        setSaveDialogOpen(false)
     }
 
-    const isSelected = (w: number, h: number) => value.width === w && value.height === h
+    const isSelected = (width: number, height: number) => value.width === width && value.height === height
+    const inputClassName = 'h-full min-w-0 rounded-none border-0 bg-transparent px-2 text-center font-mono text-xs shadow-none [appearance:textfield] focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 
     return (
         <>
-            <Popover open={open} onOpenChange={setOpen}>
-                <PopoverTrigger asChild>
-                    <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={open}
-                        disabled={disabled}
-                        className={cn("w-full justify-between font-normal", triggerClassName)}
-                    >
-                        <span className="truncate">{displayText}</span>
-                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent 
-                    className="p-0" 
-                    align="start"
-                    style={{ width: 'var(--radix-popover-trigger-width)' }}
-                >
-                    <div className="max-h-[300px] overflow-auto">
-                        {/* Standard Presets */}
-                        <div className="p-1">
-                            {RESOLUTION_PRESETS.map((p) => (
-                                <button
-                                    key={p.key}
-                                    onClick={() => handleSelect(p)}
-                                    className={cn(
-                                        "flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer",
-                                        isSelected(p.width, p.height) && "bg-accent"
-                                    )}
-                                >
-                                    <span className="flex items-center gap-2">
-                                        {isSelected(p.width, p.height) && <Check className="h-4 w-4" />}
-                                        {!isSelected(p.width, p.height) && <span className="w-4" />}
-                                        <span>{t(`resolutions.${p.key}`)}</span>
-                                    </span>
-                                    <span className="text-xs text-muted-foreground">
-                                        {p.width} × {p.height}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
+            <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                    <Label>{t('settingsPage.general.resolution')}</Label>
+                    <Tip content={customPreset ? t('resolutions.alreadySaved') : t('resolutions.savePreset')}>
+                        <span>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 rounded-md"
+                                onClick={openSaveDialog}
+                                disabled={disabled || Boolean(customPreset)}
+                            >
+                                {customPreset ? <Lock className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                            </Button>
+                        </span>
+                    </Tip>
+                </div>
 
-                        {/* Custom Resolutions */}
-                        {customResolutions.length > 0 && (
-                            <>
-                                <div className="h-px bg-border mx-1" />
-                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground">
-                                    {t('resolutions.custom', '사용자 정의')}
-                                </div>
-                                <div className="p-1 pt-0">
-                                    {customResolutions.map((c) => (
-                                        <div
-                                            key={c.id}
+                <div className="grid grid-cols-[minmax(0,1fr)_160px] gap-2">
+                    <Popover open={open} onOpenChange={setOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={open}
+                                disabled={disabled}
+                                className="h-9 min-w-0 justify-between rounded-xl font-normal"
+                            >
+                                <span className="truncate">{displayText}</span>
+                                <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                            className="p-0"
+                            align="start"
+                            style={{ width: 'var(--radix-popover-trigger-width)' }}
+                        >
+                            <div className="max-h-[300px] overflow-auto">
+                                <div className="p-1">
+                                    {RESOLUTION_PRESETS.map(preset => (
+                                        <button
+                                            key={preset.key}
+                                            onClick={() => selectResolution(preset)}
                                             className={cn(
-                                                "flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground group",
-                                                isSelected(c.width, c.height) && "bg-accent"
+                                                'flex w-full cursor-pointer items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground',
+                                                isSelected(preset.width, preset.height) && 'bg-accent'
                                             )}
                                         >
-                                            <button
-                                                onClick={() => handleSelect(c)}
-                                                className="flex items-center gap-2 flex-1 cursor-pointer"
-                                            >
-                                                {isSelected(c.width, c.height) && <Check className="h-4 w-4" />}
-                                                {!isSelected(c.width, c.height) && <span className="w-4" />}
-                                                <span>{c.label}</span>
-                                            </button>
-                                            <span className="flex items-center gap-1">
-                                                <span className="text-xs text-muted-foreground">
-                                                    {c.width} × {c.height}
-                                                </span>
-                                                <Tip content={t('common.delete')}>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            removeCustomResolution(c.id)
-                                                            // If current selection was deleted, reset to portrait
-                                                            if (isSelected(c.width, c.height)) {
-                                                                onChange({
-                                                                    label: t('resolutions.portrait'),
-                                                                    width: 832,
-                                                                    height: 1216,
-                                                                })
-                                                            }
-                                                        }}
-                                                        className="opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity p-0.5 cursor-pointer"
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </button>
-                                                </Tip>
+                                            <span className="flex items-center gap-2">
+                                                {isSelected(preset.width, preset.height) ? <Check className="h-4 w-4" /> : <span className="w-4" />}
+                                                <span>{t(`resolutions.${preset.key}`)}</span>
                                             </span>
-                                        </div>
+                                            <span className="text-xs text-muted-foreground">{preset.width} × {preset.height}</span>
+                                        </button>
                                     ))}
                                 </div>
-                            </>
-                        )}
 
-                        {/* Add Custom Button */}
-                        <div className="h-px bg-border mx-1" />
-                        <div className="p-1">
-                            <button
-                                onClick={handleAddCustom}
-                                className="flex items-center w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer text-primary font-medium"
-                            >
-                                <Plus className="mr-2 h-4 w-4" />
-                                {t('resolutions.addCustom')}
-                            </button>
-                        </div>
+                                {customResolutions.length > 0 && (
+                                    <>
+                                        <div className="mx-1 h-px bg-border" />
+                                        <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+                                            {t('resolutions.custom')}
+                                        </div>
+                                        <div className="p-1 pt-0">
+                                            {customResolutions.map(preset => (
+                                                <div
+                                                    key={preset.id}
+                                                    className={cn(
+                                                        'group flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground',
+                                                        isSelected(preset.width, preset.height) && 'bg-accent'
+                                                    )}
+                                                >
+                                                    <button
+                                                        onClick={() => selectResolution(preset)}
+                                                        className="flex flex-1 cursor-pointer items-center gap-2 text-left"
+                                                    >
+                                                        {isSelected(preset.width, preset.height) ? <Check className="h-4 w-4" /> : <span className="w-4" />}
+                                                        <span>{preset.label}</span>
+                                                    </button>
+                                                    <span className="flex items-center gap-1">
+                                                        <span className="text-xs text-muted-foreground">{preset.width} × {preset.height}</span>
+                                                        <Tip content={t('common.delete')}>
+                                                            <button
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation()
+                                                                    removeCustomResolution(preset.id)
+                                                                    if (isSelected(preset.width, preset.height)) {
+                                                                        onChange({
+                                                                            label: t('resolutions.portrait'),
+                                                                            width: 832,
+                                                                            height: 1216,
+                                                                        })
+                                                                    }
+                                                                }}
+                                                                className="cursor-pointer p-0.5 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        </Tip>
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+
+                    <div className="flex h-9 min-w-0 items-center rounded-xl border border-input bg-transparent shadow-sm">
+                        <Input
+                            type="number"
+                            inputMode="numeric"
+                            value={widthInput}
+                            onChange={event => setWidthInput(event.target.value)}
+                            onBlur={commitDimensions}
+                            onKeyDown={event => {
+                                if (event.key === 'Enter') event.currentTarget.blur()
+                            }}
+                            disabled={disabled}
+                            aria-label={t('resolutions.width')}
+                            className={inputClassName}
+                        />
+                        <span className="shrink-0 text-muted-foreground">×</span>
+                        <Input
+                            type="number"
+                            inputMode="numeric"
+                            value={heightInput}
+                            onChange={event => setHeightInput(event.target.value)}
+                            onBlur={commitDimensions}
+                            onKeyDown={event => {
+                                if (event.key === 'Enter') event.currentTarget.blur()
+                            }}
+                            disabled={disabled}
+                            aria-label={t('resolutions.height')}
+                            className={inputClassName}
+                        />
                     </div>
-                </PopoverContent>
-            </Popover>
+                </div>
+            </div>
 
-            <Dialog open={customDialogOpen} onOpenChange={setCustomDialogOpen}>
-                <DialogContent onInteractOutside={(e) => e.preventDefault()}>
+            <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+                <DialogContent onInteractOutside={event => event.preventDefault()}>
                     <DialogHeader>
                         <DialogTitle>{t('resolutions.addCustom')}</DialogTitle>
-                        <DialogDescription>
-                            {t('resolutions.addCustomDesc')}
-                        </DialogDescription>
                     </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="name" className="text-right">
-                                {t('resolutions.presetName')}
-                            </Label>
-                            <Input
-                                id="name"
-                                value={customLabel}
-                                onChange={(e) => setCustomLabel(e.target.value)}
-                                className="col-span-3"
-                            />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="width" className="text-right">
-                                {t('resolutions.width')}
-                            </Label>
-                            <div className="col-span-3 flex items-center gap-2">
-                                <Input
-                                    id="width"
-                                    type="number"
-                                    step={64}
-                                    value={customWidth}
-                                    onChange={(e) => setCustomWidth(Number(e.target.value))}
-                                    className="flex-1"
-                                />
-                                {roundTo64(customWidth) !== customWidth && (
-                                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                        → {roundTo64(customWidth)}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="height" className="text-right">
-                                {t('resolutions.height')}
-                            </Label>
-                            <div className="col-span-3 flex items-center gap-2">
-                                <Input
-                                    id="height"
-                                    type="number"
-                                    step={64}
-                                    value={customHeight}
-                                    onChange={(e) => setCustomHeight(Number(e.target.value))}
-                                    className="flex-1"
-                                />
-                                {roundTo64(customHeight) !== customHeight && (
-                                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                        → {roundTo64(customHeight)}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                        {/* Preview of final resolution */}
-                        <div className="text-center text-sm text-muted-foreground pt-2 border-t">
-                            {t('resolutions.finalResolution', '최종 해상도')}: <span className="font-mono font-medium text-foreground">{roundTo64(customWidth)} × {roundTo64(customHeight)}</span>
-                        </div>
+                    <div className="grid gap-2 py-3">
+                        <Label htmlFor="resolution-preset-name">{t('resolutions.presetName')}</Label>
+                        <Input
+                            id="resolution-preset-name"
+                            value={presetName}
+                            onChange={event => setPresetName(event.target.value)}
+                            onKeyDown={event => {
+                                if (event.key === 'Enter') savePreset()
+                            }}
+                            autoFocus
+                        />
                     </div>
                     <DialogFooter>
-                        <Button type="submit" onClick={handleCustomSave}>
+                        <Button onClick={savePreset} disabled={!presetName.trim()}>
                             {t('common.save')}
                         </Button>
                     </DialogFooter>

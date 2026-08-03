@@ -654,17 +654,11 @@ export function PromptPanel() {
 
                             {/* Resolution (Moved here) */}
                             {/* Resolution (Moved here) */}
-                            <div className="grid gap-2">
-                                <Label>
-                                    {t('settingsPage.general.resolution', '해상도')}
-                                </Label>
-                                <ResolutionSelector
-                                    value={selectedResolution}
-                                    onChange={setSelectedResolution}
-                                    disabled={isGenerating}
-                                    triggerClassName="h-9 rounded-xl px-3 text-xs"
-                                />
-                            </div>
+                            <ResolutionSelector
+                                value={selectedResolution}
+                                onChange={setSelectedResolution}
+                                disabled={isGenerating}
+                            />
 
                             {/* Seed (Moved here) */}
                             <div className="grid gap-2">
@@ -675,7 +669,7 @@ export function PromptPanel() {
                                         value={seed}
                                         onChange={(e) => setSeed(Number(e.target.value))}
                                         disabled={seedLocked}
-                                        className="h-9 flex-1 rounded-xl px-3 text-xs"
+                                        className="h-9 flex-1 rounded-xl px-3 text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                     />
                                     <Button
                                         variant="outline"
