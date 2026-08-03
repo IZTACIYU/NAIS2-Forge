@@ -159,7 +159,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog'
-import { ResolutionSelector, Resolution } from '@/components/ui/ResolutionSelector'
+import { ResolutionPresetSelector, Resolution } from '@/components/ui/ResolutionSelector'
 import { Switch } from '@/components/ui/switch'
 import { useSettingsStore } from '@/stores/settings-store'
 import { SceneCharacterSequenceDialog } from '@/components/scene/SceneCharacterSequenceDialog'
@@ -607,12 +607,11 @@ export default function SceneMode() {
 
                         {/* Change Resolution */}
                         <div className="flex items-center gap-2">
-                            <div className="w-[200px]">
-                                <ResolutionSelector
+                            <div className="w-[200px] shrink-0">
+                                <ResolutionPresetSelector
                                     value={editModeResolution}
                                     onChange={setEditModeResolution}
                                     disabled={selectedSceneIds.length === 0}
-                                    presetOnly
                                 />
                             </div>
                             <Tip content={t('scene.applyResolution', '선택한 씬에 해상도 적용')}>

@@ -289,3 +289,105 @@ export function ResolutionSelector({ value, onChange, disabled, presetOnly = fal
         </>
     )
 }
+
+interface ResolutionPresetSelectorProps {
+    value: Resolution
+    onChange: (resolution: Resolution) => void
+    disabled?: boolean
+}
+
+export function ResolutionPresetSelector({ value, onChange, disabled }: ResolutionPresetSelectorProps) {
+    const { t } = useTranslation()
+    const customResolutions = useSettingsStore(state => state.customResolutions)
+    const [open, setOpen] = useState(false)
+
+    const standardPreset = RESOLUTION_PRESETS.find(
+        preset => preset.width === value.width && preset.height === value.height
+    )
+    const customPreset = customResolutions.find(
+        preset => preset.width === value.width && preset.height === value.height
+    )
+    const displayText = standardPreset
+        ? t(`resolutions.${standardPreset.key}`)
+        : customPreset?.label || `${value.width} × ${value.height}`
+    const isSelected = (width: number, height: number) => value.width === width && value.height === height
+
+    const selectResolution = (preset: { key?: string; width: number; height: number; label?: string }) => {
+        onChange({
+            label: preset.key ? t(`resolutions.${preset.key}`) : preset.label || `${preset.width}x${preset.height}`,
+            width: preset.width,
+            height: preset.height,
+        })
+        setOpen(false)
+    }
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    disabled={disabled}
+                    className="h-9 w-full justify-between rounded-xl font-normal"
+                >
+                    <span className="truncate">{displayText}</span>
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent
+                className="p-0"
+                align="start"
+                style={{ width: 'var(--radix-popover-trigger-width)' }}
+            >
+                <div className="max-h-[300px] overflow-auto">
+                    <div className="p-1">
+                        {RESOLUTION_PRESETS.map(preset => (
+                            <button
+                                key={preset.key}
+                                onClick={() => selectResolution(preset)}
+                                className={cn(
+                                    'flex w-full cursor-pointer items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground',
+                                    isSelected(preset.width, preset.height) && 'bg-accent'
+                                )}
+                            >
+                                <span className="flex items-center gap-2">
+                                    {isSelected(preset.width, preset.height) ? <Check className="h-4 w-4" /> : <span className="w-4" />}
+                                    <span>{t(`resolutions.${preset.key}`)}</span>
+                                </span>
+                                <span className="text-xs text-muted-foreground">{preset.width} × {preset.height}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {customResolutions.length > 0 && (
+                        <>
+                            <div className="mx-1 h-px bg-border" />
+                            <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+                                {t('resolutions.custom')}
+                            </div>
+                            <div className="p-1 pt-0">
+                                {customResolutions.map(preset => (
+                                    <button
+                                        key={preset.id}
+                                        onClick={() => selectResolution(preset)}
+                                        className={cn(
+                                            'flex w-full cursor-pointer items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground',
+                                            isSelected(preset.width, preset.height) && 'bg-accent'
+                                        )}
+                                    >
+                                        <span className="flex min-w-0 items-center gap-2">
+                                            {isSelected(preset.width, preset.height) ? <Check className="h-4 w-4 shrink-0" /> : <span className="w-4 shrink-0" />}
+                                            <span className="truncate">{preset.label}</span>
+                                        </span>
+                                        <span className="ml-2 shrink-0 text-xs text-muted-foreground">{preset.width} × {preset.height}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+            </PopoverContent>
+        </Popover>
+    )
+}

@@ -10,7 +10,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import { ResolutionSelector, Resolution } from '@/components/ui/ResolutionSelector'
+import { ResolutionPresetSelector, Resolution } from '@/components/ui/ResolutionSelector'
 import {
     ChevronLeft,
     Check,
@@ -415,11 +415,10 @@ export default function SceneDetail() {
                 </div>
                 <div className="flex items-center gap-3">
                     {/* Resolution Settings */}
-                    <div className="w-[220px]">
-                        <ResolutionSelector
+                    <div className="w-[220px] shrink-0">
+                        <ResolutionPresetSelector
                             value={currentResolution}
                             onChange={handleResolutionChange}
-                            presetOnly
                         />
                     </div>
 
