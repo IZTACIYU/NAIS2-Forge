@@ -636,11 +636,11 @@ export function PromptPanel() {
                                 {t('parameters.description')}
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="grid gap-4 py-3">
+                        <div className="grid gap-4 pb-3 pt-4">
                             {/* Model Selection */}
                             <div className="relative h-9">
-                                <Label className="pointer-events-none absolute -top-3 left-0 flex items-center gap-1 text-[10px] leading-none text-muted-foreground">
-                                    <Cpu className="h-3 w-3" />
+                                <Label className="pointer-events-none absolute -top-4 left-0 flex items-center gap-1 text-sm font-medium leading-none text-foreground">
+                                    <Cpu className="h-3.5 w-3.5" />
                                     {t('parameters.model')}
                                 </Label>
                                 <Select value={model} onValueChange={setModel}>
@@ -658,7 +658,7 @@ export function PromptPanel() {
                             {/* Resolution (Moved here) */}
                             {/* Resolution (Moved here) */}
                             <div className="relative h-9">
-                                <Label className="pointer-events-none absolute -top-3 left-0 text-[10px] leading-none text-muted-foreground">
+                                <Label className="pointer-events-none absolute -top-4 left-0 text-sm font-medium leading-none text-foreground">
                                     {t('settingsPage.general.resolution', '해상도')}
                                 </Label>
                                 <ResolutionSelector
@@ -671,7 +671,7 @@ export function PromptPanel() {
 
                             {/* Seed (Moved here) */}
                             <div className="relative flex h-9 gap-2">
-                                <label className="pointer-events-none absolute -top-3 left-0 text-[10px] leading-none text-muted-foreground">{t('settings.seed')}</label>
+                                <label className="pointer-events-none absolute -top-4 left-0 text-sm font-medium leading-none text-foreground">{t('settings.seed')}</label>
                                 <div className="flex min-w-0 flex-1 gap-2">
                                     <Input
                                         type="number"
