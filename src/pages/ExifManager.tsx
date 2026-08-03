@@ -131,7 +131,7 @@ export default function ExifManager() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center justify-end gap-2 shrink-0">
                         <Button onClick={processImage} disabled={!activeImage || processing}>
                             <Eraser className="h-4 w-4 mr-2" />{processing ? t('exif.processing') : t('exif.process')}
                         </Button>
