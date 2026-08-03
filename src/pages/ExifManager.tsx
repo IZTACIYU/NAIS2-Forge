@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, Eraser, FilePenLine, ImagePlus, Trash2, Upload } from 'lucide-react'
+import { Download, Eraser, ImagePlus, Trash2, Upload } from 'lucide-react'
 import { save } from '@tauri-apps/plugin-dialog'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -147,10 +147,11 @@ export default function ExifManager() {
                     </div>
                 </TabsContent>
 
-                <TabsContent value="edit" className="mt-4 flex flex-1 min-h-0 items-center justify-center border border-dashed border-border/60 rounded-lg text-sm text-muted-foreground">
-                    <FilePenLine className="h-5 w-5 mr-2" />
-                    {t('exif.editComingSoon')}
-                </TabsContent>
+                {activeTab === 'edit' && (
+                    <TabsContent value="edit" className="mt-4 text-sm text-muted-foreground">
+                        {t('exif.editComingSoon')}
+                    </TabsContent>
+                )}
             </Tabs>
         </div>
     )
