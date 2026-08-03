@@ -12,7 +12,7 @@ import { buildGenerationRequest } from '@/lib/generation-request'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 import i18n from '@/i18n'
 import { toast } from '@/components/ui/use-toast'
-import { AVAILABLE_MODELS, getModelCapabilities } from '@/lib/model-capabilities'
+import { AVAILABLE_MODELS, getModelCapabilities, normalizeUcPreset } from '@/lib/model-capabilities'
 
 interface Resolution {
     label: string
@@ -212,7 +212,7 @@ export const useGenerationStore = create<GenerationState>()(
                 useCharacterPromptStore.getState().setActiveCharacterLimit(
                     getModelCapabilities(model).maxCharacterPrompts
                 )
-                set({ model })
+                set(state => ({ model, ucPreset: normalizeUcPreset(model, state.ucPreset) }))
             },
             setSteps: (steps) => set({ steps }),
             setCfgScale: (cfgScale) => set({ cfgScale }),
@@ -239,7 +239,7 @@ export const useGenerationStore = create<GenerationState>()(
                     smeaDyn: preset.smeaDyn,
                     variety: preset.variety ?? false,
                     qualityToggle: preset.qualityToggle ?? true,
-                    ucPreset: preset.ucPreset ?? 0,
+                    ucPreset: normalizeUcPreset(preset.model, preset.ucPreset ?? 0),
                     selectedResolution: preset.selectedResolution,
                 })
             },
@@ -254,7 +254,9 @@ export const useGenerationStore = create<GenerationState>()(
             setSeedLocked: (locked) => set({ seedLocked: locked }),
             setSelectedResolution: (resolution) => set({ selectedResolution: resolution }),
             setQualityToggle: (qualityToggle) => set({ qualityToggle }),
-            setUcPreset: (ucPreset) => set({ ucPreset }),
+            setUcPreset: (ucPreset) => set(state => ({
+                ucPreset: normalizeUcPreset(state.model, ucPreset),
+            })),
 
             setBatchCount: (count) => set({ batchCount: count }),
 
@@ -732,6 +734,7 @@ export const useGenerationStore = create<GenerationState>()(
                     useCharacterPromptStore.getState().setActiveCharacterLimit(
                         getModelCapabilities(state.model).maxCharacterPrompts
                     )
+                    state.setUcPreset(state.ucPreset)
                     console.log('[GenerationStore] Hydrated successfully')
                 }
             },

@@ -809,11 +809,15 @@ export function PromptPanel() {
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="0">Heavy</SelectItem>
-                                        <SelectItem value="1">Light</SelectItem>
-                                        <SelectItem value="2">Furry Focus</SelectItem>
-                                        <SelectItem value="3">Human Focus</SelectItem>
-                                        <SelectItem value="4">None</SelectItem>
+                                        {modelCapabilities.ucPresets.map(preset => (
+                                            <SelectItem key={preset.value} value={String(preset.value)}>
+                                                {preset.label === 'heavy' ? 'Heavy'
+                                                    : preset.label === 'light' ? 'Light'
+                                                        : preset.label === 'furryFocus' ? 'Furry Focus'
+                                                            : preset.label === 'humanFocus' ? 'Human Focus'
+                                                                : 'None'}
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
