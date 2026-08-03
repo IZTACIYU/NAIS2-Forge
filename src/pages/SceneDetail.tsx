@@ -454,11 +454,11 @@ export default function SceneDetail() {
                 </div>
             </div >
 
-            {(sceneVariantOverrideEnabled || sceneCostumeOverrideEnabled || expertSceneMultiCharacterEnabled) && (
-                <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-muted/25 px-3 py-2 shrink-0">
+            <section className="shrink-0">
+                <div className="flex h-8 items-center justify-between gap-3 border-b border-border/50">
+                    <div className="flex min-w-0 items-center gap-2">
                     {sceneVariantOverrideEnabled && (
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">{t('sceneCharacterAddition.stackOverride')}</span>
+                        <div>
                             <Select
                                 value={sceneCharacterAddition?.characterVariantIndex === undefined
                                     ? 'current'
@@ -517,12 +517,8 @@ export default function SceneDetail() {
                             </PopoverContent>
                         </Popover>
                     )}
-                </div>
-            )}
-
-            <section className="shrink-0">
-                <div className="flex h-8 items-center justify-between gap-3 border-b border-border/50">
-                    <div className="flex items-center gap-1">
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
                         <Button
                             type="button"
                             size="sm"
@@ -547,7 +543,6 @@ export default function SceneDetail() {
                         >
                             {t('sceneEditor.negative')}
                         </Button>
-                    </div>
                     <Tip content={sceneEditorCollapsed ? t('sceneEditor.expand') : t('sceneEditor.collapse')}>
                         <Button
                             type="button"
@@ -559,6 +554,7 @@ export default function SceneDetail() {
                             {sceneEditorCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
                         </Button>
                     </Tip>
+                    </div>
                 </div>
 
                 {!sceneEditorCollapsed && (
