@@ -122,12 +122,12 @@ export default function ExifManager() {
                         </Button>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-[460px]">
                         <div className="min-h-0 border border-border/50 rounded-lg bg-muted/15 overflow-hidden flex flex-col">
                             <div className="px-3 py-2 text-xs font-medium border-b border-border/50">{t('exif.original')}</div>
-                            <div className="flex-1 min-h-0 flex items-center justify-center p-4 relative">
+                            <div className="flex-1 min-h-0 flex items-center justify-center p-3 relative">
                                 {activeImage ? <img src={activeImage} alt="" className="max-w-full max-h-full object-contain" /> : (
-                                    <button type="button" onClick={() => inputRef.current?.click()} className="w-full h-full border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center text-muted-foreground hover:border-primary/50">
+                                    <button type="button" onClick={() => inputRef.current?.click()} className="w-full h-full flex flex-col items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
                                         <ImagePlus className="h-10 w-10 mb-3 opacity-50" />
                                         <span className="text-sm">{t('exif.drop')}</span>
                                     </button>
@@ -140,7 +140,7 @@ export default function ExifManager() {
                                 <span>{t('exif.result')}</span>
                                 {result && <span className="text-muted-foreground">{result.width} x {result.height}</span>}
                             </div>
-                            <div className="flex-1 min-h-0 flex items-center justify-center p-4">
+                            <div className="flex-1 min-h-0 flex items-center justify-center p-3">
                                 {resultUrl ? <img src={resultUrl} alt="" className="max-w-full max-h-full object-contain" /> : <span className="text-sm text-muted-foreground">{t('exif.noResult')}</span>}
                             </div>
                         </div>
