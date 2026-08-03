@@ -455,7 +455,7 @@ export default function SceneDetail() {
             </div >
 
             <section className="shrink-0">
-                <div className="flex h-8 items-center justify-between gap-3 border-b border-border/50">
+                <div className="flex h-8 flex-row-reverse items-center justify-between gap-3 border-b border-border/50">
                     <div className="flex min-w-0 items-center gap-2">
                     {sceneVariantOverrideEnabled && (
                         <div>

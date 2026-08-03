@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Eye, EyeOff, Link2, MapPin, Plus, Trash2, UserRound, UsersRound } from 'lucide-react'
+import { ChevronDown, ChevronUp, Eye, EyeOff, Link2, MapPin, Plus, Trash2, UserRound, UsersRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
     Select,
@@ -45,6 +45,7 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
     const activeCharacters = useMemo(() => characters.filter(character => character.enabled), [characters])
     const [positionBoardOpen, setPositionBoardOpen] = useState(false)
     const [selectedPositionSlotId, setSelectedPositionSlotId] = useState<string | null>(null)
+    const [collapsedSlotIds, setCollapsedSlotIds] = useState<Set<string>>(new Set())
     const boardAspectRatio = getCharacterPositionBoardAspectRatio(width ?? 832, height ?? 1216)
 
     const genderLabel = (gender: SceneMultiCharacterSlot['gender']) => {
@@ -73,6 +74,15 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
     const cycleGender = (id: string, gender: NonNullable<SceneMultiCharacterSlot['gender']>) => {
         const nextGender = gender === 'male' ? 'female' : gender === 'female' ? 'unknown' : 'male'
         updateSlot(id, { gender: nextGender })
+    }
+
+    const toggleSlotCollapsed = (id: string) => {
+        setCollapsedSlotIds(current => {
+            const next = new Set(current)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
     }
 
     const addSlot = () => {
@@ -179,6 +189,9 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
                 <div className="mt-3 space-y-2.5">
                     {slots.map((slot, index) => (
                         <div key={slot.id} className={cn('rounded-lg border border-border/60 bg-background/50 p-2.5', slot.enabled === false && 'opacity-50')}>
+                            {(() => {
+                                const isCollapsed = collapsedSlotIds.has(slot.id)
+                                return <>
                             <div className="flex items-center gap-2">
                                 <div className="flex min-w-0 items-center gap-2">
                                     {slot.target === 'gender' && genderSelectionMode === 'portrait' ? (
@@ -240,6 +253,16 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
                                     type="button"
                                     variant="ghost"
                                     size="icon"
+                                    className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    onClick={() => toggleSlotCollapsed(slot.id)}
+                                    aria-label={isCollapsed ? 'Expand character' : 'Collapse character'}
+                                >
+                                    {isCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
                                     className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                     onClick={() => onChange(slots.filter(candidate => candidate.id !== slot.id))}
                                     aria-label={t('sceneMultiCharacter.remove')}
@@ -248,6 +271,7 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
                                 </Button>
                             </div>
 
+                            {!isCollapsed && <>
                             {(slot.target === 'manual' || genderSelectionMode === 'dropdown') && (
                                 <div className="mt-2">
                                 {slot.target === 'gender' ? (
@@ -283,7 +307,6 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
                             )}
 
                             <div className="mt-2">
-                                <div className="mb-1 text-[11px] font-medium text-muted-foreground">{t('sceneMultiCharacter.prompt')}</div>
                                 <AutocompleteTextarea
                                     value={slot.prompt}
                                     onChange={(event) => updateSlot(slot.id, { prompt: event.target.value })}
@@ -293,6 +316,9 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
                                     disabled={slot.enabled === false}
                                 />
                             </div>
+                            </>}
+                                </>
+                            })()}
                         </div>
                     ))}
                 </div>
