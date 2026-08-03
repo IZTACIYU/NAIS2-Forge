@@ -14,32 +14,17 @@ pub struct AnlasResult {
     pub purchased: Option<i64>,
     #[serde(rename = "unlimitedImageGeneration")]
     pub unlimited_image_generation: Option<bool>,
-    #[serde(rename = "unlimitedImageGenerationLimits")]
-    pub unlimited_image_generation_limits: Option<Vec<UnlimitedImageGenerationLimit>>,
     pub error: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct SubscriptionResponse {
     tier: Option<i32>,
-    perks: Option<SubscriptionPerks>,
+    active: Option<bool>,
+    #[serde(rename = "isGracePeriod")]
+    is_grace_period: Option<bool>,
     #[serde(rename = "trainingStepsLeft")]
     training_steps_left: Option<TrainingSteps>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct SubscriptionPerks {
-    #[serde(rename = "unlimitedImageGeneration")]
-    unlimited_image_generation: Option<bool>,
-    #[serde(rename = "unlimitedImageGenerationLimits")]
-    unlimited_image_generation_limits: Option<Vec<UnlimitedImageGenerationLimit>>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UnlimitedImageGenerationLimit {
-    resolution: i64,
-    #[serde(rename = "maxPrompts")]
-    max_prompts: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -149,7 +134,6 @@ async fn get_anlas_balance(token: String) -> AnlasResult {
             if response.status().is_success() {
                 match response.json::<SubscriptionResponse>().await {
                     Ok(data) => {
-                        let perks = data.perks.unwrap_or_default();
                         let fixed = data
                             .training_steps_left
                             .as_ref()
@@ -158,12 +142,13 @@ async fn get_anlas_balance(token: String) -> AnlasResult {
                             .training_steps_left
                             .as_ref()
                             .and_then(|t| t.purchased_training_steps);
+                        let unlimited_image_generation = data.tier == Some(3)
+                            && (data.active.unwrap_or(false) || data.is_grace_period.unwrap_or(false));
                         AnlasResult {
                             success: true,
                             fixed,
                             purchased,
-                            unlimited_image_generation: Some(perks.unlimited_image_generation.unwrap_or(false)),
-                            unlimited_image_generation_limits: perks.unlimited_image_generation_limits,
+                            unlimited_image_generation: Some(unlimited_image_generation),
                             error: None,
                         }
                     }
@@ -172,7 +157,6 @@ async fn get_anlas_balance(token: String) -> AnlasResult {
                         fixed: None,
                         purchased: None,
                         unlimited_image_generation: None,
-                        unlimited_image_generation_limits: None,
                         error: Some(format!("JSON 파싱 오류: {}", e)),
                     },
                 }
@@ -182,7 +166,6 @@ async fn get_anlas_balance(token: String) -> AnlasResult {
                     fixed: None,
                     purchased: None,
                     unlimited_image_generation: None,
-                    unlimited_image_generation_limits: None,
                     error: Some(format!("API 오류: {}", response.status().as_u16())),
                 }
             }
@@ -192,7 +175,6 @@ async fn get_anlas_balance(token: String) -> AnlasResult {
             fixed: None,
             purchased: None,
             unlimited_image_generation: None,
-            unlimited_image_generation_limits: None,
             error: Some(format!("네트워크 오류: {}", e)),
         },
     }
