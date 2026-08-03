@@ -20,6 +20,11 @@ interface Resolution {
     height: number
 }
 
+export interface InpaintComparisonData {
+    sourceImage: string
+    mask: string
+}
+
 export { AVAILABLE_MODELS }
 
 interface GenerationState {
@@ -73,6 +78,8 @@ interface GenerationState {
     generatingMode: 'main' | 'scene' | null
     isCancelled: boolean
     previewImage: string | null
+    // Runtime-only data for the hold-to-compare inpaint preview.
+    previewInpaintComparison: InpaintComparisonData | null
 
     // AbortController for cancellation
     abortController: AbortController | null
@@ -197,6 +204,7 @@ export const useGenerationStore = create<GenerationState>()(
             generatingMode: null,
             isCancelled: false,
             previewImage: null,
+            previewInpaintComparison: null,
             abortController: null,
             generationSessionId: 0,
             streamProgress: 0,
@@ -344,6 +352,7 @@ export const useGenerationStore = create<GenerationState>()(
                     generationSessionId: sessionId,
                     estimatedTime: lastGenerationTime ? lastGenerationTime * batchCount : null,
                     previewImage: null, // Clear previous preview to free memory
+                    previewInpaintComparison: null,
                     previewSeed: null, // A history preview seed must not label a new generation.
                     streamProgress: 0,  // Reset streaming progress
                 })
@@ -554,7 +563,12 @@ export const useGenerationStore = create<GenerationState>()(
                         if (result.success && result.imageData) {
                             const mimeType = imageFormat === 'webp' ? 'image/webp' : 'image/png'
                             const imageUrl = `data:${mimeType};base64,${result.imageData}`
-                            set({ previewImage: imageUrl })
+                            set({
+                                previewImage: imageUrl,
+                                previewInpaintComparison: i2iMode === 'inpaint' && sourceImage && mask
+                                    ? { sourceImage, mask }
+                                    : null,
+                            })
 
                             // Save Image: Try Tauri FS first, fallback to browser
                             const { savePath, autoSave, useAbsolutePath } = useSettingsStore.getState()
@@ -679,7 +693,7 @@ export const useGenerationStore = create<GenerationState>()(
                 }
             },
 
-            setPreviewImage: (url) => set({ previewImage: url }),
+            setPreviewImage: (url) => set({ previewImage: url, previewInpaintComparison: null }),
             setIsGenerating: (v) => set({ isGenerating: v, generatingMode: v ? 'main' : null }),
             setGeneratingMode: (mode) => set({ generatingMode: mode }),
             setStreamProgress: (progress) => set({ streamProgress: progress }),

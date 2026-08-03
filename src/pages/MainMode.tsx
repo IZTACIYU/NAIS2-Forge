@@ -27,11 +27,13 @@ import { SceneR2DirectUploadDialog, UploadCandidate } from '@/components/scene/S
 import { useExifStore } from '@/stores/exif-store'
 import { processAndSaveExifImage } from '@/lib/exif-actions'
 import { ImageQuickActionItems } from '@/components/image/ImageQuickActionItems'
+import { InpaintComparisonControl } from '@/components/image/InpaintComparisonControl'
 
 export default function MainMode() {
     const { t } = useTranslation()
     const {
         previewImage,
+        previewInpaintComparison,
         isGenerating,
         selectedResolution,
         seed,
@@ -52,6 +54,7 @@ export default function MainMode() {
         setPreviewSeed,
     } = useGenerationStore(useShallow(state => ({
         previewImage: state.previewImage,
+        previewInpaintComparison: state.previewInpaintComparison,
         isGenerating: state.isGenerating,
         selectedResolution: state.selectedResolution,
         seed: state.seed,
@@ -489,8 +492,14 @@ export default function MainMode() {
                                     alt="Generated preview"
                                     className="w-full h-full object-contain"
                                 />
+                                {previewInpaintComparison && (
+                                    <InpaintComparisonControl
+                                        sourceImage={previewInpaintComparison.sourceImage}
+                                        mask={previewInpaintComparison.mask}
+                                    />
+                                )}
                                 {/* Image Actions Overlay (Visible on hover) */}
-                                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                <div className="absolute top-4 right-4 z-20 flex gap-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                                     <Button
                                         size="icon"
                                         variant="secondary"
