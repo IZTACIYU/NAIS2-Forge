@@ -518,13 +518,13 @@ export default function SceneDetail() {
                         </Popover>
                     )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="flex shrink-0 self-end items-center gap-1">
                         <Button
                             type="button"
                             size="sm"
                             variant="ghost"
                             className={cn(
-                                'h-10 rounded-none px-3.5 text-[13px] text-muted-foreground hover:text-foreground',
+                                'h-9 rounded-none px-3.5 text-[13px] text-muted-foreground hover:text-foreground',
                                 scenePromptMode === 'positive' && 'border-b-2 border-primary text-foreground',
                             )}
                             onClick={() => setScenePromptMode('positive')}
@@ -536,7 +536,7 @@ export default function SceneDetail() {
                             size="sm"
                             variant="ghost"
                             className={cn(
-                                'h-10 rounded-none px-3.5 text-[13px] text-muted-foreground hover:text-foreground',
+                                'h-9 rounded-none px-3.5 text-[13px] text-muted-foreground hover:text-foreground',
                                 scenePromptMode === 'negative' && 'border-b-2 border-primary text-foreground',
                             )}
                             onClick={() => setScenePromptMode('negative')}
