@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useCallback, useEffect } from 'react'
+import { lazy, Suspense, useState, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -61,6 +61,8 @@ import { useFragmentStore } from '@/stores/fragment-store'
 import { ResolutionSelector } from '@/components/ui/ResolutionSelector'
 import { useSceneQueueHasItems, useSceneQueueTotal } from '@/hooks/use-scene-queue'
 import { getModelCapabilities } from '@/lib/model-capabilities'
+import { calculateGenerationAnlasCost } from '@/lib/anlas-calculator'
+import { useAuthStore } from '@/stores/auth-store'
 
 const SAMPLERS = [
     'k_euler',
@@ -141,6 +143,7 @@ export function PromptPanel() {
     const qualityToggle = useGenerationStore(state => state.qualityToggle)
     const ucPreset = useGenerationStore(state => state.ucPreset)
     const batchCount = useGenerationStore(state => state.batchCount)
+    const hasSourceImage = useGenerationStore(state => Boolean(state.sourceImage))
     const currentBatch = useGenerationStore(state => state.currentBatch)
     const generatingMode = useGenerationStore(state => state.generatingMode)
 
@@ -194,6 +197,35 @@ export function PromptPanel() {
         state.characterImages.filter(image => image.enabled !== false).length
         + state.vibeImages.filter(image => image.enabled !== false).length
     )
+    const activeCharacterReferenceCount = useCharacterStore(state =>
+        state.characterImages.reduce((count, image) => count + (image.enabled !== false ? 1 : 0), 0)
+    )
+    const activeUncachedVibeCount = useCharacterStore(state =>
+        state.vibeImages.reduce((count, image) => count + (image.enabled !== false && !image.encodedVibe && !image.encodedVibePath ? 1 : 0), 0)
+    )
+    const imageGenerationEntitlement = useAuthStore(state => state.imageGenerationEntitlement)
+    const mainGenerationCost = useMemo(() => {
+        if (hasSourceImage) return null
+        return calculateGenerationAnlasCost({
+            width: selectedResolution.width,
+            height: selectedResolution.height,
+            steps,
+            imageCount: batchCount,
+            characterReferenceCount: activeCharacterReferenceCount,
+            uncachedVibeCount: activeUncachedVibeCount,
+            usesSourceImage: false,
+            entitlement: imageGenerationEntitlement,
+        })
+    }, [
+        activeCharacterReferenceCount,
+        activeUncachedVibeCount,
+        batchCount,
+        hasSourceImage,
+        imageGenerationEntitlement,
+        selectedResolution.height,
+        selectedResolution.width,
+        steps,
+    ])
 
     const [promptGenOpen, setPromptGenOpen] = useState(false)
     const [characterPanelOpen, setCharacterPanelOpen] = useState(false)
@@ -895,6 +927,11 @@ export function PromptPanel() {
                                 <>
                                     <ImagePlus className="mr-2 h-5 w-5" />
                                     {t('generate.button')}
+                                    {mainGenerationCost !== null && (
+                                        <span className={cn('ml-1', mainGenerationCost === 0 ? 'text-cyan-200' : 'text-amber-200')}>
+                                            (-{mainGenerationCost})
+                                        </span>
+                                    )}
                                 </>
                             )
                         )}
