@@ -24,6 +24,7 @@ export default function ExifManager() {
     const [processing, setProcessing] = useState(false)
     const [dragging, setDragging] = useState(false)
     const [activeTab, setActiveTab] = useState<'remove' | 'edit'>('remove')
+    const [editImage, setEditImage] = useState<string | null>(null)
     const inputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
@@ -38,10 +39,14 @@ export default function ExifManager() {
         if (resultUrl) URL.revokeObjectURL(resultUrl)
     }, [resultUrl])
 
-    const loadFile = (file?: File) => {
+    const loadFile = (file?: File, targetTab = activeTab) => {
         if (!file || !file.type.startsWith('image/')) return
         const reader = new FileReader()
-        reader.onload = () => setSource(String(reader.result), file.name)
+        reader.onload = () => {
+            const image = String(reader.result)
+            if (targetTab === 'edit') setEditImage(image)
+            else setSource(image, file.name)
+        }
         reader.readAsDataURL(file)
     }
 
@@ -152,7 +157,7 @@ export default function ExifManager() {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-[460px]">
                         <div className="min-h-0 border border-border/50 rounded-lg bg-muted/15 overflow-hidden flex flex-col">
                             <div className="flex-1 min-h-0 flex items-center justify-center p-3 relative">
-                                {activeImage ? <img src={activeImage} alt="" className="max-w-full max-h-full object-contain" /> : (
+                                {editImage ? <img src={editImage} alt="" className="max-w-full max-h-full object-contain" /> : (
                                     <button type="button" onClick={() => inputRef.current?.click()} className="w-full h-full flex flex-col items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
                                         <ImagePlus className="h-10 w-10 mb-3 opacity-50" />
                                         <span className="text-sm">{t('exif.drop')}</span>
