@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, Eraser, ImagePlus, Trash2, Upload } from 'lucide-react'
+import { Download, Eraser, ImagePlus, Trash2 } from 'lucide-react'
 import { save } from '@tauri-apps/plugin-dialog'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -107,21 +107,6 @@ export default function ExifManager() {
                 </TabsList>
 
                 <TabsContent value="remove" className="mt-4 flex flex-1 min-h-0 flex-col gap-4">
-                    <div className="flex justify-end gap-2 shrink-0">
-                        <Button variant="outline" onClick={() => inputRef.current?.click()}>
-                            <Upload className="h-4 w-4 mr-2" />{t('exif.open')}
-                        </Button>
-                        <Button onClick={processImage} disabled={!activeImage || processing}>
-                            <Eraser className="h-4 w-4 mr-2" />{processing ? t('exif.processing') : t('exif.process')}
-                        </Button>
-                        <Button variant="outline" onClick={saveResult} disabled={!result}>
-                            <Download className="h-4 w-4 mr-2" />{t('common.download')}
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={clearSource} disabled={!activeImage}>
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
-                    </div>
-
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-[460px]">
                         <div className="min-h-0 border border-border/50 rounded-lg bg-muted/15 overflow-hidden flex flex-col">
                             <div className="px-3 py-2 text-xs font-medium border-b border-border/50">{t('exif.original')}</div>
@@ -144,6 +129,18 @@ export default function ExifManager() {
                                 {resultUrl ? <img src={resultUrl} alt="" className="max-w-full max-h-full object-contain" /> : <span className="text-sm text-muted-foreground">{t('exif.noResult')}</span>}
                             </div>
                         </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Button onClick={processImage} disabled={!activeImage || processing}>
+                            <Eraser className="h-4 w-4 mr-2" />{processing ? t('exif.processing') : t('exif.process')}
+                        </Button>
+                        <Button variant="outline" onClick={saveResult} disabled={!result}>
+                            <Download className="h-4 w-4 mr-2" />{t('common.download')}
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={clearSource} disabled={!activeImage}>
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
                     </div>
                 </TabsContent>
 
