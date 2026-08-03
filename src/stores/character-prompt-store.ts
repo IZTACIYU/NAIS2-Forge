@@ -25,7 +25,7 @@ interface CharacterPromptState {
     clearAll: () => void
 }
 
-// Color palette for character markers (up to 6 characters)
+// Color palette for character markers.
 export const CHARACTER_COLORS = [
     '#22c55e', // Green
     '#ef4444', // Red
@@ -33,6 +33,12 @@ export const CHARACTER_COLORS = [
     '#f59e0b', // Amber
     '#a855f7', // Purple
     '#06b6d4', // Cyan
+    '#f43f5e', // Rose
+    '#84cc16', // Lime
+    '#f97316', // Orange
+    '#14b8a6', // Teal
+    '#8b5cf6', // Violet
+    '#eab308', // Yellow
 ]
 
 // Folder color palette
@@ -113,6 +119,7 @@ interface CharacterPromptState {
     presets: CharacterPreset[]
     groups: CharacterGroup[]
     positionEnabled: boolean // 위치 기능 활성화 여부
+    activeCharacterLimit: number
 
     // Active Characters (Stage)
     addCharacter: (initialData?: Partial<CharacterPrompt>) => void
@@ -120,6 +127,7 @@ interface CharacterPromptState {
     removeCharacter: (id: string) => void
     setPosition: (id: string, x: number, y: number) => void
     toggleEnabled: (id: string) => void
+    setActiveCharacterLimit: (limit: number) => void
     disableAll: () => void
     clearAll: () => void
     setPositionEnabled: (enabled: boolean) => void
@@ -151,33 +159,46 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
             presets: [],
             groups: [],
             positionEnabled: false, // 기본값: 비활성화
+            activeCharacterLimit: 6,
 
             addCharacter: (initialData?: Partial<CharacterPrompt>) => {
                 const newId = Date.now().toString() + Math.random().toString(36).substr(2, 9)
-                set(state => ({
-                    characters: [
-                        ...state.characters,
-                        {
-                            id: newId,
-                            prompt: '',
-                            negative: '',
-                            enabled: true,
-                            promptEnabled: true,
-                            negativeEnabled: true,
-                            costumeEnabled: true,
-                            position: { x: 0.5, y: 0.5 }, // Center by default
-                            ...initialData
-                        }
-                    ]
-                }))
+                set(state => {
+                    const requestedEnabled = initialData?.enabled ?? true
+                    const enabledCount = state.characters.filter(character => character.enabled).length
+                    return {
+                        characters: [
+                            ...state.characters,
+                            {
+                                id: newId,
+                                prompt: '',
+                                negative: '',
+                                promptEnabled: true,
+                                negativeEnabled: true,
+                                costumeEnabled: true,
+                                position: { x: 0.5, y: 0.5 }, // Center by default
+                                ...initialData,
+                                enabled: requestedEnabled && enabledCount < state.activeCharacterLimit,
+                            }
+                        ]
+                    }
+                })
             },
 
             updateCharacter: (id, data) => {
-                set(state => ({
-                    characters: state.characters.map(char =>
-                        char.id === id ? { ...char, ...data } : char
-                    )
-                }))
+                set(state => {
+                    const target = state.characters.find(character => character.id === id)
+                    if (!target) return state
+                    const reachedLimit = data.enabled === true
+                        && !target.enabled
+                        && state.characters.filter(character => character.enabled).length >= state.activeCharacterLimit
+                    const updates = reachedLimit ? { ...data, enabled: false } : data
+                    return {
+                        characters: state.characters.map(char =>
+                            char.id === id ? { ...char, ...updates } : char
+                        )
+                    }
+                })
             },
 
             removeCharacter: (id) => {
@@ -198,11 +219,34 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
             },
 
             toggleEnabled: (id) => {
-                set(state => ({
-                    characters: state.characters.map(char =>
-                        char.id === id ? { ...char, enabled: !char.enabled } : char
-                    )
-                }))
+                set(state => {
+                    const target = state.characters.find(character => character.id === id)
+                    if (!target) return state
+                    if (!target.enabled && state.characters.filter(character => character.enabled).length >= state.activeCharacterLimit) {
+                        return state
+                    }
+                    return {
+                        characters: state.characters.map(char =>
+                            char.id === id ? { ...char, enabled: !char.enabled } : char
+                        )
+                    }
+                })
+            },
+
+            setActiveCharacterLimit: (limit) => {
+                const activeCharacterLimit = Math.max(1, Math.floor(limit))
+                set(state => {
+                    let enabledCount = 0
+                    let changed = state.activeCharacterLimit !== activeCharacterLimit
+                    const characters = state.characters.map(character => {
+                        if (!character.enabled) return character
+                        enabledCount += 1
+                        if (enabledCount <= activeCharacterLimit) return character
+                        changed = true
+                        return { ...character, enabled: false }
+                    })
+                    return changed ? { activeCharacterLimit, characters } : state
+                })
             },
 
             disableAll: () => {
@@ -300,6 +344,7 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
                     // For now, allow duplicates.
 
                     const newId = Date.now().toString() + Math.random().toString(36).substr(2, 9)
+                    const enabledCount = state.characters.filter(character => character.enabled).length
                     return {
                         characters: [
                             ...state.characters,
@@ -308,7 +353,7 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
                                 presetId: preset.id,
                                 prompt: preset.prompt,
                                 negative: preset.negative,
-                                enabled: true,
+                                enabled: enabledCount < state.activeCharacterLimit,
                                 promptEnabled: true,
                                 negativeEnabled: true,
                                 costumeEnabled: true,
@@ -415,12 +460,15 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
                 const groupIds = getCharacterGroupDescendantIds(get().groups, groupId)
                 const groupCharacters = characters.filter(c => c.groupId && groupIds.has(c.groupId))
                 const allEnabled = groupCharacters.length > 0 && groupCharacters.every(c => c.enabled)
-                const newEnabled = !allEnabled
+                const enabledOutsideGroup = characters.filter(character =>
+                    character.enabled && !(character.groupId && groupIds.has(character.groupId))
+                ).length
+                let remainingSlots = Math.max(0, get().activeCharacterLimit - enabledOutsideGroup)
 
                 set(state => ({
                     characters: state.characters.map(c =>
                         c.groupId && groupIds.has(c.groupId)
-                            ? { ...c, enabled: newEnabled }
+                            ? { ...c, enabled: allEnabled ? false : remainingSlots-- > 0 }
                             : c
                     )
                 }))

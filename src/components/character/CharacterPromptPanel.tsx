@@ -61,6 +61,7 @@ import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { getCharacterGender, type CharacterGender } from '@/lib/character-gender'
 import { getCharacterPositionBoardAspectRatio } from '@/lib/character-position-grid'
+import { getModelCapabilities } from '@/lib/model-capabilities'
 import { toast } from '@/components/ui/use-toast'
 import { CharacterPositionBoard } from '@/components/character/CharacterPositionBoard'
 import {
@@ -221,6 +222,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
     const expertCharacterPromptVariantsEnabled = useSettingsStore(state => state.expertCharacterPromptVariantsEnabled)
     const expertCharacterPromptGenderIndicatorEnabled = useSettingsStore(state => state.expertCharacterPromptGenderIndicatorEnabled)
     const characterPromptGenderIndicatorMode = useSettingsStore(state => state.characterPromptGenderIndicatorMode)
+    const activeCharacterLimit = getModelCapabilities(useGenerationStore(state => state.model)).maxCharacterPrompts
 
     const startFolderPanelResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
         event.preventDefault()
@@ -362,6 +364,8 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         const selected = state.characters.find(c => c.id === id)
         if (!selected) return
         const stackKey = getStackKey(selected)
+        const stackIsActive = state.characters.some(char => getStackKey(char) === stackKey && char.enabled)
+        if (!stackIsActive && state.characters.filter(char => char.enabled).length >= activeCharacterLimit) return
         let changed = false
         const nextCharacters = state.characters.map((char) => {
             if (getStackKey(char) !== stackKey) return char
@@ -372,7 +376,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
         })
         if (changed) useCharacterPromptStore.setState({ characters: nextCharacters })
         setExpandedId(id)
-    }, [])
+    }, [activeCharacterLimit])
 
     const handleReorderVariants = useCallback((activeId: string, overId: string) => {
         if (activeId === overId) return
@@ -1048,7 +1052,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                         <span className="min-w-0 flex-1 truncate">{t('characterPanel.title', '캐릭터 프롬프트')}</span>
                         {enabledCharacterCount > 0 && (
                             <span className="shrink-0 text-xs text-muted-foreground">
-                                ({enabledCharacterCount})
+                                ({enabledCharacterCount}/{activeCharacterLimit})
                             </span>
                         )}
                     </div>
@@ -1129,7 +1133,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                                 <Eye className="h-3.5 w-3.5 text-primary" />
                                 <span>{t('characterPanel.activeCharacters', 'Active characters')}</span>
                             </div>
-                            <span>{enabledCharacterCount}</span>
+                            <span>{enabledCharacterCount}/{activeCharacterLimit}</span>
                         </div>
                         <div className="flex max-h-[88px] flex-wrap gap-1.5 overflow-y-auto pr-1">
                             {enabledCharacters.map((character) => {

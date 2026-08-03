@@ -2,6 +2,7 @@ import type { GenerationParams } from '@/services/novelai-api'
 import type { ReferenceImage } from '@/stores/character-store'
 import type { CharacterPrompt } from '@/stores/character-prompt-store'
 import { processWildcards } from '@/lib/fragment-processor'
+import { getModelCapabilities } from '@/lib/model-capabilities'
 import { removePromptComments } from '@/lib/prompt-comments'
 import {
     formatPromptWhitespace,
@@ -92,7 +93,9 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         input.insertBlankLinesBetweenPromptParts,
     )))
 
-    const characterPrompts = await Promise.all(input.characterInputs.map(async ({
+    const characterPrompts = await Promise.all(input.characterInputs
+        .slice(0, getModelCapabilities(input.model).maxCharacterPrompts)
+        .map(async ({
         character,
         appendedPrompts = [],
         costumeEnabled,

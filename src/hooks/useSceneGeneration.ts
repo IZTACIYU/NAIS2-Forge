@@ -11,6 +11,7 @@ import { generateImage, generateImageStream } from '@/services/novelai-api'
 import { BaseDirectory, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { buildGenerationRequest } from '@/lib/generation-request'
+import { getModelCapabilities } from '@/lib/model-capabilities'
 import { useCharacterStore } from '@/stores/character-store'
 import { sendSystemNotification } from '@/lib/system-notification'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
@@ -180,8 +181,12 @@ export function useSceneGeneration() {
                             : 'all',
                     )
                     : []
+                const maxCharacterPrompts = getModelCapabilities(genState.model).maxCharacterPrompts
                 const randomCharacterIds = randomCharacterCandidates.length > 0
-                    ? pickRandomCharacters(randomCharacterCandidates, latestSettingsStore.sceneRandomCharacterCount).map(character => character.id)
+                    ? pickRandomCharacters(
+                        randomCharacterCandidates,
+                        Math.min(latestSettingsStore.sceneRandomCharacterCount, maxCharacterPrompts),
+                    ).map(character => character.id)
                     : null
                 const characterPromptIds = sequenceMode
                     ? sequenceEntry.characterPromptIds
@@ -214,7 +219,7 @@ export function useSceneGeneration() {
                     latestPromptStore.characters,
                     finalCharacterPromptIds,
                     requestedVariantIndex,
-                )
+                ).slice(0, maxCharacterPrompts)
                 const multiCharacterPromptMap = getSceneMultiCharacterPromptMap(
                     latestSettingsStore.expertSceneMultiCharacterEnabled ? scene.multiCharacterSlots : undefined,
                     characterPrompts,

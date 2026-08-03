@@ -60,6 +60,7 @@ import { useCharacterStore } from '@/stores/character-store'
 import { useFragmentStore } from '@/stores/fragment-store'
 import { ResolutionSelector } from '@/components/ui/ResolutionSelector'
 import { useSceneQueueHasItems, useSceneQueueTotal } from '@/hooks/use-scene-queue'
+import { getModelCapabilities } from '@/lib/model-capabilities'
 
 const SAMPLERS = [
     'k_euler',
@@ -128,6 +129,7 @@ export function PromptPanel() {
     const isGenerating = useGenerationStore(state => state.isGenerating)
     const isCancelled = useGenerationStore(state => state.isCancelled)
     const model = useGenerationStore(state => state.model)
+    const modelCapabilities = getModelCapabilities(model)
     const steps = useGenerationStore(state => state.steps)
     const cfgScale = useGenerationStore(state => state.cfgScale)
     const cfgRescale = useGenerationStore(state => state.cfgRescale)
@@ -411,7 +413,7 @@ export function PromptPanel() {
                                 className="h-full min-h-0 resize-none rounded-xl"
                                 style={{ fontSize: `${promptFontSize}px` }}
                             />
-                            <TokenCountOverlay count={tokenTotals.positive} />
+                            <TokenCountOverlay count={tokenTotals.positive} limit={modelCapabilities.maxPromptTokens} />
                         </div>
                     )}
                 </div>
@@ -513,7 +515,7 @@ export function PromptPanel() {
                                 className="h-full min-h-0 resize-none rounded-xl border-destructive/20"
                                 style={{ fontSize: `${promptFontSize}px` }}
                             />
-                            <TokenCountOverlay count={tokenTotals.negative} />
+                            <TokenCountOverlay count={tokenTotals.negative} limit={modelCapabilities.maxPromptTokens} />
                         </div>
                     )}
                 </div>
@@ -906,8 +908,8 @@ export function PromptPanel() {
     )
 }
 
-function TokenCountOverlay({ count }: { count: number }) {
-    const exceeded = count > 512
+function TokenCountOverlay({ count, limit }: { count: number; limit: number }) {
+    const exceeded = count > limit
     return (
         <span className={cn(
             "pointer-events-none absolute bottom-2 right-3 z-[1] rounded border px-1.5 py-0.5 font-mono text-[10px] shadow-sm backdrop-blur-sm",
@@ -915,7 +917,7 @@ function TokenCountOverlay({ count }: { count: number }) {
                 ? "border-destructive/70 bg-destructive/90 text-destructive-foreground"
                 : "border-border/60 bg-background/70 text-muted-foreground"
         )}>
-            {count}/512
+            {count}/{limit}
         </span>
     )
 }

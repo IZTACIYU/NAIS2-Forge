@@ -12,6 +12,7 @@ import { buildGenerationRequest } from '@/lib/generation-request'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 import i18n from '@/i18n'
 import { toast } from '@/components/ui/use-toast'
+import { AVAILABLE_MODELS, getModelCapabilities } from '@/lib/model-capabilities'
 
 interface Resolution {
     label: string
@@ -19,14 +20,7 @@ interface Resolution {
     height: number
 }
 
-export const AVAILABLE_MODELS = [
-    { id: 'nai-diffusion-4-5-curated', name: 'NAI Diffusion V4.5 Curated' },
-    { id: 'nai-diffusion-4-5-full', name: 'NAI Diffusion V4.5 Full' },
-    { id: 'nai-diffusion-4-curated-preview', name: 'NAI Diffusion V4 Curated' },
-    { id: 'nai-diffusion-4-full', name: 'NAI Diffusion V4 Full' },
-    { id: 'nai-diffusion-3', name: 'NAI Diffusion V3 (Anime)' },
-    { id: 'nai-diffusion-furry-3', name: 'NAI Diffusion Furry V3' },
-] as const
+export { AVAILABLE_MODELS }
 
 interface GenerationState {
     // Prompt fields
@@ -214,31 +208,41 @@ export const useGenerationStore = create<GenerationState>()(
             setNegativePrompt: (prompt) => set({ negativePrompt: prompt }),
             setInpaintingPrompt: (prompt) => set({ inpaintingPrompt: prompt }),
 
-            setModel: (model) => set({ model }),
+            setModel: (model) => {
+                useCharacterPromptStore.getState().setActiveCharacterLimit(
+                    getModelCapabilities(model).maxCharacterPrompts
+                )
+                set({ model })
+            },
             setSteps: (steps) => set({ steps }),
             setCfgScale: (cfgScale) => set({ cfgScale }),
             setCfgRescale: (cfgRescale) => set({ cfgRescale }),
             setSampler: (sampler) => set({ sampler }),
 
             // Batch update - single IndexedDB write instead of 16 separate writes
-            applyPreset: (preset) => set({
-                basePrompt: preset.basePrompt,
-                additionalPrompt: preset.additionalPrompt,
-                detailPrompt: preset.detailPrompt,
-                negativePrompt: preset.negativePrompt,
-                model: preset.model,
-                steps: preset.steps,
-                cfgScale: preset.cfgScale,
-                cfgRescale: preset.cfgRescale,
-                sampler: preset.sampler,
-                scheduler: preset.scheduler,
-                smea: preset.smea,
-                smeaDyn: preset.smeaDyn,
-                variety: preset.variety ?? false,
-                qualityToggle: preset.qualityToggle ?? true,
-                ucPreset: preset.ucPreset ?? 0,
-                selectedResolution: preset.selectedResolution,
-            }),
+            applyPreset: (preset) => {
+                useCharacterPromptStore.getState().setActiveCharacterLimit(
+                    getModelCapabilities(preset.model).maxCharacterPrompts
+                )
+                set({
+                    basePrompt: preset.basePrompt,
+                    additionalPrompt: preset.additionalPrompt,
+                    detailPrompt: preset.detailPrompt,
+                    negativePrompt: preset.negativePrompt,
+                    model: preset.model,
+                    steps: preset.steps,
+                    cfgScale: preset.cfgScale,
+                    cfgRescale: preset.cfgRescale,
+                    sampler: preset.sampler,
+                    scheduler: preset.scheduler,
+                    smea: preset.smea,
+                    smeaDyn: preset.smeaDyn,
+                    variety: preset.variety ?? false,
+                    qualityToggle: preset.qualityToggle ?? true,
+                    ucPreset: preset.ucPreset ?? 0,
+                    selectedResolution: preset.selectedResolution,
+                })
+            },
             setScheduler: (scheduler) => set({ scheduler }),
             setSmea: (smea) => set({ smea }),
             setSmeaDyn: (smeaDyn) => set({ smeaDyn }),
@@ -386,15 +390,16 @@ export const useGenerationStore = create<GenerationState>()(
                                     : 'all',
                             )
                             : []
+                        const maxCharacterPrompts = getModelCapabilities(model).maxCharacterPrompts
                         const randomCharacterIds = randomCharacterCandidates.length > 0
                             ? new Set(pickRandomCharacters(
                                 randomCharacterCandidates,
-                                randomSettings.sceneRandomCharacterCount,
+                                Math.min(randomSettings.sceneRandomCharacterCount, maxCharacterPrompts),
                             ).map(character => character.id))
                             : null
                         const characterPromptsForGeneration = randomCharacterIds
                             ? characterPrompts.filter(character => randomCharacterIds.has(character.id))
-                            : characterPrompts.filter(character => character.enabled)
+                            : characterPrompts.filter(character => character.enabled).slice(0, maxCharacterPrompts)
                         // Check if streaming is enabled and get image format
                         const {
                             useStreaming,
@@ -724,6 +729,9 @@ export const useGenerationStore = create<GenerationState>()(
                     return
                 }
                 if (state) {
+                    useCharacterPromptStore.getState().setActiveCharacterLimit(
+                        getModelCapabilities(state.model).maxCharacterPrompts
+                    )
                     console.log('[GenerationStore] Hydrated successfully')
                 }
             },
