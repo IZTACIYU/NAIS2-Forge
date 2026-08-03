@@ -639,12 +639,12 @@ export function PromptPanel() {
                         <div className="grid gap-4 py-3">
                             {/* Model Selection */}
                             <div className="relative h-9">
-                                <Label className="pointer-events-none absolute left-3 top-1 z-10 flex items-center gap-1 text-[10px] leading-none text-muted-foreground">
+                                <Label className="pointer-events-none absolute -top-3 left-0 flex items-center gap-1 text-[10px] leading-none text-muted-foreground">
                                     <Cpu className="h-3 w-3" />
                                     {t('parameters.model')}
                                 </Label>
                                 <Select value={model} onValueChange={setModel}>
-                                    <SelectTrigger className="h-9 rounded-xl px-3 pb-0 pt-3 text-xs">
+                                    <SelectTrigger className="h-9 rounded-xl px-3 text-xs">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -658,27 +658,27 @@ export function PromptPanel() {
                             {/* Resolution (Moved here) */}
                             {/* Resolution (Moved here) */}
                             <div className="relative h-9">
-                                <Label className="pointer-events-none absolute left-3 top-1 z-10 text-[10px] leading-none text-muted-foreground">
+                                <Label className="pointer-events-none absolute -top-3 left-0 text-[10px] leading-none text-muted-foreground">
                                     {t('settingsPage.general.resolution', '해상도')}
                                 </Label>
                                 <ResolutionSelector
                                     value={selectedResolution}
                                     onChange={setSelectedResolution}
                                     disabled={isGenerating}
-                                    triggerClassName="h-9 rounded-xl px-3 pb-0 pt-3 text-xs"
+                                    triggerClassName="h-9 rounded-xl px-3 text-xs"
                                 />
                             </div>
 
                             {/* Seed (Moved here) */}
                             <div className="relative flex h-9 gap-2">
-                                <label className="pointer-events-none absolute left-3 top-1 z-10 text-[10px] leading-none text-muted-foreground">{t('settings.seed')}</label>
+                                <label className="pointer-events-none absolute -top-3 left-0 text-[10px] leading-none text-muted-foreground">{t('settings.seed')}</label>
                                 <div className="flex min-w-0 flex-1 gap-2">
                                     <Input
                                         type="number"
                                         value={seed}
                                         onChange={(e) => setSeed(Number(e.target.value))}
                                         disabled={seedLocked}
-                                        className="h-9 flex-1 rounded-xl px-3 pb-0 pt-3 text-xs"
+                                        className="h-9 flex-1 rounded-xl px-3 text-xs"
                                     />
                                     <Button
                                         variant="outline"
