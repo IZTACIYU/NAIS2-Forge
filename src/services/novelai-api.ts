@@ -528,7 +528,6 @@ export async function generateImage(
             scale: params.cfg_scale,
             negative_prompt: params.negative_prompt,
             cfg_rescale: params.cfg_rescale,
-            ucStrength: 1,
             noise_schedule: params.scheduler,
 
             // Version and legacy settings
@@ -1086,7 +1085,6 @@ export async function generateImageStream(
             scale: params.cfg_scale,
             negative_prompt: params.negative_prompt,
             cfg_rescale: params.cfg_rescale,
-            ucStrength: 1,
             noise_schedule: params.scheduler,
 
             // Version and legacy settings
