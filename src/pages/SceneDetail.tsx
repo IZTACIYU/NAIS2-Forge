@@ -455,7 +455,7 @@ export default function SceneDetail() {
             </div >
 
             <section className="shrink-0">
-                <div className="flex h-8 flex-row-reverse items-center justify-between gap-3 border-b border-border/50">
+                <div className="flex h-9 flex-row-reverse items-center justify-between gap-3 border-b border-border/50">
                     <div className="flex min-w-0 items-center gap-2">
                     {sceneVariantOverrideEnabled && (
                         <div>
@@ -524,7 +524,7 @@ export default function SceneDetail() {
                             size="sm"
                             variant="ghost"
                             className={cn(
-                                'h-8 rounded-none px-2.5 text-xs text-muted-foreground hover:text-foreground',
+                                'h-9 rounded-none px-2.5 text-xs text-muted-foreground hover:text-foreground',
                                 scenePromptMode === 'positive' && 'border-b-2 border-primary text-foreground',
                             )}
                             onClick={() => setScenePromptMode('positive')}
@@ -536,7 +536,7 @@ export default function SceneDetail() {
                             size="sm"
                             variant="ghost"
                             className={cn(
-                                'h-8 rounded-none px-2.5 text-xs text-muted-foreground hover:text-foreground',
+                                'h-9 rounded-none px-2.5 text-xs text-muted-foreground hover:text-foreground',
                                 scenePromptMode === 'negative' && 'border-b-2 border-primary text-foreground',
                             )}
                             onClick={() => setScenePromptMode('negative')}
