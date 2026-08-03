@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createDeferredJSONStorage } from '@/lib/indexed-db'
-import { rename, exists } from '@tauri-apps/plugin-fs'
+import { mkdir, rename, exists } from '@tauri-apps/plugin-fs'
 import { pictureDir, join, dirname } from '@tauri-apps/api/path'
 import { useSettingsStore } from './settings-store'
 import { notifySceneQueueChanged } from '@/lib/scene-queue-events'
@@ -239,6 +239,7 @@ interface SceneState {
     selectAllScenes: () => void
     clearSelection: () => void
     deleteSelectedScenes: () => void
+    moveScenesToPreset: (sourcePresetId: string, sceneIds: string[], targetPresetId: string) => Promise<void>
     moveSelectedScenesToPreset: (targetPresetId: string) => void
     updateSelectedScenesResolution: (width: number, height: number) => void
     lastSelectedSceneId: string | null
@@ -1389,29 +1390,109 @@ export const useSceneStore = create<SceneState>()(
                 }
             }),
 
-            moveSelectedScenesToPreset: (targetPresetId) => set(state => {
-                const sourcePreset = state.presets.find(p => p.id === state.activePresetId)
-                if (!sourcePreset || targetPresetId === state.activePresetId) return state
+            moveScenesToPreset: async (sourcePresetId, sceneIds, targetPresetId) => {
+                if (sourcePresetId === targetPresetId || sceneIds.length === 0) return
 
-                const scenesToMove = sourcePreset.scenes.filter(s => state.selectedSceneIds.includes(s.id))
-                if (scenesToMove.length === 0) return state
+                const snapshot = get()
+                const sourcePreset = snapshot.presets.find(preset => preset.id === sourcePresetId)
+                const targetPreset = snapshot.presets.find(preset => preset.id === targetPresetId)
+                if (!sourcePreset || !targetPreset) return
 
-                return {
-                    presets: state.presets.map(p => {
-                        if (p.id === state.activePresetId) {
-                            // Remove from source
-                            return { ...p, scenes: p.scenes.filter(s => !state.selectedSceneIds.includes(s.id)) }
+                const idsToMove = new Set(sceneIds)
+                const scenesToMove = sourcePreset.scenes.filter(scene => idsToMove.has(scene.id))
+                if (scenesToMove.length === 0) return
+
+                const { savePath, useAbsolutePath } = useSettingsStore.getState()
+                const historyScope = createHistoryIndexScope(useAbsolutePath, savePath)
+                const sourcePresetName = sanitizeSceneFolderName(sourcePreset.name, 'Default')
+                const targetPresetName = sanitizeSceneFolderName(targetPreset.name, 'Default')
+                const relocatedScenes = new Map<string, SceneCard>()
+                const historyMoves: Array<{ oldFolder: string; newFolder: string }> = []
+
+                for (const scene of scenesToMove) {
+                    try {
+                        const linkedFolder = getSceneFolderFromImages(scene.images)
+                        const rootDirectory = useAbsolutePath && savePath ? savePath : await pictureDir()
+                        const oldFolder = linkedFolder
+                            || await join(rootDirectory, 'NAIS_Scene', sourcePresetName, sanitizeSceneFolderName(scene.name))
+                        const newFolder = await join(
+                            rootDirectory,
+                            'NAIS_Scene',
+                            targetPresetName,
+                            sanitizeSceneFolderName(scene.name)
+                        )
+
+                        if (await exists(oldFolder) && !(await exists(newFolder))) {
+                            await mkdir(await dirname(newFolder), { recursive: true })
+                            await rename(oldFolder, newFolder)
+                            relocatedScenes.set(scene.id, {
+                                ...scene,
+                                images: scene.images.map(image => ({
+                                    ...image,
+                                    url: replaceSceneFolderPrefix(image.url, oldFolder, newFolder),
+                                })),
+                            })
+                            historyMoves.push({ oldFolder, newFolder })
                         }
-                        if (p.id === targetPresetId) {
-                            // Add to target
-                            return { ...p, scenes: [...p.scenes, ...scenesToMove] }
-                        }
-                        return p
-                    }),
-                    selectedSceneIds: [],
-                    lastSelectedSceneId: null
+                    } catch (error) {
+                        console.warn('Failed to move scene folder:', error)
+                    }
                 }
-            }),
+
+                set(state => {
+                    const currentSource = state.presets.find(preset => preset.id === sourcePresetId)
+                    const currentTarget = state.presets.find(preset => preset.id === targetPresetId)
+                    if (!currentSource || !currentTarget) return state
+
+                    const movableScenes = currentSource.scenes
+                        .filter(scene => idsToMove.has(scene.id))
+                        .map(scene => relocatedScenes.get(scene.id) || scene)
+                    if (movableScenes.length === 0) return state
+
+                    const sourceAdditions = { ...(state.sceneCharacterAdditions[sourcePresetId] || {}) }
+                    const targetAdditions = { ...(state.sceneCharacterAdditions[targetPresetId] || {}) }
+                    for (const scene of movableScenes) {
+                        const addition = sourceAdditions[scene.id]
+                        if (addition) {
+                            targetAdditions[scene.id] = addition
+                            delete sourceAdditions[scene.id]
+                        }
+                    }
+
+                    return {
+                        presets: state.presets.map(preset => {
+                            if (preset.id === sourcePresetId) {
+                                return { ...preset, scenes: preset.scenes.filter(scene => !idsToMove.has(scene.id)) }
+                            }
+                            if (preset.id === targetPresetId) {
+                                return { ...preset, scenes: [...preset.scenes, ...movableScenes] }
+                            }
+                            return preset
+                        }),
+                        sceneCharacterAdditions: {
+                            ...state.sceneCharacterAdditions,
+                            [sourcePresetId]: sourceAdditions,
+                            [targetPresetId]: targetAdditions,
+                        },
+                        selectedSceneIds: [],
+                        lastSelectedSceneId: null,
+                    }
+                })
+
+                for (const { oldFolder, newFolder } of historyMoves) {
+                    void moveHistoryIndexPathPrefix(historyScope, oldFolder, newFolder)
+                        .catch(error => console.warn('Failed to update history paths after scene move:', error))
+                    window.dispatchEvent(new CustomEvent('historyPathsMoved', {
+                        detail: { oldFolder, newFolder },
+                    }))
+                }
+            },
+
+            moveSelectedScenesToPreset: (targetPresetId) => {
+                const { activePresetId, selectedSceneIds, moveScenesToPreset } = get()
+                if (!activePresetId) return
+                void moveScenesToPreset(activePresetId, selectedSceneIds, targetPresetId)
+            },
 
             updateSelectedScenesResolution: (width, height) => set(state => ({
                 presets: state.presets.map(p =>

@@ -38,6 +38,9 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -45,6 +48,9 @@ import {
     ContextMenuContent,
     ContextMenuItem,
     ContextMenuSeparator,
+    ContextMenuSub,
+    ContextMenuSubContent,
+    ContextMenuSubTrigger,
     ContextMenuTrigger,
 } from '@/components/ui/context-menu'
 import {
@@ -1119,6 +1125,7 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
     const navigate = useNavigate()
     const [isEditing, setIsEditing] = useState(false)
     const [editName, setEditName] = useState(scene.name)
+    const [moveTargets, setMoveTargets] = useState<Array<{ id: string; name: string }>>([])
 
     // Essential reactive state - only subscribe to what MUST trigger re-renders
     const activePresetId = useSceneStore(s => s.activePresetId)
@@ -1142,6 +1149,7 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
     const renameScene = useSceneStore.getState().renameScene
     const duplicateScene = useSceneStore.getState().duplicateScene
     const deleteScene = useSceneStore.getState().deleteScene
+    const moveScenesToPreset = useSceneStore.getState().moveScenesToPreset
     const toggleSceneSelection = useSceneStore.getState().toggleSceneSelection
     const selectSceneRange = useSceneStore.getState().selectSceneRange
     const lastSelectedSceneId = useSceneStore.getState().lastSelectedSceneId
@@ -1198,6 +1206,15 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
 
     const onDelete = () => { if (activePresetId) deleteScene(activePresetId, scene.id) }
     const onDuplicate = () => { if (activePresetId) duplicateScene(activePresetId, scene.id) }
+    const loadMoveTargets = () => {
+        const { presets, activePresetId: currentPresetId } = useSceneStore.getState()
+        setMoveTargets(presets
+            .filter(preset => preset.id !== currentPresetId)
+            .map(preset => ({ id: preset.id, name: preset.name })))
+    }
+    const onMoveToPreset = (targetPresetId: string) => {
+        if (activePresetId) void moveScenesToPreset(activePresetId, [scene.id], targetPresetId)
+    }
     const additionCounts = {
         characters: sceneCharacterAddition?.characterPromptIds.length || 0,
         refs: sceneCharacterAddition?.characterReferenceIds.length || 0,
@@ -1228,7 +1245,7 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
     }
 
     return (
-        <ContextMenu>
+        <ContextMenu onOpenChange={(open) => { if (open) loadMoveTargets() }}>
             <ContextMenuTrigger asChild disabled={isOverlay || disabled}>
                 <div
                     ref={cardRef}
@@ -1263,13 +1280,25 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
                     {/* 3-dot Menu - hidden in edit mode */}
                     {!disabled && !isOverlay && !isEditMode && (
                         <div className="absolute top-2 right-2 z-30 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <DropdownMenu>
+                            <DropdownMenu onOpenChange={(open) => { if (open) loadMoveTargets() }}>
                                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                                     <Button variant="secondary" size="icon" className="h-8 w-8 rounded-full bg-black/50 hover:bg-black/70 text-white"> <MoreVertical className="h-4 w-4" /> </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-40">
                                     <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setIsEditing(true); setEditName(scene.name) }}> <Pencil className="mr-2 h-4 w-4" /> {t('scene.rename')} </DropdownMenuItem>
                                     <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDuplicate() }}> <Copy className="mr-2 h-4 w-4" /> {t('scene.duplicate')} </DropdownMenuItem>
+                                    {moveTargets.length > 0 && (
+                                        <DropdownMenuSub>
+                                            <DropdownMenuSubTrigger><FolderInput className="mr-2 h-4 w-4" />{t('scene.moveToPreset')}</DropdownMenuSubTrigger>
+                                            <DropdownMenuSubContent className="max-h-[300px] overflow-y-auto">
+                                                {moveTargets.map(preset => (
+                                                    <DropdownMenuItem key={preset.id} onClick={(e) => { e.stopPropagation(); onMoveToPreset(preset.id) }}>
+                                                        <ArrowRight className="mr-2 h-4 w-4" />{preset.name}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuSubContent>
+                                        </DropdownMenuSub>
+                                    )}
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete() }}> <Trash2 className="mr-2 h-4 w-4" /> {t('actions.delete')} </DropdownMenuItem>
                                 </DropdownMenuContent>
@@ -1362,6 +1391,18 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
             <ContextMenuContent className="w-40">
                 <ContextMenuItem onClick={() => { setIsEditing(true); setEditName(scene.name) }}> <Pencil className="mr-2 h-4 w-4" /> {t('scene.rename')} </ContextMenuItem>
                 <ContextMenuItem onClick={() => onDuplicate()}> <Copy className="mr-2 h-4 w-4" /> {t('scene.duplicate')} </ContextMenuItem>
+                {moveTargets.length > 0 && (
+                    <ContextMenuSub>
+                        <ContextMenuSubTrigger><FolderInput className="mr-2 h-4 w-4" />{t('scene.moveToPreset')}</ContextMenuSubTrigger>
+                        <ContextMenuSubContent className="max-h-[300px] overflow-y-auto">
+                            {moveTargets.map(preset => (
+                                <ContextMenuItem key={preset.id} onClick={() => onMoveToPreset(preset.id)}>
+                                    <ArrowRight className="mr-2 h-4 w-4" />{preset.name}
+                                </ContextMenuItem>
+                            ))}
+                        </ContextMenuSubContent>
+                    </ContextMenuSub>
+                )}
                 <ContextMenuSeparator />
                 <ContextMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete()}> <Trash2 className="mr-2 h-4 w-4" /> {t('actions.delete')} </ContextMenuItem>
             </ContextMenuContent>
