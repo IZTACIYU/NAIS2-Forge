@@ -42,6 +42,9 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { useSearchParams } from 'react-router-dom'
 
 const STACK_DROP_HOVER_MS = 1000
+const LIBRARY_GRID_GAP = 24
+const LIBRARY_GRID_PADDING = 48
+const LIBRARY_GRID_OVERSCAN_ROWS = 3
 
 const getNextThumbnailLayout = (layout: 'vertical' | 'horizontal' | 'square') => {
     if (layout === 'vertical') return 'horizontal'
@@ -128,6 +131,36 @@ export default function Library() {
     const [folderPanelOpen, setFolderPanelOpen] = useState(true)
     const [selectedFolderId, setSelectedFolderId] = useState<LibraryFolderSelection>(LIBRARY_ALL_FOLDER_ID)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const [gridScrollElement, setGridScrollElement] = useState<HTMLDivElement | null>(null)
+    const [gridViewport, setGridViewport] = useState({ width: 0, height: 0, scrollTop: 0 })
+
+    const updateGridViewport = useCallback(() => {
+        if (!gridScrollElement) return
+        setGridViewport(previous => {
+            const next = {
+                width: gridScrollElement.clientWidth,
+                height: gridScrollElement.clientHeight,
+                scrollTop: gridScrollElement.scrollTop,
+            }
+            return previous.width === next.width
+                && previous.height === next.height
+                && previous.scrollTop === next.scrollTop
+                ? previous
+                : next
+        })
+    }, [gridScrollElement])
+
+    useEffect(() => {
+        if (!gridScrollElement) return
+        updateGridViewport()
+        const observer = new ResizeObserver(updateGridViewport)
+        observer.observe(gridScrollElement)
+        gridScrollElement.addEventListener('scroll', updateGridViewport, { passive: true })
+        return () => {
+            observer.disconnect()
+            gridScrollElement.removeEventListener('scroll', updateGridViewport)
+        }
+    }, [gridScrollElement, updateGridViewport])
 
     const setStackNavigation = useCallback((stackId: string | null) => {
         setCurrentStackId(stackId)
@@ -159,6 +192,34 @@ export default function Library() {
         return items.filter(item => item.folderId === selectedFolderId)
     }, [currentStack, currentStackId, expertLibraryFolderBrowserEnabled, folderIds, items, selectedFolderId])
     const viewItemIds = useMemo(() => viewItems.map(item => item.id), [viewItems])
+    const virtualGrid = useMemo(() => {
+        const availableWidth = Math.max(1, (gridViewport.width || 1024) - LIBRARY_GRID_PADDING)
+        const itemWidth = Math.max(1, (availableWidth - (gridColumns - 1) * LIBRARY_GRID_GAP) / gridColumns)
+        const itemHeight = thumbnailLayout === 'vertical'
+            ? itemWidth * 1.5
+            : thumbnailLayout === 'horizontal'
+                ? itemWidth * (2 / 3)
+                : itemWidth
+        const rowHeight = itemHeight + LIBRARY_GRID_GAP
+        const rowCount = Math.ceil(viewItems.length / gridColumns)
+        const allRows = activeId !== null
+        const startRow = allRows
+            ? 0
+            : Math.max(0, Math.floor(gridViewport.scrollTop / rowHeight) - LIBRARY_GRID_OVERSCAN_ROWS)
+        const visibleRowCount = Math.ceil((gridViewport.height || 900) / rowHeight) + LIBRARY_GRID_OVERSCAN_ROWS * 2
+        const endRow = allRows ? rowCount : Math.min(rowCount, startRow + visibleRowCount)
+        const startIndex = startRow * gridColumns
+        const endIndex = Math.min(viewItems.length, endRow * gridColumns)
+
+        return {
+            itemWidth,
+            itemHeight,
+            rowHeight,
+            totalHeight: Math.max(0, rowCount * rowHeight - LIBRARY_GRID_GAP),
+            startIndex,
+            visibleItems: viewItems.slice(startIndex, endIndex),
+        }
+    }, [activeId, gridColumns, gridViewport.height, gridViewport.scrollTop, gridViewport.width, thumbnailLayout, viewItems])
     const itemById = useMemo(() => new Map(
         flattenLibraryItems(items).map(item => [item.id, item])
     ), [items])
@@ -865,31 +926,46 @@ export default function Library() {
                             isDraggingItem={activeId !== null}
                         />
                     )}
-                    <div className="relative min-w-0 flex-1 overflow-y-auto p-6 custom-scrollbar">
+                    <div ref={setGridScrollElement} className="relative min-w-0 flex-1 overflow-y-auto p-6 custom-scrollbar">
                     <SortableContext
                         items={viewItemIds}
                         strategy={rectSortingStrategy}
                     >
                         <div
-                            className="grid gap-6 pb-10"
-                            style={{ gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))` }}
+                            className="relative pb-10"
+                            style={{ height: virtualGrid.totalHeight }}
                         >
-                            {viewItems.map((item) => (
-                                <SortableLibraryItem
-                                    key={item.id}
-                                    item={item}
-                                    onRename={handleRenameClick}
-                                    onAddRef={handleAddRefClick}
-                                    onLoadMetadata={handleLoadMetadata}
-                                    onImageClick={handleItemImageClick}
-                                    isEditMode={isEditMode}
-                                    isSelected={selectedItemIds.includes(item.id)}
-                                    isStackDropTarget={stackDropTargetId === item.id}
-                                    onSelectionClick={handleItemSelectionClick}
-                                    disabled={isEditMode}
-                                    thumbnailLayout={thumbnailLayout}
-                                />
-                            ))}
+                            {virtualGrid.visibleItems.map((item, index) => {
+                                const itemIndex = virtualGrid.startIndex + index
+                                const row = Math.floor(itemIndex / gridColumns)
+                                const column = itemIndex % gridColumns
+                                return (
+                                    <div
+                                        key={item.id}
+                                        className="absolute"
+                                        style={{
+                                            width: virtualGrid.itemWidth,
+                                            height: virtualGrid.itemHeight,
+                                            left: column * (virtualGrid.itemWidth + LIBRARY_GRID_GAP),
+                                            top: row * virtualGrid.rowHeight,
+                                        }}
+                                    >
+                                        <SortableLibraryItem
+                                            item={item}
+                                            onRename={handleRenameClick}
+                                            onAddRef={handleAddRefClick}
+                                            onLoadMetadata={handleLoadMetadata}
+                                            onImageClick={handleItemImageClick}
+                                            isEditMode={isEditMode}
+                                            isSelected={selectedItemIds.includes(item.id)}
+                                            isStackDropTarget={stackDropTargetId === item.id}
+                                            onSelectionClick={handleItemSelectionClick}
+                                            disabled={isEditMode}
+                                            thumbnailLayout={thumbnailLayout}
+                                        />
+                                    </div>
+                                )
+                            })}
                         </div>
                     </SortableContext>
                         {viewItems.length === 0 && (
