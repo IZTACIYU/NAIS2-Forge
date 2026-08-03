@@ -42,10 +42,11 @@ interface ResolutionSelectorProps {
     value: Resolution
     onChange: (resolution: Resolution) => void
     disabled?: boolean
+    triggerClassName?: string
 }
 
 
-export function ResolutionSelector({ value, onChange, disabled }: ResolutionSelectorProps) {
+export function ResolutionSelector({ value, onChange, disabled, triggerClassName }: ResolutionSelectorProps) {
     const { t } = useTranslation()
     const customResolutions = useSettingsStore(state => state.customResolutions)
     const addCustomResolution = useSettingsStore(state => state.addCustomResolution)
@@ -123,7 +124,7 @@ export function ResolutionSelector({ value, onChange, disabled }: ResolutionSele
                         role="combobox"
                         aria-expanded={open}
                         disabled={disabled}
-                        className="w-full justify-between font-normal"
+                        className={cn("w-full justify-between font-normal", triggerClassName)}
                     >
                         <span className="truncate">{displayText}</span>
                         <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
