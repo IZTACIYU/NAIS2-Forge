@@ -23,7 +23,6 @@ import {
     Coins,
     Wand2,
     Eraser,
-    Zap,
     PanelLeft,
     PanelRight,
     Dices,
@@ -33,8 +32,6 @@ interface ThreeColumnLayoutProps {
     children: ReactNode
 }
 
-import { calculateExtraCost } from '@/lib/anlas-calculator'
-import { useCharacterStore } from '@/stores/character-store'
 import { usePresetStore } from '@/stores/preset-store'
 import { useLayoutStore } from '@/stores/layout-store'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -75,12 +72,6 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const expertSceneRandomCharactersEnabled = useSettingsStore(state => state.expertSceneRandomCharactersEnabled)
     const sceneRandomCharactersActive = useSettingsStore(state => state.sceneRandomCharactersActive)
     const sceneRandomCharacterCount = useSettingsStore(state => state.sceneRandomCharacterCount)
-
-    // Get generation params for cost calculation
-    const { characterImages, vibeImages } = useCharacterStore(useShallow(state => ({
-        characterImages: state.characterImages,
-        vibeImages: state.vibeImages,
-    })))
 
     // Get active preset for header display
     const { presets, activePresetId } = usePresetStore(useShallow(state => ({
@@ -179,20 +170,6 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
         }
     }, [location.pathname])
 
-    // Calculate cached vs uncached vibes (only enabled ones)
-    const enabledVibes = vibeImages.filter(v => v.enabled !== false)
-    const uncachedVibeCount = enabledVibes.filter(v => !v.encodedVibe && !v.encodedVibePath).length
-    const cachedVibeCount = enabledVibes.length - uncachedVibeCount
-
-    // Count only enabled character images
-    const enabledCharCount = characterImages.filter(c => c.enabled !== false).length
-
-    // Only calculate extra costs for enabled uncached vibes and enabled characters
-    const cost = calculateExtraCost(
-        enabledCharCount,
-        uncachedVibeCount
-    )
-
     // Refresh Anlas on mount if verified
     useEffect(() => {
         if (isVerified) {
@@ -261,26 +238,13 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                             </Tip>
                         )}
                         {isVerified && anlas ? (
-                            <div className="flex shrink-0 items-center gap-2">
+                            <div className="flex shrink-0 items-center">
                                 <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 rounded-full border border-amber-500/30">
                                     <Coins className="h-4 w-4 text-amber-500" />
                                     <span className="text-sm font-semibold text-amber-500">
                                         {formatAnlas(anlas.total)}
                                     </span>
                                 </div>
-                                {(cost > 0 || cachedVibeCount > 0) && (
-                                    <div className={cn(
-                                        "flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-bold animate-in fade-in slide-in-from-left-2 shadow-sm",
-                                        cost > 0
-                                            ? "bg-destructive/10 border-destructive/30 text-destructive"
-                                            : "bg-blue-500/10 border-blue-500/30 text-blue-500"
-                                    )}>
-                                        {cost > 0 && <span>-{cost}</span>}
-                                        {cachedVibeCount > 0 && (
-                                            <Zap className={cn("h-3 w-3", cost === 0 && "ml-0.5")} fill="currentColor" />
-                                        )}
-                                    </div>
-                                )}
                             </div>
                         ) : (
                             <div className="flex min-w-0 shrink items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-full">

@@ -927,8 +927,8 @@ export function PromptPanel() {
                                 <>
                                     <ImagePlus className="mr-2 h-5 w-5" />
                                     {t('generate.button')}
-                                    {mainGenerationCost !== null && (
-                                        <span className={cn('ml-1', mainGenerationCost === 0 ? 'text-cyan-200' : 'text-amber-200')}>
+                                    {mainGenerationCost !== null && mainGenerationCost > 0 && (
+                                        <span className="ml-1 text-red-300">
                                             (-{mainGenerationCost})
                                         </span>
                                     )}
