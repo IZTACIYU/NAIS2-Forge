@@ -524,7 +524,7 @@ export default function SceneDetail() {
                             size="sm"
                             variant="ghost"
                             className={cn(
-                                'h-10 rounded-none px-2.5 text-xs text-muted-foreground hover:text-foreground',
+                                'h-10 rounded-none px-3.5 text-[13px] text-muted-foreground hover:text-foreground',
                                 scenePromptMode === 'positive' && 'border-b-2 border-primary text-foreground',
                             )}
                             onClick={() => setScenePromptMode('positive')}
@@ -536,7 +536,7 @@ export default function SceneDetail() {
                             size="sm"
                             variant="ghost"
                             className={cn(
-                                'h-10 rounded-none px-2.5 text-xs text-muted-foreground hover:text-foreground',
+                                'h-10 rounded-none px-3.5 text-[13px] text-muted-foreground hover:text-foreground',
                                 scenePromptMode === 'negative' && 'border-b-2 border-primary text-foreground',
                             )}
                             onClick={() => setScenePromptMode('negative')}
