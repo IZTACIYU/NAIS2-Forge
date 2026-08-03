@@ -103,7 +103,7 @@ export default function ExifManager() {
             <Tabs
                 value={activeTab}
                 onValueChange={value => setActiveTab(value as 'remove' | 'edit')}
-                className={`flex min-h-0 flex-col ${activeTab === 'remove' ? 'flex-1' : 'flex-none'}`}
+                className="flex flex-1 min-h-0 flex-col"
             >
                 <TabsList className="w-fit shrink-0">
                     <TabsTrigger value="remove">{t('exif.tabs.remove')}</TabsTrigger>
@@ -148,10 +148,10 @@ export default function ExifManager() {
                     </div>
                 </TabsContent>
 
-                {activeTab === 'edit' && (
-                    <TabsContent value="edit" className="mt-4 grid flex-none content-start items-start grid-cols-1 lg:grid-cols-2 gap-4">
-                        <div className="h-[520px] self-start overflow-hidden rounded-lg border border-border/50 bg-muted/15">
-                            <div className="h-full min-h-0 flex items-center justify-center p-3 relative">
+                <TabsContent value="edit" className="mt-4 flex flex-1 min-h-0 flex-col">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-[460px]">
+                        <div className="min-h-0 border border-border/50 rounded-lg bg-muted/15 overflow-hidden flex flex-col">
+                            <div className="flex-1 min-h-0 flex items-center justify-center p-3 relative">
                                 {activeImage ? <img src={activeImage} alt="" className="max-w-full max-h-full object-contain" /> : (
                                     <button type="button" onClick={() => inputRef.current?.click()} className="w-full h-full flex flex-col items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
                                         <ImagePlus className="h-10 w-10 mb-3 opacity-50" />
@@ -162,8 +162,8 @@ export default function ExifManager() {
                             </div>
                         </div>
                         <div aria-hidden="true" />
-                    </TabsContent>
-                )}
+                    </div>
+                </TabsContent>
             </Tabs>
         </div>
     )
