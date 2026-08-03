@@ -44,16 +44,17 @@ const updateCharacterCaption = (comment: JsonObject, index: number, negative: bo
     return { ...comment, [promptKey]: root }
 }
 
-const Field = ({ label, value, onChange, multiline = false }: {
+const Field = ({ label, value, onChange, multiline = false, large = false }: {
     label: string
     value: string
     onChange: (value: string) => void
     multiline?: boolean
+    large?: boolean
 }) => (
     <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
         <span>{label}</span>
         {multiline
-            ? <Textarea value={value} onChange={event => onChange(event.target.value)} className="min-h-[76px] text-sm text-foreground" />
+            ? <Textarea value={value} onChange={event => onChange(event.target.value)} className={`${large ? 'min-h-[152px]' : 'min-h-[104px]'} text-sm text-foreground`} />
             : <Input value={value} onChange={event => onChange(event.target.value)} className="text-sm text-foreground" />}
     </label>
 )
@@ -119,10 +120,10 @@ export function ExifMetadataEditor({ metadata, onChange, onRawJsonValidityChange
                 <div className="px-3 pt-3"><TabsList className="h-8"><TabsTrigger value="stored" className="px-2.5 py-1 text-xs">{t('exif.editor.stored')}</TabsTrigger><TabsTrigger value="raw" className="px-2.5 py-1 text-xs">{t('exif.editor.raw')}</TabsTrigger></TabsList></div>
                 <TabsContent value="stored" className="mt-0 flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
                     {!comment ? <p className="text-sm text-destructive">{t('exif.editor.invalidComment')}</p> : <div className="grid gap-4">
-                        <div className="grid gap-3 sm:grid-cols-2"><Field label={t('exif.editor.name')} value={metadata.Title || ''} onChange={value => onChange(updateText(metadata, 'Title', value))} /><Field label={t('exif.editor.tags')} value={metadata.Tags || ''} onChange={value => onChange(updateText(metadata, 'Tags', value))} /></div>
-                        <Field label={t('exif.editor.basePrompt')} value={String(comment.prompt || '')} onChange={value => updateStoredBase('prompt', value)} multiline />
-                        <Field label={t('exif.editor.negativePrompt')} value={String(comment.uc || '')} onChange={value => updateStoredBase('uc', value)} multiline />
-                        {count > 0 && <div className="grid gap-3 border-t border-border/50 pt-3"><span className="text-xs font-medium text-muted-foreground">{t('exif.editor.characters')}</span>{Array.from({ length: count }, (_, index) => <div key={index} className="grid gap-3"><Field label={`${t('exif.editor.characterPrompt')} ${index + 1}`} value={String(characters[index]?.char_caption || '')} onChange={value => updateComment(updateCharacterCaption(comment, index, false, value))} multiline /><Field label={`${t('exif.editor.characterNegative')} ${index + 1}`} value={String(negativeCharacters[index]?.char_caption || '')} onChange={value => updateComment(updateCharacterCaption(comment, index, true, value))} multiline /></div>)}</div>}
+                        <Field label={t('exif.editor.name')} value={metadata.Title || ''} onChange={value => onChange(updateText(metadata, 'Title', value))} />
+                        <Field label={t('exif.editor.basePrompt')} value={String(comment.prompt || '')} onChange={value => updateStoredBase('prompt', value)} multiline large />
+                        <Field label={t('exif.editor.negativePrompt')} value={String(comment.uc || '')} onChange={value => updateStoredBase('uc', value)} multiline large />
+                        {count > 0 && <div className="grid gap-3 border-t border-border/50 pt-3"><span className="text-xs font-medium text-muted-foreground">{t('exif.editor.characters')}</span>{Array.from({ length: count }, (_, index) => <div key={index} className="grid gap-3"><Field label={`${t('exif.editor.characterPrompt')} ${index + 1}`} value={String(characters[index]?.char_caption || '')} onChange={value => updateComment(updateCharacterCaption(comment, index, false, value))} multiline large /><Field label={`${t('exif.editor.characterNegative')} ${index + 1}`} value={String(negativeCharacters[index]?.char_caption || '')} onChange={value => updateComment(updateCharacterCaption(comment, index, true, value))} multiline large /></div>)}</div>}
                     </div>}
                 </TabsContent>
                 <TabsContent value="raw" className="mt-0 flex min-h-0 flex-1 flex-col p-3">
@@ -130,9 +131,9 @@ export function ExifMetadataEditor({ metadata, onChange, onRawJsonValidityChange
                         <TabsList className="h-8 w-fit"><TabsTrigger value="form" className="px-2.5 py-1 text-xs">{t('exif.editor.formatted')}</TabsTrigger><TabsTrigger value="json" className="px-2.5 py-1 text-xs">JSON</TabsTrigger></TabsList>
                         <TabsContent value="form" className="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto pr-1">
                             {!comment ? <p className="text-sm text-destructive">{t('exif.editor.invalidComment')}</p> : <div className="grid gap-4 pb-3">
-                                <div className="grid gap-3 sm:grid-cols-2"><Field label="Title" value={metadata.Title || ''} onChange={value => onChange(updateText(metadata, 'Title', value))} /><Field label="Description" value={metadata.Description || ''} onChange={value => onChange(updateText(metadata, 'Description', value))} multiline /><Field label="Software" value={metadata.Software || ''} onChange={value => onChange(updateText(metadata, 'Software', value))} /><Field label="Source" value={metadata.Source || ''} onChange={value => onChange(updateText(metadata, 'Source', value))} /></div>
-                                <div className="grid gap-3 border-t border-border/50 pt-3"><Field label="Prompt" value={String(comment.prompt || '')} onChange={value => updateRawCommentValue('prompt', value)} multiline /><Field label="UC" value={String(comment.uc || '')} onChange={value => updateRawCommentValue('uc', value)} multiline /><div className="grid gap-3 sm:grid-cols-2">{['seed', 'steps', 'sampler', 'strength', 'noise', 'scale', 'cfg_rescale', 'ucStrength'].map(key => <Field key={key} label={key} value={String(comment[key] ?? '')} onChange={value => updateRawCommentValue(key, value)} />)}</div></div>
-                                {count > 0 && <div className="grid gap-3 border-t border-border/50 pt-3"><span className="text-xs font-medium text-muted-foreground">{t('exif.editor.characters')}</span>{Array.from({ length: count }, (_, index) => <div key={index} className="grid gap-3"><Field label={`${t('exif.editor.characterPrompt')} ${index + 1}`} value={String(characters[index]?.char_caption || '')} onChange={value => updateComment(updateCharacterCaption(comment, index, false, value))} multiline /><Field label={`${t('exif.editor.characterNegative')} ${index + 1}`} value={String(negativeCharacters[index]?.char_caption || '')} onChange={value => updateComment(updateCharacterCaption(comment, index, true, value))} multiline /></div>)}</div>}
+                                <div className="grid gap-3"><Field label="Title" value={metadata.Title || ''} onChange={value => onChange(updateText(metadata, 'Title', value))} /><Field label="Description" value={metadata.Description || ''} onChange={value => onChange(updateText(metadata, 'Description', value))} multiline /><Field label="Software" value={metadata.Software || ''} onChange={value => onChange(updateText(metadata, 'Software', value))} /><Field label="Source" value={metadata.Source || ''} onChange={value => onChange(updateText(metadata, 'Source', value))} /></div>
+                                <div className="grid gap-3 border-t border-border/50 pt-3"><Field label="Prompt" value={String(comment.prompt || '')} onChange={value => updateRawCommentValue('prompt', value)} multiline large /><Field label="UC" value={String(comment.uc || '')} onChange={value => updateRawCommentValue('uc', value)} multiline large /><div className="grid gap-3 sm:grid-cols-2">{['seed', 'steps', 'sampler', 'strength', 'noise', 'scale', 'cfg_rescale', 'ucStrength'].map(key => <Field key={key} label={key} value={String(comment[key] ?? '')} onChange={value => updateRawCommentValue(key, value)} />)}</div></div>
+                                {count > 0 && <div className="grid gap-3 border-t border-border/50 pt-3"><span className="text-xs font-medium text-muted-foreground">{t('exif.editor.characters')}</span>{Array.from({ length: count }, (_, index) => <div key={index} className="grid gap-3"><Field label={`${t('exif.editor.characterPrompt')} ${index + 1}`} value={String(characters[index]?.char_caption || '')} onChange={value => updateComment(updateCharacterCaption(comment, index, false, value))} multiline large /><Field label={`${t('exif.editor.characterNegative')} ${index + 1}`} value={String(negativeCharacters[index]?.char_caption || '')} onChange={value => updateComment(updateCharacterCaption(comment, index, true, value))} multiline large /></div>)}</div>}
                             </div>}
                         </TabsContent>
                         <TabsContent value="json" className="mt-3 flex min-h-0 flex-1 flex-col"><p className="mb-2 text-xs text-muted-foreground">{t('exif.editor.jsonHint')}</p><Textarea value={rawJson} onChange={event => updateRawJson(event.target.value)} spellCheck={false} className="min-h-0 flex-1 font-mono text-xs" /></TabsContent>
