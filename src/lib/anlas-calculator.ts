@@ -3,21 +3,14 @@
  * Based on official pricing structure
  */
 
-// Free generation limit (Opus tier)
-const FREE_PIXEL_LIMIT = 1024 * 1024  // 1 megapixel
+const NORMAL_PIXEL_LIMIT = 1024 * 1024
 const FREE_STEPS_LIMIT = 28
-
-// Base cost for paid generations
-const BASE_ANLAS_COST = 5
-
-export interface UnlimitedImageGenerationLimit {
-    resolution: number
-    maxPrompts: number
-}
+const OPUS_FREE_BASE_COST_LIMIT = 20
+const V4_PIXEL_COST = 2.951823174884865e-6
+const V4_STEP_PIXEL_COST = 5.753298233447344e-7
 
 export interface ImageGenerationEntitlement {
     unlimitedImageGeneration: boolean
-    limits: UnlimitedImageGenerationLimit[]
 }
 
 interface GenerationCostInput {
@@ -31,31 +24,25 @@ interface GenerationCostInput {
     entitlement: ImageGenerationEntitlement | null
 }
 
-function isUnlimitedBaseGeneration(input: GenerationCostInput): boolean {
+function calculateBaseImageGenerationCost(width: number, height: number, steps: number): number {
+    const pixels = width * height
+    return Math.ceil(V4_PIXEL_COST * pixels + V4_STEP_PIXEL_COST * pixels * steps)
+}
+
+function isUnlimitedBaseGeneration(input: GenerationCostInput, baseCost: number): boolean {
     if (!input.entitlement?.unlimitedImageGeneration || input.usesSourceImage || input.steps > FREE_STEPS_LIMIT) {
         return false
     }
 
-    const limits = input.entitlement.limits.length > 0
-        ? input.entitlement.limits
-        : [{ resolution: FREE_PIXEL_LIMIT, maxPrompts: 1 }]
-    const pixels = input.width * input.height
-
-    return limits.some(limit => pixels <= limit.resolution && input.imageCount <= limit.maxPrompts)
+    return input.imageCount === 1 && baseCost <= OPUS_FREE_BASE_COST_LIMIT
 }
 
 /** Returns null until NovelAI has provided the current entitlement state. */
 export function calculateGenerationAnlasCost(input: GenerationCostInput): number | null {
     if (!input.entitlement) return null
 
-    const pixels = input.width * input.height
-    let baseCost = 0
-
-    if (!isUnlimitedBaseGeneration(input)) {
-        baseCost = BASE_ANLAS_COST
-        if (pixels > FREE_PIXEL_LIMIT) baseCost *= Math.ceil(pixels / FREE_PIXEL_LIMIT)
-        if (input.steps > FREE_STEPS_LIMIT) baseCost *= Math.ceil(input.steps / FREE_STEPS_LIMIT)
-    }
+    const calculatedBaseCost = calculateBaseImageGenerationCost(input.width, input.height, input.steps)
+    const baseCost = isUnlimitedBaseGeneration(input, calculatedBaseCost) ? 0 : calculatedBaseCost
 
     const perImageCost = baseCost + calculateExtraCost(input.characterReferenceCount, input.uncachedVibeCount)
     return perImageCost * input.imageCount
@@ -78,6 +65,6 @@ export function calculateExtraCost(charCount: number, vibeCount: number): number
 export function getPixelCategory(width: number, height: number): 'small' | 'normal' | 'large' {
     const totalPixels = width * height
     if (totalPixels < 512 * 512) return 'small'
-    if (totalPixels <= FREE_PIXEL_LIMIT) return 'normal'
+    if (totalPixels <= NORMAL_PIXEL_LIMIT) return 'normal'
     return 'large'
 }

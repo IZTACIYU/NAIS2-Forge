@@ -3,7 +3,7 @@ import { decode as msgpackDecode } from '@msgpack/msgpack'
 import { Channel, invoke } from '@tauri-apps/api/core'
 import { embedNais2Params } from '@/lib/nais2-png-meta'
 import { removePromptComments } from '@/lib/prompt-comments'
-import type { ImageGenerationEntitlement, UnlimitedImageGenerationLimit } from '@/lib/anlas-calculator'
+import type { ImageGenerationEntitlement } from '@/lib/anlas-calculator'
 
 // TESTING: Always use native window.fetch
 // Tauri's plugin-http causes 500 errors - the webview may handle CORS differently
@@ -184,7 +184,6 @@ export async function getUserInfo(token: string): Promise<{
                 fixed?: number
                 purchased?: number
                 unlimitedImageGeneration?: boolean
-                unlimitedImageGenerationLimits?: UnlimitedImageGenerationLimit[]
                 error?: string
             }>('get_anlas_balance', { token: trimmedToken })
 
@@ -199,10 +198,7 @@ export async function getUserInfo(token: string): Promise<{
                     },
                     imageGenerationEntitlement: result.unlimitedImageGeneration === undefined
                         ? null
-                        : {
-                            unlimitedImageGeneration: result.unlimitedImageGeneration,
-                            limits: result.unlimitedImageGenerationLimits || [],
-                        },
+                        : { unlimitedImageGeneration: result.unlimitedImageGeneration },
                 }
             }
             return null
