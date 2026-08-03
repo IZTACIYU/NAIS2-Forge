@@ -100,7 +100,11 @@ export default function ExifManager() {
             </div>
             <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={event => loadFile(event.target.files?.[0])} />
 
-            <Tabs value={activeTab} onValueChange={value => setActiveTab(value as 'remove' | 'edit')} className="flex flex-1 min-h-0 flex-col">
+            <Tabs
+                value={activeTab}
+                onValueChange={value => setActiveTab(value as 'remove' | 'edit')}
+                className={`flex min-h-0 flex-col ${activeTab === 'remove' ? 'flex-1' : 'flex-none'}`}
+            >
                 <TabsList className="w-fit shrink-0">
                     <TabsTrigger value="remove">{t('exif.tabs.remove')}</TabsTrigger>
                     <TabsTrigger value="edit">{t('exif.tabs.edit')}</TabsTrigger>
