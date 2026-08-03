@@ -145,8 +145,19 @@ export default function ExifManager() {
                 </TabsContent>
 
                 {activeTab === 'edit' && (
-                    <TabsContent value="edit" className="mt-4 text-sm text-muted-foreground">
-                        {t('exif.editComingSoon')}
+                    <TabsContent value="edit" className="mt-4 grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="min-h-[520px] overflow-hidden rounded-lg border border-border/50 bg-muted/15">
+                            <div className="h-full min-h-0 flex items-center justify-center p-3 relative">
+                                {activeImage ? <img src={activeImage} alt="" className="max-w-full max-h-full object-contain" /> : (
+                                    <button type="button" onClick={() => inputRef.current?.click()} className="w-full h-full flex flex-col items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                                        <ImagePlus className="h-10 w-10 mb-3 opacity-50" />
+                                        <span className="text-sm">{t('exif.drop')}</span>
+                                    </button>
+                                )}
+                                {dragging && <div className="absolute inset-3 border-2 border-dashed border-primary bg-primary/10 rounded-lg pointer-events-none" />}
+                            </div>
+                        </div>
+                        <div aria-hidden="true" />
                     </TabsContent>
                 )}
             </Tabs>
