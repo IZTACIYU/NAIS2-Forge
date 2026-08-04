@@ -79,10 +79,11 @@ const buildRows = (left: PngTextMetadata, right: PngTextMetadata): ComparisonRow
     })
 }
 
-const valueClass = (status: ComparisonRow['status']) => {
-    if (status === 'changed') return 'text-amber-300'
-    if (status === 'leftOnly' || status === 'rightOnly') return 'text-rose-300'
-    return 'text-muted-foreground'
+const statusClass = (status: ComparisonRow['status']) => {
+    if (status === 'same') return 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300'
+    if (status === 'changed') return 'border-amber-500/20 bg-amber-500/5 text-amber-300'
+    if (status === 'leftOnly') return 'border-sky-500/20 bg-sky-500/5 text-sky-300'
+    return 'border-fuchsia-500/20 bg-fuchsia-500/5 text-fuchsia-300'
 }
 
 export function ExifMetadataCompare({ left, right, onChoose, onClear, onDrop }: ExifMetadataCompareProps) {
@@ -148,10 +149,10 @@ function ComparisonTable({ rows, leftName, rightName }: { rows: ComparisonRow[];
     const { t } = useTranslation()
     return <div className="grid gap-2">
         <div className="hidden gap-2 px-2 text-xs text-muted-foreground md:grid md:grid-cols-[minmax(140px,0.7fr)_minmax(0,1fr)_minmax(0,1fr)]"><span>{t('exif.compare.field')}</span><span className="truncate">{leftName}</span><span className="truncate">{rightName}</span></div>
-        {rows.map(row => <div key={row.key} className="grid gap-2 rounded-md border border-border/40 bg-background/20 p-2 md:grid-cols-[minmax(140px,0.7fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        {rows.map(row => <div key={row.key} className={`grid gap-2 rounded-md border p-2 md:grid-cols-[minmax(140px,0.7fr)_minmax(0,1fr)_minmax(0,1fr)] ${statusClass(row.status)}`}>
             <span className="break-all text-xs font-medium">{row.key}</span>
-            <span className={`whitespace-pre-wrap break-words text-xs ${valueClass(row.status)}`}>{row.left ?? '-'}</span>
-            <span className={`whitespace-pre-wrap break-words text-xs ${valueClass(row.status)}`}>{row.right ?? '-'}</span>
+            <span className="whitespace-pre-wrap break-words text-xs">{row.left ?? '-'}</span>
+            <span className="whitespace-pre-wrap break-words text-xs">{row.right ?? '-'}</span>
         </div>)}
     </div>
 }
