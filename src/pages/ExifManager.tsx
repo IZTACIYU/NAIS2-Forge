@@ -12,6 +12,7 @@ import { bytesToImageDataUrl, stripImageMetadata, StrippedImage } from '@/lib/ex
 import { getExifOutputName, saveStrippedExifImage, writeExifBlob } from '@/lib/exif-actions'
 import { readPngTextMetadata, writePngTextMetadata, type PngTextMetadata } from '@/lib/png-metadata-editor'
 import { ExifMetadataEditor } from '@/components/exif/ExifMetadataEditor'
+import { ExifMetadataCompare, type CompareImage } from '@/components/exif/ExifMetadataCompare'
 
 export default function ExifManager() {
     const { t } = useTranslation()
@@ -26,13 +27,15 @@ export default function ExifManager() {
     const [resultUrl, setResultUrl] = useState<string | null>(null)
     const [processing, setProcessing] = useState(false)
     const [dragging, setDragging] = useState(false)
-    const [activeTab, setActiveTab] = useState<'remove' | 'edit'>('remove')
+    const [activeTab, setActiveTab] = useState<'remove' | 'edit' | 'compare'>('remove')
     const [editImage, setEditImage] = useState<string | null>(null)
     const [editSourceName, setEditSourceName] = useState('')
     const [editSourcePath, setEditSourcePath] = useState<string | null>(null)
     const [editMetadata, setEditMetadata] = useState<PngTextMetadata | null>(null)
     const [editProcessing, setEditProcessing] = useState(false)
     const [rawJsonValid, setRawJsonValid] = useState(true)
+    const [compareLeft, setCompareLeft] = useState<CompareImage | null>(null)
+    const [compareRight, setCompareRight] = useState<CompareImage | null>(null)
     const inputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
@@ -70,6 +73,27 @@ export default function ExifManager() {
             loadEditImage(image, path.split(/[\\/]/).pop() || 'image.png', path)
         } catch (error) {
             toast({ title: t('exif.editor.loadFailed'), description: String(error), variant: 'destructive' })
+        }
+    }
+
+    const loadCompareImage = (side: 'left' | 'right', preview: string, name: string) => {
+        try {
+            const image = { preview, name, metadata: readPngTextMetadata(preview) }
+            if (side === 'left') setCompareLeft(image)
+            else setCompareRight(image)
+        } catch (error) {
+            toast({ title: t('exif.compare.loadFailed'), description: String(error), variant: 'destructive' })
+        }
+    }
+
+    const chooseCompareImage = async (side: 'left' | 'right') => {
+        const path = await open({ multiple: false, filters: [{ name: 'PNG', extensions: ['png'] }] })
+        if (!path || Array.isArray(path)) return
+        try {
+            const preview = await bytesToImageDataUrl(await readFile(path), path)
+            loadCompareImage(side, preview, path.split(/[\\/]/).pop() || 'image.png')
+        } catch (error) {
+            toast({ title: t('exif.compare.loadFailed'), description: String(error), variant: 'destructive' })
         }
     }
 
@@ -176,7 +200,7 @@ export default function ExifManager() {
             className="h-full flex flex-col gap-4"
             onDragOver={event => { event.preventDefault(); setDragging(true) }}
             onDragLeave={() => setDragging(false)}
-            onDrop={event => { event.preventDefault(); setDragging(false); loadFile(event.dataTransfer.files?.[0]) }}
+            onDrop={event => { event.preventDefault(); setDragging(false); if (activeTab !== 'compare') loadFile(event.dataTransfer.files?.[0]) }}
         >
             <div className="flex items-center justify-between gap-4 shrink-0">
                 <div>
@@ -188,12 +212,13 @@ export default function ExifManager() {
 
             <Tabs
                 value={activeTab}
-                onValueChange={value => setActiveTab(value as 'remove' | 'edit')}
+                onValueChange={value => setActiveTab(value as 'remove' | 'edit' | 'compare')}
                 className="flex flex-1 min-h-0 flex-col"
             >
                 <TabsList className="w-fit shrink-0">
                     <TabsTrigger value="remove">{t('exif.tabs.remove')}</TabsTrigger>
                     <TabsTrigger value="edit">{t('exif.tabs.edit')}</TabsTrigger>
+                    <TabsTrigger value="compare">{t('exif.tabs.compare')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="remove" className="mt-4 flex flex-1 min-h-0 flex-col gap-4">
@@ -266,6 +291,20 @@ export default function ExifManager() {
                             <Trash2 className="h-4 w-4 mr-2" />{t('exif.editor.cancelImage')}
                         </Button>
                     </div>
+                </TabsContent>
+
+                <TabsContent value="compare" className="mt-0 flex flex-1 min-h-0 flex-col">
+                    <ExifMetadataCompare
+                        left={compareLeft}
+                        right={compareRight}
+                        onChoose={chooseCompareImage}
+                        onClear={side => side === 'left' ? setCompareLeft(null) : setCompareRight(null)}
+                        onDrop={(side, file) => {
+                            const reader = new FileReader()
+                            reader.onload = () => loadCompareImage(side, String(reader.result), file.name)
+                            reader.readAsDataURL(file)
+                        }}
+                    />
                 </TabsContent>
             </Tabs>
         </div>

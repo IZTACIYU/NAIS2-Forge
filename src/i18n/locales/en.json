@@ -282,7 +282,8 @@
     "description": "Manage image metadata removal and editing.",
     "tabs": {
       "remove": "EXIF Removal",
-      "edit": "EXIF Edit"
+      "edit": "EXIF Edit",
+      "compare": "EXIF Compare"
     },
     "editComingSoon": "EXIF editing is being prepared.",
     "disabled": "Enable the EXIF Manager in Extensions.",
@@ -322,6 +323,19 @@
       "saved": "Metadata saved",
       "copied": "Edited image copied to clipboard",
       "loadFailed": "Failed to load PNG metadata"
+    },
+    "compare": {
+      "firstImage": "First image",
+      "secondImage": "Second image",
+      "drop": "Drop a PNG image here or click to open",
+      "result": "Metadata comparison",
+      "field": "Field",
+      "summary": "{{changes}} differences / {{total}} fields",
+      "selectBoth": "Select two PNG images to compare their metadata.",
+      "changes": "Differences",
+      "all": "All fields",
+      "identical": "All metadata fields match.",
+      "loadFailed": "Failed to load PNG metadata for comparison"
     }
   },
   "prompt": {
