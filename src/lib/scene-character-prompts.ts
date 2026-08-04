@@ -67,13 +67,13 @@ export const createSceneCustomCharacters = (
         prompt: character.prompt,
         negative: character.negative,
         enabled: true,
-        promptEnabled: true,
-        negativeEnabled: true,
-        costumeEnabled: false,
+        promptEnabled: character.promptEnabled ?? true,
+        negativeEnabled: character.negativeEnabled ?? true,
+        costumeEnabled: character.costumeEnabled ?? true,
         position: { x: 0.5, y: 0.5 },
     }))
 
-const splitCharacterCostumePrompt = (prompt: string) => {
+export const splitSceneCharacterCostumePrompt = (prompt: string) => {
     const normalized = prompt.replace(/\r\n/g, '\n')
     const marker = '#!-\uc758\uc0c1\ud504\ub86c'
     const index = normalized.indexOf(marker)
@@ -84,8 +84,15 @@ const splitCharacterCostumePrompt = (prompt: string) => {
     }
 }
 
+export const joinSceneCharacterCostumePrompt = (characterPrompt: string, costumePrompt: string) => {
+    const base = characterPrompt.replace(/\n+$/g, '')
+    const costume = costumePrompt.replace(/^\n+/g, '')
+    if (!costume) return base
+    return `${base}\n\n#!-\uc758\uc0c1\ud504\ub86c\n${costume}`
+}
+
 export const buildSceneCharacterPrompt = (character: CharacterPrompt, costumeOverride?: boolean) => {
-    const { characterPrompt, costumePrompt } = splitCharacterCostumePrompt(character.prompt)
+    const { characterPrompt, costumePrompt } = splitSceneCharacterCostumePrompt(character.prompt)
     const parts: string[] = []
     if (character.promptEnabled !== false && characterPrompt.trim()) parts.push(characterPrompt)
     const costumeEnabled = costumeOverride ?? (character.costumeEnabled !== false)

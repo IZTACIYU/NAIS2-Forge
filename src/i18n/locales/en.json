@@ -179,7 +179,12 @@
     "npcPrompt": "Character prompt",
     "npcNegative": "Character negative prompt",
     "addNpc": "Add NPC",
-    "enabled": "Enabled"
+    "enabled": "Enabled",
+    "modeTitle": "Character addition method",
+    "modeDescription": "Use one method at a time. Saved data from the other methods remains preserved.",
+    "modePreset": "Preset controls",
+    "modeScene": "Select in scene",
+    "modeCustom": "NPC prompt in scene"
   },
   "sceneRandomCharacters": {
     "buttonTooltip": "Random character settings",

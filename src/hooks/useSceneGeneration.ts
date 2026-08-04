@@ -158,7 +158,10 @@ export function useSceneGeneration() {
                 const latestSettingsStore = useSettingsStore.getState()
                 const sequenceMode = !!sequenceEntry
                 const sceneConfig = latestSceneStore.sceneCharacterAdditions[activePresetId]?.[scene.id] || null
-                const sceneAddition = latestSettingsStore.expertSceneCharacterAdditionsEnabled && latestSceneStore.sceneCharacterAdditionsEnabled
+                const sceneAdditionMode = latestSettingsStore.sceneCharacterAdditionMode
+                const sceneAddition = latestSettingsStore.expertSceneCharacterAdditionsEnabled
+                    && (sceneAdditionMode !== 'preset' || latestSceneStore.sceneCharacterAdditionsEnabled)
+                    && (sceneConfig?.mode || 'preset') === sceneAdditionMode
                     ? sceneConfig
                     : null
                 const usesCustomSceneCharacters = sceneAddition?.mode === 'custom'

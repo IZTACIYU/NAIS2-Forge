@@ -110,8 +110,10 @@ export default function SceneDetail() {
     const expertSceneCharacterVariantOverrideEnabled = useSettingsStore(state => state.expertSceneCharacterVariantOverrideEnabled)
     const expertSceneCharacterCostumeOverrideEnabled = useSettingsStore(state => state.expertSceneCharacterCostumeOverrideEnabled)
     const expertSceneCharacterAdditionsEnabled = useSettingsStore(state => state.expertSceneCharacterAdditionsEnabled)
+    const sceneCharacterAdditionMode = useSettingsStore(state => state.sceneCharacterAdditionMode)
     const expertSceneMultiCharacterEnabled = useSettingsStore(state => state.expertSceneMultiCharacterEnabled)
-    const sceneCharacterAdditionControlsEnabled = expertSceneCharacterAdditionsEnabled && sceneCharacterAdditionsEnabled
+    const sceneCharacterAdditionControlsEnabled = expertSceneCharacterAdditionsEnabled
+        && (sceneCharacterAdditionMode !== 'preset' || sceneCharacterAdditionsEnabled)
     const sceneVariantOverrideEnabled = expertSceneCharacterVariantOverrideEnabled && expertCharacterPromptVariantsEnabled
     const sceneCostumeOverrideEnabled = expertSceneCharacterCostumeOverrideEnabled && expertCharacterPromptLayoutEnabled
     const hasCostumeOverride = sceneCharacterAddition?.characterCostumeEnabled === false
@@ -506,8 +508,8 @@ export default function SceneDetail() {
                             </Button>
                         </Tip>
                     )}
-                    {sceneCharacterAdditionControlsEnabled && (
-                        <div className="flex items-center gap-1 border-l border-border/50 pl-2">
+                    {sceneCharacterAdditionControlsEnabled && sceneCharacterAdditionMode === 'scene' && (
+                        <div className="flex items-center border-l border-border/50 pl-2">
                             <Button
                                 type="button"
                                 variant="outline"
@@ -518,6 +520,10 @@ export default function SceneDetail() {
                                 <UserPlus className="mr-2 h-4 w-4" />
                                 {t('sceneCharacterAddition.selectExisting', 'Add Existing')}
                             </Button>
+                        </div>
+                    )}
+                    {sceneCharacterAdditionControlsEnabled && sceneCharacterAdditionMode === 'custom' && (
+                        <div className="flex items-center border-l border-border/50 pl-2">
                             <Button
                                 type="button"
                                 variant="outline"

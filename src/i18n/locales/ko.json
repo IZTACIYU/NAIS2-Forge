@@ -179,7 +179,12 @@
     "npcPrompt": "\uce90\ub9ad\ud130 \ud504\ub86c\ud504\ud2b8",
     "npcNegative": "\uce90\ub9ad\ud130 \ub124\uac70\ud2f0\ube0c \ud504\ub86c\ud504\ud2b8",
     "addNpc": "NPC \ucd94\uac00",
-    "enabled": "\ud65c\uc131\ud654"
+    "enabled": "\ud65c\uc131\ud654",
+    "modeTitle": "\uce90\ub9ad\ud130 \ucd94\uac00 \ubc29\uc2dd",
+    "modeDescription": "\ud55c \ubc88\uc5d0 \ud558\ub098\uc758 \ubc29\uc2dd\ub9cc \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \ub2e4\ub978 \ubc29\uc2dd\uc758 \uc800\uc7a5 \ub370\uc774\ud130\ub294 \uc720\uc9c0\ub429\ub2c8\ub2e4.",
+    "modePreset": "\ud504\ub9ac\uc14b \uc678\ubd80 \uc81c\uc5b4",
+    "modeScene": "\uc52c \ub0b4\ubd80 \uc120\ud0dd",
+    "modeCustom": "\uc52c \ub0b4\ubd80 NPC \ud504\ub86c\ud504\ud2b8"
   },
   "sceneRandomCharacters": {
     "buttonTooltip": "랜덤 캐릭터 설정",

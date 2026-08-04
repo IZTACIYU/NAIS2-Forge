@@ -5,6 +5,7 @@ import type { SceneRandomCharacterMode } from '@/lib/random-character-selection'
 import type { CharacterGender } from '@/lib/character-gender'
 import type { SceneExportNamePart } from '@/lib/scene-export-name'
 import type { PromptWhitespaceMode } from '@/lib/prompt-formatting'
+import type { SceneCharacterAdditionMode } from './scene-store'
 
 export interface CustomResolution {
     id: string
@@ -58,6 +59,7 @@ interface SettingsState {
     expertSceneCharacterCostumeOverrideEnabled: boolean
     expertSceneCharacterRepeatEnabled: boolean
     expertSceneCharacterAdditionsEnabled: boolean
+    sceneCharacterAdditionMode: SceneCharacterAdditionMode
     expertSceneMultiCharacterEnabled: boolean
     sceneMultiCharacterGenderSelectionMode: 'dropdown' | 'portrait'
     expertSceneExportNameEnabled: boolean
@@ -117,6 +119,7 @@ interface SettingsState {
     setExpertSceneCharacterCostumeOverrideEnabled: (enabled: boolean) => void
     setExpertSceneCharacterRepeatEnabled: (enabled: boolean) => void
     setExpertSceneCharacterAdditionsEnabled: (enabled: boolean) => void
+    setSceneCharacterAdditionMode: (mode: SceneCharacterAdditionMode) => void
     setExpertSceneMultiCharacterEnabled: (enabled: boolean) => void
     setSceneMultiCharacterGenderSelectionMode: (mode: 'dropdown' | 'portrait') => void
     setExpertSceneExportNameEnabled: (enabled: boolean) => void
@@ -169,6 +172,7 @@ export const useSettingsStore = create<SettingsState>()(
             expertSceneCharacterCostumeOverrideEnabled: false,
             expertSceneCharacterRepeatEnabled: false,
             expertSceneCharacterAdditionsEnabled: false,
+            sceneCharacterAdditionMode: 'preset',
             expertSceneMultiCharacterEnabled: false,
             sceneMultiCharacterGenderSelectionMode: 'dropdown',
             expertSceneExportNameEnabled: false,
@@ -240,6 +244,7 @@ export const useSettingsStore = create<SettingsState>()(
             setExpertSceneCharacterCostumeOverrideEnabled: (expertSceneCharacterCostumeOverrideEnabled) => set({ expertSceneCharacterCostumeOverrideEnabled }),
             setExpertSceneCharacterRepeatEnabled: (expertSceneCharacterRepeatEnabled) => set({ expertSceneCharacterRepeatEnabled }),
             setExpertSceneCharacterAdditionsEnabled: (expertSceneCharacterAdditionsEnabled) => set({ expertSceneCharacterAdditionsEnabled }),
+            setSceneCharacterAdditionMode: (sceneCharacterAdditionMode) => set({ sceneCharacterAdditionMode }),
             setExpertSceneMultiCharacterEnabled: (expertSceneMultiCharacterEnabled) => set({ expertSceneMultiCharacterEnabled }),
             setSceneMultiCharacterGenderSelectionMode: (sceneMultiCharacterGenderSelectionMode) => set({ sceneMultiCharacterGenderSelectionMode }),
             setExpertSceneExportNameEnabled: (expertSceneExportNameEnabled) => set({ expertSceneExportNameEnabled }),

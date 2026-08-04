@@ -294,6 +294,7 @@ export default function SceneMode() {
     const batchCount = useGenerationStore(s => s.batchCount)
     const expertSceneCharacterRepeatEnabled = useSettingsStore(s => s.expertSceneCharacterRepeatEnabled)
     const expertSceneCharacterAdditionsEnabled = useSettingsStore(s => s.expertSceneCharacterAdditionsEnabled)
+    const sceneCharacterAdditionMode = useSettingsStore(s => s.sceneCharacterAdditionMode)
     const expertR2DirectUploadEnabled = useSettingsStore(s => s.expertR2DirectUploadEnabled)
     const characterSequenceEnabled = useSceneStore(s => s.characterSequenceEnabled)
     const setCharacterSequenceEnabled = useSceneStore(s => s.setCharacterSequenceEnabled)
@@ -778,7 +779,7 @@ export default function SceneMode() {
                                     </div>
                                 </Tip>
                         )}
-                        {expertSceneCharacterAdditionsEnabled && (
+                        {expertSceneCharacterAdditionsEnabled && sceneCharacterAdditionMode === 'preset' && (
                             <Tip content={t('sceneCharacterAddition.toggleTooltip', 'Add scene characters')}>
                                 <div className={cn(
                                     "flex items-center gap-2 rounded-xl border border-white/10 px-2 h-10 bg-white/5",
@@ -1133,6 +1134,7 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
     const isSelected = useSceneStore(s => s.selectedSceneIds.includes(scene.id))
     const thumbnailLayout = useSceneStore(s => s.thumbnailLayout)
     const expertSceneCharacterAdditionsEnabled = useSettingsStore(s => s.expertSceneCharacterAdditionsEnabled)
+    const sceneCharacterAdditionMode = useSettingsStore(s => s.sceneCharacterAdditionMode)
     const sceneCharacterAdditionsEnabled = useSceneStore(s => s.sceneCharacterAdditionsEnabled)
     const sceneCharacterAddition = useSceneStore(s => {
         const presetId = s.activePresetId
@@ -1342,7 +1344,7 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
                         </div>
 
                         <SceneQueueControls activePresetId={activePresetId} sceneId={scene.id} disabled={disabled} />
-                        {expertSceneCharacterAdditionsEnabled && sceneCharacterAdditionsEnabled && !isEditMode && !isOverlay && (
+                        {expertSceneCharacterAdditionsEnabled && sceneCharacterAdditionMode === 'preset' && sceneCharacterAdditionsEnabled && !isEditMode && !isOverlay && (
                             <div
                                 className="mt-2 rounded-lg border border-white/10 bg-black/55 px-2.5 py-1.5 backdrop-blur-sm"
                                 onClick={(e) => e.stopPropagation()}

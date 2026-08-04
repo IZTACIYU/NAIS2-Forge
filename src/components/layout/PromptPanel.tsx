@@ -185,6 +185,7 @@ export function PromptPanel() {
     const expertSceneCharacterVariantOverrideEnabled = useSettingsStore(state => state.expertSceneCharacterVariantOverrideEnabled)
     const expertSceneCharacterCostumeOverrideEnabled = useSettingsStore(state => state.expertSceneCharacterCostumeOverrideEnabled)
     const expertSceneCharacterAdditionsEnabled = useSettingsStore(state => state.expertSceneCharacterAdditionsEnabled)
+    const sceneCharacterAdditionMode = useSettingsStore(state => state.sceneCharacterAdditionMode)
     const expertSceneMultiCharacterEnabled = useSettingsStore(state => state.expertSceneMultiCharacterEnabled)
 
     // Zustand 선택적 구독 - characterPromptStore
@@ -235,7 +236,9 @@ export function PromptPanel() {
 
     useEffect(() => {
         const isActiveScene = isSceneMode && !!routeSceneId
-        const sceneAddition = isActiveScene && expertSceneCharacterAdditionsEnabled && sceneCharacterAdditionsEnabled
+        const sceneAddition = isActiveScene && expertSceneCharacterAdditionsEnabled
+            && (sceneCharacterAdditionMode !== 'preset' || sceneCharacterAdditionsEnabled)
+            && (sceneCharacterAddition?.mode || 'preset') === sceneCharacterAdditionMode
             ? sceneCharacterAddition
             : null
         const usesCustomSceneCharacters = sceneAddition?.mode === 'custom'
@@ -336,6 +339,7 @@ export function PromptPanel() {
         expertSceneCharacterVariantOverrideEnabled,
         expertSceneCharacterCostumeOverrideEnabled,
         expertSceneCharacterAdditionsEnabled,
+        sceneCharacterAdditionMode,
         expertSceneMultiCharacterEnabled,
         characters,
         fragmentRevision,

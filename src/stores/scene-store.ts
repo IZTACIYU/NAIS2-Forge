@@ -79,6 +79,9 @@ export interface SceneCustomCharacter {
     prompt: string
     negative: string
     enabled?: boolean
+    promptEnabled?: boolean
+    negativeEnabled?: boolean
+    costumeEnabled?: boolean
 }
 
 function normalizeSceneMultiCharacterSlots(value: unknown): SceneMultiCharacterSlot[] | undefined {
@@ -144,6 +147,9 @@ function normalizeSceneCharacterAddition(value: unknown): SceneCharacterAddition
                 prompt: typeof character.prompt === 'string' ? character.prompt : '',
                 negative: typeof character.negative === 'string' ? character.negative : '',
                 ...(typeof character.enabled === 'boolean' ? { enabled: character.enabled } : {}),
+                ...(typeof character.promptEnabled === 'boolean' ? { promptEnabled: character.promptEnabled } : {}),
+                ...(typeof character.negativeEnabled === 'boolean' ? { negativeEnabled: character.negativeEnabled } : {}),
+                ...(typeof character.costumeEnabled === 'boolean' ? { costumeEnabled: character.costumeEnabled } : {}),
             }]
         })
     }
