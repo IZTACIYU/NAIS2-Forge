@@ -1216,7 +1216,9 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
         if (activePresetId) void moveScenesToPreset(activePresetId, [scene.id], targetPresetId)
     }
     const additionCounts = {
-        characters: sceneCharacterAddition?.characterPromptIds.length || 0,
+        characters: sceneCharacterAddition?.mode === 'custom'
+            ? sceneCharacterAddition.customCharacters?.filter(character => character.enabled !== false).length || 0
+            : sceneCharacterAddition?.characterPromptIds.length || 0,
         refs: sceneCharacterAddition?.characterReferenceIds.length || 0,
         vibes: sceneCharacterAddition?.vibeReferenceIds.length || 0,
     }

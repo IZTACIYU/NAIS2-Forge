@@ -16,6 +16,7 @@ import { useCharacterStore } from '@/stores/character-store'
 import { sendSystemNotification } from '@/lib/system-notification'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 import {
+    createSceneCustomCharacters,
     getSceneMultiCharacterPositionMap,
     getSceneMultiCharacterPromptMap,
     getVariantStackKey,
@@ -160,6 +161,7 @@ export function useSceneGeneration() {
                 const sceneAddition = latestSettingsStore.expertSceneCharacterAdditionsEnabled && latestSceneStore.sceneCharacterAdditionsEnabled
                     ? sceneConfig
                     : null
+                const usesCustomSceneCharacters = sceneAddition?.mode === 'custom'
                 const uniqueIds = (ids: string[]) => Array.from(new Set(ids))
                 const characterReferenceIds = sequenceMode
                     ? sequenceEntry.characterReferenceIds
@@ -194,15 +196,15 @@ export function useSceneGeneration() {
                         ?? latestPromptStore.characters.filter(character => character.enabled).map(character => character.id)
                 const finalCharacterReferenceIds = uniqueIds([
                     ...characterReferenceIds,
-                    ...(sceneAddition?.characterReferenceIds || []),
+                    ...(usesCustomSceneCharacters ? [] : sceneAddition?.characterReferenceIds || []),
                 ])
                 const finalVibeReferenceIds = uniqueIds([
                     ...vibeReferenceIds,
-                    ...(sceneAddition?.vibeReferenceIds || []),
+                    ...(usesCustomSceneCharacters ? [] : sceneAddition?.vibeReferenceIds || []),
                 ])
                 const finalCharacterPromptIds = uniqueIds([
                     ...characterPromptIds,
-                    ...(sceneAddition?.characterPromptIds || []),
+                    ...(usesCustomSceneCharacters ? [] : sceneAddition?.characterPromptIds || []),
                 ])
                 const latestCharStore = useCharacterStore.getState()
                 const characterImages = latestCharStore.characterImages.filter(img => finalCharacterReferenceIds.includes(img.id) && (img.filePath || img.base64 || img.cacheKey))
@@ -215,11 +217,17 @@ export function useSceneGeneration() {
                     && latestSettingsStore.expertCharacterPromptLayoutEnabled
                     ? sceneConfig?.characterCostumeEnabled
                     : undefined
-                const characterPrompts = selectSceneCharacters(
+                const selectedCharacters = selectSceneCharacters(
                     latestPromptStore.characters,
                     finalCharacterPromptIds,
                     requestedVariantIndex,
-                ).slice(0, maxCharacterPrompts)
+                )
+                const characterPrompts = [
+                    ...selectedCharacters,
+                    ...(usesCustomSceneCharacters
+                        ? createSceneCustomCharacters(scene.id, sceneAddition?.customCharacters)
+                        : []),
+                ].slice(0, maxCharacterPrompts)
                 const multiCharacterPromptMap = getSceneMultiCharacterPromptMap(
                     latestSettingsStore.expertSceneMultiCharacterEnabled ? scene.multiCharacterSlots : undefined,
                     characterPrompts,

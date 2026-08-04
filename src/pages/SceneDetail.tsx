@@ -29,6 +29,8 @@ import {
     ChevronDown,
     ChevronUp,
     UsersRound,
+    UserPlus,
+    UserRoundPlus,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { AutocompleteTextarea } from "@/components/ui/AutocompleteTextarea";
@@ -57,6 +59,8 @@ import { exists, mkdir, readFile, remove } from '@tauri-apps/plugin-fs'
 import { toast } from '@/components/ui/use-toast'
 import { getSceneFolderFromImages, sanitizeSceneFolderName } from '@/lib/scene-path'
 import { SceneMultiCharacterPanel } from '@/components/scene/SceneMultiCharacterPanel'
+import { SceneCharacterAdditionDialog } from '@/components/scene/SceneCharacterAdditionDialog'
+import { SceneCustomCharacterDialog } from '@/components/scene/SceneCustomCharacterDialog'
 
 export default function SceneDetail() {
     const { id: sceneId } = useParams()
@@ -72,6 +76,7 @@ export default function SceneDetail() {
         if (!state.activePresetId || !sceneId) return null
         return state.sceneCharacterAdditions[state.activePresetId]?.[sceneId] || null
     })
+    const sceneCharacterAdditionsEnabled = useSceneStore(state => state.sceneCharacterAdditionsEnabled)
 
     const {
         renameScene,
@@ -104,7 +109,9 @@ export default function SceneDetail() {
     const expertCharacterPromptVariantsEnabled = useSettingsStore(state => state.expertCharacterPromptVariantsEnabled)
     const expertSceneCharacterVariantOverrideEnabled = useSettingsStore(state => state.expertSceneCharacterVariantOverrideEnabled)
     const expertSceneCharacterCostumeOverrideEnabled = useSettingsStore(state => state.expertSceneCharacterCostumeOverrideEnabled)
+    const expertSceneCharacterAdditionsEnabled = useSettingsStore(state => state.expertSceneCharacterAdditionsEnabled)
     const expertSceneMultiCharacterEnabled = useSettingsStore(state => state.expertSceneMultiCharacterEnabled)
+    const sceneCharacterAdditionControlsEnabled = expertSceneCharacterAdditionsEnabled && sceneCharacterAdditionsEnabled
     const sceneVariantOverrideEnabled = expertSceneCharacterVariantOverrideEnabled && expertCharacterPromptVariantsEnabled
     const sceneCostumeOverrideEnabled = expertSceneCharacterCostumeOverrideEnabled && expertCharacterPromptLayoutEnabled
     const hasCostumeOverride = sceneCharacterAddition?.characterCostumeEnabled === false
@@ -170,6 +177,8 @@ export default function SceneDetail() {
     const [scenePromptMode, setScenePromptMode] = useState<'positive' | 'negative'>('positive')
     const [sceneEditorCollapsed, setSceneEditorCollapsed] = useState(false)
     const [multiCharacterPanelOpen, setMultiCharacterPanelOpen] = useState(false)
+    const [sceneCharacterPickerOpen, setSceneCharacterPickerOpen] = useState(false)
+    const [sceneCustomCharacterOpen, setSceneCustomCharacterOpen] = useState(false)
 
     const nav = useNavigate()
 
@@ -497,6 +506,30 @@ export default function SceneDetail() {
                             </Button>
                         </Tip>
                     )}
+                    {sceneCharacterAdditionControlsEnabled && (
+                        <div className="flex items-center gap-1 border-l border-border/50 pl-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 rounded-lg"
+                                onClick={() => setSceneCharacterPickerOpen(true)}
+                            >
+                                <UserPlus className="mr-2 h-4 w-4" />
+                                {t('sceneCharacterAddition.selectExisting', 'Add Existing')}
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 rounded-lg"
+                                onClick={() => setSceneCustomCharacterOpen(true)}
+                            >
+                                <UserRoundPlus className="mr-2 h-4 w-4" />
+                                {t('sceneCharacterAddition.editNpc', 'NPC Prompt')}
+                            </Button>
+                        </div>
+                    )}
                     {expertSceneMultiCharacterEnabled && (
                         <Popover open={multiCharacterPanelOpen} onOpenChange={setMultiCharacterPanelOpen}>
                             <PopoverTrigger asChild>
@@ -817,6 +850,20 @@ export default function SceneDetail() {
             />
 
             {/* Full-Screen Image Viewer Overlay with Context Menu */}
+            <SceneCharacterAdditionDialog
+                open={sceneCharacterPickerOpen}
+                onOpenChange={setSceneCharacterPickerOpen}
+                presetId={activePresetId}
+                sceneId={sceneId || null}
+                mode="scene"
+            />
+            <SceneCustomCharacterDialog
+                open={sceneCustomCharacterOpen}
+                onOpenChange={setSceneCustomCharacterOpen}
+                presetId={activePresetId}
+                sceneId={sceneId || null}
+            />
+
             {viewerImageSrc && viewerImage && (
                 <div
                     className="absolute inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/90 p-4 cursor-pointer"

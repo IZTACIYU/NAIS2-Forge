@@ -62,11 +62,23 @@ export interface SceneCharacterSequenceQueueItem {
 }
 
 export interface SceneCharacterAddition {
+    mode?: SceneCharacterAdditionMode
     characterPromptIds: string[]
     characterReferenceIds: string[]
     vibeReferenceIds: string[]
+    customCharacters?: SceneCustomCharacter[]
     characterVariantIndex?: number
     characterCostumeEnabled?: boolean
+}
+
+export type SceneCharacterAdditionMode = 'preset' | 'scene' | 'custom'
+
+export interface SceneCustomCharacter {
+    id: string
+    name: string
+    prompt: string
+    negative: string
+    enabled?: boolean
 }
 
 function normalizeSceneMultiCharacterSlots(value: unknown): SceneMultiCharacterSlot[] | undefined {
@@ -117,6 +129,25 @@ function normalizeSceneCharacterAddition(value: unknown): SceneCharacterAddition
         vibeReferenceIds: normalizeIds(source.vibeReferenceIds),
     }
 
+    if (source.mode === 'preset' || source.mode === 'scene' || source.mode === 'custom') {
+        addition.mode = source.mode
+    }
+    if (Array.isArray(source.customCharacters)) {
+        addition.customCharacters = source.customCharacters.flatMap((item, index) => {
+            if (!item || typeof item !== 'object') return []
+            const character = item as Partial<SceneCustomCharacter>
+            return [{
+                id: typeof character.id === 'string' && character.id
+                    ? character.id
+                    : `scene-custom-${Date.now()}-${index}`,
+                name: typeof character.name === 'string' ? character.name : '',
+                prompt: typeof character.prompt === 'string' ? character.prompt : '',
+                negative: typeof character.negative === 'string' ? character.negative : '',
+                ...(typeof character.enabled === 'boolean' ? { enabled: character.enabled } : {}),
+            }]
+        })
+    }
+
     if (Number.isInteger(source.characterVariantIndex) && Number(source.characterVariantIndex) >= 0) {
         addition.characterVariantIndex = Number(source.characterVariantIndex)
     }
@@ -127,8 +158,10 @@ function normalizeSceneCharacterAddition(value: unknown): SceneCharacterAddition
     const hasAny = addition.characterPromptIds.length > 0
         || addition.characterReferenceIds.length > 0
         || addition.vibeReferenceIds.length > 0
+        || (addition.customCharacters?.length || 0) > 0
         || addition.characterVariantIndex !== undefined
         || addition.characterCostumeEnabled !== undefined
+        || addition.mode === 'custom'
     return hasAny ? addition : null
 }
 
@@ -1010,8 +1043,10 @@ export const useSceneStore = create<SceneState>()(
                 const hasAny = addition.characterPromptIds.length > 0
                     || addition.characterReferenceIds.length > 0
                     || addition.vibeReferenceIds.length > 0
+                    || (addition.customCharacters?.length || 0) > 0
                     || addition.characterVariantIndex !== undefined
                     || addition.characterCostumeEnabled !== undefined
+                    || addition.mode === 'custom'
                 return hasAny ? addition : null
             },
             updateSceneCharacterAddition: (presetId, sceneId, addition) => set(state => ({

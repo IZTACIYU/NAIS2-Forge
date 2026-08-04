@@ -52,6 +52,7 @@ import { useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { removePromptComments } from '@/lib/prompt-comments'
 import {
     buildSceneCharacterPrompt,
+    createSceneCustomCharacters,
     getSceneMultiCharacterPromptMap,
     selectSceneCharacters,
 } from '@/lib/scene-character-prompts'
@@ -237,6 +238,7 @@ export function PromptPanel() {
         const sceneAddition = isActiveScene && expertSceneCharacterAdditionsEnabled && sceneCharacterAdditionsEnabled
             ? sceneCharacterAddition
             : null
+        const usesCustomSceneCharacters = sceneAddition?.mode === 'custom'
         const requestedVariantIndex = isActiveScene && expertSceneCharacterVariantOverrideEnabled && expertCharacterPromptVariantsEnabled
             ? sceneCharacterAddition?.characterVariantIndex
             : undefined
@@ -246,20 +248,23 @@ export function PromptPanel() {
         const characterIds = isActiveScene
             ? Array.from(new Set([
                 ...characters.filter(character => character.enabled).map(character => character.id),
-                ...(sceneAddition?.characterPromptIds || []),
+                ...(usesCustomSceneCharacters ? [] : sceneAddition?.characterPromptIds || []),
             ]))
             : characters.filter(character => character.enabled).map(character => character.id)
         const selectedCharacters = isActiveScene
             ? selectSceneCharacters(characters, characterIds, requestedVariantIndex)
             : characters.filter(character => character.enabled)
+        const charactersForTokens = isActiveScene && usesCustomSceneCharacters
+            ? [...selectedCharacters, ...createSceneCustomCharacters(routeSceneId!, sceneAddition?.customCharacters)]
+            : selectedCharacters
         const multiCharacterPrompts = isActiveScene
             ? getSceneMultiCharacterPromptMap(
                 expertSceneMultiCharacterEnabled ? activeSceneMultiCharacterSlots : undefined,
-                selectedCharacters,
+                charactersForTokens,
                 characters,
             )
             : new Map<string, string[]>()
-        const characterPositivePrompts = selectedCharacters.map(character => isActiveScene
+        const characterPositivePrompts = charactersForTokens.map(character => isActiveScene
             ? [
                 expertCharacterPromptLayoutEnabled
                     ? buildSceneCharacterPrompt(character, costumeOverride)
@@ -268,7 +273,7 @@ export function PromptPanel() {
             ].filter(Boolean).join('\n')
             : character.prompt
         )
-        const characterNegativePrompts = selectedCharacters.map(character => (
+        const characterNegativePrompts = charactersForTokens.map(character => (
             isActiveScene && expertCharacterPromptLayoutEnabled && character.negativeEnabled === false
                 ? ''
                 : character.negative

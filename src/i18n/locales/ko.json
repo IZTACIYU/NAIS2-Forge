@@ -170,7 +170,16 @@
     "summary": "\uce90\ub9ad\ud130 {{characters}} / \ub808\ud37c\ub7f0\uc2a4 {{refs}} / \ubc14\uc774\ube0c {{vibes}}",
     "clear": "\ube44\uc6b0\uae30",
     "emptyInline": "\uc52c \uce90\ub9ad\ud130 \uc5c6\uc74c",
-    "characterCount": "\uce90\ub9ad\ud130"
+    "characterCount": "\uce90\ub9ad\ud130",
+    "selectExisting": "\uae30\uc874 \uce90\ub9ad\ud130 \uc120\ud0dd",
+    "editNpc": "NPC \ud504\ub86c\ud504\ud2b8",
+    "npcTitle": "NPC \uce90\ub9ad\ud130",
+    "npcDescription": "\uc774 \uc52c\uc5d0\uc11c\ub9cc \uc0ac\uc6a9\ud560 NPC \ud504\ub86c\ud504\ud2b8\ub97c \uc785\ub825\ud569\ub2c8\ub2e4.",
+    "npcName": "NPC \uc774\ub984",
+    "npcPrompt": "\uce90\ub9ad\ud130 \ud504\ub86c\ud504\ud2b8",
+    "npcNegative": "\uce90\ub9ad\ud130 \ub124\uac70\ud2f0\ube0c \ud504\ub86c\ud504\ud2b8",
+    "addNpc": "NPC \ucd94\uac00",
+    "enabled": "\ud65c\uc131\ud654"
   },
   "sceneRandomCharacters": {
     "buttonTooltip": "랜덤 캐릭터 설정",

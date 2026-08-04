@@ -170,7 +170,16 @@
     "summary": "Characters {{characters}} / Refs {{refs}} / Vibes {{vibes}}",
     "clear": "Clear",
     "emptyInline": "No scene characters",
-    "characterCount": "Char"
+    "characterCount": "Char",
+    "selectExisting": "Add Existing",
+    "editNpc": "NPC Prompt",
+    "npcTitle": "NPC Characters",
+    "npcDescription": "Add prompt-only NPCs for this scene.",
+    "npcName": "NPC name",
+    "npcPrompt": "Character prompt",
+    "npcNegative": "Character negative prompt",
+    "addNpc": "Add NPC",
+    "enabled": "Enabled"
   },
   "sceneRandomCharacters": {
     "buttonTooltip": "Random character settings",

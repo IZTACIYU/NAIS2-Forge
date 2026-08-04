@@ -1,5 +1,5 @@
 import type { CharacterPrompt } from '@/stores/character-prompt-store'
-import type { SceneMultiCharacterSlot } from '@/stores/scene-store'
+import type { SceneCustomCharacter, SceneMultiCharacterSlot } from '@/stores/scene-store'
 import { getCharacterGender } from '@/lib/character-gender'
 
 const VARIANT_NAME_PATTERN = /\s-\s([a-z0-9]{6})\s-\s(\d+)$/i
@@ -55,6 +55,23 @@ export const selectSceneCharacters = (
 
     return Array.from(selectedByStack.values())
 }
+
+export const createSceneCustomCharacters = (
+    sceneId: string,
+    customCharacters: SceneCustomCharacter[] | undefined,
+): CharacterPrompt[] => (customCharacters || [])
+    .filter(character => character.enabled !== false && (character.prompt.trim() || character.negative.trim()))
+    .map(character => ({
+        id: `scene-custom:${sceneId}:${character.id}`,
+        name: character.name,
+        prompt: character.prompt,
+        negative: character.negative,
+        enabled: true,
+        promptEnabled: true,
+        negativeEnabled: true,
+        costumeEnabled: false,
+        position: { x: 0.5, y: 0.5 },
+    }))
 
 const splitCharacterCostumePrompt = (prompt: string) => {
     const normalized = prompt.replace(/\r\n/g, '\n')

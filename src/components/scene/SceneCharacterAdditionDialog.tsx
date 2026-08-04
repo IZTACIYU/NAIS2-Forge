@@ -13,7 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
-import { useSceneStore, SceneCharacterAddition } from '@/stores/scene-store'
+import { useSceneStore, SceneCharacterAddition, SceneCharacterAdditionMode } from '@/stores/scene-store'
 import { useCharacterPromptStore, CharacterPrompt, FOLDER_COLORS } from '@/stores/character-prompt-store'
 import { useCharacterStore, ReferenceImage } from '@/stores/character-store'
 
@@ -22,6 +22,7 @@ interface SceneCharacterAdditionDialogProps {
     onOpenChange: (open: boolean) => void
     presetId: string | null
     sceneId: string | null
+    mode?: Extract<SceneCharacterAdditionMode, 'preset' | 'scene'>
 }
 
 const emptyAddition: SceneCharacterAddition = {
@@ -42,7 +43,7 @@ const cleanCharacterName = (name?: string) => {
     return rawName
 }
 
-export function SceneCharacterAdditionDialog({ open, onOpenChange, presetId, sceneId }: SceneCharacterAdditionDialogProps) {
+export function SceneCharacterAdditionDialog({ open, onOpenChange, presetId, sceneId, mode = 'preset' }: SceneCharacterAdditionDialogProps) {
     const { t } = useTranslation()
     const promptCharacters = useCharacterPromptStore(s => s.characters)
     const promptGroups = useCharacterPromptStore(s => s.groups)
@@ -84,7 +85,7 @@ export function SceneCharacterAdditionDialog({ open, onOpenChange, presetId, sce
 
     const save = (updates: Partial<SceneCharacterAddition>) => {
         if (!presetId || !sceneId) return
-        updateAddition(presetId, sceneId, { ...current, ...updates })
+        updateAddition(presetId, sceneId, { ...current, ...updates, mode })
     }
 
     const clear = () => {
