@@ -845,7 +845,9 @@
         "sceneVariantTitle": "Dynamic Scene Stack",
         "sceneVariantDesc": "Choose a character stack page for each scene during batch generation.",
         "sceneCostumeTitle": "Dynamic Scene Costume",
-        "sceneCostumeDesc": "Turn off character costume prompts for selected scenes during batch generation."
+        "sceneCostumeDesc": "Turn off character costume prompts for selected scenes during batch generation.",
+        "metadataAlwaysCreateTitle": "Always create characters on metadata import",
+        "metadataAlwaysCreateDesc": "Creates a new character card for every imported character, even when a matching card already exists."
       },
       "library": {
         "header": "Library",

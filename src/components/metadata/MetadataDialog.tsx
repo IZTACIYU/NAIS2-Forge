@@ -24,6 +24,7 @@ import { NAIMetadata, parseMetadataFromFile, parseMetadataFromBase64 } from '@/l
 import { usePresetStore } from '@/stores/preset-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
+import { useSettingsStore } from '@/stores/settings-store'
 import { toast } from '@/components/ui/use-toast'
 import { FileImage, Download, AlertCircle } from 'lucide-react'
 import { useCharacterStore } from '@/stores/character-store'
@@ -48,6 +49,7 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
     const { presets, activePresetId, loadPreset, syncFromGenerationStore } = usePresetStore()
     const genStore = useGenerationStore()
     const charStore = useCharacterPromptStore()
+    const alwaysAddCharacters = useSettingsStore(state => state.expertMetadataAlwaysAddCharacters)
     const referenceStore = useCharacterStore()
 
     const [metadata, setMetadata] = useState<NAIMetadata | null>(null)
@@ -229,21 +231,16 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
                 // creating duplicate cards from V4 captions.
                 charStore.disableAll()
                 for (const source of sourceCharacters) {
-                    const existing = charStore.characters.find(character =>
-                        character.id === source.id
-                        || (source.presetId !== undefined && character.presetId === source.presetId)
+                    const existing = alwaysAddCharacters ? undefined : charStore.characters.find(character =>
+                        character.name === source.name
+                        && character.prompt === source.prompt
+                        && character.negative === source.negative
+                        && character.promptEnabled === source.promptEnabled
+                        && character.negativeEnabled === source.negativeEnabled
+                        && character.costumeEnabled === source.costumeEnabled
                     )
                     if (existing) {
-                        charStore.updateCharacter(existing.id, {
-                            name: source.name,
-                            prompt: source.prompt,
-                            negative: source.negative,
-                            promptEnabled: source.promptEnabled,
-                            negativeEnabled: source.negativeEnabled,
-                            costumeEnabled: source.costumeEnabled,
-                            position: source.position,
-                            enabled: true,
-                        })
+                        charStore.updateCharacter(existing.id, { enabled: true })
                         continue
                     }
 

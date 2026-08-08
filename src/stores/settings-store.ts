@@ -54,6 +54,7 @@ interface SettingsState {
     expertCharacterPromptLayoutEnabled: boolean
     expertCharacterPromptVariantsEnabled: boolean
     expertCharacterPromptGenderIndicatorEnabled: boolean
+    expertMetadataAlwaysAddCharacters: boolean
     characterPromptGenderIndicatorMode: 'icon' | 'header'
     expertSceneCharacterVariantOverrideEnabled: boolean
     expertSceneCharacterCostumeOverrideEnabled: boolean
@@ -114,6 +115,7 @@ interface SettingsState {
     setExpertCharacterPromptLayoutEnabled: (enabled: boolean) => void
     setExpertCharacterPromptVariantsEnabled: (enabled: boolean) => void
     setExpertCharacterPromptGenderIndicatorEnabled: (enabled: boolean) => void
+    setExpertMetadataAlwaysAddCharacters: (enabled: boolean) => void
     setCharacterPromptGenderIndicatorMode: (mode: 'icon' | 'header') => void
     setExpertSceneCharacterVariantOverrideEnabled: (enabled: boolean) => void
     setExpertSceneCharacterCostumeOverrideEnabled: (enabled: boolean) => void
@@ -167,6 +169,7 @@ export const useSettingsStore = create<SettingsState>()(
             expertCharacterPromptLayoutEnabled: false,
             expertCharacterPromptVariantsEnabled: false,
             expertCharacterPromptGenderIndicatorEnabled: false,
+            expertMetadataAlwaysAddCharacters: false,
             characterPromptGenderIndicatorMode: 'icon',
             expertSceneCharacterVariantOverrideEnabled: false,
             expertSceneCharacterCostumeOverrideEnabled: false,
@@ -239,6 +242,7 @@ export const useSettingsStore = create<SettingsState>()(
             setExpertCharacterPromptLayoutEnabled: (expertCharacterPromptLayoutEnabled) => set({ expertCharacterPromptLayoutEnabled }),
             setExpertCharacterPromptVariantsEnabled: (expertCharacterPromptVariantsEnabled) => set({ expertCharacterPromptVariantsEnabled }),
             setExpertCharacterPromptGenderIndicatorEnabled: (expertCharacterPromptGenderIndicatorEnabled) => set({ expertCharacterPromptGenderIndicatorEnabled }),
+            setExpertMetadataAlwaysAddCharacters: (expertMetadataAlwaysAddCharacters) => set({ expertMetadataAlwaysAddCharacters }),
             setCharacterPromptGenderIndicatorMode: (characterPromptGenderIndicatorMode) => set({ characterPromptGenderIndicatorMode }),
             setExpertSceneCharacterVariantOverrideEnabled: (expertSceneCharacterVariantOverrideEnabled) => set({ expertSceneCharacterVariantOverrideEnabled }),
             setExpertSceneCharacterCostumeOverrideEnabled: (expertSceneCharacterCostumeOverrideEnabled) => set({ expertSceneCharacterCostumeOverrideEnabled }),
