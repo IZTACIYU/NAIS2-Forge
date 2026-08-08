@@ -560,20 +560,25 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
                                                 </Label>
                                             </div>
                                             <div className="pl-6 space-y-1">
-                                                {metadata.generationSources?.characterPrompts.map((source, idx) => (
-                                                    <div key={source.id} className="bg-muted/30 rounded-lg p-2 text-xs">
-                                                        <div className="font-medium text-muted-foreground">
-                                                            {source.name || `#${idx + 1}`}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                {!metadata.generationSources?.characterPrompts.length && metadata.v4_prompt?.caption?.char_captions?.map((cap, idx) => (
+                                                {metadata.v4_prompt?.caption?.char_captions?.map((cap, idx) => (
                                                     <div key={idx} className="bg-muted/30 rounded-lg p-2 text-xs">
                                                         <div className="font-medium text-muted-foreground mb-1">
                                                             Pos: {cap.centers.map(c => `(${c.x.toFixed(2)}, ${c.y.toFixed(2)})`).join(', ')}
                                                         </div>
                                                         <Textarea
                                                             value={cap.char_caption}
+                                                            readOnly
+                                                            className="text-xs resize-none h-20 bg-transparent border-0 p-0 focus-visible:ring-0 cursor-text select-text"
+                                                        />
+                                                    </div>
+                                                ))}
+                                                {!metadata.v4_prompt?.caption?.char_captions?.length && metadata.generationSources?.characterPrompts.map((source, idx) => (
+                                                    <div key={source.id} className="bg-muted/30 rounded-lg p-2 text-xs">
+                                                        <div className="font-medium text-muted-foreground mb-1">
+                                                            {source.name || `#${idx + 1}`}
+                                                        </div>
+                                                        <Textarea
+                                                            value={source.prompt}
                                                             readOnly
                                                             className="text-xs resize-none h-20 bg-transparent border-0 p-0 focus-visible:ring-0 cursor-text select-text"
                                                         />
