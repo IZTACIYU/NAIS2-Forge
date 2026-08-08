@@ -4,6 +4,7 @@ import type { CharacterPrompt } from '@/stores/character-prompt-store'
 import type { Nais2GenerationSources } from '@/lib/nais2-png-meta'
 import { processWildcards } from '@/lib/fragment-processor'
 import { getModelCapabilities } from '@/lib/model-capabilities'
+import { mergeQualityTags, mergeUcPreset } from '@/lib/nai-presets'
 import { removePromptComments } from '@/lib/prompt-comments'
 import {
     formatPromptWhitespace,
@@ -84,16 +85,24 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
     const cleanup = (prompt: string) => input.removeEmptyPromptSeparators
         ? removeExactEmptyPromptSeparators(prompt)
         : prompt
-    const prompt = cleanup(await processWildcards(joinPromptParts(
-        input.positiveParts,
-        input.promptWhitespaceMode,
-        input.insertBlankLinesBetweenPromptParts,
-    )))
-    const negativePrompt = cleanup(await processWildcards(joinPromptParts(
-        input.negativeParts,
-        input.promptWhitespaceMode,
-        input.insertBlankLinesBetweenPromptParts,
-    )))
+    const prompt = mergeQualityTags(
+        cleanup(await processWildcards(joinPromptParts(
+            input.positiveParts,
+            input.promptWhitespaceMode,
+            input.insertBlankLinesBetweenPromptParts,
+        ))),
+        input.model,
+        input.qualityToggle,
+    )
+    const negativePrompt = mergeUcPreset(
+        cleanup(await processWildcards(joinPromptParts(
+            input.negativeParts,
+            input.promptWhitespaceMode,
+            input.insertBlankLinesBetweenPromptParts,
+        ))),
+        input.model,
+        input.ucPreset,
+    )
 
     const characterPrompts = await Promise.all(input.characterInputs
         .slice(0, getModelCapabilities(input.model).maxCharacterPrompts)
