@@ -7,6 +7,7 @@ import { getModelCapabilities } from '@/lib/model-capabilities'
 import { mergeQualityTags, mergeUcPreset } from '@/lib/nai-presets'
 import { removePromptComments } from '@/lib/prompt-comments'
 import { splitCostumePrompt } from '@/lib/costume-prompt'
+import { resolveConditionalNegativePrompt } from '@/lib/conditional-prompts'
 import {
     formatPromptWhitespace,
     removeExactEmptyPromptSeparators,
@@ -83,15 +84,6 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         input.model,
         input.qualityToggle,
     )
-    const negativePrompt = mergeUcPreset(
-        cleanup(await processWildcards(joinPromptParts(
-            input.negativeParts,
-            input.promptWhitespaceMode,
-            input.insertBlankLinesBetweenPromptParts,
-        ))),
-        input.model,
-        input.ucPreset,
-    )
 
     const characterPrompts = await Promise.all(input.characterInputs
         .slice(0, getModelCapabilities(input.model).maxCharacterPrompts)
@@ -125,12 +117,30 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
 
         return {
             prompt: cleanup(await processWildcards(removePromptComments(rawPrompt))),
-            negative: cleanup(await processWildcards(removePromptComments(rawNegative))),
+            rawNegative: removePromptComments(rawNegative),
             enabled: true,
             position: position || character.position,
         }
     }))
 
+    const conditionalContext = {
+        basePrompt: [prompt, ...characterPrompts.map(character => character.prompt)]
+            .filter(part => part.trim())
+            .join('\n'),
+    }
+    const negativePrompt = mergeUcPreset(
+        cleanup(await processWildcards(resolveConditionalNegativePrompt(joinPromptParts(
+            input.negativeParts,
+            input.promptWhitespaceMode,
+            input.insertBlankLinesBetweenPromptParts,
+        ), conditionalContext))),
+        input.model,
+        input.ucPreset,
+    )
+    const resolvedCharacterPrompts = await Promise.all(characterPrompts.map(async ({ rawNegative, ...character }) => ({
+        ...character,
+        negative: cleanup(await processWildcards(resolveConditionalNegativePrompt(rawNegative, conditionalContext))),
+    })))
     const generationSources = input.generationSources ?? {
         characterPrompts: input.characterInputs
             .slice(0, getModelCapabilities(input.model).maxCharacterPrompts)
@@ -195,7 +205,7 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         vibeInfo: input.vibeImages.map(image => image.informationExtracted),
         vibeStrength: input.vibeImages.map(image => image.strength),
         preEncodedVibes: input.vibeImages.map(image => image.encodedVibe || null),
-        characterPrompts,
+        characterPrompts: resolvedCharacterPrompts,
         characterPositionEnabled: input.characterPositionEnabled,
         imageFormat: input.imageFormat,
         qualityToggle: input.qualityToggle,
