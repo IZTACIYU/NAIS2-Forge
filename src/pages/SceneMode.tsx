@@ -1455,14 +1455,18 @@ const SortableSceneCard = memo(function SortableSceneCard(props: any) {
     const [viewportRef, isNearViewport] = useNearViewport<HTMLDivElement>('240px 0px')
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: props.scene.id,
-        disabled: props.disabled,
+        disabled: props.disabled || !isNearViewport,
         animateLayoutChanges: () => isNearViewport,
     })
     const setRefs = useCallback((node: HTMLDivElement | null) => {
         setNodeRef(node)
         viewportRef(node)
     }, [setNodeRef, viewportRef])
-    const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.0 : 1 }
+    const style = {
+        transform: isNearViewport && !isDragging ? CSS.Transform.toString(transform) : undefined,
+        transition: isNearViewport ? transition : undefined,
+        opacity: isDragging ? 0.0 : 1,
+    }
     return <div ref={setRefs} style={style}> <SceneCardItem {...props} isNearViewport={isNearViewport} dragAttributes={attributes} dragListeners={listeners} /> </div>
 }, (prevProps, nextProps) => {
     // Queue state is rendered by the isolated queue components above.
