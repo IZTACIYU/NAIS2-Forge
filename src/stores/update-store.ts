@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { indexedDBStorage } from '@/lib/indexed-db'
 import { Update, check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
+import { createUpdateBackup } from '@/lib/update-backup'
 
 interface PendingUpdateInfo {
     version: string
@@ -35,6 +36,7 @@ export const setCurrentUpdateObject = (update: Update | null, downloaded = false
 export const getCurrentUpdateObject = () => currentUpdateObject
 
 export const installPendingUpdate = async () => {
+    await createUpdateBackup()
     // If we have an Update object that was downloaded in this session, just install
     if (currentUpdateObject && downloadedInSession) {
         await currentUpdateObject.install()
