@@ -48,7 +48,18 @@ const V45_CURATED_CAPABILITIES: ModelCapabilities = {
         { value: 4, label: 'none' },
     ],
 }
-const V3_CAPABILITIES: ModelCapabilities = {
+const V3_ANIME_CAPABILITIES: ModelCapabilities = {
+    ...V4_CAPABILITIES,
+    supportsSmea: true,
+    ucPresets: [
+        { value: 0, label: 'heavy' },
+        { value: 1, label: 'light' },
+        { value: 3, label: 'humanFocus' },
+        { value: 4, label: 'none' },
+    ],
+}
+
+const V3_FURRY_CAPABILITIES: ModelCapabilities = {
     ...V4_CAPABILITIES,
     supportsSmea: true,
 }
@@ -59,8 +70,8 @@ export const AVAILABLE_MODELS: readonly AvailableModel[] = [
     { id: 'nai-diffusion-4-5-full', name: 'NAI Diffusion V4.5 Full', ...V45_FULL_CAPABILITIES },
     { id: 'nai-diffusion-4-curated-preview', name: 'NAI Diffusion V4 Curated', ...V4_CAPABILITIES },
     { id: 'nai-diffusion-4-full', name: 'NAI Diffusion V4 Full', ...V4_CAPABILITIES },
-    { id: 'nai-diffusion-3', name: 'NAI Diffusion V3 (Anime)', ...V3_CAPABILITIES },
-    { id: 'nai-diffusion-furry-3', name: 'NAI Diffusion Furry V3', ...V3_CAPABILITIES },
+    { id: 'nai-diffusion-3', name: 'NAI Diffusion V3 (Anime)', ...V3_ANIME_CAPABILITIES },
+    { id: 'nai-diffusion-furry-3', name: 'NAI Diffusion Furry V3', ...V3_FURRY_CAPABILITIES },
 ]
 
 export const getModelCapabilities = (modelId: string): ModelCapabilities =>

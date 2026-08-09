@@ -9,6 +9,7 @@
  */
 
 import { readNais2Params, type Nais2GenerationSources } from '@/lib/nais2-png-meta'
+import { QUALITY_TAGS, UC_PRESETS } from '@/lib/nai-presets'
 
 /**
  * Decompress gzip data using native Web API or fallback
@@ -650,43 +651,27 @@ async function extractTextChunkMetadata(bytes: Uint8Array): Promise<NAIMetadata 
 // NAI may append a fuller variant (e.g. V4.5 Full prepends ", location, ..."),
 // so we match only the stable trailing phrases. Multiple entries allow us to
 // catch both canonical and shortened variants seen in real exports.
-const QUALITY_TAG_SIGNATURES: Record<string, string[]> = {
-    v45_full: ['very aesthetic, masterpiece, no text'],
-    v45_curated: ['masterpiece, no text, -0.8::feet::, rating:general', 'rating:general'],
-    v4_full: ['best quality, very aesthetic, absurdres', 'no text, best quality, very aesthetic, absurdres'],
-    v4_curated: ['amazing quality, very aesthetic, absurdres', 'rating:general, amazing quality, very aesthetic, absurdres'],
-    v3_anime: ['best quality, amazing quality, very aesthetic, absurdres'],
-    v3_furry: ['{best quality}, {amazing quality}'],
-}
+const QUALITY_TAG_SIGNATURES: Record<string, string[]> = Object.fromEntries(
+    Object.entries(QUALITY_TAGS).map(([model, tags]) => [
+        model,
+        [tags.replace(/^,\s*/, '')],
+    ]),
+)
 
-// UC preset texts prepended to uc when ucPreset=N. Index = preset number.
-// Curated Heavy variants are omitted (rarely used in practice per user).
-const UC_PRESET_PREFIXES: Record<string, Record<number, string>> = {
-    v45_full: {
-        0: 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page',
-        1: 'lowres, artistic error, scan artifacts, worst quality, bad quality, jpeg artifacts, multiple views, very displeasing, too many watermarks, negative space, blank page',
-        2: 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, @_@, mismatched pupils, glowing eyes, bad anatomy',
-        3: '{worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, {{grandfathered content}}, blurred foreground, chromatic aberration, sketch, everyone, [sketch background], simple, [flat colors], ych (character), outline, multiple scenes, [[horror (theme)]], comic',
-    },
-    v4_full: {
-        0: 'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, multiple views, logo, too many watermarks',
-        1: 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing',
-    },
-    v3_anime: {
-        0: 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract],',
-        1: 'lowres, jpeg artifacts, worst quality, watermark, blurry, very displeasing,',
-        2: 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract], bad anatomy, bad hands, @_@, mismatched pupils, heart-shaped pupils, glowing eyes,',
-    },
-}
+const UC_PRESET_PREFIXES: Record<string, Partial<Record<number, string>>> = UC_PRESETS
 
-// Map "Source" tEXt/EXIF field to our preset table key.
+// Map Source metadata to the matching generation model.
 function detectModelKey(source: string | null | undefined): string | null {
     if (!source) return null
-    const s = source.toLowerCase()
-    if (s.includes('v4.5')) return 'v45_full'
-    if (s.includes('v4')) return 'v4_full'
-    if (s.includes('furry') && s.includes('v3')) return 'v3_furry'
-    if (s.includes('v3')) return 'v3_anime'
+    const normalized = source.toLowerCase()
+    if (normalized.includes('v4.5')) return normalized.includes('curated')
+        ? 'nai-diffusion-4-5-curated'
+        : 'nai-diffusion-4-5-full'
+    if (normalized.includes('v4')) return normalized.includes('curated')
+        ? 'nai-diffusion-4-curated-preview'
+        : 'nai-diffusion-4-full'
+    if (normalized.includes('furry') && normalized.includes('v3')) return 'nai-diffusion-furry-3'
+    if (normalized.includes('v3')) return 'nai-diffusion-3'
     return null
 }
 
@@ -725,6 +710,7 @@ function inferNAIPresets(
         // Sort keys by prefix length desc so longer / more-specific presets win
         // (Human Focus is a superset of Heavy on v4.5 Full).
         const orderedPresets = Object.entries(table)
+            .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
             .sort(([, a], [, b]) => b.length - a.length)
         for (const [numStr, prefix] of orderedPresets) {
             const idx = uc.indexOf(prefix)
