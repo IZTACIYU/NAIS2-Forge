@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, memo } from 'react'
+import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -990,7 +990,7 @@ export default function SceneMode() {
                         collisionDetection={pointerWithin}
                         measuring={{
                             droppable: {
-                                strategy: MeasuringStrategy.WhileDragging,
+                                strategy: MeasuringStrategy.BeforeDragging,
                             },
                         }}
                         onDragStart={handleDragStart}
@@ -1122,7 +1122,7 @@ const scheduleSceneThumbnailValidation = (
 })
 
 // Memoized SceneCard to prevent unnecessary re-renders
-const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = false, isOverlay = false, style, dragAttributes, dragListeners, onOpenSceneCharacterAddition }: any) {
+const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = false, isOverlay = false, isNearViewport = false, style, dragAttributes, dragListeners, onOpenSceneCharacterAddition }: any) {
     const { t } = useTranslation()
     const navigate = useNavigate()
     const [isEditing, setIsEditing] = useState(false)
@@ -1163,7 +1163,6 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
         : undefined
     const thumbnail = thumbnailImage?.url
     const [renderedThumbnail, setRenderedThumbnail] = useState<{ imageId: string; url: string } | null>(null)
-    const [cardRef, isNearViewport] = useNearViewport<HTMLDivElement>()
     const shouldRenderImage = isOverlay || isNearViewport
 
     useEffect(() => {
@@ -1253,7 +1252,6 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
         <ContextMenu onOpenChange={(open) => { if (open) loadMoveTargets() }}>
             <ContextMenuTrigger asChild disabled={isOverlay || disabled}>
                 <div
-                    ref={cardRef}
                     style={style}
                     className={cn(
                         "group relative flex flex-col rounded-2xl overflow-hidden",
@@ -1454,9 +1452,18 @@ const PresetRenameInput = memo(({
 
 // Memoized SortableSceneCard with custom comparator to prevent re-renders during drag
 const SortableSceneCard = memo(function SortableSceneCard(props: any) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.scene.id, disabled: props.disabled })
+    const [viewportRef, isNearViewport] = useNearViewport<HTMLDivElement>('240px 0px')
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id: props.scene.id,
+        disabled: props.disabled,
+        animateLayoutChanges: () => isNearViewport,
+    })
+    const setRefs = useCallback((node: HTMLDivElement | null) => {
+        setNodeRef(node)
+        viewportRef(node)
+    }, [setNodeRef, viewportRef])
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.0 : 1 }
-    return <div ref={setNodeRef} style={style}> <SceneCardItem {...props} dragAttributes={attributes} dragListeners={listeners} /> </div>
+    return <div ref={setRefs} style={style}> <SceneCardItem {...props} isNearViewport={isNearViewport} dragAttributes={attributes} dragListeners={listeners} /> </div>
 }, (prevProps, nextProps) => {
     // Queue state is rendered by the isolated queue components above.
     return prevProps.scene.id === nextProps.scene.id &&
