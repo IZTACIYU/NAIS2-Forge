@@ -97,6 +97,8 @@ const getThumbnailAspectClass = (layout: 'vertical' | 'horizontal' | 'square') =
     return 'aspect-[3/2]'
 }
 
+const skipSceneSortingTransform = () => null
+
 const getNextThumbnailLayout = (layout: 'vertical' | 'horizontal' | 'square') => {
     if (layout === 'vertical') return 'horizontal'
     if (layout === 'horizontal') return 'square'
@@ -1457,6 +1459,7 @@ const SortableSceneCard = memo(function SortableSceneCard(props: any) {
         id: props.scene.id,
         disabled: props.disabled || !isNearViewport,
         animateLayoutChanges: () => isNearViewport,
+        strategy: isNearViewport ? rectSortingStrategy : skipSceneSortingTransform,
     })
     const setRefs = useCallback((node: HTMLDivElement | null) => {
         setNodeRef(node)
