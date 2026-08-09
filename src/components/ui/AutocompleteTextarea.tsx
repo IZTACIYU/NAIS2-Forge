@@ -425,10 +425,8 @@ export function AutocompleteTextarea({
                     }
 
                     // ?쇰컲 以? 湲곗〈 援щЦ ?섏씠?쇱씠???곸슜
-                    // Syntax regex: 
-                    // 1. Weights: 1.2::tag:: OR -0.5::tag::
-                    // 2. Fragments: <fragment>
-                    const regex = /(-?[\d.]+::.*?::)|(<[^>]+>)/g
+                    // Highlight prompt syntax without changing the submitted text.
+                    const regex = /(^\s*#if(?:\s+[a-z][a-z0-9_-]*|-[^:\r\n]+)\s*:)|(-?[\d.]+::.*?::)|(<[^>]+>)|(#(?:source|target)\b)/gi
                     const parts = line.split(regex)
 
                     return (
@@ -442,6 +440,10 @@ export function AutocompleteTextarea({
                                         : "bg-pink-500/30 rounded-[2px]"
                                 } else if (/^<[^>]+>$/.test(part)) {
                                     styleClass = "bg-green-500/30 rounded-[2px]"
+                                } else if (/^\s*#if(?:\s+[a-z][a-z0-9_-]*|-[^:\r\n]+)\s*:$/i.test(part)) {
+                                    styleClass = "bg-amber-500/10 text-amber-600 dark:text-amber-300 rounded-[2px] font-medium"
+                                } else if (/^#(?:source|target)$/i.test(part)) {
+                                    styleClass = "bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 rounded-[2px] font-medium"
                                 }
                                 return <span key={i} className={styleClass}>{part}</span>
                             })}
