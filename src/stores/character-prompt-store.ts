@@ -152,6 +152,9 @@ interface CharacterPromptState {
     saveCharacterAsPreset: (characterId: string) => void
 }
 
+let characterPromptHydrated = false
+let pendingActiveCharacterLimit: number | null = null
+
 export const useCharacterPromptStore = create<CharacterPromptState>()(
     persist(
         (set, get) => ({
@@ -235,6 +238,10 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
 
             setActiveCharacterLimit: (limit) => {
                 const activeCharacterLimit = Math.max(1, Math.floor(limit))
+                if (!characterPromptHydrated) {
+                    pendingActiveCharacterLimit = activeCharacterLimit
+                    return
+                }
                 set(state => {
                     let enabledCount = 0
                     let changed = state.activeCharacterLimit !== activeCharacterLimit
@@ -515,22 +522,33 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
             storage: createJSONStorage(() => indexedDBStorage),
             version: 1,
             // 데이터 보호: hydration 후 검증
-            onRehydrateStorage: () => (state, error) => {
-                if (error) {
-                    console.error('[CharacterPromptStore] Hydration failed:', error)
-                    return
-                }
-                
-                if (state) {
-                    // 정상 복원 로그
-                    const presetCount = state.presets?.length || 0
-                    const charCount = state.characters?.length || 0
-                    const groupCount = state.groups?.length || 0
-                    console.log(`[CharacterPromptStore] Hydrated: ${presetCount} presets, ${charCount} characters, ${groupCount} groups`)
-                    
-                    // 빈 배열이면 경고 (데이터 손실 가능성)
-                    if (presetCount === 0 && charCount === 0) {
-                        console.warn('[CharacterPromptStore] Warning: No data after hydration - possible data loss')
+            onRehydrateStorage: () => {
+                characterPromptHydrated = false
+                return (state, error) => {
+                    if (error) {
+                        console.error('[CharacterPromptStore] Hydration failed:', error)
+                        return
+                    }
+
+                    characterPromptHydrated = true
+
+                    if (state) {
+                        const presetCount = state.presets?.length || 0
+                        const charCount = state.characters?.length || 0
+                        const groupCount = state.groups?.length || 0
+                        console.log(`[CharacterPromptStore] Hydrated: ${presetCount} presets, ${charCount} characters, ${groupCount} groups`)
+
+                        if (presetCount === 0 && charCount === 0) {
+                            console.warn('[CharacterPromptStore] Warning: No data after hydration - possible data loss')
+                        }
+                    }
+
+                    const pendingLimit = pendingActiveCharacterLimit
+                    pendingActiveCharacterLimit = null
+                    if (pendingLimit !== null) {
+                        queueMicrotask(() => {
+                            useCharacterPromptStore.getState().setActiveCharacterLimit(pendingLimit)
+                        })
                     }
                 }
             },
