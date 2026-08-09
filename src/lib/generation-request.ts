@@ -7,7 +7,7 @@ import { getModelCapabilities } from '@/lib/model-capabilities'
 import { mergeQualityTags, mergeUcPreset } from '@/lib/nai-presets'
 import { removePromptComments } from '@/lib/prompt-comments'
 import { splitCostumePrompt } from '@/lib/costume-prompt'
-import { resolveConditionalNegativePrompt } from '@/lib/conditional-prompts'
+import { resolveConditionalNegativePrompt, resolveConditionalPositivePrompt } from '@/lib/conditional-prompts'
 import {
     formatPromptWhitespace,
     removeExactEmptyPromptSeparators,
@@ -75,14 +75,10 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
     const cleanup = (prompt: string) => input.removeEmptyPromptSeparators
         ? removeExactEmptyPromptSeparators(prompt)
         : prompt
-    const prompt = mergeQualityTags(
-        cleanup(await processWildcards(joinPromptParts(
-            input.positiveParts,
-            input.promptWhitespaceMode,
-            input.insertBlankLinesBetweenPromptParts,
-        ))),
-        input.model,
-        input.qualityToggle,
+    const rawMainPrompt = joinPromptParts(
+        input.positiveParts,
+        input.promptWhitespaceMode,
+        input.insertBlankLinesBetweenPromptParts,
     )
 
     const characterPrompts = await Promise.all(input.characterInputs
@@ -116,31 +112,45 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
             : formatPromptWhitespace(character.negative, input.promptWhitespaceMode)
 
         return {
-            prompt: cleanup(await processWildcards(removePromptComments(rawPrompt))),
+            rawPrompt: removePromptComments(rawPrompt),
             rawNegative: removePromptComments(rawNegative),
             enabled: true,
             position: position || character.position,
         }
     }))
 
+    const rawMainNegative = joinPromptParts(
+        input.negativeParts,
+        input.promptWhitespaceMode,
+        input.insertBlankLinesBetweenPromptParts,
+    )
     const conditionalContext = {
-        basePrompt: [prompt, ...characterPrompts.map(character => character.prompt)]
+        basePrompt: [rawMainPrompt, ...characterPrompts.map(character => character.rawPrompt)]
             .filter(part => part.trim())
             .join('\n'),
+        positivePrompt: [rawMainPrompt, ...characterPrompts.map(character => character.rawPrompt)]
+            .filter(part => part.trim())
+            .join('\n'),
+        negativePrompt: [
+            mergeUcPreset(rawMainNegative, input.model, input.ucPreset),
+            ...characterPrompts.map(character => character.rawNegative),
+        ].filter(part => part.trim()).join('\n'),
     }
+    const prompt = mergeQualityTags(
+        cleanup(await processWildcards(resolveConditionalPositivePrompt(rawMainPrompt, conditionalContext))),
+        input.model,
+        input.qualityToggle,
+    )
+    const resolvedCharacterPrompts = await Promise.all(characterPrompts.map(async ({ rawPrompt, rawNegative, ...character }) => ({
+        ...character,
+        prompt: cleanup(await processWildcards(resolveConditionalPositivePrompt(rawPrompt, conditionalContext))),
+        negative: cleanup(await processWildcards(resolveConditionalNegativePrompt(rawNegative, conditionalContext))),
+    })))
     const negativePrompt = mergeUcPreset(
-        cleanup(await processWildcards(resolveConditionalNegativePrompt(joinPromptParts(
-            input.negativeParts,
-            input.promptWhitespaceMode,
-            input.insertBlankLinesBetweenPromptParts,
-        ), conditionalContext))),
+        cleanup(await processWildcards(resolveConditionalNegativePrompt(rawMainNegative, conditionalContext))),
         input.model,
         input.ucPreset,
     )
-    const resolvedCharacterPrompts = await Promise.all(characterPrompts.map(async ({ rawNegative, ...character }) => ({
-        ...character,
-        negative: cleanup(await processWildcards(resolveConditionalNegativePrompt(rawNegative, conditionalContext))),
-    })))
     const generationSources = input.generationSources ?? {
         characterPrompts: input.characterInputs
             .slice(0, getModelCapabilities(input.model).maxCharacterPrompts)
