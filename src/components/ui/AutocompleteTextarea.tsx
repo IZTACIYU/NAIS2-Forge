@@ -441,9 +441,9 @@ export function AutocompleteTextarea({
                                 } else if (/^<[^>]+>$/.test(part)) {
                                     styleClass = "bg-green-500/30 rounded-[2px]"
                                 } else if (/^\s*#if(?:\s+[a-z][a-z0-9_-]*|-[^:\r\n]+)\s*:$/i.test(part)) {
-                                    styleClass = "bg-amber-500/[0.06] text-amber-700/65 dark:text-amber-200/65 rounded-[2px] font-medium"
+                                    styleClass = "bg-amber-500/[0.06] text-amber-700/65 dark:text-amber-200/65 rounded-[2px]"
                                 } else if (/^#(?:source|target)$/i.test(part)) {
-                                    styleClass = "bg-cyan-500/[0.06] text-cyan-700/65 dark:text-cyan-200/65 rounded-[2px] font-medium"
+                                    styleClass = "bg-cyan-500/[0.06] text-cyan-700/65 dark:text-cyan-200/65 rounded-[2px]"
                                 }
                                 return <span key={i} className={styleClass}>{part}</span>
                             })}
