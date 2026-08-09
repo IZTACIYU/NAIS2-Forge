@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tip } from '@/components/ui/tooltip'
 import { Check, ChevronDown, Lock, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSettingsStore } from '@/stores/settings-store'
 import { cn } from '@/lib/utils'
@@ -41,6 +41,17 @@ interface ResolutionSelectorProps {
     onChange: (resolution: Resolution) => void
     disabled?: boolean
     presetOnly?: boolean
+}
+
+const handlePresetListWheel = (event: WheelEvent<HTMLDivElement>) => {
+    const list = event.currentTarget
+    const maxScrollTop = list.scrollHeight - list.clientHeight
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (maxScrollTop <= 0) return
+    list.scrollTop = Math.min(maxScrollTop, Math.max(0, list.scrollTop + event.deltaY))
 }
 
 export function ResolutionSelector({ value, onChange, disabled, presetOnly = false }: ResolutionSelectorProps) {
@@ -152,7 +163,7 @@ export function ResolutionSelector({ value, onChange, disabled, presetOnly = fal
                             align="start"
                             style={{ width: 'var(--radix-popover-trigger-width)' }}
                         >
-                            <div className="max-h-[300px] overflow-auto">
+                            <div className="max-h-[300px] overflow-y-auto overscroll-contain" onWheel={handlePresetListWheel}>
                                 <div className="p-1">
                                     {RESOLUTION_PRESETS.map(preset => (
                                         <button
@@ -340,7 +351,7 @@ export function ResolutionPresetSelector({ value, onChange, disabled }: Resoluti
                 align="start"
                 style={{ width: 'var(--radix-popover-trigger-width)' }}
             >
-                <div className="max-h-[300px] overflow-auto">
+                <div className="max-h-[300px] overflow-y-auto overscroll-contain" onWheel={handlePresetListWheel}>
                     <div className="p-1">
                         {RESOLUTION_PRESETS.map(preset => (
                             <button
