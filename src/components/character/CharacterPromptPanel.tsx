@@ -62,6 +62,7 @@ import { cn } from '@/lib/utils'
 import { getCharacterGender, type CharacterGender } from '@/lib/character-gender'
 import { getCharacterPositionBoardAspectRatio } from '@/lib/character-position-grid'
 import { getModelCapabilities } from '@/lib/model-capabilities'
+import { COSTUME_PROMPT_MARKER, splitCostumePrompt } from '@/lib/costume-prompt'
 import { toast } from '@/components/ui/use-toast'
 import { CharacterPositionBoard } from '@/components/character/CharacterPositionBoard'
 import {
@@ -88,18 +89,8 @@ interface CharacterPromptPanelProps {
 }
 
 
-const COSTUME_MARKER = '\n#!-\uc758\uc0c1\ud504\ub86c\n'
+const COSTUME_MARKER = `\n${COSTUME_PROMPT_MARKER}\n`
 const FOLDER_PANEL_WIDTH_STORAGE_KEY = 'nais2-forge-character-folder-panel-width'
-
-const splitCostumePrompt = (prompt: string) => {
-    const normalized = prompt.replace(/\r\n/g, '\n')
-    const marker = '#!-\uc758\uc0c1\ud504\ub86c'
-    const index = normalized.indexOf(marker)
-    if (index === -1) return { characterPrompt: prompt, costumePrompt: '' }
-    const characterPrompt = normalized.slice(0, index).replace(/\n+$/g, '')
-    const costumePrompt = normalized.slice(index + marker.length).replace(/^\n+/g, '')
-    return { characterPrompt, costumePrompt }
-}
 
 const joinCostumePrompt = (characterPrompt: string, costumePrompt: string) => {
     const cleanCharacter = characterPrompt.replace(/\s+$/g, '')

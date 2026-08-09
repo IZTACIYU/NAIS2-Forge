@@ -1,5 +1,6 @@
 import type { PersistStorage, StateStorage, StorageValue } from 'zustand/middleware'
 import { readNativeState, removeNativeState, writeNativeState } from '@/lib/native-state'
+import { normalizeCostumePromptMarkersForExport } from '@/lib/costume-prompt'
 // Since I cannot install packages, I will implement a minimal wrapper similar to idb-keyval logic
 // or I can implement a raw IndexedDB wrapper.
 // Given constraints, raw IndexedDB is safer as strict dependency rules apply.
@@ -869,9 +870,9 @@ export async function exportAllData(): Promise<{ [key: string]: unknown }> {
                 if (key === 'nais2-forge-character-prompts') {
                     const metadata = createCharacterVariantBackupMetadata(parsed)
                     if (metadata) backup._nais2Forge = { characterVariants: metadata }
-                    backup[key] = stripCharacterVariantHashesForExport(parsed)
+                    backup[key] = normalizeCostumePromptMarkersForExport(stripCharacterVariantHashesForExport(parsed))
                 } else {
-                    backup[key] = parsed
+                    backup[key] = normalizeCostumePromptMarkersForExport(parsed)
                 }
             }
         } catch (err) {

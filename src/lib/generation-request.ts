@@ -6,13 +6,12 @@ import { processWildcards } from '@/lib/fragment-processor'
 import { getModelCapabilities } from '@/lib/model-capabilities'
 import { mergeQualityTags, mergeUcPreset } from '@/lib/nai-presets'
 import { removePromptComments } from '@/lib/prompt-comments'
+import { splitCostumePrompt } from '@/lib/costume-prompt'
 import {
     formatPromptWhitespace,
     removeExactEmptyPromptSeparators,
     type PromptWhitespaceMode,
 } from '@/lib/prompt-formatting'
-
-const COSTUME_MARKER = '#!-\uc758\uc0c1\ud504\ub86c'
 
 export interface GenerationCharacterInput {
     character: CharacterPrompt
@@ -59,16 +58,6 @@ export interface GenerationRequestInput {
     generationSources?: Nais2GenerationSources
 }
 
-const splitCharacterCostumePrompt = (prompt: string) => {
-    const normalized = prompt.replace(/\r\n/g, '\n')
-    const index = normalized.indexOf(COSTUME_MARKER)
-    if (index === -1) return { characterPrompt: prompt, costumePrompt: '' }
-    return {
-        characterPrompt: normalized.slice(0, index).replace(/\n+$/g, ''),
-        costumePrompt: normalized.slice(index + COSTUME_MARKER.length).replace(/^\n+/g, ''),
-    }
-}
-
 const joinPromptParts = (
     parts: GenerationPromptPart[],
     whitespaceMode: PromptWhitespaceMode,
@@ -112,7 +101,7 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         costumeEnabled,
         position,
     }) => {
-        const { characterPrompt, costumePrompt } = splitCharacterCostumePrompt(character.prompt)
+        const { characterPrompt, costumePrompt } = splitCostumePrompt(character.prompt)
         const characterParts = input.characterPromptLayoutEnabled
             ? [
                 character.promptEnabled !== false

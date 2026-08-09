@@ -1,6 +1,7 @@
 import type { CharacterPrompt } from '@/stores/character-prompt-store'
 import type { SceneCustomCharacter, SceneMultiCharacterSlot } from '@/stores/scene-store'
 import { getCharacterGender } from '@/lib/character-gender'
+import { COSTUME_PROMPT_MARKER, splitCostumePrompt } from '@/lib/costume-prompt'
 
 const VARIANT_NAME_PATTERN = /\s-\s([a-z0-9]{6})\s-\s(\d+)$/i
 const LEGACY_VARIANT_HASH_PATTERN = /\s-\s([a-z0-9]{6})$/i
@@ -73,24 +74,14 @@ export const createSceneCustomCharacters = (
         position: { x: 0.5, y: 0.5 },
     }))
 
-export const splitSceneCharacterCostumePrompt = (prompt: string) => {
-    const normalized = prompt.replace(/\r\n/g, '\n')
-    const marker = '#!-\uc758\uc0c1\ud504\ub86c'
-    const index = normalized.indexOf(marker)
-    if (index === -1) return { characterPrompt: prompt, costumePrompt: '' }
-    return {
-        characterPrompt: normalized.slice(0, index).replace(/\n+$/g, ''),
-        costumePrompt: normalized.slice(index + marker.length).replace(/^\n+/g, ''),
-    }
-}
+export const splitSceneCharacterCostumePrompt = splitCostumePrompt
 
 export const joinSceneCharacterCostumePrompt = (characterPrompt: string, costumePrompt: string) => {
     const base = characterPrompt.replace(/\n+$/g, '')
     const costume = costumePrompt.replace(/^\n+/g, '')
     if (!costume) return base
-    return `${base}\n\n#!-\uc758\uc0c1\ud504\ub86c\n${costume}`
+    return `${base}\n\n${COSTUME_PROMPT_MARKER}\n${costume}`
 }
-
 export const buildSceneCharacterPrompt = (character: CharacterPrompt, costumeOverride?: boolean) => {
     const { characterPrompt, costumePrompt } = splitSceneCharacterCostumePrompt(character.prompt)
     const parts: string[] = []

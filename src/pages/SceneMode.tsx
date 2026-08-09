@@ -22,6 +22,7 @@ import {
     rectSortingStrategy,
 } from '@dnd-kit/sortable'
 import { snapCenterToCursor, restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers'
+import { normalizeCostumePromptMarkersForExport } from '@/lib/costume-prompt'
 import { verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Button } from '@/components/ui/button'
@@ -537,7 +538,7 @@ export default function SceneMode() {
                     Object.entries(sceneState.sceneCharacterAdditions[activePreset.id] || {})
                         .filter(([sceneId]) => exportedSceneIds.has(sceneId))
                 )
-                const exportData = {
+                const exportData = normalizeCostumePromptMarkersForExport({
                     ...activePreset,
                     scenes: activePreset.scenes.map(scene => ({
                         ...scene,
@@ -546,7 +547,7 @@ export default function SceneMode() {
                     })),
                     sceneCharacterAdditionsEnabled: sceneState.sceneCharacterAdditionsEnabled,
                     sceneCharacterAdditions,
-                }
+                })
                 const content = JSON.stringify(exportData, null, 2)
                 const encoder = new TextEncoder()
                 await writeFile(filePath, encoder.encode(content))
