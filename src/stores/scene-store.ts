@@ -7,6 +7,7 @@ import { useSettingsStore } from './settings-store'
 import { notifySceneQueueChanged } from '@/lib/scene-queue-events'
 import { getSceneFolderFromImages, replaceSceneFolderPrefix, sanitizeSceneFolderName } from '@/lib/scene-path'
 import { createHistoryIndexScope, moveHistoryIndexPathPrefix } from '@/lib/history-index'
+import { normalizeCostumePromptMarkersForExport } from '@/lib/costume-prompt'
 
 export interface SceneImage {
     id: string
@@ -1137,6 +1138,7 @@ export const useSceneStore = create<SceneState>()(
 
             // File Management Actions
             importPreset: (jsonContent: any) => {
+                jsonContent = normalizeCostumePromptMarkersForExport(jsonContent)
                 set(state => {
                     let newName = "Imported Preset"
                     let newScenes: SceneCard[] = []

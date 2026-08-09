@@ -1106,9 +1106,11 @@ export async function importAllData(backup: { [key: string]: unknown }, overwrit
                 }
             }
             
-            const restoredValue = key === 'nais2-forge-character-prompts'
-                ? restoreCharacterVariantHashesFromBackup(value, characterVariantMetadata)
-                : value
+            const restoredValue = normalizeCostumePromptMarkersForExport(
+                key === 'nais2-forge-character-prompts'
+                    ? restoreCharacterVariantHashesFromBackup(value, characterVariantMetadata)
+                    : value
+            )
             await setStorageItemImmediately(key, JSON.stringify(restoredValue))
             result.success.push(key)
             console.log(`[Restore] ${key}: Restored`)
