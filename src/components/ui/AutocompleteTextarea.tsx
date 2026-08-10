@@ -315,16 +315,37 @@ export function AutocompleteTextarea({
     }
 
     // --- Event Handlers ---
+    const shouldInsertWeightClosing = (code: string, cursor: number) => {
+        if (code.slice(cursor - 2, cursor) !== "::") return false
+        if (code.slice(cursor, cursor + 2) === "::") return false
+
+        const beforeMarker = code.slice(0, cursor - 2)
+        const followsExistingPrompt = /[^\s,]/.test(code.charAt(cursor))
+        if (followsExistingPrompt) return false
+
+        return /(?:^|[\s,])(?:[+-]?(?:\d+(?:\.\d+)?|\.\d+))?$/.test(beforeMarker)
+    }
+
     const handleValueChange = (code: string) => {
-        // ?대? state 利됱떆 ?낅뜲?댄듃 (UI 諛섏쓳??
-        internalValueRef.current = code
-        setInternalValue(code)
+        const editor = textareaRef.current
+        const cursor = editor?.selectionEnd ?? code.length
+        const nextValue = shouldInsertWeightClosing(code, cursor)
+            ? code.slice(0, cursor) + "::" + code.slice(cursor)
+            : code
 
-        // onChange瑜?100ms ?붾컮?댁뒪 (Zustand ?낅뜲?댄듃 吏?곗쑝濡???諛⑹?)
-        scheduleValueChange(code, 100)
+        internalValueRef.current = nextValue
+        setInternalValue(nextValue)
+        scheduleValueChange(nextValue, 100)
 
-        if (textareaRef.current) {
-            checkAutocomplete(code, textareaRef.current)
+        if (editor) {
+            if (nextValue !== code) {
+                requestAnimationFrame(() => {
+                    textareaRef.current?.setSelectionRange(cursor, cursor)
+                    textareaRef.current?.focus()
+                    scrollToCaret()
+                })
+            }
+            checkAutocomplete(nextValue, editor)
             scrollToCaret()
         }
     }
