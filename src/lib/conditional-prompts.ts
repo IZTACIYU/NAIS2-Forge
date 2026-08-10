@@ -10,7 +10,11 @@ export interface ConditionalPromptContext {
 
 type ConditionalPromptHandler = (prompt: string, context: ConditionalPromptContext) => boolean
 
-const normalize = (value: string) => value.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+const normalize = (value: string) => {
+    const compact = value.trim().replace(/\s+/g, ' ')
+    const weighted = compact.match(/^(?:-?(?:\d+(?:\.\d+)?|\.\d+))?::(.*?)::$/)
+    return (weighted?.[1] ?? compact).trim().toLocaleLowerCase()
+}
 
 const isConditionalLine = (line: string) => /^\s*#if(?:\s+[a-z][a-z0-9_-]*\s*:|[+-][^:\r\n]+\s*:)/i.test(line)
 
