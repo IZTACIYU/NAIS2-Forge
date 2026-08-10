@@ -141,7 +141,12 @@ export function AutocompleteTextarea({
         const line = left.slice(left.lastIndexOf('\n') + 1)
         const hashIndex = line.indexOf('#')
         if (hashIndex === -1 || !/^\s*$/.test(line.slice(0, hashIndex))) return null
-        return line.slice(hashIndex)
+
+        const directive = line.slice(hashIndex)
+        // Once a conditional header is complete, continue with normal tag search
+        // for its content instead of treating the rest as a directive query.
+        if (/^#if(?:\s+[a-z][a-z0-9_-]*|[+-][^:\r\n]+)\s*:/i.test(directive)) return null
+        return directive
     }
 
     const showSuggestionsAtCaret = (el: HTMLTextAreaElement, pos: number) => {
@@ -520,7 +525,8 @@ export function AutocompleteTextarea({
 
                     // ?쇰컲 以? 湲곗〈 援щЦ ?섏씠?쇱씠???곸슜
                     // Highlight prompt syntax without changing the submitted text.
-                    const regex = /(^\s*#if(?:\s+[a-z][a-z0-9_-]*|[+-][^:\r\n]+)\s*:)|(-?[\d.]+::.*?::)|(<[^>]+>)|(#(?:source|target)\b)/gi
+                    const isConditionalDirective = /^\s*#if(?:\s+[a-z][a-z0-9_-]*|[+-][^:\r\n]+)\s*:/i.test(line)
+                    const regex = /(^\s*#if(?:\s+[a-z][a-z0-9_-]*|[+-][^:\r\n]+)\s*:)|((?:-?[\d.]+)?::.*?::)|(<[^>]+>)|(#(?:source|target)\b)/gi
                     const parts = line.split(regex)
 
                     return (
@@ -528,16 +534,18 @@ export function AutocompleteTextarea({
                             {parts.map((part, i) => {
                                 if (part === undefined) return null
                                 let styleClass = ""
-                                if (/^-?[\d.]+::.*::$/.test(part)) {
+                                if (/^(?:-?[\d.]+)?::.*::$/.test(part)) {
                                     styleClass = part.startsWith('-')
                                         ? "bg-sky-500/30 rounded-[2px]"
                                         : "bg-pink-500/30 rounded-[2px]"
                                 } else if (/^<[^>]+>$/.test(part)) {
                                     styleClass = "bg-green-500/30 rounded-[2px]"
                                 } else if (/^\s*#if(?:\s+[a-z][a-z0-9_-]*|[+-][^:\r\n]+)\s*:$/i.test(part)) {
-                                    styleClass = "bg-amber-500/[0.06] text-amber-700/65 dark:text-amber-200/65 rounded-[2px]"
+                                    styleClass = "bg-amber-500/15 text-amber-700/85 dark:text-amber-200/85 rounded-[2px]"
                                 } else if (/^#(?:source|target)$/i.test(part)) {
-                                    styleClass = "bg-cyan-500/[0.06] text-cyan-700/65 dark:text-cyan-200/65 rounded-[2px]"
+                                    styleClass = "bg-cyan-500/15 text-cyan-700/85 dark:text-cyan-200/85 rounded-[2px]"
+                                } else if (isConditionalDirective && part) {
+                                    styleClass = "text-amber-700/70 dark:text-amber-200/70"
                                 }
                                 return <span key={i} className={styleClass}>{part}</span>
                             })}
