@@ -16,6 +16,21 @@ interface SuggestionItem {
     _lower?: string
 }
 
+const DIRECTIVE_SUGGESTIONS: SuggestionItem[] = [
+    { label: '# comment', value: '# ', type: 'directive' },
+    { label: '#if base:', value: '#if base:', type: 'directive' },
+    { label: '#if-condition:', value: '#if-condition:', type: 'directive' },
+    { label: '#if+condition:', value: '#if+condition:', type: 'directive' },
+    { label: '#if b:', value: '#if b:', type: 'directive' },
+    { label: '#if g:', value: '#if g:', type: 'directive' },
+    { label: '#if o:', value: '#if o:', type: 'directive' },
+    { label: '#if mb:', value: '#if mb:', type: 'directive' },
+    { label: '#if mg:', value: '#if mg:', type: 'directive' },
+    { label: '#if mo:', value: '#if mo:', type: 'directive' },
+    { label: '#source', value: '#source', type: 'directive' },
+    { label: '#target', value: '#target', type: 'directive' },
+]
+
 interface AutocompleteTextareaProps {
     value: string
     onChange: (e: { target: { value: string } }) => void
@@ -68,7 +83,7 @@ export function AutocompleteTextarea({
     const [selectedIndex, setSelectedIndex] = useState(0)
     const [isVisible, setIsVisible] = useState(false)
     const [coords, setCoords] = useState({ top: 0, left: 0 })
-    const [suggestionMode, setSuggestionMode] = useState<'tag' | 'wildcard'>('tag')
+    const [suggestionMode, setSuggestionMode] = useState<'tag' | 'wildcard' | 'directive'>('tag')
 
     // ?몃? value媛 蹂寃쎈릺硫??대? state ?숆린??(?? ?꾨━??濡쒕뱶)
     // ?? ?대?媛믨낵 ?숈씪?섎㈃ ?숆린???ㅽ궢 (而ㅼ꽌 ?먰봽 諛⑹?)
@@ -121,13 +136,50 @@ export function AutocompleteTextarea({
         return match ? match[1] : null
     }
 
+    const getDirectiveWord = (text: string, position: number): string | null => {
+        const left = text.slice(0, position)
+        const line = left.slice(left.lastIndexOf('\n') + 1)
+        const hashIndex = line.indexOf('#')
+        if (hashIndex === -1 || !/^\s*$/.test(line.slice(0, hashIndex))) return null
+        return line.slice(hashIndex)
+    }
+
+    const showSuggestionsAtCaret = (el: HTMLTextAreaElement, pos: number) => {
+        const rect = el.getBoundingClientRect()
+        const caret = getCaretCoordinates(el, pos)
+        setCoords({
+            top: rect.top + window.scrollY + caret.top + 24,
+            left: rect.left + window.scrollX + caret.left
+        })
+    }
+
     // --- Autocomplete Logic ---
     const checkAutocomplete = useCallback(async (val: string, el: HTMLTextAreaElement) => {
         const requestId = ++autocompleteRequestRef.current
 
         const pos = el.selectionEnd || val.length
 
-        // 1. 議곌컖 紐⑤뱶 泥댄겕 (`<` ?댄썑)
+        // 1. Prompt directives only apply at the beginning of a line.
+        const directiveWord = getDirectiveWord(val, pos)
+        if (directiveWord !== null) {
+            const query = directiveWord.trimEnd().toLowerCase()
+            const matches = DIRECTIVE_SUGGESTIONS.filter(item =>
+                query === '#' || item.label.toLowerCase().includes(query)
+            ).slice(0, maxSuggestions)
+
+            if (matches.length > 0) {
+                setSuggestions(matches)
+                setSuggestionMode('directive')
+                setSelectedIndex(0)
+                showSuggestionsAtCaret(el, pos)
+                setIsVisible(true)
+            } else {
+                setIsVisible(false)
+            }
+            return
+        }
+
+        // 2. 議곌컖 紐⑤뱶 泥댄겕 (`<` ?댄썑)
         const wildcardWord = getWildcardWord(val, pos)
         if (wildcardWord !== null) {
             // 議곌컖 ?꾨＼?꾪듃 ?먮룞?꾩꽦 (利됱떆, ?붾컮?댁뒪 ?놁쓬)
@@ -213,7 +265,28 @@ export function AutocompleteTextarea({
         const val = internalValue  // Use internal value for immediate update
         const pos = el.selectionEnd || 0
 
-        if (suggestionMode === 'wildcard') {
+        if (suggestionMode === 'directive') {
+            const directiveWord = getDirectiveWord(val, pos)
+            if (directiveWord === null) return
+
+            const start = pos - directiveWord.length
+            const newValue = val.slice(0, start) + suggestion.value + val.slice(pos)
+            const newCursorPos = start + suggestion.value.length
+
+            internalValueRef.current = newValue
+            setInternalValue(newValue)
+            setIsVisible(false)
+
+            requestAnimationFrame(() => {
+                if (textareaRef.current) {
+                    textareaRef.current.setSelectionRange(newCursorPos, newCursorPos)
+                    textareaRef.current.focus()
+                    scrollToCaret()
+                }
+            })
+
+            scheduleValueChange(newValue, 50)
+        } else if (suggestionMode === 'wildcard') {
             // ??쇰뱶移대뱶 ?쎌엯: <name> ?뺥깭濡?
             const wildcardWord = getWildcardWord(val, pos)
             if (wildcardWord === null) return
@@ -590,19 +663,22 @@ export function AutocompleteTextarea({
                                     <div className="flex items-center gap-2 text-[10px] opacity-80">
                                         <span className={cn(
                                             "uppercase tracking-wider font-bold",
-                                            item.type === 'fragment' ? "text-green-300" :
+                                            item.type === 'directive' ? "text-cyan-300" :
+                                                item.type === 'fragment' ? "text-green-300" :
                                                 item.type === 'artist' ? "text-yellow-300" :
                                                     item.type === 'character' ? "text-green-300" :
                                                         item.type === 'copyright' ? "text-fuchsia-300" :
                                                             "text-blue-300"
                                         )}>
-                                            {item.type}
+                                            {item.type === 'directive' ? 'syntax' : item.type}
                                         </span>
-                                        <span>
-                                            {item.type === 'fragment'
-                                                ? `${item.count} lines`
-                                                : (item.count ?? 0) >= 1000 ? ((item.count ?? 0) / 1000).toFixed(1) + 'k' : item.count}
-                                        </span>
+                                        {item.type !== 'directive' && (
+                                            <span>
+                                                {item.type === 'fragment'
+                                                    ? `${item.count} lines`
+                                                    : (item.count ?? 0) >= 1000 ? ((item.count ?? 0) / 1000).toFixed(1) + 'k' : item.count}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
