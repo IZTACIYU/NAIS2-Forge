@@ -50,6 +50,8 @@ import { useSceneStore } from '@/stores/scene-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { removePromptComments } from '@/lib/prompt-comments'
+import { resolveConditionalNegativePrompt, resolveConditionalPositivePrompt } from '@/lib/conditional-prompts'
+import { getCharacterGender } from '@/lib/character-gender'
 import {
     buildSceneCharacterPrompt,
     createSceneCustomCharacters,
@@ -257,9 +259,21 @@ export function PromptPanel() {
         const selectedCharacters = isActiveScene
             ? selectSceneCharacters(characters, characterIds, requestedVariantIndex)
             : characters.filter(character => character.enabled)
-        const charactersForTokens = isActiveScene && usesCustomSceneCharacters
+        const charactersForTokens = (isActiveScene && usesCustomSceneCharacters
             ? [...selectedCharacters, ...createSceneCustomCharacters(routeSceneId!, sceneAddition?.customCharacters)]
             : selectedCharacters
+        ).slice(0, modelCapabilities.maxCharacterPrompts)
+        const mainCharactersForTokens = (isActiveScene
+            ? selectSceneCharacters(
+                characters,
+                Array.from(new Set([
+                    ...characters.filter(character => character.enabled).map(character => character.id),
+                    ...(sceneAddition?.mode === 'preset' ? sceneAddition.characterPromptIds : []),
+                ])),
+                requestedVariantIndex,
+            )
+            : selectedCharacters
+        ).slice(0, modelCapabilities.maxCharacterPrompts)
         const multiCharacterPrompts = isActiveScene
             ? getSceneMultiCharacterPromptMap(
                 expertSceneMultiCharacterEnabled ? activeSceneMultiCharacterSlots : undefined,
@@ -304,9 +318,16 @@ export function PromptPanel() {
                 import('@/lib/token-counter'),
                 import('@/lib/fragment-processor'),
             ]).then(async ([{ countTokens }, { resolveFragmentsForTokenCount }]) => {
+                const conditionalContext = {
+                    basePrompt: positive,
+                    positivePrompt: positive,
+                    negativePrompt: negative,
+                    characterGenders: charactersForTokens.map(character => getCharacterGender(character.prompt)),
+                    mainCharacterGenders: mainCharactersForTokens.map(character => getCharacterGender(character.prompt)),
+                }
                 const [resolvedPositive, resolvedNegative] = await Promise.all([
-                    resolveFragmentsForTokenCount(positive),
-                    resolveFragmentsForTokenCount(negative),
+                    resolveFragmentsForTokenCount(resolveConditionalPositivePrompt(positive, conditionalContext)),
+                    resolveFragmentsForTokenCount(resolveConditionalNegativePrompt(negative, conditionalContext)),
                 ])
                 if (!cancelled) {
                     setTokenTotals({
@@ -342,6 +363,7 @@ export function PromptPanel() {
         sceneCharacterAdditionMode,
         expertSceneMultiCharacterEnabled,
         characters,
+        model,
         fragmentRevision,
     ])
 
