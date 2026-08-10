@@ -282,40 +282,49 @@ export const useCharacterPromptStore = create<CharacterPromptState>()(
 
             reorderCharactersInGroup: (activeId, overId, groupId) => {
                 set(state => {
-                    // 같은 그룹의 캐릭터들만 필터링
-                    const groupChars = state.characters.filter(c => 
-                        groupId ? c.groupId === groupId : (!c.groupId || !state.groups.some(g => g.id === c.groupId))
-                    )
-                    
-                    const oldIndex = groupChars.findIndex(c => c.id === activeId)
-                    const newIndex = groupChars.findIndex(c => c.id === overId)
-                    
-                    if (oldIndex === -1 || newIndex === -1) return state
-                    
-                    const [removed] = groupChars.splice(oldIndex, 1)
-                    groupChars.splice(newIndex, 0, removed)
-                    
-                    // 그룹별로 정렬된 새 배열 생성
-                    const sortedCharacters: typeof state.characters = []
-                    const processedIds = new Set<string>()
-                    
-                    for (const char of state.characters) {
-                        if (processedIds.has(char.id)) continue
-                        
-                        const inTargetGroup = groupId ? char.groupId === groupId : (!char.groupId || !state.groups.some(g => g.id === char.groupId))
-                        
-                        if (inTargetGroup && !processedIds.has(groupChars[0]?.id)) {
-                            // 이 그룹의 첫 캐릭터 위치에 정렬된 그룹 전체 삽입
-                            for (const gc of groupChars) {
-                                sortedCharacters.push(gc)
-                                processedIds.add(gc.id)
-                            }
-                        } else if (!inTargetGroup) {
-                            sortedCharacters.push(char)
-                            processedIds.add(char.id)
-                        }
+                    const isInTargetGroup = (character: CharacterPrompt) => groupId
+                        ? character.groupId === groupId
+                        : (!character.groupId || !state.groups.some(group => group.id === character.groupId))
+                    const groupChars = state.characters.filter(isInTargetGroup)
+                    const getStackKey = (character: CharacterPrompt) => {
+                        const match = character.name?.match(/\s-\s([a-z0-9]{6})\s-\s\d+$/i)
+                        return match ? `${character.groupId || 'root'}:${match[1]}` : character.id
                     }
-                    
+
+                    const activeCharacter = groupChars.find(character => character.id === activeId)
+                    const overCharacter = groupChars.find(character => character.id === overId)
+                    if (!activeCharacter || !overCharacter) return state
+
+                    const blocks = new Map<string, CharacterPrompt[]>()
+                    for (const character of groupChars) {
+                        const key = getStackKey(character)
+                        const block = blocks.get(key)
+                        if (block) block.push(character)
+                        else blocks.set(key, [character])
+                    }
+
+                    const orderedBlocks = Array.from(blocks.entries())
+                    const activeIndex = orderedBlocks.findIndex(([key]) => key === getStackKey(activeCharacter))
+                    const overIndex = orderedBlocks.findIndex(([key]) => key === getStackKey(overCharacter))
+                    if (activeIndex === -1 || overIndex === -1 || activeIndex === overIndex) return state
+
+                    const [activeBlock] = orderedBlocks.splice(activeIndex, 1)
+                    orderedBlocks.splice(overIndex, 0, activeBlock)
+                    const reorderedGroupChars = orderedBlocks.flatMap(([, characters]) => characters)
+
+                    const sortedCharacters: CharacterPrompt[] = []
+                    let insertedTargetGroup = false
+                    for (const character of state.characters) {
+                        if (isInTargetGroup(character)) {
+                            if (!insertedTargetGroup) {
+                                sortedCharacters.push(...reorderedGroupChars)
+                                insertedTargetGroup = true
+                            }
+                            continue
+                        }
+                        sortedCharacters.push(character)
+                    }
+
                     return { characters: sortedCharacters }
                 })
             },
