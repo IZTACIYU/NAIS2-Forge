@@ -1,7 +1,11 @@
+import type { CharacterGender } from '@/lib/character-gender'
+
 export interface ConditionalPromptContext {
     basePrompt: string
     positivePrompt: string
     negativePrompt: string
+    characterGenders: CharacterGender[]
+    mainCharacterGenders: CharacterGender[]
 }
 
 type ConditionalPromptHandler = (prompt: string, context: ConditionalPromptContext) => boolean
@@ -26,6 +30,11 @@ const getPromptCandidates = (prompt: string) => {
     return candidates
 }
 
+const onlyWhenAnyCharacterMatches = (
+    gender: CharacterGender,
+    source: keyof Pick<ConditionalPromptContext, 'characterGenders' | 'mainCharacterGenders'>,
+): ConditionalPromptHandler => (_prompt, context) => !context[source].includes(gender)
+
 const conditionalHandlers: Record<string, ConditionalPromptHandler> = {
     base: (prompt, context) => {
         const candidates = getPromptCandidates(context.basePrompt)
@@ -33,6 +42,12 @@ const conditionalHandlers: Record<string, ConditionalPromptHandler> = {
         const firstTag = normalize(prompt.split(',')[0] || '')
         return candidates.has(normalizedPrompt) || (firstTag !== '' && candidates.has(firstTag))
     },
+    b: onlyWhenAnyCharacterMatches('male', 'characterGenders'),
+    g: onlyWhenAnyCharacterMatches('female', 'characterGenders'),
+    o: onlyWhenAnyCharacterMatches('unknown', 'characterGenders'),
+    mb: onlyWhenAnyCharacterMatches('male', 'mainCharacterGenders'),
+    mg: onlyWhenAnyCharacterMatches('female', 'mainCharacterGenders'),
+    mo: onlyWhenAnyCharacterMatches('unknown', 'mainCharacterGenders'),
 }
 
 const matchesSameCategoryCondition = (condition: string, sameCategoryPrompt: string) => {

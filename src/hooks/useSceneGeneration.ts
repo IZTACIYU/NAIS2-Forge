@@ -209,6 +209,10 @@ export function useSceneGeneration() {
                     ...characterPromptIds,
                     ...(usesCustomSceneCharacters ? [] : sceneAddition?.characterPromptIds || []),
                 ])
+                const mainCharacterPromptIds = uniqueIds([
+                    ...characterPromptIds,
+                    ...(sceneAddition?.mode === 'preset' ? sceneAddition.characterPromptIds : []),
+                ])
                 const latestCharStore = useCharacterStore.getState()
                 const characterImages = latestCharStore.characterImages.filter(img => finalCharacterReferenceIds.includes(img.id) && (img.filePath || img.base64 || img.cacheKey))
                 const vibeImages = latestCharStore.vibeImages.filter(img => finalVibeReferenceIds.includes(img.id) && (img.filePath || img.base64 || img.encodedVibe || img.encodedVibePath))
@@ -223,6 +227,11 @@ export function useSceneGeneration() {
                 const selectedCharacters = selectSceneCharacters(
                     latestPromptStore.characters,
                     finalCharacterPromptIds,
+                    requestedVariantIndex,
+                )
+                const mainCharacters = selectSceneCharacters(
+                    latestPromptStore.characters,
+                    mainCharacterPromptIds,
                     requestedVariantIndex,
                 )
                 const characterPrompts = [
@@ -310,6 +319,7 @@ export function useSceneGeneration() {
                         costumeEnabled: costumeOverride,
                         position: multiCharacterPositionMap.get(character.id) || character.position,
                     })),
+                    mainCharacterInputs: mainCharacters.map(character => ({ character })),
                     characterPromptLayoutEnabled: latestSettingsStore.expertCharacterPromptLayoutEnabled,
                     characterPositionEnabled: latestPromptStore.positionEnabled || multiCharacterPositionMap.size > 0,
                     characterImages,

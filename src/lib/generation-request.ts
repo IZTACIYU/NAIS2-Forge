@@ -8,6 +8,7 @@ import { mergeQualityTags, mergeUcPreset } from '@/lib/nai-presets'
 import { removePromptComments } from '@/lib/prompt-comments'
 import { splitCostumePrompt } from '@/lib/costume-prompt'
 import { resolveConditionalNegativePrompt, resolveConditionalPositivePrompt } from '@/lib/conditional-prompts'
+import { getCharacterGender } from '@/lib/character-gender'
 import {
     formatPromptWhitespace,
     removeExactEmptyPromptSeparators,
@@ -29,6 +30,7 @@ export interface GenerationRequestInput {
     positiveParts: GenerationPromptPart[]
     negativeParts: GenerationPromptPart[]
     characterInputs: GenerationCharacterInput[]
+    mainCharacterInputs?: GenerationCharacterInput[]
     characterPromptLayoutEnabled: boolean
     characterPositionEnabled: boolean
     characterImages: ReferenceImage[]
@@ -81,8 +83,10 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         input.insertBlankLinesBetweenPromptParts,
     )
 
-    const characterPrompts = await Promise.all(input.characterInputs
-        .slice(0, getModelCapabilities(input.model).maxCharacterPrompts)
+    const maxCharacterPrompts = getModelCapabilities(input.model).maxCharacterPrompts
+    const activeCharacterInputs = input.characterInputs.slice(0, maxCharacterPrompts)
+    const activeMainCharacterInputs = (input.mainCharacterInputs ?? input.characterInputs).slice(0, maxCharacterPrompts)
+    const characterPrompts = await Promise.all(activeCharacterInputs
         .map(async ({
         character,
         appendedPrompts = [],
@@ -135,6 +139,8 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
             mergeUcPreset(rawMainNegative, input.model, input.ucPreset),
             ...characterPrompts.map(character => character.rawNegative),
         ].filter(part => part.trim()).join('\n'),
+        characterGenders: activeCharacterInputs.map(({ character }) => getCharacterGender(character.prompt)),
+        mainCharacterGenders: activeMainCharacterInputs.map(({ character }) => getCharacterGender(character.prompt)),
     }
     const prompt = mergeQualityTags(
         cleanup(await processWildcards(resolveConditionalPositivePrompt(rawMainPrompt, conditionalContext))),
