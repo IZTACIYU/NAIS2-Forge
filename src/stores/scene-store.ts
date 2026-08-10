@@ -481,26 +481,53 @@ export const useSceneStore = create<SceneState>()(
             },
 
             duplicateScene: (presetId, sceneId) => {
-                set(state => ({
-                    presets: state.presets.map(p => {
-                        if (p.id !== presetId) return p
-                        const scene = p.scenes.find(s => s.id === sceneId)
-                        if (!scene) return p
+                set(state => {
+                    const sourceAddition = state.sceneCharacterAdditions[presetId]?.[sceneId]
+                    const duplicatedId = Date.now().toString()
+
+                    const presets = state.presets.map(preset => {
+                        if (preset.id !== presetId) return preset
+                        const scene = preset.scenes.find(item => item.id === sceneId)
+                        if (!scene) return preset
+
                         const duplicated: SceneCard = {
                             ...scene,
-                            id: Date.now().toString(),
-                            name: `${scene.name} (복사본)`,
-                            queueCount: 0,
+                            id: duplicatedId,
+                            name: scene.name + ' (복사본)',
                             images: [],
-                            multiCharacterSlots: scene.multiCharacterSlots?.map(slot => ({ ...slot })),
+                            multiCharacterSlots: scene.multiCharacterSlots?.map(slot => ({
+                                ...slot,
+                                position: slot.position ? { ...slot.position } : undefined,
+                            })),
                             createdAt: Date.now(),
                         }
-                        const index = p.scenes.findIndex(s => s.id === sceneId)
-                        const newScenes = [...p.scenes]
-                        newScenes.splice(index + 1, 0, duplicated)
-                        return { ...p, scenes: newScenes }
-                    }),
-                }))
+                        const index = preset.scenes.findIndex(item => item.id === sceneId)
+                        const scenes = [...preset.scenes]
+                        scenes.splice(index + 1, 0, duplicated)
+                        return { ...preset, scenes }
+                    })
+
+                    if (!sourceAddition) return { presets }
+
+                    const duplicatedAddition: SceneCharacterAddition = {
+                        ...sourceAddition,
+                        characterPromptIds: [...sourceAddition.characterPromptIds],
+                        characterReferenceIds: [...sourceAddition.characterReferenceIds],
+                        vibeReferenceIds: [...sourceAddition.vibeReferenceIds],
+                        customCharacters: sourceAddition.customCharacters?.map(character => ({ ...character })),
+                    }
+
+                    return {
+                        presets,
+                        sceneCharacterAdditions: {
+                            ...state.sceneCharacterAdditions,
+                            [presetId]: {
+                                ...(state.sceneCharacterAdditions[presetId] || {}),
+                                [duplicatedId]: duplicatedAddition,
+                            },
+                        },
+                    }
+                })
             },
 
             renameScene: async (presetId, sceneId, name) => {
