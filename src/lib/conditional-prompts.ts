@@ -12,7 +12,7 @@ type ConditionalPromptHandler = (prompt: string, context: ConditionalPromptConte
 
 const normalize = (value: string) => value.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
 
-const isConditionalLine = (line: string) => /^\s*#if(?:\s+[a-z][a-z0-9_-]*\s*:|-[^:\r\n]+\s*:)/i.test(line)
+const isConditionalLine = (line: string) => /^\s*#if(?:\s+[a-z][a-z0-9_-]*\s*:|[+-][^:\r\n]+\s*:)/i.test(line)
 
 const getPromptCandidates = (prompt: string) => {
     const candidates = new Set<string>()
@@ -74,11 +74,12 @@ export function resolveConditionalPrompt(
                 return handler?.(content, context) ? [] : [content]
             }
 
-            const categoryMatch = line.match(/^\s*#if-([^:\r\n]+)\s*:\s*(.*)$/i)
+            const categoryMatch = line.match(/^\s*#if([+-])([^:\r\n]+)\s*:\s*(.*)$/i)
             if (!categoryMatch) return [line]
 
-            const [, condition, content] = categoryMatch
-            return matchesSameCategoryCondition(condition, sameCategoryPrompt) ? [] : [content]
+            const [, mode, condition, content] = categoryMatch
+            const matches = matchesSameCategoryCondition(condition, sameCategoryPrompt)
+            return mode === '+' ? (matches ? [content] : []) : (matches ? [] : [content])
         })
         .join('\n')
 }
