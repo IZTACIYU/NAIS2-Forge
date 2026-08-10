@@ -54,12 +54,24 @@ const conditionalHandlers: Record<string, ConditionalPromptHandler> = {
     mo: onlyWhenAnyCharacterMatches('unknown', 'mainCharacterGenders'),
 }
 
+const matchesConditionTag = (condition: string, candidates: Set<string>) => {
+    const normalizedCondition = normalize(condition)
+    if (!normalizedCondition.includes('*')) return candidates.has(normalizedCondition)
+
+    const pattern = normalizedCondition
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\\\*/g, '.*')
+        .replace(/_/g, '[\\s_]')
+    const wildcard = new RegExp('^' + pattern + '$')
+    return [...candidates].some(candidate => wildcard.test(candidate))
+}
+
 const matchesSameCategoryCondition = (condition: string, sameCategoryPrompt: string) => {
     const candidates = getPromptCandidates(sameCategoryPrompt)
     return condition
         .split('/')
         .map(group => group.split('&').map(normalize).filter(Boolean))
-        .some(group => group.length > 0 && group.every(prompt => candidates.has(prompt)))
+        .some(group => group.length > 0 && group.every(prompt => matchesConditionTag(prompt, candidates)))
 }
 
 // Resolves #if base and #if-condition line directives.
