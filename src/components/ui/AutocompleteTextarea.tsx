@@ -407,7 +407,8 @@ export function AutocompleteTextarea({
     const handleValueChange = (code: string) => {
         const editor = textareaRef.current
         const cursor = editor?.selectionEnd ?? code.length
-        const nextValue = shouldInsertWeightClosing(code, cursor)
+        const isDeletion = code.length < internalValueRef.current.length
+        const nextValue = !isDeletion && shouldInsertWeightClosing(code, cursor)
             ? code.slice(0, cursor) + "::" + code.slice(cursor)
             : code
 
