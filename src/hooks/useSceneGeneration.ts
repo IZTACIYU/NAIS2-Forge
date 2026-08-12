@@ -425,12 +425,21 @@ export function useSceneGeneration() {
 
                         const { useAbsolutePath } = useSettingsStore.getState()
                         let fullPath: string
+                        let sceneFolderPath: string
+                        const existingSceneFolderPath = scene.folderPath && await exists(scene.folderPath)
+                            ? scene.folderPath
+                            : null
 
-                        if (useAbsolutePath && savePath) {
+                        if (existingSceneFolderPath) {
+                            sceneFolderPath = existingSceneFolderPath
+                            fullPath = await join(sceneFolderPath, fileName)
+                            await writeFile(fullPath, binaryData)
+                        } else if (useAbsolutePath && savePath) {
                             // Save to absolute path: savePath/NAIS_Scene/presetName/sceneName/
                             const naisSceneDir = await join(savePath, 'NAIS_Scene')
                             const presetDir = await join(naisSceneDir, safePresetName)
                             const sceneDir = await join(presetDir, safeSceneName)
+                            sceneFolderPath = sceneDir
 
                             if (!(await exists(naisSceneDir))) {
                                 await mkdir(naisSceneDir, { recursive: true })
@@ -465,6 +474,7 @@ export function useSceneGeneration() {
 
                             await writeFile(`${presetSceneDir}/${fileName}`, binaryData, { baseDir: BaseDirectory.Picture })
                             fullPath = await join(baseDir, presetSceneDir, fileName)
+                            sceneFolderPath = await join(baseDir, presetSceneDir)
                         }
 
                         // Notify HistoryPanel immediately (file path only — no base64 needed,
@@ -473,7 +483,7 @@ export function useSceneGeneration() {
                             detail: { path: fullPath }
                         }))
 
-                        addImageToScene(activePresetId, scene.id, fullPath)
+                        addImageToScene(activePresetId, scene.id, fullPath, sceneFolderPath)
 
                     } catch (saveError) {
                         console.error('Failed to save scene image file:', saveError)

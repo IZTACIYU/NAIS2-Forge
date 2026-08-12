@@ -360,7 +360,7 @@ export default function SceneDetail() {
             const { savePath, useAbsolutePath } = useSettingsStore.getState()
             const basePath = useAbsolutePath && savePath ? savePath : await pictureDir()
             const defaultFolderPath = await join(basePath, 'NAIS_Scene', safePresetName, safeSceneName)
-            const linkedFolderPath = getSceneFolderFromImages(scene.images)
+            const linkedFolderPath = scene.folderPath || getSceneFolderFromImages(scene.images)
             const folderPath = linkedFolderPath && await exists(linkedFolderPath)
                 ? linkedFolderPath
                 : defaultFolderPath

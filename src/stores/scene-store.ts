@@ -38,6 +38,8 @@ export interface SceneCard {
     width?: number
     height?: number
     multiCharacterSlots?: SceneMultiCharacterSlot[]
+    // The physical folder is independent from the display name after a scene is renamed.
+    folderPath?: string
     createdAt: number
 }
 
@@ -209,7 +211,7 @@ interface SceneState {
     getQueuedScenes: (presetId: string) => SceneCard[]
 
     // Actions - Images
-    addImageToScene: (presetId: string, sceneId: string, imageUrl: string) => void
+    addImageToScene: (presetId: string, sceneId: string, imageUrl: string, folderPath?: string) => void
     toggleFavorite: (presetId: string, sceneId: string, imageId: string) => void
     deleteImage: (presetId: string, sceneId: string, imageId: string) => void
     deleteNonFavoriteImages: (presetId: string, sceneId: string) => { count: number; paths: string[] }
@@ -495,6 +497,7 @@ export const useSceneStore = create<SceneState>()(
                             id: duplicatedId,
                             name: scene.name + ' (복사본)',
                             images: [],
+                            folderPath: undefined,
                             multiCharacterSlots: scene.multiCharacterSlots?.map(slot => ({
                                 ...slot,
                                 position: slot.position ? { ...slot.position } : undefined,
@@ -548,7 +551,7 @@ export const useSceneStore = create<SceneState>()(
                     let oldFolderPath: string
                     let newFolderPath: string
                     
-                    const linkedFolderPath = getSceneFolderFromImages(scene.images)
+                    const linkedFolderPath = scene.folderPath || getSceneFolderFromImages(scene.images)
                     if (linkedFolderPath) {
                         oldFolderPath = linkedFolderPath
                         newFolderPath = await join(await dirname(linkedFolderPath), safeNewName)
@@ -587,6 +590,7 @@ export const useSceneStore = create<SceneState>()(
                                                 ? { 
                                                     ...s, 
                                                     name,
+                                                    folderPath: newFolderPath,
                                                     images: s.images.map(img => ({
                                                         ...img,
                                                         url: replaceSceneFolderPrefix(img.url, oldFolderPath, newFolderPath)
@@ -730,7 +734,7 @@ export const useSceneStore = create<SceneState>()(
             },
 
             // Image Actions
-            addImageToScene: (presetId, sceneId, imageUrl) => {
+            addImageToScene: (presetId, sceneId, imageUrl, folderPath) => {
                 const newImage: SceneImage = {
                     id: Date.now().toString(),
                     url: imageUrl,
@@ -770,7 +774,11 @@ export const useSceneStore = create<SceneState>()(
                                         console.warn(`[SceneStore] Scene ${s.name}: Trimmed to ${updatedImages.length} images (limit: ${MAX_IMAGES_PER_SCENE})`)
                                     }
                                     
-                                    return { ...s, images: updatedImages }
+                                    return {
+                                        ...s,
+                                        images: updatedImages,
+                                        folderPath: folderPath || s.folderPath || getSceneFolderFromImages(updatedImages),
+                                    }
                                 }),
                             }
                             : p
@@ -1481,7 +1489,7 @@ export const useSceneStore = create<SceneState>()(
 
                 for (const scene of scenesToMove) {
                     try {
-                        const linkedFolder = getSceneFolderFromImages(scene.images)
+                        const linkedFolder = scene.folderPath || getSceneFolderFromImages(scene.images)
                         const rootDirectory = useAbsolutePath && savePath ? savePath : await pictureDir()
                         const oldFolder = linkedFolder
                             || await join(rootDirectory, 'NAIS_Scene', sourcePresetName, sanitizeSceneFolderName(scene.name))
@@ -1497,6 +1505,7 @@ export const useSceneStore = create<SceneState>()(
                             await rename(oldFolder, newFolder)
                             relocatedScenes.set(scene.id, {
                                 ...scene,
+                                folderPath: newFolder,
                                 images: scene.images.map(image => ({
                                     ...image,
                                     url: replaceSceneFolderPrefix(image.url, oldFolder, newFolder),
