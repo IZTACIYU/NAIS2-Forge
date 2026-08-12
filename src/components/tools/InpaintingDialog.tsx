@@ -747,7 +747,10 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                         {/* Canvas Container */}
                         <div
                             ref={containerRef}
-                            className="relative min-h-0 flex-1 overflow-auto rounded-lg bg-muted/50 p-2"
+                            className={`relative min-h-0 flex-1 rounded-lg bg-muted/50 p-2 ${zoom > 1 ? 'overflow-auto' : 'overflow-hidden'}`}
+                            style={{
+                                scrollbarGutter: 'stable both-edges',
+                            }}
                             onWheel={handleZoomWheel}
                         >
                             <div className="flex h-max min-h-full w-max min-w-full items-center justify-center">
