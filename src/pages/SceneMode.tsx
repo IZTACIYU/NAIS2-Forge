@@ -1070,7 +1070,6 @@ export default function SceneMode() {
 interface SceneThumbnailValidationRequest {
     presetId: string
     sceneId: string
-    failedImageId: string
     images: Array<{ imageId: string; path: string }>
     resolve: () => void
     reject: (error: unknown) => void
@@ -1091,8 +1090,9 @@ const flushSceneThumbnailValidations = async () => {
         const missingPaths = paths.length > 0
             ? new Set(await invoke<string[]>('find_missing_files', { paths }))
             : new Set<string>()
+        // A WebView thumbnail error is not evidence that its source file is missing.
         const missingImages = batch.flatMap(request => request.images
-            .filter(image => image.imageId === request.failedImageId || missingPaths.has(image.path))
+            .filter(image => missingPaths.has(image.path))
             .map(image => ({
                 presetId: request.presetId,
                 sceneId: request.sceneId,
@@ -1181,15 +1181,13 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
     }, [shouldRenderImage, thumbnail, thumbnailImage?.id])
 
     const handleThumbnailLoadError = () => {
-        const failedImageId = renderedThumbnail?.imageId
         setRenderedThumbnail(null)
-        if (!failedImageId || !activePresetId) return
+        if (!activePresetId) return
 
         setThumbnailRecoveryStatus('checking')
         void scheduleSceneThumbnailValidation({
             presetId: activePresetId,
             sceneId: scene.id,
-            failedImageId,
             images: scene.images.map((image: SceneImage) => ({ imageId: image.id, path: image.url })),
         }).then(
             () => setThumbnailRecoveryStatus('idle'),
