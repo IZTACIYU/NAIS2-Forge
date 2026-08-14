@@ -48,6 +48,7 @@ const TYPOGRAPHY = {
     lineHeight: '1.5',
     letterSpacing: 'normal',
     fontVariantLigatures: 'none',
+    fontKerning: 'none' as const,
     tabSize: 4,
 }
 
@@ -64,6 +65,26 @@ export function AutocompleteTextarea({
     const textareaRef = useRef<HTMLTextAreaElement | null>(null)
     const containerRef = useRef<HTMLDivElement>(null) // The scrolling container
     const listRef = useRef<HTMLDivElement>(null)
+
+    // react-simple-code-editor keeps the textarea above the highlighted <pre>.
+    // Move any browser-initiated textarea scroll to the shared outer container so
+    // both layers always use the same scroll origin for caret hit testing.
+    const syncTextareaScroll = useCallback(() => {
+        const textarea = textareaRef.current
+        const container = containerRef.current
+        if (!textarea || !container) return
+
+        const offsetTop = textarea.scrollTop
+        const offsetLeft = textarea.scrollLeft
+        if (offsetTop === 0 && offsetLeft === 0) return
+
+        textarea.scrollTop = 0
+        textarea.scrollLeft = 0
+        if (offsetTop !== 0) {
+            const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
+            container.scrollTop = Math.min(maxScrollTop, Math.max(0, container.scrollTop + offsetTop))
+        }
+    }, [])
 
     // onChange ?붾컮?댁뒪瑜??꾪븳 ??대㉧ ref
     const onChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -100,6 +121,15 @@ export function AutocompleteTextarea({
         internalValueRef.current = value
         setInternalValue(value)
     }, [value])
+
+    useEffect(() => {
+        const textarea = containerRef.current?.querySelector<HTMLTextAreaElement>('textarea')
+        if (!textarea) return
+
+        textareaRef.current = textarea
+        textarea.addEventListener('scroll', syncTextareaScroll, { passive: true })
+        return () => textarea.removeEventListener('scroll', syncTextareaScroll)
+    }, [syncTextareaScroll])
 
     const scheduleValueChange = useCallback((nextValue: string, delay: number) => {
         pendingLocalValueRef.current = nextValue
@@ -577,10 +607,13 @@ export function AutocompleteTextarea({
                     font-size: inherit !important;
                     letter-spacing: normal !important;
                     font-variant-ligatures: none !important;
+                    font-kerning: none !important;
+                    font-synthesis: none !important;
                     tab-size: 4 !important;
                     white-space: pre-wrap !important;
-                    overflow-wrap: anywhere !important;
-                    word-break: break-word !important;
+                    overflow-wrap: break-word !important;
+                    word-break: keep-all !important;
+                    hyphens: none !important;
                     box-sizing: border-box !important;
                     width: 100% !important;
                     max-width: 100% !important;
@@ -699,4 +732,3 @@ export function AutocompleteTextarea({
         </div>
     )
 }
-
