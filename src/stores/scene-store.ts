@@ -43,6 +43,24 @@ export interface SceneCard {
     createdAt: number
 }
 
+function getUniqueDuplicateSceneName(sourceName: string, scenes: SceneCard[]): string {
+    const baseName = sourceName.replace(/\s*\(복사본(?:\s+\d+)?\)$/u, '') || sourceName
+    const usedNames = new Set(scenes.map(scene => scene.name.toLocaleLowerCase()))
+    const usedFolderNames = new Set(
+        scenes.map(scene => sanitizeSceneFolderName(scene.name).toLocaleLowerCase())
+    )
+
+    for (let copyNumber = 1; ; copyNumber++) {
+        const candidate = copyNumber === 1
+            ? `${baseName} (복사본)`
+            : `${baseName} (복사본 ${copyNumber})`
+        if (!usedNames.has(candidate.toLocaleLowerCase())
+            && !usedFolderNames.has(sanitizeSceneFolderName(candidate).toLocaleLowerCase())) {
+            return candidate
+        }
+    }
+}
+
 export interface ScenePreset {
     id: string
     name: string
@@ -495,7 +513,7 @@ export const useSceneStore = create<SceneState>()(
                         const duplicated: SceneCard = {
                             ...scene,
                             id: duplicatedId,
-                            name: scene.name + ' (복사본)',
+                            name: getUniqueDuplicateSceneName(scene.name, preset.scenes),
                             images: [],
                             folderPath: undefined,
                             multiCharacterSlots: scene.multiCharacterSlots?.map(slot => ({
