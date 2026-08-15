@@ -365,6 +365,189 @@ fn extract_image_from_zip(zip_bytes: &[u8]) -> Result<String, String> {
     Ok(STANDARD.encode(&contents))
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SceneZipEntry {
+    source: String,
+    file_name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SceneZipExportResult {
+    exported_count: usize,
+    skipped_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SceneZipProgress {
+    export_id: String,
+    completed: usize,
+    total: usize,
+}
+
+#[tauri::command]
+async fn export_scene_images_zip(
+    app: tauri::AppHandle,
+    output_path: String,
+    entries: Vec<SceneZipEntry>,
+    format: String,
+    quality: u8,
+    export_id: String,
+) -> Result<SceneZipExportResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        export_scene_images_zip_to_file(app, output_path, entries, format, quality, export_id)
+    })
+    .await
+    .map_err(|error| format!("ZIP export task failed: {error}"))?
+}
+
+fn export_scene_images_zip_to_file(
+    app: tauri::AppHandle,
+    output_path: String,
+    entries: Vec<SceneZipEntry>,
+    format: String,
+    quality: u8,
+    export_id: String,
+) -> Result<SceneZipExportResult, String> {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use image::ImageEncoder;
+    use std::{
+        fs::{self, File},
+        io::{self, Write},
+        path::PathBuf,
+    };
+    use tauri::Emitter;
+    use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
+
+    let output = PathBuf::from(&output_path);
+    let file_name = output
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "Invalid ZIP output path".to_string())?;
+    let temporary = output.with_file_name(format!("{file_name}.partial"));
+    let _ = fs::remove_file(&temporary);
+
+    let result = (|| -> Result<SceneZipExportResult, String> {
+        let file = File::create(&temporary).map_err(|error| error.to_string())?;
+        let mut zip = ZipWriter::new(file);
+        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+        let total = entries.len();
+        let mut exported_count = 0;
+        let mut skipped_count = 0;
+
+        for (index, entry) in entries.into_iter().enumerate() {
+            let entry_result = (|| -> Result<(), String> {
+                let is_png_source = entry.source.starts_with("data:image/png")
+                    || entry.source.to_lowercase().ends_with(".png");
+
+                if format == "png" && is_png_source {
+                    if entry.source.starts_with("data:") {
+                        let encoded = entry
+                            .source
+                            .split_once(',')
+                            .map(|(_, data)| data)
+                            .ok_or_else(|| "Invalid image data URL".to_string())?;
+                        let bytes = STANDARD.decode(encoded).map_err(|error| error.to_string())?;
+                        zip.start_file(&entry.file_name, options)
+                            .map_err(|error| error.to_string())?;
+                        zip.write_all(&bytes).map_err(|error| error.to_string())?;
+                    } else {
+                        let mut input = File::open(&entry.source).map_err(|error| error.to_string())?;
+                        zip.start_file(&entry.file_name, options)
+                            .map_err(|error| error.to_string())?;
+                        io::copy(&mut input, &mut zip).map_err(|error| error.to_string())?;
+                    }
+                    return Ok(());
+                }
+
+                let source_bytes = if entry.source.starts_with("data:") {
+                    let encoded = entry
+                        .source
+                        .split_once(',')
+                        .map(|(_, data)| data)
+                        .ok_or_else(|| "Invalid image data URL".to_string())?;
+                    STANDARD.decode(encoded).map_err(|error| error.to_string())?
+                } else {
+                    fs::read(&entry.source).map_err(|error| error.to_string())?
+                };
+                let decoded = image::load_from_memory(&source_bytes).map_err(|error| error.to_string())?;
+                zip.start_file(&entry.file_name, options)
+                    .map_err(|error| error.to_string())?;
+
+                match format.as_str() {
+                    "jpeg" => image::codecs::jpeg::JpegEncoder::new_with_quality(&mut zip, quality)
+                        .encode_image(&decoded)
+                        .map_err(|error| error.to_string()),
+                    "webp" => {
+                        let rgba = decoded.to_rgba8();
+                        let encoded = webp::Encoder::from_rgba(
+                            rgba.as_raw(),
+                            rgba.width(),
+                            rgba.height(),
+                        )
+                        .encode(quality as f32);
+                        zip.write_all(&encoded).map_err(|error| error.to_string())
+                    }
+                    "png" => {
+                        let rgba = decoded.to_rgba8();
+                        image::codecs::png::PngEncoder::new(&mut zip)
+                            .write_image(
+                                rgba.as_raw(),
+                                rgba.width(),
+                                rgba.height(),
+                                image::ExtendedColorType::Rgba8,
+                            )
+                            .map_err(|error| error.to_string())
+                    }
+                    _ => Err("Unsupported ZIP image format".to_string()),
+                }
+            })();
+
+            match entry_result {
+                Ok(()) => exported_count += 1,
+                Err(error) => {
+                    skipped_count += 1;
+                    log::warn!("Skipping scene ZIP entry '{}': {error}", entry.file_name);
+                }
+            }
+            let _ = app.emit(
+                "scene-zip-progress",
+                SceneZipProgress {
+                    export_id: export_id.clone(),
+                    completed: index + 1,
+                    total,
+                },
+            );
+        }
+
+        zip.finish().map_err(|error| error.to_string())?;
+        Ok(SceneZipExportResult {
+            exported_count,
+            skipped_count,
+        })
+    })();
+
+    match result {
+        Ok(result) if result.exported_count > 0 => {
+            if output.exists() {
+                fs::remove_file(&output).map_err(|error| error.to_string())?;
+            }
+            fs::rename(&temporary, &output).map_err(|error| error.to_string())?;
+            Ok(result)
+        }
+        Ok(result) => {
+            let _ = fs::remove_file(&temporary);
+            Ok(result)
+        }
+        Err(error) => {
+            let _ = fs::remove_file(&temporary);
+            Err(error)
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RemoveBackgroundResult {
     pub success: bool,
@@ -1884,6 +2067,7 @@ pub fn run() {
             state_db_get,
             state_db_set,
             state_db_remove,
+            export_scene_images_zip,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

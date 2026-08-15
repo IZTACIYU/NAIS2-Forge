@@ -7,9 +7,9 @@ import { Slider } from '@/components/ui/slider'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SceneCard } from '@/stores/scene-store'
-import JSZip from 'jszip'
 import { save } from '@tauri-apps/plugin-dialog'
-import { writeFile, readFile } from '@tauri-apps/plugin-fs'
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { toast } from '@/components/ui/use-toast'
 import { useSettingsStore } from '@/stores/settings-store'
 import { getSceneExportName } from '@/lib/scene-export-name'
@@ -22,6 +22,17 @@ interface ExportDialogProps {
 }
 
 type ExportFormat = 'png' | 'jpeg' | 'webp'
+
+interface SceneZipExportResult {
+    exportedCount: number
+    skippedCount: number
+}
+
+interface SceneZipProgress {
+    exportId: string
+    completed: number
+    total: number
+}
 
 export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: ExportDialogProps) {
     const { t } = useTranslation()
@@ -38,119 +49,71 @@ export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: E
         setProgress(0)
 
         try {
-            const zip = new JSZip()
             const usedFileNames = new Set<string>()
-            let count = 0
-            
-            // Calculate total: each scene exports 1 image OR all favorites if multiple
-            const total = scenes.reduce((acc, scene) => {
-                const favorites = scene.images.filter(img => img.isFavorite)
-                if (favorites.length > 0) return acc + favorites.length
-                return acc + (scene.images.length > 0 ? 1 : 0)
-            }, 0)
+            const entries: Array<{ source: string; fileName: string }> = []
 
             for (const scene of scenes) {
                 const favorites = scene.images.filter(img => img.isFavorite)
-                
-                // If there are favorites, export all of them; otherwise export first image
-                const imagesToExport = favorites.length > 0 
-                    ? favorites 
+                const imagesToExport = favorites.length > 0
+                    ? favorites
                     : (scene.images.length > 0 ? [scene.images[0]] : [])
 
                 for (let imgIndex = 0; imgIndex < imagesToExport.length; imgIndex++) {
                     const targetImage = imagesToExport[imgIndex]
-                    let imageData: Uint8Array | null = null
-
-                    // 1. Get Image Data (Uint8Array)
-                    try {
-                        if (targetImage.url.startsWith('data:')) {
-                            const res = await fetch(targetImage.url)
-                            const buf = await res.arrayBuffer()
-                            imageData = new Uint8Array(buf)
-                        } else {
-                            imageData = await readFile(targetImage.url)
-                        }
-                    } catch (e) {
-                        console.error("Failed to read image", e)
-                        continue
+                    const exportName = getSceneExportName(scene.name, expertSceneExportNameEnabled, sceneExportNamePart)
+                    const safeName = exportName.replace(/[<>:"/\\|?*]/g, '_').trim() || `Scene_${entries.length}`
+                    const ext = format === 'jpeg' ? 'jpg' : format
+                    const suffix = imagesToExport.length > 1 ? `_${imgIndex + 1}` : ''
+                    let fileName = `${safeName}${suffix}.${ext}`
+                    let duplicateIndex = 2
+                    while (usedFileNames.has(fileName.toLocaleLowerCase())) {
+                        fileName = `${safeName}${suffix}_${duplicateIndex}.${ext}`
+                        duplicateIndex++
                     }
-
-                    if (!imageData) continue;
-
-                    // 2. Convert if necessary (or if format is not PNG)
-                    // Note: If source is PNG and format is PNG, we can just save it directly?
-                    // But if we want to ensure it is valid or re-encode, we should convert.
-                    // However, avoiding re-encoding PNG-to-PNG preserves quality best.
-
-                    let finalBlob: Blob | null = null
-
-                    // Simple heuristic: If target is PNG and source lookup suggests PNG (or unknown), 
-                    // we might skip conversion, BUT 'imageData' is raw bytes.
-
-                    if (format === 'png' && targetImage.url.endsWith('.png')) {
-                        finalBlob = new Blob([imageData as any], { type: 'image/png' })
-                    } else {
-                        // Use OffscreenCanvas or ImageBitmap for conversion
-                        const blob = new Blob([imageData as any])
-                        const bitmap = await createImageBitmap(blob)
-
-                        // We can use a canvas
-                        const canvas = document.createElement('canvas')
-                        canvas.width = bitmap.width
-                        canvas.height = bitmap.height
-                        const ctx = canvas.getContext('2d')
-                        if (ctx) {
-                            ctx.drawImage(bitmap, 0, 0)
-                            const mimeType = format === 'jpeg' ? 'image/jpeg' : `image/${format}`
-                            const q = format === 'png' ? undefined : quality / 100
-
-                            // To get Blob from canvas
-                            finalBlob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, mimeType, q))
-                        }
-                        // Free memory
-                        canvas.width = 0
-                        canvas.height = 0
-                        bitmap.close()
-                    }
-
-                    if (finalBlob) {
-                        const exportName = getSceneExportName(scene.name, expertSceneExportNameEnabled, sceneExportNamePart)
-                        const safeName = exportName.replace(/[<>:"/\\|?*]/g, '_').trim() || `Scene_${count}`
-                        const ext = format === 'jpeg' ? 'jpg' : format
-                        // Add suffix if multiple favorites (_1, _2, etc.)
-                        const suffix = imagesToExport.length > 1 ? `_${imgIndex + 1}` : ''
-                        let fileName = `${safeName}${suffix}.${ext}`
-                        let duplicateIndex = 2
-                        while (usedFileNames.has(fileName.toLocaleLowerCase())) {
-                            fileName = `${safeName}${suffix}_${duplicateIndex}.${ext}`
-                            duplicateIndex++
-                        }
-                        usedFileNames.add(fileName.toLocaleLowerCase())
-                        const arrayBuffer = await finalBlob.arrayBuffer()
-                        zip.file(fileName, new Uint8Array(arrayBuffer) as any)
-                        count++
-                        setProgress(Math.round((count / total) * 100))
-                    }
+                    usedFileNames.add(fileName.toLocaleLowerCase())
+                    entries.push({ source: targetImage.url, fileName })
                 }
             }
 
-            if (count > 0) {
-                const zipContent = await zip.generateAsync({ type: 'uint8array' })
-                const fileName = `${activePresetName}_${format.toUpperCase()}_${Date.now()}.zip`
-                const filePath = await save({ defaultPath: fileName, filters: [{ name: 'ZIP File', extensions: ['zip'] }] })
-
-                if (filePath) {
-                    await writeFile(filePath, zipContent)
-                    toast({ title: t('common.saved'), variant: 'success' })
-                    onOpenChange(false)
-                }
-            } else {
+            if (entries.length === 0) {
                 toast({ title: t('scene.noImagesToExport'), variant: 'destructive' })
+                return
             }
 
-        } catch (e) {
-            console.error(e)
-            toast({ title: t('display.exportFailed'), description: String(e), variant: 'destructive' })
+            const fileName = `${activePresetName}_${format.toUpperCase()}_${Date.now()}.zip`
+            const filePath = await save({ defaultPath: fileName, filters: [{ name: 'ZIP File', extensions: ['zip'] }] })
+            if (!filePath) return
+
+            const exportId = `scene-zip-${Date.now()}`
+            const unlisten = await listen<SceneZipProgress>('scene-zip-progress', ({ payload }) => {
+                if (payload.exportId === exportId) {
+                    setProgress(Math.round((payload.completed / payload.total) * 100))
+                }
+            })
+            try {
+                const result = await invoke<SceneZipExportResult>('export_scene_images_zip', {
+                    outputPath: filePath,
+                    entries,
+                    format,
+                    quality,
+                    exportId,
+                })
+                if (result.exportedCount > 0) {
+                    toast({
+                        title: t('common.saved'),
+                        description: result.skippedCount > 0 ? `${result.skippedCount} image(s) could not be exported.` : undefined,
+                        variant: 'success',
+                    })
+                    onOpenChange(false)
+                } else {
+                    toast({ title: t('scene.noImagesToExport'), variant: 'destructive' })
+                }
+            } finally {
+                unlisten()
+            }
+        } catch (error) {
+            console.error(error)
+            toast({ title: t('display.exportFailed'), description: String(error), variant: 'destructive' })
         } finally {
             setIsExporting(false)
         }
