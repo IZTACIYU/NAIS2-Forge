@@ -3,8 +3,6 @@ import { decode as msgpackDecode } from '@msgpack/msgpack'
 import { Channel, invoke } from '@tauri-apps/api/core'
 import { embedNais2Params, type Nais2GenerationSources } from '@/lib/nais2-png-meta'
 import { removePromptComments } from '@/lib/prompt-comments'
-import { resolveConditionalNegativePrompt, resolveConditionalPositivePrompt } from '@/lib/conditional-prompts'
-import { getCharacterGender } from '@/lib/character-gender'
 import type { ImageGenerationEntitlement } from '@/lib/anlas-calculator'
 
 // TESTING: Always use native window.fetch
@@ -103,36 +101,6 @@ export interface GenerationParams {
         inpainting?: string
     }
     generationSources?: Nais2GenerationSources
-}
-
-function resolveConditionalApiParams(params: GenerationParams): GenerationParams {
-    const activeCharacters = (params.characterPrompts || []).filter(character => character.enabled && character.prompt.trim())
-    const positivePrompt = [params.prompt, ...activeCharacters.map(character => character.prompt)]
-        .filter(prompt => prompt.trim())
-        .join('\n')
-    const negativePrompt = [params.negative_prompt, ...activeCharacters.map(character => character.negative)]
-        .filter(prompt => prompt.trim())
-        .join('\n')
-    const context = {
-        basePrompt: positivePrompt,
-        positivePrompt,
-        negativePrompt,
-        characterGenders: activeCharacters.map(character => getCharacterGender(character.prompt)),
-        // Direct API callers do not have scene/main-character provenance.
-        // Normal generation resolves this distinction before reaching this final API boundary.
-        mainCharacterGenders: activeCharacters.map(character => getCharacterGender(character.prompt)),
-    }
-
-    return {
-        ...params,
-        prompt: resolveConditionalPositivePrompt(params.prompt, context),
-        negative_prompt: resolveConditionalNegativePrompt(params.negative_prompt, context),
-        characterPrompts: params.characterPrompts?.map(character => ({
-            ...character,
-            prompt: resolveConditionalPositivePrompt(character.prompt, context),
-            negative: resolveConditionalNegativePrompt(character.negative, context),
-        })),
-    }
 }
 
 interface NativeGenerationResult {
@@ -491,7 +459,6 @@ export async function generateImage(
     }
 
     try {
-        params = resolveConditionalApiParams(params)
         const useNativeReferences = usesNativeReferenceTransport(params)
         // Process Vibe Images
         const processedVibeImages: string[] = []
@@ -1037,7 +1004,6 @@ export async function generateImageStream(
     }
 
     try {
-        params = resolveConditionalApiParams(params)
         const useNativeReferences = usesNativeReferenceTransport(params)
         // Use the streaming endpoint
         const endpoint = API_ENDPOINTS.IMAGE_GENERATE_STREAM
