@@ -465,7 +465,7 @@ export function AutocompleteTextarea({
             textareaRef.current = e.target
         }
 
-        if (isVisible) {
+        if (isVisible && suggestions.length > 0) {
             if (e.key === 'ArrowDown') {
                 e.preventDefault()
                 setSelectedIndex(prev => (prev + 1) % suggestions.length)
