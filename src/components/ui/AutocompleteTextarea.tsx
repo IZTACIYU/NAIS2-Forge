@@ -482,6 +482,8 @@ export function AutocompleteTextarea({
                 }
                 return
             } else if (e.key === 'Escape') {
+                e.preventDefault()
+                e.stopPropagation()
                 setIsVisible(false)
                 return
             }
