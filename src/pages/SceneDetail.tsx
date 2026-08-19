@@ -55,6 +55,7 @@ import { ImageReferenceDialog } from '@/components/metadata/ImageReferenceDialog
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { convertFileSrc } from '@tauri-apps/api/core'
+import { isEditableEventTarget } from '@/lib/utils'
 import { exists, mkdir, readFile, remove } from '@tauri-apps/plugin-fs'
 import { toast } from '@/components/ui/use-toast'
 import { getSceneFolderFromImages, sanitizeSceneFolderName } from '@/lib/scene-path'
@@ -187,13 +188,12 @@ export default function SceneDetail() {
     // ESC key handler for closing viewer or navigating back
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                if (viewerImageSrc) {
-                    setViewerImageSrc(null)
-                } else {
-                    // Navigate back to scene list
-                    nav('/scenes')
-                }
+            if (e.key !== 'Escape' || e.defaultPrevented || isEditableEventTarget(e.target)) return
+            if (viewerImageSrc) {
+                setViewerImageSrc(null)
+            } else {
+                // Navigate back to scene list
+                nav('/scenes')
             }
         }
         window.addEventListener('keydown', handleEsc)

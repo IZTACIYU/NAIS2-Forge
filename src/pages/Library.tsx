@@ -84,6 +84,7 @@ import {
 import { ImageReferenceDialog } from '@/components/metadata/ImageReferenceDialog'
 import { MetadataDialog } from '@/components/metadata/MetadataDialog'
 import { readFile } from '@tauri-apps/plugin-fs'
+import { isEditableEventTarget } from '@/lib/utils'
 
 // ... existing imports
 
@@ -210,7 +211,7 @@ export default function Library() {
     // ESC closes the image viewer first, then walks up one stack level.
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
-            if (e.key !== 'Escape') return
+            if (e.key !== 'Escape' || e.defaultPrevented || isEditableEventTarget(e.target)) return
             if (viewerImageSrc) {
                 setViewerImageSrc(null)
             } else if (currentStackId) {
