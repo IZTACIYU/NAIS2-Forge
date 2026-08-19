@@ -23,11 +23,10 @@ interface OutpaintDialogProps {
 
 export function OutpaintDialog({ open, onOpenChange, sourceImage, onReady }: OutpaintDialogProps) {
     const { t } = useTranslation()
-    const viewportRef = useRef<HTMLDivElement>(null)
+    const svgRef = useRef<SVGSVGElement>(null)
     const sourceRef = useRef<HTMLImageElement | null>(null)
     const dragRef = useRef<{ edge: Edge; x: number; y: number; scale: number; expansion: Expansion } | null>(null)
     const [sourceSize, setSourceSize] = useState<{ width: number; height: number } | null>(null)
-    const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 })
     const [expansion, setExpansion] = useState<Expansion>(EMPTY_EXPANSION)
     const [dragging, setDragging] = useState(false)
 
@@ -43,16 +42,6 @@ export function OutpaintDialog({ open, onOpenChange, sourceImage, onReady }: Out
         image.src = sourceImage
         return () => { sourceRef.current = null }
     }, [open, sourceImage])
-
-    useEffect(() => {
-        const viewport = viewportRef.current
-        if (!open || !viewport) return
-        const update = () => setViewportSize({ width: viewport.clientWidth, height: viewport.clientHeight })
-        update()
-        const observer = new ResizeObserver(update)
-        observer.observe(viewport)
-        return () => observer.disconnect()
-    }, [open])
 
     useEffect(() => {
         if (!dragging) return
@@ -80,12 +69,10 @@ export function OutpaintDialog({ open, onOpenChange, sourceImage, onReady }: Out
         width: sourceSize.width + expansion.left + expansion.right,
         height: sourceSize.height + expansion.top + expansion.bottom,
     }, [sourceSize, expansion])
-    const scale = target && viewportSize.width && viewportSize.height
-        ? Math.min(1, (viewportSize.width - 16) / target.width, (viewportSize.height - 16) / target.height)
-        : 1
-
-    const startDrag = (edge: Edge, event: ReactPointerEvent<HTMLButtonElement>) => {
+    const overlap = sourceSize ? Math.min(OVERLAP, Math.floor(Math.min(sourceSize.width, sourceSize.height) / 4)) : 0
+    const startDrag = (edge: Edge, event: ReactPointerEvent<SVGLineElement>) => {
         event.preventDefault()
+        const scale = Math.abs(svgRef.current?.getScreenCTM()?.a || 1)
         dragRef.current = { edge, x: event.clientX, y: event.clientY, scale, expansion: { ...expansion } }
         setDragging(true)
     }
@@ -110,7 +97,6 @@ export function OutpaintDialog({ open, onOpenChange, sourceImage, onReady }: Out
         // Keep preserved pixels transparent. The shared API mask converter treats
         // every opaque pixel as an inpaint region, regardless of its RGB value.
         maskContext.fillStyle = '#fff'
-        const overlap = Math.min(OVERLAP, Math.floor(Math.min(sourceSize.width, sourceSize.height) / 4))
         if (expansion.top) maskContext.fillRect(0, 0, target.width, expansion.top + overlap)
         if (expansion.bottom) maskContext.fillRect(0, expansion.top + sourceSize.height - overlap, target.width, expansion.bottom + overlap)
         if (expansion.left) maskContext.fillRect(0, 0, expansion.left + overlap, target.height)
@@ -124,12 +110,6 @@ export function OutpaintDialog({ open, onOpenChange, sourceImage, onReady }: Out
         onReady()
     }
 
-    const sourceLeft = expansion.left * scale
-    const sourceTop = expansion.top * scale
-    const sourceWidth = sourceSize ? sourceSize.width * scale : 0
-    const sourceHeight = sourceSize ? sourceSize.height * scale : 0
-    const overlapDisplay = sourceSize ? Math.min(OVERLAP, Math.floor(Math.min(sourceSize.width, sourceSize.height) / 4)) * scale : 0
-
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="!flex h-[82vh] max-h-[82vh] min-h-0 w-[78vw] max-w-none !flex-col gap-3 overflow-hidden p-4">
@@ -139,26 +119,46 @@ export function OutpaintDialog({ open, onOpenChange, sourceImage, onReady }: Out
                         <RotateCcw className="h-4 w-4" />
                     </Button>
                 </DialogHeader>
-                <div ref={viewportRef} className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border bg-muted/20">
+                <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border bg-muted/20 p-2">
                     {sourceImage && target && sourceSize && (
-                        <div className="relative shrink-0 bg-black shadow-xl" style={{ width: target.width * scale, height: target.height * scale }}>
-                            <img src={sourceImage} alt="" draggable={false} className="absolute select-none" style={{ left: sourceLeft, top: sourceTop, width: sourceWidth, height: sourceHeight }} />
-                            {expansion.top > 0 && <div className="pointer-events-none absolute bg-white/15" style={{ inset: 0, height: sourceTop + overlapDisplay }} />}
-                            {expansion.bottom > 0 && <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-white/15" style={{ height: target.height * scale - sourceTop - sourceHeight + overlapDisplay }} />}
-                            {expansion.left > 0 && <div className="pointer-events-none absolute bottom-0 left-0 top-0 bg-white/15" style={{ width: sourceLeft + overlapDisplay }} />}
-                            {expansion.right > 0 && <div className="pointer-events-none absolute bottom-0 right-0 top-0 bg-white/15" style={{ width: target.width * scale - sourceLeft - sourceWidth + overlapDisplay }} />}
-                            <div className="pointer-events-none absolute border border-white/45" style={{ left: sourceLeft, top: sourceTop, width: sourceWidth, height: sourceHeight }} />
+                        <svg
+                            ref={svgRef}
+                            viewBox={`0 0 ${target.width} ${target.height}`}
+                            preserveAspectRatio="xMidYMid meet"
+                            className="h-full w-full select-none drop-shadow-xl"
+                        >
+                            <rect width={target.width} height={target.height} fill="black" />
+                            <image href={sourceImage} x={expansion.left} y={expansion.top} width={sourceSize.width} height={sourceSize.height} preserveAspectRatio="none" />
+                            {expansion.top > 0 && <rect width={target.width} height={expansion.top + overlap} fill="white" fillOpacity={0.15} />}
+                            {expansion.bottom > 0 && <rect y={expansion.top + sourceSize.height - overlap} width={target.width} height={expansion.bottom + overlap} fill="white" fillOpacity={0.15} />}
+                            {expansion.left > 0 && <rect width={expansion.left + overlap} height={target.height} fill="white" fillOpacity={0.15} />}
+                            {expansion.right > 0 && <rect x={expansion.left + sourceSize.width - overlap} width={expansion.right + overlap} height={target.height} fill="white" fillOpacity={0.15} />}
+                            <rect x={expansion.left} y={expansion.top} width={sourceSize.width} height={sourceSize.height} fill="none" stroke="white" strokeOpacity={0.45} vectorEffect="non-scaling-stroke" />
                             {(['top', 'right', 'bottom', 'left'] as Edge[]).map(edge => {
-                                const style = edge === 'top'
-                                    ? { left: sourceLeft, top: sourceTop - 5, width: sourceWidth, height: 10, cursor: 'ns-resize' }
+                                const vertical = edge === 'left' || edge === 'right'
+                                const fixed = edge === 'top'
+                                    ? expansion.top
                                     : edge === 'bottom'
-                                        ? { left: sourceLeft, top: sourceTop + sourceHeight - 5, width: sourceWidth, height: 10, cursor: 'ns-resize' }
+                                        ? expansion.top + sourceSize.height
                                         : edge === 'left'
-                                            ? { left: sourceLeft - 5, top: sourceTop, width: 10, height: sourceHeight, cursor: 'ew-resize' }
-                                            : { left: sourceLeft + sourceWidth - 5, top: sourceTop, width: 10, height: sourceHeight, cursor: 'ew-resize' }
-                                return <button key={edge} type="button" onPointerDown={event => startDrag(edge, event)} className="absolute z-10 rounded bg-primary/80 opacity-70 transition-opacity hover:opacity-100" style={style} aria-label={edge} />
+                                            ? expansion.left
+                                            : expansion.left + sourceSize.width
+                                return <line
+                                    key={edge}
+                                    x1={vertical ? fixed : expansion.left}
+                                    y1={vertical ? expansion.top : fixed}
+                                    x2={vertical ? fixed : expansion.left + sourceSize.width}
+                                    y2={vertical ? expansion.top + sourceSize.height : fixed}
+                                    onPointerDown={event => startDrag(edge, event)}
+                                    className="stroke-primary opacity-70 transition-opacity hover:opacity-100"
+                                    style={{ cursor: vertical ? 'ew-resize' : 'ns-resize' }}
+                                    strokeWidth={10}
+                                    strokeLinecap="round"
+                                    vectorEffect="non-scaling-stroke"
+                                    aria-label={edge}
+                                />
                             })}
-                        </div>
+                        </svg>
                     )}
                 </div>
                 <DialogFooter className="flex-row items-center justify-between sm:justify-between">
