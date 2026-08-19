@@ -107,8 +107,8 @@ export function OutpaintDialog({ open, onOpenChange, sourceImage, onReady }: Out
         sourceContext.fillStyle = '#000'
         sourceContext.fillRect(0, 0, target.width, target.height)
         sourceContext.drawImage(image, expansion.left, expansion.top, sourceSize.width, sourceSize.height)
-        maskContext.fillStyle = '#000'
-        maskContext.fillRect(0, 0, target.width, target.height)
+        // Keep preserved pixels transparent. The shared API mask converter treats
+        // every opaque pixel as an inpaint region, regardless of its RGB value.
         maskContext.fillStyle = '#fff'
         const overlap = Math.min(OVERLAP, Math.floor(Math.min(sourceSize.width, sourceSize.height) / 4))
         if (expansion.top) maskContext.fillRect(0, 0, target.width, expansion.top + overlap)

@@ -145,7 +145,7 @@ export function PromptPanel() {
     const qualityToggle = useGenerationStore(state => state.qualityToggle)
     const ucPreset = useGenerationStore(state => state.ucPreset)
     const batchCount = useGenerationStore(state => state.batchCount)
-    const hasSourceImage = useGenerationStore(state => Boolean(state.sourceImage))
+    const sourceImage = useGenerationStore(state => state.sourceImage)
     const currentBatch = useGenerationStore(state => state.currentBatch)
     const generatingMode = useGenerationStore(state => state.generatingMode)
 
@@ -207,24 +207,45 @@ export function PromptPanel() {
         state.vibeImages.reduce((count, image) => count + (image.enabled !== false && !image.encodedVibe && !image.encodedVibePath ? 1 : 0), 0)
     )
     const imageGenerationEntitlement = useAuthStore(state => state.imageGenerationEntitlement)
+    const [sourceImageDimensions, setSourceImageDimensions] = useState<{ width: number; height: number } | null>(null)
+    useEffect(() => {
+        if (!sourceImage) {
+            setSourceImageDimensions(null)
+            return
+        }
+
+        const image = new Image()
+        image.onload = () => {
+            setSourceImageDimensions({ width: image.naturalWidth || image.width, height: image.naturalHeight || image.height })
+            image.src = ''
+        }
+        image.onerror = () => setSourceImageDimensions(null)
+        image.src = sourceImage
+
+        return () => { image.src = '' }
+    }, [sourceImage])
+
     const mainGenerationCost = useMemo(() => {
-        if (hasSourceImage) return null
+        const dimensions = sourceImageDimensions ?? selectedResolution
+        const width = sourceImage ? Math.round(dimensions.width / 64) * 64 : dimensions.width
+        const height = sourceImage ? Math.round(dimensions.height / 64) * 64 : dimensions.height
         return calculateGenerationAnlasCost({
-            width: selectedResolution.width,
-            height: selectedResolution.height,
+            width,
+            height,
             steps,
             imageCount: batchCount,
             characterReferenceCount: activeCharacterReferenceCount,
             uncachedVibeCount: activeUncachedVibeCount,
-            usesSourceImage: false,
+            usesSourceImage: Boolean(sourceImage),
             entitlement: imageGenerationEntitlement,
         })
     }, [
         activeCharacterReferenceCount,
         activeUncachedVibeCount,
         batchCount,
-        hasSourceImage,
         imageGenerationEntitlement,
+        sourceImage,
+        sourceImageDimensions,
         selectedResolution.height,
         selectedResolution.width,
         steps,
