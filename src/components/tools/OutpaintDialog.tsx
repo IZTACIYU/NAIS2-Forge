@@ -81,7 +81,7 @@ export function OutpaintDialog({ open, onOpenChange, sourceImage, onReady }: Out
         height: sourceSize.height + expansion.top + expansion.bottom,
     }, [sourceSize, expansion])
     const scale = target && viewportSize.width && viewportSize.height
-        ? Math.min(1, Math.max(0.08, Math.min((viewportSize.width - 96) / target.width, (viewportSize.height - 96) / target.height)))
+        ? Math.min(1, (viewportSize.width - 96) / target.width, (viewportSize.height - 96) / target.height)
         : 1
 
     const startDrag = (edge: Edge, event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -139,7 +139,7 @@ export function OutpaintDialog({ open, onOpenChange, sourceImage, onReady }: Out
                         <RotateCcw className="h-4 w-4" />
                     </Button>
                 </DialogHeader>
-                <div ref={viewportRef} className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-lg border bg-muted/20 p-12">
+                <div ref={viewportRef} className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border bg-muted/20 p-12">
                     {sourceImage && target && sourceSize && (
                         <div className="relative shrink-0 bg-black shadow-xl" style={{ width: target.width * scale, height: target.height * scale }}>
                             <img src={sourceImage} alt="" draggable={false} className="absolute select-none" style={{ left: sourceLeft, top: sourceTop, width: sourceWidth, height: sourceHeight }} />
