@@ -215,14 +215,22 @@ export function PromptPanel() {
         }
 
         const image = new Image()
-        image.onload = () => {
-            setSourceImageDimensions({ width: image.naturalWidth || image.width, height: image.naturalHeight || image.height })
+        const release = () => {
+            image.onload = null
+            image.onerror = null
             image.src = ''
         }
-        image.onerror = () => setSourceImageDimensions(null)
+        image.onload = () => {
+            setSourceImageDimensions({ width: image.naturalWidth || image.width, height: image.naturalHeight || image.height })
+            release()
+        }
+        image.onerror = () => {
+            setSourceImageDimensions(null)
+            release()
+        }
         image.src = sourceImage
 
-        return () => { image.src = '' }
+        return release
     }, [sourceImage])
 
     const mainGenerationCost = useMemo(() => {
