@@ -47,7 +47,13 @@ export function OutpaintDialog({ open, onOpenChange, sourceImage, onReady }: Out
     useEffect(() => {
         const viewport = viewportRef.current
         if (!open || !viewport) return
-        const update = () => setViewportSize({ width: viewport.clientWidth, height: viewport.clientHeight })
+        const update = () => {
+            const style = window.getComputedStyle(viewport)
+            setViewportSize({
+                width: viewport.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+                height: viewport.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom),
+            })
+        }
         update()
         const observer = new ResizeObserver(update)
         observer.observe(viewport)
@@ -81,8 +87,8 @@ export function OutpaintDialog({ open, onOpenChange, sourceImage, onReady }: Out
         height: sourceSize.height + expansion.top + expansion.bottom,
     }, [sourceSize, expansion])
     const scale = target && viewportSize.width && viewportSize.height
-        ? Math.min(1, (viewportSize.width - 96) / target.width, (viewportSize.height - 96) / target.height)
-        : 1
+        ? Math.min(1, viewportSize.width / target.width, viewportSize.height / target.height)
+        : 0
 
     const startDrag = (edge: Edge, event: ReactPointerEvent<HTMLButtonElement>) => {
         event.preventDefault()
@@ -140,7 +146,7 @@ export function OutpaintDialog({ open, onOpenChange, sourceImage, onReady }: Out
                     </Button>
                 </DialogHeader>
                 <div ref={viewportRef} className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border bg-muted/20 p-12">
-                    {sourceImage && target && sourceSize && (
+                    {sourceImage && target && sourceSize && scale > 0 && (
                         <div className="relative shrink-0 bg-black shadow-xl" style={{ width: target.width * scale, height: target.height * scale }}>
                             <img src={sourceImage} alt="" draggable={false} className="absolute select-none" style={{ left: sourceLeft, top: sourceTop, width: sourceWidth, height: sourceHeight }} />
                             {expansion.top > 0 && <div className="pointer-events-none absolute bg-white/15" style={{ inset: 0, height: sourceTop + overlapDisplay }} />}
