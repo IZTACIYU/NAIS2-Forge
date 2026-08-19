@@ -10,13 +10,14 @@ import { useGenerationStore } from '@/stores/generation-store'
 import { smartTools } from '@/services/smart-tools'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/use-toast'
-import { Eraser, Grid3X3, Upload, RefreshCw, Download, X, Maximize2, Image as ImageIcon, Paintbrush, ImagePlus, PenTool, Pencil, Droplets, Smile, Sparkles, ChevronRight, Brush } from 'lucide-react'
+import { Eraser, Grid3X3, Upload, RefreshCw, Download, X, Maximize2, Image as ImageIcon, Paintbrush, ImagePlus, PenTool, Pencil, Droplets, Smile, Sparkles, ChevronRight, Brush, Expand } from 'lucide-react'
 import { writeFile, BaseDirectory, exists, mkdir } from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { BackgroundRemovalDialog } from '@/components/tools/BackgroundRemovalDialog'
 import { MosaicDialog } from '@/components/tools/MosaicDialog'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { DrawOverDialog } from '@/components/tools/DrawOverDialog'
+import { OutpaintDialog } from '@/components/tools/OutpaintDialog'
 
 
 export default function ToolsMode() {
@@ -57,6 +58,7 @@ export default function ToolsMode() {
     const [isMosaicOpen, setIsMosaicOpen] = useState(false)
     const [isDrawOverOpen, setIsDrawOverOpen] = useState(false)
     const [isInpaintingOpen, setIsInpaintingOpen] = useState(false)  // For mask editing only
+    const [isOutpaintOpen, setIsOutpaintOpen] = useState(false)
     const [colorizeOptions, setColorizeOptions] = useState({ defry: 0, prompt: '' })
     const [emotionOptions, setEmotionOptions] = useState({ defry: 0, prompt: '', emotion: 'neutral' })
     const containerRef = useRef<HTMLDivElement>(null)
@@ -443,6 +445,7 @@ export default function ToolsMode() {
                 >
                     <ToolCard icon={ImageIcon} color="text-indigo-400" title={t('tools.i2i.title', 'I2I')} description={t('tools.i2i.open', '이 이미지로 img2img')} disabled={!processedImage || isLoading} onRun={handleOpenI2I} />
                     <ToolCard icon={Paintbrush} color="text-pink-400" title={t('tools.inpainting.title', '인페인트')} description={t('tools.inpainting.open', '마스크 칠해 부분 재생성')} disabled={!processedImage || isLoading} onRun={() => setIsInpaintingOpen(true)} />
+                    <ToolCard icon={Expand} color="text-orange-400" title={t('smartTools.outpaint', '이미지 확장')} description={t('smartTools.outpaintDesc', '가장자리를 늘려 인페인트로 연결')} disabled={!processedImage || isLoading} onRun={() => setIsOutpaintOpen(true)} />
 
                     <ToolCard icon={Brush} color="text-lime-400" title={t('smartTools.drawOver')} description={t('smartTools.drawOverDesc')} disabled={!processedImage || isLoading} onRun={() => setIsDrawOverOpen(true)} />
 
@@ -496,6 +499,13 @@ export default function ToolsMode() {
                 open={isInpaintingOpen}
                 onOpenChange={setIsInpaintingOpen}
                 onMaskSaved={() => navigate('/')}
+                sourceImage={processedImage}
+            />
+
+            <OutpaintDialog
+                open={isOutpaintOpen}
+                onOpenChange={setIsOutpaintOpen}
+                onReady={() => navigate('/')}
                 sourceImage={processedImage}
             />
         </div>
