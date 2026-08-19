@@ -132,7 +132,7 @@ export function OutpaintDialog({ open, onOpenChange, sourceImage, onReady }: Out
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="flex h-[82vh] w-[78vw] max-w-none flex-col gap-3 p-4">
+            <DialogContent className="!flex h-[82vh] max-h-[82vh] min-h-0 w-[78vw] max-w-none !flex-col gap-3 overflow-hidden p-4">
                 <DialogHeader className="flex-row items-center justify-between space-y-0 pr-8">
                     <DialogTitle>{t('smartTools.outpaintEditor', '이미지 확장')}</DialogTitle>
                     <Button variant="ghost" size="icon" onClick={() => setExpansion(EMPTY_EXPANSION)} title={t('smartTools.outpaintReset', '확장 초기화')}>
