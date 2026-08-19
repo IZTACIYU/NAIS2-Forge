@@ -459,10 +459,55 @@ export function AutocompleteTextarea({
         }
     }
 
+    const adjustWeightAtCaret = (direction: 1 | -1) => {
+        const editor = textareaRef.current
+        if (!editor) return false
+
+        const code = internalValueRef.current
+        const caret = editor.selectionStart
+        const start = Math.max(code.lastIndexOf(',', caret - 1), code.lastIndexOf('\n', caret - 1)) + 1
+        const nextComma = code.indexOf(',', caret)
+        const nextLine = code.indexOf('\n', caret)
+        const end = [nextComma, nextLine].filter(index => index >= 0).sort((a, b) => a - b)[0] ?? code.length
+        const segment = code.slice(start, end)
+        const leading = segment.match(/^\s*/)?.[0] ?? ''
+        const trailing = segment.match(/\s*$/)?.[0] ?? ''
+        const bodyStart = start + leading.length
+        const body = segment.trim()
+        const weighted = body.match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))::(.+?)::$/)
+        const prompt = weighted ? weighted[2] : body
+        if (!prompt || body.startsWith('#') || (!weighted && body.includes('::'))) return false
+
+        const weight = Math.round(((weighted ? Number(weighted[1]) : 1) + direction * 0.1) * 10) / 10
+        const weightText = String(weight)
+        const nextValue = `${code.slice(0, bodyStart)}${weightText}::${prompt}::${trailing}${code.slice(end)}`
+        const promptStart = bodyStart + weightText.length + 2
+        const previousPromptStart = weighted ? bodyStart + weighted[1].length + 2 : bodyStart
+        const nextCaret = promptStart + Math.max(0, Math.min(caret - previousPromptStart, prompt.length))
+
+        internalValueRef.current = nextValue
+        setInternalValue(nextValue)
+        setIsVisible(false)
+        scheduleValueChange(nextValue, 0)
+        requestAnimationFrame(() => {
+            textareaRef.current?.setSelectionRange(nextCaret, nextCaret)
+            textareaRef.current?.focus()
+        })
+        return true
+    }
+
     const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement | HTMLDivElement>) => {
         // Ensure ref is captured
         if (e.target instanceof HTMLTextAreaElement) {
             textareaRef.current = e.target
+        }
+
+        if (e.ctrlKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+            if (adjustWeightAtCaret(e.key === 'ArrowUp' ? 1 : -1)) {
+                e.preventDefault()
+                e.stopPropagation()
+            }
+            return
         }
 
         if (isVisible && suggestions.length > 0) {
