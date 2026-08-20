@@ -39,6 +39,9 @@ src-tauri/binaries/tagger-server-x86_64-pc-windows-msvc.exe
 # Local planning / private service configs
 .agent/
 .agents/
+AGENTS.md
+agents/
+logs/
 .claude/
 docs/
 supabase/
