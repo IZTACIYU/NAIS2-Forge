@@ -60,6 +60,13 @@ const dataUrlBytes = (source: string) => {
 const readUint32BE = (bytes: Uint8Array, offset: number) =>
     ((bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) >>> 0
 
+const writeUint32BE = (bytes: Uint8Array, offset: number, value: number) => {
+    bytes[offset] = (value >>> 24) & 0xff
+    bytes[offset + 1] = (value >>> 16) & 0xff
+    bytes[offset + 2] = (value >>> 8) & 0xff
+    bytes[offset + 3] = value & 0xff
+}
+
 const writeUint32LE = (bytes: Uint8Array, offset: number, value: number) => {
     bytes[offset] = value & 0xff
     bytes[offset + 1] = (value >>> 8) & 0xff
@@ -70,21 +77,199 @@ const writeUint32LE = (bytes: Uint8Array, offset: number, value: number) => {
 const fourCC = (bytes: Uint8Array, offset: number) =>
     String.fromCharCode(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3])
 
-const stripPngMetadata = (bytes: Uint8Array) => {
+const crcTable = (() => {
+    const table = new Uint32Array(256)
+    for (let index = 0; index < 256; index++) {
+        let value = index
+        for (let bit = 0; bit < 8; bit++) value = (value & 1) ? (0xedb88320 ^ (value >>> 1)) : (value >>> 1)
+        table[index] = value >>> 0
+    }
+    return table
+})()
+
+const crc32 = (bytes: Uint8Array) => {
+    let value = 0xffffffff
+    for (const byte of bytes) value = crcTable[(value ^ byte) & 0xff] ^ (value >>> 8)
+    return (value ^ 0xffffffff) >>> 0
+}
+
+const createPngChunk = (type: string, data: Uint8Array) => {
+    const chunk = new Uint8Array(data.length + 12)
+    writeUint32BE(chunk, 0, data.length)
+    for (let index = 0; index < 4; index++) chunk[index + 4] = type.charCodeAt(index)
+    chunk.set(data, 8)
+    writeUint32BE(chunk, data.length + 8, crc32(chunk.subarray(4, data.length + 8)))
+    return chunk
+}
+
+const paethPredictor = (left: number, up: number, upperLeft: number) => {
+    const estimate = left + up - upperLeft
+    const leftDistance = Math.abs(estimate - left)
+    const upDistance = Math.abs(estimate - up)
+    const upperLeftDistance = Math.abs(estimate - upperLeft)
+    if (leftDistance <= upDistance && leftDistance <= upperLeftDistance) return left
+    return upDistance <= upperLeftDistance ? up : upperLeft
+}
+
+const unfilterPngRows = (filtered: Uint8Array, width: number, height: number, bytesPerPixel: number) => {
+    const rowLength = width * bytesPerPixel
+    if (filtered.length !== height * (rowLength + 1)) return null
+
+    const filters = new Uint8Array(height)
+    const rows: Uint8Array[] = []
+    let offset = 0
+    let previous: Uint8Array = new Uint8Array(rowLength)
+    for (let y = 0; y < height; y++) {
+        const filter = filtered[offset++]
+        if (filter > 4) return null
+        filters[y] = filter
+        const row = new Uint8Array(rowLength)
+        for (let x = 0; x < rowLength; x++) {
+            const encoded = filtered[offset++]
+            const left = x >= bytesPerPixel ? row[x - bytesPerPixel] : 0
+            const up = previous[x]
+            const upperLeft = x >= bytesPerPixel ? previous[x - bytesPerPixel] : 0
+            const predictor = filter === 1
+                ? left
+                : filter === 2
+                    ? up
+                    : filter === 3
+                        ? Math.floor((left + up) / 2)
+                        : filter === 4
+                            ? paethPredictor(left, up, upperLeft)
+                            : 0
+            row[x] = (encoded + predictor) & 0xff
+        }
+        rows.push(row)
+        previous = row
+    }
+    return { filters, rows }
+}
+
+const filterPngRows = (rows: Uint8Array[], filters: Uint8Array, bytesPerPixel: number) => {
+    const rowLength = rows[0]?.length ?? 0
+    const filtered = new Uint8Array(rows.length * (rowLength + 1))
+    let offset = 0
+    let previous: Uint8Array = new Uint8Array(rowLength)
+    rows.forEach((row, y) => {
+        const filter = filters[y]
+        filtered[offset++] = filter
+        for (let x = 0; x < rowLength; x++) {
+            const left = x >= bytesPerPixel ? row[x - bytesPerPixel] : 0
+            const up = previous[x]
+            const upperLeft = x >= bytesPerPixel ? previous[x - bytesPerPixel] : 0
+            const predictor = filter === 1
+                ? left
+                : filter === 2
+                    ? up
+                    : filter === 3
+                        ? Math.floor((left + up) / 2)
+                        : filter === 4
+                            ? paethPredictor(left, up, upperLeft)
+                            : 0
+            filtered[offset++] = (row[x] - predictor) & 0xff
+        }
+        previous = row
+    })
+    return filtered
+}
+
+const clearStealthAlphaPayload = (
+    rows: Uint8Array[],
+    width: number,
+    height: number,
+    bytesPerPixel: number,
+    alphaOffset: number,
+) => {
+    const signatureBitCount = 'stealth_pnginfo'.length * 8
+    const pixelCount = width * height
+    if (pixelCount < signatureBitCount + 32) return false
+
+    const alphaBit = (position: number) => {
+        const x = Math.floor(position / height)
+        const y = position % height
+        return rows[y][x * bytesPerPixel + alphaOffset] & 1
+    }
+    let signature = ''
+    for (let byte = 0; byte < signatureBitCount; byte += 8) {
+        let value = 0
+        for (let bit = 0; bit < 8; bit++) value = (value << 1) | alphaBit(byte + bit)
+        signature += String.fromCharCode(value)
+    }
+    if (signature !== 'stealth_pnginfo' && signature !== 'stealth_pngcomp') return false
+
+    let payloadBitCount = 0
+    for (let bit = 0; bit < 32; bit++) payloadBitCount = (payloadBitCount * 2) + alphaBit(signatureBitCount + bit)
+    const totalBitCount = signatureBitCount + 32 + payloadBitCount
+    if (!Number.isSafeInteger(totalBitCount) || totalBitCount > pixelCount) return false
+
+    for (let position = 0; position < totalBitCount; position++) {
+        const x = Math.floor(position / height)
+        const y = position % height
+        const alphaIndex = x * bytesPerPixel + alphaOffset
+        rows[y][alphaIndex] |= 1
+    }
+    return true
+}
+
+export const stripPngMetadataBytes = async (bytes: Uint8Array) => {
     const signature = [137, 80, 78, 71, 13, 10, 26, 10]
     if (bytes.length < signature.length || signature.some((value, index) => bytes[index] !== value)) return bytes
 
-    const parts: Uint8Array[] = [bytes.slice(0, 8)]
+    const chunks: Array<{ type: string; bytes: Uint8Array; data: Uint8Array }> = []
     const metadataChunks = new Set(['tEXt', 'zTXt', 'iTXt', 'eXIf'])
     let offset = 8
     while (offset + 12 <= bytes.length) {
         const length = readUint32BE(bytes, offset)
         const end = offset + 12 + length
         if (end > bytes.length) return bytes
-        if (!metadataChunks.has(fourCC(bytes, offset + 4))) parts.push(bytes.slice(offset, end))
+        chunks.push({
+            type: fourCC(bytes, offset + 4),
+            bytes: bytes.slice(offset, end),
+            data: bytes.slice(offset + 8, end - 4),
+        })
         offset = end
     }
-    return offset === bytes.length ? concatBytes(parts) : bytes
+    if (offset !== bytes.length) return bytes
+
+    const strippedParts = () => concatBytes([
+        bytes.slice(0, 8),
+        ...chunks.filter(chunk => !metadataChunks.has(chunk.type)).map(chunk => chunk.bytes),
+    ])
+    const ihdr = chunks.find(chunk => chunk.type === 'IHDR')?.data
+    const idatChunks = chunks.filter(chunk => chunk.type === 'IDAT')
+    if (!ihdr || ihdr.length !== 13 || idatChunks.length === 0) return strippedParts()
+
+    const width = readUint32BE(ihdr, 0)
+    const height = readUint32BE(ihdr, 4)
+    const bitDepth = ihdr[8]
+    const colorType = ihdr[9]
+    const interlace = ihdr[12]
+    const bytesPerPixel = colorType === 6 ? 4 : colorType === 4 ? 2 : 0
+    const alphaOffset = colorType === 6 ? 3 : colorType === 4 ? 1 : -1
+    if (bitDepth !== 8 || interlace !== 0 || bytesPerPixel === 0) return strippedParts()
+
+    try {
+        const { deflate, inflate } = await import('pako')
+        const decoded = unfilterPngRows(inflate(concatBytes(idatChunks.map(chunk => chunk.data))), width, height, bytesPerPixel)
+        if (!decoded || !clearStealthAlphaPayload(decoded.rows, width, height, bytesPerPixel, alphaOffset)) return strippedParts()
+
+        const replacementIdat = createPngChunk('IDAT', deflate(filterPngRows(decoded.rows, decoded.filters, bytesPerPixel)))
+        const parts: Uint8Array[] = [bytes.slice(0, 8)]
+        let idatWritten = false
+        for (const chunk of chunks) {
+            if (metadataChunks.has(chunk.type)) continue
+            if (chunk.type === 'IDAT') {
+                if (!idatWritten) parts.push(replacementIdat)
+                idatWritten = true
+                continue
+            }
+            parts.push(chunk.bytes)
+        }
+        return concatBytes(parts)
+    } catch {
+        return strippedParts()
+    }
 }
 
 const stripJpegMetadata = (bytes: Uint8Array) => {
@@ -143,8 +328,8 @@ const stripWebpMetadata = (bytes: Uint8Array) => {
 const readUint32LE = (bytes: Uint8Array, offset: number) =>
     (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0
 
-const stripLosslessly = (bytes: Uint8Array, mimeType: ImageMimeType) => {
-    if (mimeType === 'image/png') return stripPngMetadata(bytes)
+const stripLosslessly = async (bytes: Uint8Array, mimeType: ImageMimeType) => {
+    if (mimeType === 'image/png') return stripPngMetadataBytes(bytes)
     if (mimeType === 'image/jpeg') return stripJpegMetadata(bytes)
     return stripWebpMetadata(bytes)
 }
@@ -168,7 +353,7 @@ export const stripImageMetadata = async (source: string, outputFormat: ExifOutpu
 
     // Keeping the source format lets us remove only metadata chunks, preserving every pixel and color profile.
     if (sourceMime === format.mimeType) {
-        const cleanBytes = stripLosslessly(dataUrlBytes(source), sourceMime)
+        const cleanBytes = await stripLosslessly(dataUrlBytes(source), sourceMime)
         return {
             blob: new Blob([Uint8Array.from(cleanBytes).buffer], { type: format.mimeType }),
             ...format,
