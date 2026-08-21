@@ -1,4 +1,5 @@
 export type UcPresetId = 0 | 1 | 2 | 3 | 4
+export type V5Mode = 'anime' | 'furry'
 
 export interface UcPresetOption {
     value: UcPresetId

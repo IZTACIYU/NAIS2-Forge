@@ -63,6 +63,7 @@ import { useFragmentStore } from '@/stores/fragment-store'
 import { ResolutionSelector } from '@/components/ui/ResolutionSelector'
 import { useSceneQueueHasItems, useSceneQueueTotal } from '@/hooks/use-scene-queue'
 import { getModelCapabilities } from '@/lib/model-capabilities'
+import { mergeQualityTags, mergeUcPreset } from '@/lib/nai-presets'
 import { calculateGenerationAnlasCost } from '@/lib/anlas-calculator'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -142,8 +143,11 @@ export function PromptPanel() {
     const smea = useGenerationStore(state => state.smea)
     const smeaDyn = useGenerationStore(state => state.smeaDyn)
     const variety = useGenerationStore(state => state.variety)
+    const v5Mode = useGenerationStore(state => state.v5Mode)
     const qualityToggle = useGenerationStore(state => state.qualityToggle)
+    const v5QualityPreset = useGenerationStore(state => state.v5QualityPreset)
     const ucPreset = useGenerationStore(state => state.ucPreset)
+    const isV5Full = model === 'nai-diffusion-5-full'
     const batchCount = useGenerationStore(state => state.batchCount)
     const sourceImage = useGenerationStore(state => state.sourceImage)
     const currentBatch = useGenerationStore(state => state.currentBatch)
@@ -166,7 +170,9 @@ export function PromptPanel() {
     const setSmea = useGenerationStore(state => state.setSmea)
     const setSmeaDyn = useGenerationStore(state => state.setSmeaDyn)
     const setVariety = useGenerationStore(state => state.setVariety)
+    const setV5Mode = useGenerationStore(state => state.setV5Mode)
     const setQualityToggle = useGenerationStore(state => state.setQualityToggle)
+    const setV5QualityPreset = useGenerationStore(state => state.setV5QualityPreset)
     const setUcPreset = useGenerationStore(state => state.setUcPreset)
     const setBatchCount = useGenerationStore(state => state.setBatchCount)
     const generate = useGenerationStore(state => state.generate)
@@ -325,6 +331,7 @@ export function PromptPanel() {
                 : character.negative
         ))
         const positive = [
+            isV5Full && v5Mode === 'furry' ? 'fur dataset' : '',
             basePrompt,
             isActiveScene && i2iMode === 'inpaint' ? inpaintingPrompt : '',
             additionalPrompt,
@@ -332,9 +339,12 @@ export function PromptPanel() {
             detailPrompt,
             ...characterPositivePrompts,
         ].map(removePromptComments).filter(text => text.trim()).join(', ')
-        const negative = [
+        const rawMainNegative = [
             negativePrompt,
             isActiveScene ? activeSceneNegativePrompt : '',
+        ].map(removePromptComments).filter(text => text.trim()).join(', ')
+        const negative = [
+            mergeUcPreset(rawMainNegative, model, ucPreset),
             ...characterNegativePrompts,
         ].map(removePromptComments).filter(text => text.trim()).join(', ')
         if (!positive && !negative) {
@@ -360,7 +370,7 @@ export function PromptPanel() {
                 ])
                 if (!cancelled) {
                     setTokenTotals({
-                        positive: countTokens(resolvedPositive),
+                        positive: countTokens(mergeQualityTags(resolvedPositive, model, qualityToggle, v5QualityPreset)),
                         negative: countTokens(resolvedNegative),
                     })
                 }
@@ -393,6 +403,10 @@ export function PromptPanel() {
         expertSceneMultiCharacterEnabled,
         characters,
         model,
+        qualityToggle,
+        ucPreset,
+        v5Mode,
+        v5QualityPreset,
         fragmentRevision,
     ])
 
@@ -861,33 +875,54 @@ export function PromptPanel() {
                                 </>
                             )}
 
-                            {/* Variety+ */}
-                            <div className="flex items-center justify-between">
-                                <div className="flex flex-col gap-1">
-                                    <Label className="cursor-pointer" onClick={() => setVariety(!variety)}>
-                                        {t('parameters.variety', 'Variety+')}
-                                    </Label>
-                                    <span className="text-xs text-muted-foreground">Increases generation variety</span>
+                            {isV5Full ? (
+                                <div className="flex items-center justify-between">
+                                    <Label>{t('parameters.v5Mode')}</Label>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => setV5Mode(v5Mode === 'anime' ? 'furry' : 'anime')}>
+                                        {v5Mode === 'anime' ? t('parameters.v5Anime') : t('parameters.v5Furry')}
+                                    </Button>
                                 </div>
-                                <Switch
-                                    checked={variety}
-                                    onChange={(e) => setVariety(e.target.checked)}
-                                />
-                            </div>
+                            ) : (
+                                <div className="flex items-center justify-between">
+                                    <div className="flex flex-col gap-1">
+                                        <Label className="cursor-pointer" onClick={() => setVariety(!variety)}>
+                                            {t('parameters.variety', 'Variety+')}
+                                        </Label>
+                                        <span className="text-xs text-muted-foreground">Increases generation variety</span>
+                                    </div>
+                                    <Switch
+                                        checked={variety}
+                                        onChange={(e) => setVariety(e.target.checked)}
+                                    />
+                                </div>
+                            )}
 
-                            {/* Add Quality Tags */}
-                            <div className="flex items-center justify-between">
-                                <div className="flex flex-col gap-1">
-                                    <Label className="cursor-pointer" onClick={() => setQualityToggle(!qualityToggle)}>
-                                        {t('parameters.qualityToggle', 'Add Quality Tags')}
-                                    </Label>
-                                    <span className="text-xs text-muted-foreground">Adds quality tags to prompt</span>
+                            {isV5Full ? (
+                                <div className="space-y-2">
+                                    <Label>{t('parameters.v5Quality')}</Label>
+                                    <Select value={v5QualityPreset} onValueChange={(value) => setV5QualityPreset(value as 'standard' | 'light' | 'none')}>
+                                        <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="standard">{t('parameters.v5QualityStandard')}</SelectItem>
+                                            <SelectItem value="light">{t('parameters.v5QualityLight')}</SelectItem>
+                                            <SelectItem value="none">{t('parameters.v5QualityNone')}</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                                <Switch
-                                    checked={qualityToggle}
-                                    onChange={(e) => setQualityToggle(e.target.checked)}
-                                />
-                            </div>
+                            ) : (
+                                <div className="flex items-center justify-between">
+                                    <div className="flex flex-col gap-1">
+                                        <Label className="cursor-pointer" onClick={() => setQualityToggle(!qualityToggle)}>
+                                            {t('parameters.qualityToggle', 'Add Quality Tags')}
+                                        </Label>
+                                        <span className="text-xs text-muted-foreground">Adds quality tags to prompt</span>
+                                    </div>
+                                    <Switch
+                                        checked={qualityToggle}
+                                        onChange={(e) => setQualityToggle(e.target.checked)}
+                                    />
+                                </div>
+                            )}
 
                             {/* UC Preset */}
                             <div className="space-y-2">

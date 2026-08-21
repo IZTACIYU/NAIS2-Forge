@@ -3,8 +3,8 @@ import type { ReferenceImage } from '@/stores/character-store'
 import type { CharacterPrompt } from '@/stores/character-prompt-store'
 import type { Nais2GenerationSources } from '@/lib/nais2-png-meta'
 import { processWildcards } from '@/lib/fragment-processor'
-import { getModelCapabilities } from '@/lib/model-capabilities'
-import { mergeQualityTags, mergeUcPreset } from '@/lib/nai-presets'
+import { getModelCapabilities, type V5Mode } from '@/lib/model-capabilities'
+import { mergeQualityTags, mergeUcPreset, type V5QualityPreset } from '@/lib/nai-presets'
 import { removePromptComments } from '@/lib/prompt-comments'
 import { splitCostumePrompt } from '@/lib/costume-prompt'
 import { resolveConditionalNegativePrompt, resolveConditionalPositivePrompt } from '@/lib/conditional-prompts'
@@ -46,6 +46,7 @@ export interface GenerationRequestInput {
     smea: boolean
     smeaDyn: boolean
     variety: boolean
+    v5Mode: V5Mode
     seed: number
     sourceImage?: string
     strength: number
@@ -53,6 +54,7 @@ export interface GenerationRequestInput {
     mask?: string
     imageFormat: 'png' | 'webp'
     qualityToggle: boolean
+    v5QualityPreset: V5QualityPreset
     ucPreset: number
     promptWhitespaceMode: PromptWhitespaceMode
     removeEmptyPromptSeparators: boolean
@@ -77,11 +79,15 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
     const cleanup = (prompt: string) => input.removeEmptyPromptSeparators
         ? removeExactEmptyPromptSeparators(prompt)
         : prompt
-    const rawMainPrompt = joinPromptParts(
+    const rawBasePrompt = joinPromptParts(
         input.positiveParts,
         input.promptWhitespaceMode,
         input.insertBlankLinesBetweenPromptParts,
     )
+    const isV5Full = input.model === 'nai-diffusion-5-full'
+    const rawMainPrompt = isV5Full && input.v5Mode === 'furry'
+        ? ['fur dataset', rawBasePrompt].filter(Boolean).join(', ')
+        : rawBasePrompt
 
     const maxCharacterPrompts = getModelCapabilities(input.model).maxCharacterPrompts
     const activeCharacterInputs = input.characterInputs.slice(0, maxCharacterPrompts)
@@ -146,6 +152,7 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         cleanup(await processWildcards(resolveConditionalPositivePrompt(rawMainPrompt, conditionalContext))),
         input.model,
         input.qualityToggle,
+        input.v5QualityPreset,
     )
     const resolvedCharacterPrompts = await Promise.all(characterPrompts.map(async ({ rawPrompt, rawNegative, ...character }) => ({
         ...character,
@@ -203,7 +210,7 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         scheduler: input.scheduler,
         smea: input.smea,
         smea_dyn: input.smeaDyn,
-        variety: input.variety,
+        variety: isV5Full ? false : input.variety,
         seed: input.seed,
         sourceImage: input.sourceImage,
         strength: input.strength,
@@ -225,6 +232,8 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         characterPositionEnabled: input.characterPositionEnabled,
         imageFormat: input.imageFormat,
         qualityToggle: input.qualityToggle,
+        v5Mode: input.v5Mode,
+        v5QualityPreset: input.v5QualityPreset,
         ucPreset: input.ucPreset,
         promptParts: input.promptParts,
         generationSources,

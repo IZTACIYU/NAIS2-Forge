@@ -584,7 +584,14 @@
     "sampler": "Sampler",
     "scheduler": "Scheduler",
     "smea": "SMEA",
-    "smeaDyn": "SMEA DYN"
+    "smeaDyn": "SMEA DYN",
+    "v5Mode": "V5モード",
+    "v5Anime": "Anime",
+    "v5Furry": "Furry",
+    "v5Quality": "V5品質プリセット",
+    "v5QualityStandard": "Standard",
+    "v5QualityLight": "Light",
+    "v5QualityNone": "None"
   },
   "history": {
     "title": "履歴",

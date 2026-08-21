@@ -207,6 +207,10 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
             if (typeof metadata.smeaDyn === 'boolean') genStore.setSmeaDyn(metadata.smeaDyn)
             if (typeof metadata.variety === 'boolean') genStore.setVariety(metadata.variety)
             if (typeof metadata.qualityToggle === 'boolean') genStore.setQualityToggle(metadata.qualityToggle)
+            if (metadata.v5Mode === 'anime' || metadata.v5Mode === 'furry') genStore.setV5Mode(metadata.v5Mode)
+            if (metadata.v5QualityPreset === 'standard' || metadata.v5QualityPreset === 'light' || metadata.v5QualityPreset === 'none') {
+                genStore.setV5QualityPreset(metadata.v5QualityPreset)
+            }
             if (typeof metadata.ucPreset === 'number') genStore.setUcPreset(metadata.ucPreset)
         }
 

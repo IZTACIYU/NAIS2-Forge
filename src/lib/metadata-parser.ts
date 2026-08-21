@@ -75,6 +75,8 @@ export interface NAIMetadata {
     smeaDyn?: boolean  // "sm_dyn" in NAI
     variety?: boolean // Derived from "skip_cfg_above_sigma"
     qualityToggle?: boolean // "qualityToggle" - Add Quality Tags
+    v5Mode?: 'anime' | 'furry'
+    v5QualityPreset?: 'standard' | 'light' | 'none'
     ucPreset?: number // "ucPreset" - Undesired Content Preset (0=Heavy, 1=Light, 2=Furry, 3=Human, 4=None)
 
     // Resolution
@@ -604,6 +606,10 @@ async function extractTextChunkMetadata(bytes: Uint8Array): Promise<NAIMetadata 
     const nais2 = metadata ? readNais2Params(bytes) : null
     if (metadata && nais2) {
         if (typeof nais2.qualityToggle === 'boolean') metadata.qualityToggle = nais2.qualityToggle
+        if (nais2.v5Mode === 'anime' || nais2.v5Mode === 'furry') metadata.v5Mode = nais2.v5Mode
+        if (nais2.v5QualityPreset === 'standard' || nais2.v5QualityPreset === 'light' || nais2.v5QualityPreset === 'none') {
+            metadata.v5QualityPreset = nais2.v5QualityPreset
+        }
         if (typeof nais2.ucPreset === 'number') metadata.ucPreset = nais2.ucPreset
         if (nais2.promptParts && typeof nais2.promptParts === 'object') {
             const pp = nais2.promptParts

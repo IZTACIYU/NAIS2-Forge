@@ -1,8 +1,16 @@
 export type UcPreset = 0 | 1 | 2 | 3 | 4
+export type V5QualityPreset = 'standard' | 'light' | 'none'
 
 type PresetTexts = Partial<Record<UcPreset, string>>
 
+const V5_FULL_QUALITY_TAGS: Record<V5QualityPreset, string> = {
+    standard: ', very aesthetic, masterpiece, no text',
+    light: ', very aesthetic, amazing quality, no text',
+    none: '',
+}
+
 export const QUALITY_TAGS: Record<string, string> = {
+    'nai-diffusion-5-full': V5_FULL_QUALITY_TAGS.standard,
     'nai-diffusion-4-5-full': ', very aesthetic, masterpiece, no text',
     'nai-diffusion-4-5-curated': ', very aesthetic, masterpiece, no text, -0.8::feet::, rating:general',
     'nai-diffusion-4-full': ', no text, best quality, very aesthetic, absurdres',
@@ -12,6 +20,12 @@ export const QUALITY_TAGS: Record<string, string> = {
 }
 
 export const UC_PRESETS: Record<string, PresetTexts> = {
+    'nai-diffusion-5-full': {
+        0: 'nsfw, lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page',
+        1: 'nsfw, lowres, bad hands, bad anatomy, artistic error, sepia, white haze, worst quality, very displeasing, jpeg artifacts, 0::ai-generated::',
+        2: 'nsfw, {worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, {{grandfathered content}}, blurred foreground, chromatic aberration, sketch, everyone, [sketch background], simple, [flat colors], ych (character), outline, multiple scenes, [[horror (theme)]], comic',
+        3: 'nsfw, lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, @_@, mismatched pupils, glowing eyes, bad anatomy',
+    },
     'nai-diffusion-4-5-full': {
         0: 'nsfw, lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page',
         1: 'nsfw, lowres, artistic error, scan artifacts, worst quality, bad quality, jpeg artifacts, multiple views, very displeasing, too many watermarks, negative space, blank page',
@@ -42,9 +56,15 @@ export const UC_PRESETS: Record<string, PresetTexts> = {
     },
 }
 
-export const mergeQualityTags = (prompt: string, model: string, enabled: boolean) => {
-    if (!enabled) return prompt
-    const suffix = QUALITY_TAGS[model]
+export const mergeQualityTags = (
+    prompt: string,
+    model: string,
+    enabled: boolean,
+    v5QualityPreset: V5QualityPreset = 'standard',
+) => {
+    const suffix = model === 'nai-diffusion-5-full'
+        ? V5_FULL_QUALITY_TAGS[v5QualityPreset]
+        : enabled ? QUALITY_TAGS[model] : ''
     return suffix ? prompt + suffix : prompt
 }
 

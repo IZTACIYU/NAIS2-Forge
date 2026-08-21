@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { useGenerationStore } from './generation-store'
 import { indexedDBStorage } from '@/lib/indexed-db'
+import type { V5Mode } from '@/lib/model-capabilities'
+import type { V5QualityPreset } from '@/lib/nai-presets'
 
 export const DEFAULT_PRESET_ID = 'default'
 
@@ -27,9 +29,11 @@ export interface Preset {
     smea: boolean
     smeaDyn: boolean
     variety: boolean
+    v5Mode: V5Mode
 
     // Quality & UC
     qualityToggle: boolean
+    v5QualityPreset: V5QualityPreset
     ucPreset: number
 
     // Resolution
@@ -58,7 +62,9 @@ const createDefaultPreset = (): Preset => ({
     smea: true,
     smeaDyn: true,
     variety: false,
+    v5Mode: 'anime',
     qualityToggle: true,
+    v5QualityPreset: 'standard',
     ucPreset: 0,
     selectedResolution: { label: 'Portrait', width: 832, height: 1216 },
 })
@@ -106,7 +112,9 @@ export const usePresetStore = create<PresetState>()(
                     smea: true,
                     smeaDyn: true,
                     variety: false,
+                    v5Mode: 'anime',
                     qualityToggle: true,
+                    v5QualityPreset: 'standard',
                     ucPreset: 0,
                     selectedResolution: { label: 'Portrait', width: 832, height: 1216 },
                 }
@@ -131,7 +139,9 @@ export const usePresetStore = create<PresetState>()(
                 genStore.setSmea(true)
                 genStore.setSmeaDyn(true)
                 genStore.setVariety(false)
+                genStore.setV5Mode('anime')
                 genStore.setQualityToggle(true)
+                genStore.setV5QualityPreset('standard')
                 genStore.setUcPreset(0)
                 genStore.setSelectedResolution({ label: 'Portrait', width: 832, height: 1216 })
             },
@@ -203,7 +213,9 @@ export const usePresetStore = create<PresetState>()(
                                 smea: genStore.smea,
                                 smeaDyn: genStore.smeaDyn,
                                 variety: genStore.variety,
+                                v5Mode: genStore.v5Mode,
                                 qualityToggle: genStore.qualityToggle,
+                                v5QualityPreset: genStore.v5QualityPreset,
                                 ucPreset: genStore.ucPreset,
                                 selectedResolution: genStore.selectedResolution,
                             }
@@ -263,12 +275,14 @@ export const usePresetStore = create<PresetState>()(
                 if (state && !state.activePresetId) {
                     state.activePresetId = DEFAULT_PRESET_ID
                 }
-                // Migrate old presets missing variety/qualityToggle/ucPreset fields
+                // Keep legacy presets while adding V5-only settings with safe defaults.
                 if (state) {
                     state.presets = state.presets.map(p => ({
                         ...p,
                         variety: p.variety ?? false,
+                        v5Mode: p.v5Mode ?? 'anime',
                         qualityToggle: p.qualityToggle ?? true,
+                        v5QualityPreset: p.v5QualityPreset ?? 'standard',
                         ucPreset: p.ucPreset ?? 0,
                     }))
                 }
@@ -291,8 +305,8 @@ useGenerationStore.subscribe((state, prevState) => {
     const fieldsToWatch = [
         'basePrompt', 'additionalPrompt', 'detailPrompt', 'negativePrompt',
         'model', 'steps', 'cfgScale', 'cfgRescale',
-        'sampler', 'scheduler', 'smea', 'smeaDyn', 'variety',
-        'qualityToggle', 'ucPreset', 'selectedResolution'
+        'sampler', 'scheduler', 'smea', 'smeaDyn', 'variety', 'v5Mode',
+        'qualityToggle', 'v5QualityPreset', 'ucPreset', 'selectedResolution'
     ] as const
 
     const hasChange = fieldsToWatch.some(field => state[field] !== prevState[field])
