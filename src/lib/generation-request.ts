@@ -14,6 +14,7 @@ import { splitCostumePrompt } from '@/lib/costume-prompt'
 import { resolveConditionalNegativePrompt, resolveConditionalPositivePrompt } from '@/lib/conditional-prompts'
 import { getCharacterGender } from '@/lib/character-gender'
 import {
+    appendTransparentBackgroundPrompt,
     formatPromptWhitespace,
     normalizePromptCommas,
     removeExactEmptyPromptSeparators,
@@ -158,11 +159,14 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         characterGenders: activeCharacterInputs.map(({ character }) => getCharacterGender(character.prompt)),
         mainCharacterGenders: activeMainCharacterInputs.map(({ character }) => getCharacterGender(character.prompt)),
     }
-    const prompt = mergeQualityTags(
-        cleanup(await processWildcards(resolveConditionalPositivePrompt(rawMainPrompt, conditionalContext))),
-        input.model,
-        input.qualityToggle,
-        input.qualityTagPreset,
+    const prompt = appendTransparentBackgroundPrompt(
+        mergeQualityTags(
+            cleanup(await processWildcards(resolveConditionalPositivePrompt(rawMainPrompt, conditionalContext))),
+            input.model,
+            input.qualityToggle,
+            input.qualityTagPreset,
+        ),
+        capabilities.supportsTransparentBackground && input.transparentBackground,
     )
     const resolvedCharacterPrompts = await Promise.all(characterPrompts.map(async ({ rawPrompt, rawNegative, ...character }) => ({
         ...character,
@@ -252,6 +256,7 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         tag_hint_transparent_background: capabilities.supportsTransparentBackground
             ? input.transparentBackground || null
             : undefined,
+        straight_alpha: capabilities.supportsTransparentBackground ? true : undefined,
         promptParts: input.promptParts,
         generationSources,
     }

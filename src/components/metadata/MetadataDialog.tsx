@@ -198,6 +198,7 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
         }
 
         if (loadOptions.parameters) {
+            if (metadata.modelId) genStore.setModel(metadata.modelId)
             if (metadata.steps) genStore.setSteps(metadata.steps)
             if (metadata.cfgScale) genStore.setCfgScale(metadata.cfgScale)
             if (metadata.cfgRescale) genStore.setCfgRescale(metadata.cfgRescale)
@@ -206,8 +207,12 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
             if (typeof metadata.smea === 'boolean') genStore.setSmea(metadata.smea)
             if (typeof metadata.smeaDyn === 'boolean') genStore.setSmeaDyn(metadata.smeaDyn)
             if (typeof metadata.variety === 'boolean') genStore.setVariety(metadata.variety)
+            if (metadata.qualityTagPreset) genStore.setQualityTagPreset(metadata.qualityTagPreset)
             if (typeof metadata.qualityToggle === 'boolean') genStore.setQualityToggle(metadata.qualityToggle)
             if (typeof metadata.ucPreset === 'number') genStore.setUcPreset(metadata.ucPreset)
+            if (typeof metadata.transparentBackground === 'boolean') {
+                genStore.setTransparentBackground(metadata.transparentBackground)
+            }
         }
 
         if (loadOptions.resolution && metadata.width && metadata.height) {

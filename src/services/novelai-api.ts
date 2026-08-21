@@ -93,6 +93,7 @@ export interface GenerationParams {
     tag_hint_qt?: number
     tag_hint_uc_preset?: number
     tag_hint_transparent_background?: true | null
+    straight_alpha?: true
 
     // Pre-merge prompt sections. Only used for embedding into the image's
     // nais2-params chunk; NAI itself receives the merged `prompt` above.
@@ -560,6 +561,7 @@ export async function generateImage(
             tag_hint_qt: params.tag_hint_qt,
             tag_hint_uc_preset: params.tag_hint_uc_preset,
             tag_hint_transparent_background: params.tag_hint_transparent_background,
+            straight_alpha: params.straight_alpha,
             autoSmea: false,
             controlnet_strength: 1,
             normalize_reference_strength_multiple: true,
@@ -1123,6 +1125,7 @@ export async function generateImageStream(
             tag_hint_qt: params.tag_hint_qt,
             tag_hint_uc_preset: params.tag_hint_uc_preset,
             tag_hint_transparent_background: params.tag_hint_transparent_background,
+            straight_alpha: params.straight_alpha,
             autoSmea: false,
             controlnet_strength: 1,
             normalize_reference_strength_multiple: true,

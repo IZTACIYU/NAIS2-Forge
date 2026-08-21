@@ -9,7 +9,11 @@
  */
 
 import { readNais2Params, type Nais2GenerationSources } from '@/lib/nais2-png-meta'
-import { AVAILABLE_MODELS } from '@/lib/model-capabilities'
+import {
+    AVAILABLE_MODELS,
+    getModelCapabilities,
+    type QualityTagPresetId,
+} from '@/lib/model-capabilities'
 
 /**
  * Decompress gzip data using native Web API or fallback
@@ -63,6 +67,7 @@ export interface NAIMetadata {
 
     // Generation settings
     model?: string  // Extracted from "Source" PNG tEXt chunk
+    modelId?: string // Forge model ID resolved from Source
     steps?: number
     cfgScale?: number  // "scale" in NAI
     cfgRescale?: number
@@ -75,7 +80,9 @@ export interface NAIMetadata {
     smeaDyn?: boolean  // "sm_dyn" in NAI
     variety?: boolean // Derived from "skip_cfg_above_sigma"
     qualityToggle?: boolean // "qualityToggle" - Add Quality Tags
+    qualityTagPreset?: QualityTagPresetId
     ucPreset?: number // "ucPreset" - Undesired Content Preset (0=Heavy, 1=Light, 2=Furry, 3=Human, 4=None)
+    transparentBackground?: boolean
 
     // Resolution
     width?: number
@@ -320,6 +327,8 @@ async function extractStealthMetadata(imageData: ImageData): Promise<NAIMetadata
         const sourceData = jsonData.Comment || jsonData
         const metadata = convertNAIFormat(sourceData)
         metadata.source = 'stealth_alpha'
+        if (typeof jsonData.Source === 'string') metadata.model = jsonData.Source
+        applyModelMetadata(metadata)
 
         return metadata
     } catch (error) {
@@ -512,7 +521,8 @@ function extractWebpExifMetadata(bytes: Uint8Array): NAIMetadata | null {
                             const metadata = convertNAIFormat(inner)
                             metadata.source = 'text_chunk'
                             if (typeof outer.Source === 'string') metadata.model = outer.Source
-                            const modelKey = detectModelKey(metadata.model)
+                            applyModelMetadata(metadata)
+                            const modelKey = metadata.modelId ?? null
                             const inferred = inferNAIPresets(metadata.prompt, metadata.negativePrompt, modelKey)
                             if (metadata.qualityToggle === undefined && inferred.qualityToggle !== undefined) {
                                 metadata.qualityToggle = inferred.qualityToggle
@@ -624,7 +634,8 @@ async function extractTextChunkMetadata(bytes: Uint8Array): Promise<NAIMetadata 
     // third-party tools, etc.). NAI v4/v4.5 never embeds these flags in the
     // Comment JSON.
     if (metadata) {
-        const modelKey = detectModelKey(metadata.model)
+        applyModelMetadata(metadata)
+        const modelKey = metadata.modelId ?? null
         const inferred = inferNAIPresets(metadata.prompt, metadata.negativePrompt, modelKey)
         if (metadata.qualityToggle === undefined && inferred.qualityToggle !== undefined) {
             metadata.qualityToggle = inferred.qualityToggle
@@ -683,6 +694,30 @@ function detectModelKey(source: string | null | undefined): string | null {
     if (normalized.includes('furry') && normalized.includes('v3')) return 'nai-diffusion-furry-3'
     if (normalized.includes('v3')) return 'nai-diffusion-3'
     return null
+}
+
+function applyModelMetadata(metadata: NAIMetadata) {
+    const modelId = detectModelKey(metadata.model)
+    if (!modelId) return
+
+    metadata.modelId = modelId
+    const raw = metadata.raw
+    const qualityHint = raw?.tag_hint_qt
+    if (typeof qualityHint === 'number') {
+        const preset = getModelCapabilities(modelId).qualityTagPresets
+            .find(option => option.tagHint === qualityHint)
+        if (preset) {
+            metadata.qualityTagPreset = preset.value
+            metadata.qualityToggle = preset.value !== 'none'
+        }
+    }
+
+    const ucHint = raw?.tag_hint_uc_preset
+    if (typeof ucHint === 'number') {
+        const preset = getModelCapabilities(modelId).ucPresets
+            .find(option => option.tagHint === ucHint)
+        if (preset) metadata.ucPreset = preset.value
+    }
 }
 
 // Returns { qualityToggle, ucPreset } inferred from prompt/uc text.
@@ -781,6 +816,10 @@ function convertNAIFormat(data: Record<string, unknown>): NAIMetadata {
         data.undesired_content_preset ??
         data.undesiredContentPreset
     if (typeof rawUcPreset === 'number') metadata.ucPreset = rawUcPreset
+
+    if (Object.prototype.hasOwnProperty.call(data, 'tag_hint_transparent_background')) {
+        metadata.transparentBackground = data.tag_hint_transparent_background === true
+    }
 
     // Resolution
     if (data.width) metadata.width = Number(data.width)

@@ -22,3 +22,8 @@ export function removeExactEmptyPromptSeparators(prompt: string) {
 export function normalizePromptCommas(prompt: string) {
     return prompt.replace(/ ,/g, ',').replace(/,(?! |$)/g, ', ')
 }
+
+export function appendTransparentBackgroundPrompt(prompt: string, enabled: boolean) {
+    if (!enabled) return prompt
+    return prompt ? `${prompt}, transparent background` : 'transparent background'
+}
