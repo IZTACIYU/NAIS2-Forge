@@ -1,6 +1,7 @@
 export type UcPresetId = 0 | 1 | 2 | 3 | 4
 export type ModelMode = 'anime' | 'furry'
 export type QualityTagPresetId = 'standard' | 'light' | 'none'
+export type PromptTokenizer = 't5' | 'qwen3.5'
 
 export interface UcPresetOption {
     value: UcPresetId
@@ -23,6 +24,7 @@ export interface QualityTagPresetOption {
 }
 
 export interface ModelCapabilities {
+    promptTokenizer: PromptTokenizer
     maxCharacterPrompts: number
     maxPromptTokens: number
     ucPresets: readonly UcPresetOption[]
@@ -46,6 +48,7 @@ const V5_MODES: readonly ModelModeOption[] = [
 ]
 
 const V4_CAPABILITIES: ModelCapabilities = {
+    promptTokenizer: 't5',
     maxCharacterPrompts: 6,
     maxPromptTokens: 512,
     supportsSmea: false,
@@ -108,6 +111,7 @@ const V45_CURATED_CAPABILITIES: ModelCapabilities = {
 
 const V5_FULL_CAPABILITIES: ModelCapabilities = {
     ...V45_FULL_CAPABILITIES,
+    promptTokenizer: 'qwen3.5',
     maxCharacterPrompts: 32,
     maxPromptTokens: 1471,
     supportsVariety: false,
@@ -130,6 +134,7 @@ const V5_FULL_CAPABILITIES: ModelCapabilities = {
 
 const V5_CURATED_CAPABILITIES: ModelCapabilities = {
     ...V45_CURATED_CAPABILITIES,
+    promptTokenizer: 'qwen3.5',
     maxCharacterPrompts: 32,
     maxPromptTokens: 703,
     supportsVariety: false,

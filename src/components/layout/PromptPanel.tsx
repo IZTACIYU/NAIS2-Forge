@@ -378,8 +378,8 @@ export function PromptPanel() {
                     resolveFragmentsForTokenCount(resolveConditionalNegativePrompt(negative, conditionalContext)),
                 ])
                 if (!cancelled) {
-                    setTokenTotals({
-                        positive: countTokens(normalizePromptCommas(appendQuotedTextPrompt(
+                    const [positiveTokens, negativeTokens] = await Promise.all([
+                        countTokens(normalizePromptCommas(appendQuotedTextPrompt(
                             mergeQualityTags(
                                 appendTransparentBackgroundPrompt(
                                     resolvedPositive,
@@ -390,8 +390,13 @@ export function PromptPanel() {
                                 qualityTagPreset,
                             ),
                             modelCapabilities.supportsQuotedTextPrompt,
-                        ))),
-                        negative: countTokens(normalizePromptCommas(resolvedNegative)),
+                        )), model),
+                        countTokens(normalizePromptCommas(resolvedNegative), model),
+                    ])
+                    if (cancelled) return
+                    setTokenTotals({
+                        positive: positiveTokens,
+                        negative: negativeTokens,
                     })
                 }
             })
