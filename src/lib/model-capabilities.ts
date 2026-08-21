@@ -31,6 +31,7 @@ export interface ModelCapabilities {
     supportsSmea: boolean
     supportsVariety: boolean
     supportsTransparentBackground: boolean
+    supportsQuotedTextPrompt: boolean
 }
 
 export interface AvailableModel extends ModelCapabilities {
@@ -50,6 +51,7 @@ const V4_CAPABILITIES: ModelCapabilities = {
     supportsSmea: false,
     supportsVariety: true,
     supportsTransparentBackground: false,
+    supportsQuotedTextPrompt: false,
     modes: [],
     qualityTagPresets: [
         { value: 'standard', label: 'Standard', suffix: ', no text, best quality, very aesthetic, absurdres' },
@@ -110,6 +112,7 @@ const V5_FULL_CAPABILITIES: ModelCapabilities = {
     maxPromptTokens: 1471,
     supportsVariety: false,
     supportsTransparentBackground: true,
+    supportsQuotedTextPrompt: true,
     modes: V5_MODES,
     qualityTagPresets: [
         { value: 'standard', label: 'Standard', suffix: ', very aesthetic, masterpiece, no text', tagHint: 1 },
@@ -131,6 +134,7 @@ const V5_CURATED_CAPABILITIES: ModelCapabilities = {
     maxPromptTokens: 703,
     supportsVariety: false,
     supportsTransparentBackground: true,
+    supportsQuotedTextPrompt: true,
     modes: V5_MODES,
     qualityTagPresets: [
         { value: 'standard', label: 'Standard', suffix: ', very aesthetic, masterpiece, no text', tagHint: 1 },

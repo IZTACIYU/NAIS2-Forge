@@ -29,7 +29,8 @@ import { toast } from '@/components/ui/use-toast'
 import { FileImage, Download, AlertCircle } from 'lucide-react'
 import { useCharacterStore } from '@/stores/character-store'
 import { stripQualityTags, stripUcPreset } from '@/lib/nai-presets'
-import { stripTransparentBackgroundPrompt } from '@/lib/prompt-formatting'
+import { stripQuotedTextPrompt, stripTransparentBackgroundPrompt } from '@/lib/prompt-formatting'
+import { getModelCapabilities } from '@/lib/model-capabilities'
 
 interface MetadataDialogProps {
     open: boolean
@@ -188,6 +189,10 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
                 // External image: merged prompt lands in basePrompt (fallback).
                 let prompt = metadata.prompt
                 if (loadOptions.parameters && metadata.modelId) {
+                    prompt = stripQuotedTextPrompt(
+                        prompt,
+                        getModelCapabilities(metadata.modelId).supportsQuotedTextPrompt,
+                    )
                     prompt = stripQualityTags(
                         prompt,
                         metadata.modelId,

@@ -14,6 +14,7 @@ import { splitCostumePrompt } from '@/lib/costume-prompt'
 import { resolveConditionalNegativePrompt, resolveConditionalPositivePrompt } from '@/lib/conditional-prompts'
 import { getCharacterGender } from '@/lib/character-gender'
 import {
+    appendQuotedTextPrompt,
     appendTransparentBackgroundPrompt,
     formatPromptWhitespace,
     normalizePromptCommas,
@@ -159,14 +160,17 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         characterGenders: activeCharacterInputs.map(({ character }) => getCharacterGender(character.prompt)),
         mainCharacterGenders: activeMainCharacterInputs.map(({ character }) => getCharacterGender(character.prompt)),
     }
-    const prompt = mergeQualityTags(
-        appendTransparentBackgroundPrompt(
-            cleanup(await processWildcards(resolveConditionalPositivePrompt(rawMainPrompt, conditionalContext))),
-            capabilities.supportsTransparentBackground && input.transparentBackground,
+    const prompt = appendQuotedTextPrompt(
+        mergeQualityTags(
+            appendTransparentBackgroundPrompt(
+                cleanup(await processWildcards(resolveConditionalPositivePrompt(rawMainPrompt, conditionalContext))),
+                capabilities.supportsTransparentBackground && input.transparentBackground,
+            ),
+            input.model,
+            input.qualityToggle,
+            input.qualityTagPreset,
         ),
-        input.model,
-        input.qualityToggle,
-        input.qualityTagPreset,
+        capabilities.supportsQuotedTextPrompt,
     )
     const resolvedCharacterPrompts = await Promise.all(characterPrompts.map(async ({ rawPrompt, rawNegative, ...character }) => ({
         ...character,

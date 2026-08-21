@@ -64,7 +64,11 @@ import { ResolutionSelector } from '@/components/ui/ResolutionSelector'
 import { useSceneQueueHasItems, useSceneQueueTotal } from '@/hooks/use-scene-queue'
 import { getModelCapabilities } from '@/lib/model-capabilities'
 import { mergeQualityTags, mergeUcPreset } from '@/lib/nai-presets'
-import { appendTransparentBackgroundPrompt, normalizePromptCommas } from '@/lib/prompt-formatting'
+import {
+    appendQuotedTextPrompt,
+    appendTransparentBackgroundPrompt,
+    normalizePromptCommas,
+} from '@/lib/prompt-formatting'
 import { calculateGenerationAnlasCost } from '@/lib/anlas-calculator'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -375,14 +379,17 @@ export function PromptPanel() {
                 ])
                 if (!cancelled) {
                     setTokenTotals({
-                        positive: countTokens(normalizePromptCommas(mergeQualityTags(
-                            appendTransparentBackgroundPrompt(
-                                resolvedPositive,
-                                modelCapabilities.supportsTransparentBackground && transparentBackground,
+                        positive: countTokens(normalizePromptCommas(appendQuotedTextPrompt(
+                            mergeQualityTags(
+                                appendTransparentBackgroundPrompt(
+                                    resolvedPositive,
+                                    modelCapabilities.supportsTransparentBackground && transparentBackground,
+                                ),
+                                model,
+                                qualityToggle,
+                                qualityTagPreset,
                             ),
-                            model,
-                            qualityToggle,
-                            qualityTagPreset,
+                            modelCapabilities.supportsQuotedTextPrompt,
                         ))),
                         negative: countTokens(normalizePromptCommas(resolvedNegative)),
                     })

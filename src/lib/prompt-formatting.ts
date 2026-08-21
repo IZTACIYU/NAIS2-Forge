@@ -34,3 +34,18 @@ export function stripTransparentBackgroundPrompt(prompt: string, enabled: boolea
     const suffix = ', transparent background'
     return prompt.endsWith(suffix) ? prompt.slice(0, -suffix.length) : prompt
 }
+
+export function appendQuotedTextPrompt(prompt: string, enabled: boolean) {
+    if (!enabled) return prompt
+    const texts = Array.from(prompt.matchAll(/(["'])(.*?)\1/gs), match => match[2])
+        .filter(Boolean)
+    return texts.length ? `${prompt}, teXt: ${texts.join('\n\n')}` : prompt
+}
+
+export function stripQuotedTextPrompt(prompt: string, enabled: boolean) {
+    if (!enabled) return prompt
+    const markerIndex = prompt.lastIndexOf(', teXt: ')
+    if (markerIndex < 0) return prompt
+    const basePrompt = prompt.slice(0, markerIndex)
+    return appendQuotedTextPrompt(basePrompt, true) === prompt ? basePrompt : prompt
+}
