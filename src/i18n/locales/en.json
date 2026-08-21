@@ -586,13 +586,8 @@
     "scheduler": "Scheduler",
     "smea": "SMEA",
     "smeaDyn": "SMEA DYN",
-    "v5Mode": "V5 Mode",
-    "v5Anime": "Anime",
-    "v5Furry": "Furry",
-    "v5Quality": "V5 Quality Preset",
-    "v5QualityStandard": "Standard",
-    "v5QualityLight": "Light",
-    "v5QualityNone": "None"
+    "mode": "Mode",
+    "qualityToggle": "Add Quality Tags"
   },
   "history": {
     "title": "History",

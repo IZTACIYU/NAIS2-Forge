@@ -12,8 +12,15 @@ import { buildGenerationRequest } from '@/lib/generation-request'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 import i18n from '@/i18n'
 import { toast } from '@/components/ui/use-toast'
-import { AVAILABLE_MODELS, getModelCapabilities, normalizeUcPreset, type V5Mode } from '@/lib/model-capabilities'
-import type { V5QualityPreset } from '@/lib/nai-presets'
+import {
+    AVAILABLE_MODELS,
+    getModelCapabilities,
+    normalizeModelMode,
+    normalizeQualityTagPreset,
+    normalizeUcPreset,
+    type ModelMode,
+    type QualityTagPresetId,
+} from '@/lib/model-capabilities'
 
 interface Resolution {
     label: string
@@ -48,7 +55,7 @@ interface GenerationState {
     smea: boolean
     smeaDyn: boolean
     variety: boolean
-    v5Mode: V5Mode
+    modelMode: ModelMode
 
     seed: number
     activeImageSeed: number | null
@@ -58,7 +65,7 @@ interface GenerationState {
 
     // Quality settings
     qualityToggle: boolean
-    v5QualityPreset: V5QualityPreset
+    qualityTagPreset: QualityTagPresetId
     ucPreset: number
 
     // Batch generation
@@ -109,7 +116,7 @@ interface GenerationState {
     setSmea: (v: boolean) => void
     setSmeaDyn: (v: boolean) => void
     setVariety: (v: boolean) => void
-    setV5Mode: (v: V5Mode) => void
+    setModelMode: (v: ModelMode) => void
 
     setSeed: (seed: number) => void
     setActiveImageSeed: (seed: number | null) => void
@@ -117,7 +124,7 @@ interface GenerationState {
     setSeedLocked: (locked: boolean) => void
     setSelectedResolution: (resolution: Resolution) => void
     setQualityToggle: (v: boolean) => void
-    setV5QualityPreset: (v: V5QualityPreset) => void
+    setQualityTagPreset: (v: QualityTagPresetId) => void
     setUcPreset: (v: number) => void
 
     setBatchCount: (count: number) => void
@@ -146,9 +153,7 @@ interface GenerationState {
         smea: boolean
         smeaDyn: boolean
         variety?: boolean
-        v5Mode?: V5Mode
         qualityToggle?: boolean
-        v5QualityPreset?: V5QualityPreset
         ucPreset?: number
         selectedResolution: Resolution
     }) => void
@@ -184,7 +189,7 @@ export const useGenerationStore = create<GenerationState>()(
             smea: true,
             smeaDyn: true,
             variety: false,
-            v5Mode: 'anime',
+            modelMode: 'anime',
 
             seed: Math.floor(Math.random() * 4294967295),
             activeImageSeed: null,
@@ -193,7 +198,7 @@ export const useGenerationStore = create<GenerationState>()(
             selectedResolution: { label: 'Portrait', width: 832, height: 1216 },
 
             qualityToggle: true,
-            v5QualityPreset: 'standard',
+            qualityTagPreset: 'standard',
             ucPreset: 0,
 
             batchCount: 1,
@@ -229,7 +234,12 @@ export const useGenerationStore = create<GenerationState>()(
                 useCharacterPromptStore.getState().setActiveCharacterLimit(
                     getModelCapabilities(model).maxCharacterPrompts
                 )
-                set(state => ({ model, ucPreset: normalizeUcPreset(model, state.ucPreset) }))
+                set(state => ({
+                    model,
+                    modelMode: normalizeModelMode(model, state.modelMode),
+                    qualityTagPreset: normalizeQualityTagPreset(model, state.qualityTagPreset),
+                    ucPreset: normalizeUcPreset(model, state.ucPreset),
+                }))
             },
             setSteps: (steps) => set({ steps }),
             setCfgScale: (cfgScale) => set({ cfgScale }),
@@ -255,9 +265,9 @@ export const useGenerationStore = create<GenerationState>()(
                     smea: preset.smea,
                     smeaDyn: preset.smeaDyn,
                     variety: preset.variety ?? false,
-                    v5Mode: preset.v5Mode ?? 'anime',
                     qualityToggle: preset.qualityToggle ?? true,
-                    v5QualityPreset: preset.v5QualityPreset ?? 'standard',
+                    modelMode: normalizeModelMode(preset.model, 'anime'),
+                    qualityTagPreset: normalizeQualityTagPreset(preset.model, 'standard'),
                     ucPreset: normalizeUcPreset(preset.model, preset.ucPreset ?? 0),
                     selectedResolution: preset.selectedResolution,
                 })
@@ -266,7 +276,9 @@ export const useGenerationStore = create<GenerationState>()(
             setSmea: (smea) => set({ smea }),
             setSmeaDyn: (smeaDyn) => set({ smeaDyn }),
             setVariety: (variety) => set({ variety }),
-            setV5Mode: (v5Mode) => set({ v5Mode }),
+            setModelMode: (modelMode) => set(state => ({
+                modelMode: normalizeModelMode(state.model, modelMode),
+            })),
 
             setSeed: (seed) => set({ seed }),
             setActiveImageSeed: (activeImageSeed) => set({ activeImageSeed }),
@@ -274,7 +286,9 @@ export const useGenerationStore = create<GenerationState>()(
             setSeedLocked: (locked) => set({ seedLocked: locked }),
             setSelectedResolution: (resolution) => set({ selectedResolution: resolution }),
             setQualityToggle: (qualityToggle) => set({ qualityToggle }),
-            setV5QualityPreset: (v5QualityPreset) => set({ v5QualityPreset }),
+            setQualityTagPreset: (qualityTagPreset) => set(state => ({
+                qualityTagPreset: normalizeQualityTagPreset(state.model, qualityTagPreset),
+            })),
             setUcPreset: (ucPreset) => set(state => ({
                 ucPreset: normalizeUcPreset(state.model, ucPreset),
             })),
@@ -485,7 +499,7 @@ export const useGenerationStore = create<GenerationState>()(
                             smea,
                             smeaDyn,
                             variety,
-                            v5Mode: get().v5Mode,
+                            modelMode: get().modelMode,
                             seed: currentSeed,
                             sourceImage: sourceImage || undefined,
                             strength,
@@ -493,7 +507,7 @@ export const useGenerationStore = create<GenerationState>()(
                             mask: mask || undefined,
                             imageFormat,
                             qualityToggle: get().qualityToggle,
-                            v5QualityPreset: get().v5QualityPreset,
+                            qualityTagPreset: get().qualityTagPreset,
                             ucPreset: get().ucPreset,
                             promptWhitespaceMode,
                             removeEmptyPromptSeparators,
@@ -732,9 +746,7 @@ export const useGenerationStore = create<GenerationState>()(
                 smea: state.smea,
                 smeaDyn: state.smeaDyn,
                 variety: state.variety,
-                v5Mode: state.v5Mode,
                 qualityToggle: state.qualityToggle,
-                v5QualityPreset: state.v5QualityPreset,
                 ucPreset: state.ucPreset,
                 // Seed - only save if locked
                 ...(state.seedLocked ? { seed: state.seed } : {}),

@@ -89,8 +89,6 @@ export interface GenerationParams {
 
     // NAI UI options
     qualityToggle?: boolean // Add Quality Tags
-    v5Mode?: 'anime' | 'furry'
-    v5QualityPreset?: 'standard' | 'light' | 'none'
     ucPreset?: number       // Undesired Content Preset (0=Heavy, 1=Light, 2=Furry, 3=Human, 4=None)
 
     // Pre-merge prompt sections. Only used for embedding into the image's
@@ -794,8 +792,6 @@ export async function generateImage(
         // relying on prompt/uc heuristics.
         const taggedBase64 = embedNais2Params(base64, {
             qualityToggle: params.qualityToggle,
-            v5Mode: params.v5Mode,
-            v5QualityPreset: params.v5QualityPreset,
             ucPreset: params.ucPreset,
             promptParts: params.promptParts && {
                 base: params.promptParts.base ?? '',
@@ -1354,8 +1350,6 @@ export async function generateImageStream(
         if (finalImageData) {
             const taggedFinal = embedNais2Params(finalImageData, {
                 qualityToggle: params.qualityToggle,
-                v5Mode: params.v5Mode,
-                v5QualityPreset: params.v5QualityPreset,
                 ucPreset: params.ucPreset,
                 promptParts: params.promptParts && {
                     base: params.promptParts.base ?? '',

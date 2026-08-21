@@ -143,11 +143,13 @@ export function PromptPanel() {
     const smea = useGenerationStore(state => state.smea)
     const smeaDyn = useGenerationStore(state => state.smeaDyn)
     const variety = useGenerationStore(state => state.variety)
-    const v5Mode = useGenerationStore(state => state.v5Mode)
+    const modelMode = useGenerationStore(state => state.modelMode)
     const qualityToggle = useGenerationStore(state => state.qualityToggle)
-    const v5QualityPreset = useGenerationStore(state => state.v5QualityPreset)
+    const qualityTagPreset = useGenerationStore(state => state.qualityTagPreset)
     const ucPreset = useGenerationStore(state => state.ucPreset)
-    const isV5Full = model === 'nai-diffusion-5-full'
+    const selectedQualityTagPreset = modelCapabilities.qualityTagPresets.length > 2
+        ? qualityTagPreset
+        : qualityToggle ? 'standard' : 'none'
     const batchCount = useGenerationStore(state => state.batchCount)
     const sourceImage = useGenerationStore(state => state.sourceImage)
     const currentBatch = useGenerationStore(state => state.currentBatch)
@@ -170,9 +172,9 @@ export function PromptPanel() {
     const setSmea = useGenerationStore(state => state.setSmea)
     const setSmeaDyn = useGenerationStore(state => state.setSmeaDyn)
     const setVariety = useGenerationStore(state => state.setVariety)
-    const setV5Mode = useGenerationStore(state => state.setV5Mode)
+    const setModelMode = useGenerationStore(state => state.setModelMode)
     const setQualityToggle = useGenerationStore(state => state.setQualityToggle)
-    const setV5QualityPreset = useGenerationStore(state => state.setV5QualityPreset)
+    const setQualityTagPreset = useGenerationStore(state => state.setQualityTagPreset)
     const setUcPreset = useGenerationStore(state => state.setUcPreset)
     const setBatchCount = useGenerationStore(state => state.setBatchCount)
     const generate = useGenerationStore(state => state.generate)
@@ -331,7 +333,7 @@ export function PromptPanel() {
                 : character.negative
         ))
         const positive = [
-            isV5Full && v5Mode === 'furry' ? 'fur dataset' : '',
+            modelCapabilities.modes.find(mode => mode.value === modelMode)?.promptPrefix || '',
             basePrompt,
             isActiveScene && i2iMode === 'inpaint' ? inpaintingPrompt : '',
             additionalPrompt,
@@ -370,7 +372,7 @@ export function PromptPanel() {
                 ])
                 if (!cancelled) {
                     setTokenTotals({
-                        positive: countTokens(mergeQualityTags(resolvedPositive, model, qualityToggle, v5QualityPreset)),
+                        positive: countTokens(mergeQualityTags(resolvedPositive, model, qualityToggle, qualityTagPreset)),
                         negative: countTokens(resolvedNegative),
                     })
                 }
@@ -405,8 +407,8 @@ export function PromptPanel() {
         model,
         qualityToggle,
         ucPreset,
-        v5Mode,
-        v5QualityPreset,
+        modelMode,
+        qualityTagPreset,
         fragmentRevision,
     ])
 
@@ -875,14 +877,20 @@ export function PromptPanel() {
                                 </>
                             )}
 
-                            {isV5Full ? (
+                            {modelCapabilities.modes.length > 0 ? (
                                 <div className="flex items-center justify-between">
-                                    <Label>{t('parameters.v5Mode')}</Label>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => setV5Mode(v5Mode === 'anime' ? 'furry' : 'anime')}>
-                                        {v5Mode === 'anime' ? t('parameters.v5Anime') : t('parameters.v5Furry')}
+                                    <Label>{t('parameters.mode', 'Mode')}</Label>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="min-w-28 px-6"
+                                        onClick={() => setModelMode(modelMode === 'anime' ? 'furry' : 'anime')}
+                                    >
+                                        {modelCapabilities.modes.find(mode => mode.value === modelMode)?.label}
                                     </Button>
                                 </div>
-                            ) : (
+                            ) : modelCapabilities.supportsVariety ? (
                                 <div className="flex items-center justify-between">
                                     <div className="flex flex-col gap-1">
                                         <Label className="cursor-pointer" onClick={() => setVariety(!variety)}>
@@ -895,32 +903,28 @@ export function PromptPanel() {
                                         onChange={(e) => setVariety(e.target.checked)}
                                     />
                                 </div>
-                            )}
+                            ) : null}
 
-                            {isV5Full ? (
+                            {modelCapabilities.qualityTagPresets.length > 0 && (
                                 <div className="space-y-2">
-                                    <Label>{t('parameters.v5Quality')}</Label>
-                                    <Select value={v5QualityPreset} onValueChange={(value) => setV5QualityPreset(value as 'standard' | 'light' | 'none')}>
+                                    <Label>{t('parameters.qualityToggle', 'Add Quality Tags')}</Label>
+                                    <Select
+                                        value={selectedQualityTagPreset}
+                                        onValueChange={(value) => {
+                                            if (modelCapabilities.qualityTagPresets.length > 2) {
+                                                setQualityTagPreset(value as 'standard' | 'light' | 'none')
+                                            } else {
+                                                setQualityToggle(value !== 'none')
+                                            }
+                                        }}
+                                    >
                                         <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="standard">{t('parameters.v5QualityStandard')}</SelectItem>
-                                            <SelectItem value="light">{t('parameters.v5QualityLight')}</SelectItem>
-                                            <SelectItem value="none">{t('parameters.v5QualityNone')}</SelectItem>
+                                            {modelCapabilities.qualityTagPresets.map(preset => (
+                                                <SelectItem key={preset.value} value={preset.value}>{preset.label}</SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-between">
-                                    <div className="flex flex-col gap-1">
-                                        <Label className="cursor-pointer" onClick={() => setQualityToggle(!qualityToggle)}>
-                                            {t('parameters.qualityToggle', 'Add Quality Tags')}
-                                        </Label>
-                                        <span className="text-xs text-muted-foreground">Adds quality tags to prompt</span>
-                                    </div>
-                                    <Switch
-                                        checked={qualityToggle}
-                                        onChange={(e) => setQualityToggle(e.target.checked)}
-                                    />
                                 </div>
                             )}
 

@@ -46,8 +46,6 @@ export interface Nais2GenerationSources {
 
 export interface Nais2Params {
     qualityToggle?: boolean
-    v5Mode?: 'anime' | 'furry'
-    v5QualityPreset?: 'standard' | 'light' | 'none'
     ucPreset?: number
     promptParts?: Nais2PromptParts
     generationSources?: Nais2GenerationSources

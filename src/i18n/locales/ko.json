@@ -618,13 +618,8 @@
     "scheduler": "Scheduler",
     "smea": "SMEA",
     "smeaDyn": "SMEA DYN",
-    "v5Mode": "V5 모드",
-    "v5Anime": "Anime",
-    "v5Furry": "Furry",
-    "v5Quality": "V5 품질 프리셋",
-    "v5QualityStandard": "Standard",
-    "v5QualityLight": "Light",
-    "v5QualityNone": "None"
+    "mode": "Mode",
+    "qualityToggle": "Add Quality Tags"
   },
   "history": {
     "title": "히스토리",
