@@ -865,6 +865,10 @@ export function HistoryPanel() {
             const mapModelNameToId = (name?: string): string => {
                 if (!name) return 'nai-diffusion-4-5-full'
                 const lower = name.toLowerCase()
+                if (lower.includes('v5')) {
+                    if (lower.includes('curated')) return 'nai-diffusion-5-curated'
+                    return 'nai-diffusion-5-full'
+                }
                 if (lower.includes('4.5') || lower.includes('4-5')) {
                     if (lower.includes('curated')) return 'nai-diffusion-4-5-curated'
                     return 'nai-diffusion-4-5-full'

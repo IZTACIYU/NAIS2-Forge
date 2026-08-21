@@ -48,6 +48,19 @@ const V45_CURATED_CAPABILITIES: ModelCapabilities = {
         { value: 4, label: 'none' },
     ],
 }
+
+const V5_FULL_CAPABILITIES: ModelCapabilities = {
+    ...V45_FULL_CAPABILITIES,
+    maxCharacterPrompts: 32,
+    maxPromptTokens: 1471,
+}
+
+const V5_CURATED_CAPABILITIES: ModelCapabilities = {
+    ...V45_CURATED_CAPABILITIES,
+    maxCharacterPrompts: 32,
+    maxPromptTokens: 703,
+}
+
 const V3_ANIME_CAPABILITIES: ModelCapabilities = {
     ...V4_CAPABILITIES,
     supportsSmea: true,
@@ -66,6 +79,8 @@ const V3_FURRY_CAPABILITIES: ModelCapabilities = {
 
 // Add new model versions and their limits here. All UI and generation paths use this table.
 export const AVAILABLE_MODELS: readonly AvailableModel[] = [
+    { id: 'nai-diffusion-5-curated', name: 'NAI Diffusion V5 Curated', ...V5_CURATED_CAPABILITIES },
+    { id: 'nai-diffusion-5-full', name: 'NAI Diffusion V5 Full', ...V5_FULL_CAPABILITIES },
     { id: 'nai-diffusion-4-5-curated', name: 'NAI Diffusion V4.5 Curated', ...V45_CURATED_CAPABILITIES },
     { id: 'nai-diffusion-4-5-full', name: 'NAI Diffusion V4.5 Full', ...V45_FULL_CAPABILITIES },
     { id: 'nai-diffusion-4-curated-preview', name: 'NAI Diffusion V4 Curated', ...V4_CAPABILITIES },

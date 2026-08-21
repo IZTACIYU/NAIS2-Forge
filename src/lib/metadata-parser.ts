@@ -664,6 +664,9 @@ const UC_PRESET_PREFIXES: Record<string, Partial<Record<number, string>>> = UC_P
 function detectModelKey(source: string | null | undefined): string | null {
     if (!source) return null
     const normalized = source.toLowerCase()
+    if (normalized.includes('v5')) return normalized.includes('curated')
+        ? 'nai-diffusion-5-curated'
+        : 'nai-diffusion-5-full'
     if (normalized.includes('v4.5')) return normalized.includes('curated')
         ? 'nai-diffusion-4-5-curated'
         : 'nai-diffusion-4-5-full'
