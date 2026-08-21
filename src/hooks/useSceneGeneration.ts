@@ -345,6 +345,7 @@ export function useSceneGeneration() {
                     qualityToggle: genState.qualityToggle,
                     qualityTagPreset: genState.qualityTagPreset,
                     ucPreset: genState.ucPreset,
+                    transparentBackground: genState.transparentBackground,
                     promptWhitespaceMode: latestSettingsStore.promptWhitespaceMode,
                     removeEmptyPromptSeparators: latestSettingsStore.removeEmptyPromptSeparators,
                     insertBlankLinesBetweenPromptParts: latestSettingsStore.insertBlankLinesBetweenPromptParts,

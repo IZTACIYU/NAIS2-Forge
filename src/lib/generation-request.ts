@@ -60,6 +60,7 @@ export interface GenerationRequestInput {
     qualityToggle: boolean
     qualityTagPreset: QualityTagPresetId
     ucPreset: number
+    transparentBackground: boolean
     promptWhitespaceMode: PromptWhitespaceMode
     removeEmptyPromptSeparators: boolean
     insertBlankLinesBetweenPromptParts: boolean
@@ -240,6 +241,13 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
             ? input.qualityTagPreset !== 'none'
             : input.qualityToggle,
         ucPreset: input.ucPreset,
+        tag_hint_qt: capabilities.qualityTagPresets
+            .find(preset => preset.value === input.qualityTagPreset)?.tagHint,
+        tag_hint_uc_preset: capabilities.ucPresets
+            .find(preset => preset.value === input.ucPreset)?.tagHint,
+        tag_hint_transparent_background: capabilities.supportsTransparentBackground
+            ? input.transparentBackground || null
+            : undefined,
         promptParts: input.promptParts,
         generationSources,
     }

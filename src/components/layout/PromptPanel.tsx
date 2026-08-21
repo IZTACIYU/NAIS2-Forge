@@ -147,6 +147,7 @@ export function PromptPanel() {
     const qualityToggle = useGenerationStore(state => state.qualityToggle)
     const qualityTagPreset = useGenerationStore(state => state.qualityTagPreset)
     const ucPreset = useGenerationStore(state => state.ucPreset)
+    const transparentBackground = useGenerationStore(state => state.transparentBackground)
     const selectedQualityTagPreset = modelCapabilities.qualityTagPresets.length > 2
         ? qualityTagPreset
         : qualityToggle ? 'standard' : 'none'
@@ -176,6 +177,7 @@ export function PromptPanel() {
     const setQualityToggle = useGenerationStore(state => state.setQualityToggle)
     const setQualityTagPreset = useGenerationStore(state => state.setQualityTagPreset)
     const setUcPreset = useGenerationStore(state => state.setUcPreset)
+    const setTransparentBackground = useGenerationStore(state => state.setTransparentBackground)
     const setBatchCount = useGenerationStore(state => state.setBatchCount)
     const generate = useGenerationStore(state => state.generate)
     const cancelGeneration = useGenerationStore(state => state.cancelGeneration)
@@ -904,6 +906,18 @@ export function PromptPanel() {
                                     />
                                 </div>
                             ) : null}
+
+                            {modelCapabilities.supportsTransparentBackground && (
+                                <div className="flex items-center justify-between">
+                                    <Label className="cursor-pointer" onClick={() => setTransparentBackground(!transparentBackground)}>
+                                        {t('parameters.transparentBackground')}
+                                    </Label>
+                                    <Switch
+                                        checked={transparentBackground}
+                                        onChange={(e) => setTransparentBackground(e.target.checked)}
+                                    />
+                                </div>
+                            )}
 
                             {modelCapabilities.qualityTagPresets.length > 0 && (
                                 <div className="space-y-2">

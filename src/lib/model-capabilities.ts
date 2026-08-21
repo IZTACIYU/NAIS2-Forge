@@ -6,6 +6,7 @@ export interface UcPresetOption {
     value: UcPresetId
     label: 'heavy' | 'light' | 'furryFocus' | 'humanFocus' | 'none'
     prefix?: string
+    tagHint?: number
 }
 
 export interface ModelModeOption {
@@ -18,6 +19,7 @@ export interface QualityTagPresetOption {
     value: QualityTagPresetId
     label: 'Standard' | 'Light' | 'None'
     suffix: string
+    tagHint?: number
 }
 
 export interface ModelCapabilities {
@@ -28,6 +30,7 @@ export interface ModelCapabilities {
     modes: readonly ModelModeOption[]
     supportsSmea: boolean
     supportsVariety: boolean
+    supportsTransparentBackground: boolean
 }
 
 export interface AvailableModel extends ModelCapabilities {
@@ -46,6 +49,7 @@ const V4_CAPABILITIES: ModelCapabilities = {
     maxPromptTokens: 512,
     supportsSmea: false,
     supportsVariety: true,
+    supportsTransparentBackground: false,
     modes: [],
     qualityTagPresets: [
         { value: 'standard', label: 'Standard', suffix: ', no text, best quality, very aesthetic, absurdres' },
@@ -105,18 +109,19 @@ const V5_FULL_CAPABILITIES: ModelCapabilities = {
     maxCharacterPrompts: 32,
     maxPromptTokens: 1471,
     supportsVariety: false,
+    supportsTransparentBackground: true,
     modes: V5_MODES,
     qualityTagPresets: [
-        { value: 'standard', label: 'Standard', suffix: ', very aesthetic, masterpiece, no text' },
-        { value: 'light', label: 'Light', suffix: ', very aesthetic, amazing quality, no text' },
-        NONE_QUALITY_TAGS,
+        { value: 'standard', label: 'Standard', suffix: ', very aesthetic, masterpiece, no text', tagHint: 1 },
+        { value: 'light', label: 'Light', suffix: ', very aesthetic, amazing quality, no text', tagHint: 3 },
+        { ...NONE_QUALITY_TAGS, tagHint: 0 },
     ],
     ucPresets: [
-        { value: 0, label: 'heavy', prefix: 'nsfw, lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page' },
-        { value: 1, label: 'light', prefix: 'nsfw, lowres, bad hands, bad anatomy, artistic error, sepia, white haze, worst quality, very displeasing, jpeg artifacts, 0::ai-generated::' },
-        { value: 2, label: 'furryFocus', prefix: 'nsfw, {worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, {{grandfathered content}}, blurred foreground, chromatic aberration, sketch, everyone, [sketch background], simple, [flat colors], ych (character), outline, multiple scenes, [[horror (theme)]], comic' },
-        { value: 3, label: 'humanFocus', prefix: 'nsfw, lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, @_@, mismatched pupils, glowing eyes, bad anatomy' },
-        { value: 4, label: 'none' },
+        { value: 0, label: 'heavy', prefix: 'nsfw, lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page', tagHint: 2 },
+        { value: 1, label: 'light', prefix: 'nsfw, lowres, bad hands, bad anatomy, artistic error, sepia, white haze, worst quality, very displeasing, jpeg artifacts, 0::ai-generated::', tagHint: 3 },
+        { value: 2, label: 'furryFocus', prefix: 'nsfw, {worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, {{grandfathered content}}, blurred foreground, chromatic aberration, sketch, everyone, [sketch background], simple, [flat colors], ych (character), outline, multiple scenes, [[horror (theme)]], comic', tagHint: 5 },
+        { value: 3, label: 'humanFocus', prefix: 'nsfw, lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, @_@, mismatched pupils, glowing eyes, bad anatomy', tagHint: 4 },
+        { value: 4, label: 'none', tagHint: 0 },
     ],
 }
 
@@ -125,18 +130,19 @@ const V5_CURATED_CAPABILITIES: ModelCapabilities = {
     maxCharacterPrompts: 32,
     maxPromptTokens: 703,
     supportsVariety: false,
+    supportsTransparentBackground: true,
     modes: V5_MODES,
     qualityTagPresets: [
-        { value: 'standard', label: 'Standard', suffix: ', very aesthetic, masterpiece, no text' },
-        { value: 'light', label: 'Light', suffix: ', very aesthetic, amazing quality, no text' },
-        NONE_QUALITY_TAGS,
+        { value: 'standard', label: 'Standard', suffix: ', very aesthetic, masterpiece, no text', tagHint: 1 },
+        { value: 'light', label: 'Light', suffix: ', very aesthetic, amazing quality, no text', tagHint: 3 },
+        { ...NONE_QUALITY_TAGS, tagHint: 0 },
     ],
     ucPresets: [
-        { value: 0, label: 'heavy', prefix: 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page' },
-        { value: 1, label: 'light', prefix: 'lowres, bad hands, bad anatomy, artistic error, sepia, white haze, worst quality, very displeasing, jpeg artifacts, 0::ai-generated::' },
-        { value: 2, label: 'furryFocus', prefix: '{worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, {{grandfathered content}}, blurred foreground, chromatic aberration, sketch, everyone, [sketch background], simple, [flat colors], ych (character), outline, multiple scenes, [[horror (theme)]], comic' },
-        { value: 3, label: 'humanFocus', prefix: 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, @_@, mismatched pupils, glowing eyes, bad anatomy' },
-        { value: 4, label: 'none' },
+        { value: 0, label: 'heavy', prefix: 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page', tagHint: 2 },
+        { value: 1, label: 'light', prefix: 'lowres, bad hands, bad anatomy, artistic error, sepia, white haze, worst quality, very displeasing, jpeg artifacts, 0::ai-generated::', tagHint: 3 },
+        { value: 2, label: 'furryFocus', prefix: '{worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, {{grandfathered content}}, blurred foreground, chromatic aberration, sketch, everyone, [sketch background], simple, [flat colors], ych (character), outline, multiple scenes, [[horror (theme)]], comic', tagHint: 5 },
+        { value: 3, label: 'humanFocus', prefix: 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, @_@, mismatched pupils, glowing eyes, bad anatomy', tagHint: 4 },
+        { value: 4, label: 'none', tagHint: 0 },
     ],
 }
 

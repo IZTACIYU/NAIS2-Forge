@@ -619,7 +619,8 @@
     "smea": "SMEA",
     "smeaDyn": "SMEA DYN",
     "mode": "Mode",
-    "qualityToggle": "Add Quality Tags"
+    "qualityToggle": "Add Quality Tags",
+    "transparentBackground": "Transparent Background"
   },
   "history": {
     "title": "히스토리",

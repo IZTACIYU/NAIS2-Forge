@@ -67,6 +67,7 @@ interface GenerationState {
     qualityToggle: boolean
     qualityTagPreset: QualityTagPresetId
     ucPreset: number
+    transparentBackground: boolean
 
     // Batch generation
     batchCount: number
@@ -126,6 +127,7 @@ interface GenerationState {
     setQualityToggle: (v: boolean) => void
     setQualityTagPreset: (v: QualityTagPresetId) => void
     setUcPreset: (v: number) => void
+    setTransparentBackground: (v: boolean) => void
 
     setBatchCount: (count: number) => void
 
@@ -200,6 +202,7 @@ export const useGenerationStore = create<GenerationState>()(
             qualityToggle: true,
             qualityTagPreset: 'standard',
             ucPreset: 0,
+            transparentBackground: false,
 
             batchCount: 1,
             currentBatch: 0,
@@ -239,6 +242,9 @@ export const useGenerationStore = create<GenerationState>()(
                     modelMode: normalizeModelMode(model, state.modelMode),
                     qualityTagPreset: normalizeQualityTagPreset(model, state.qualityTagPreset),
                     ucPreset: normalizeUcPreset(model, state.ucPreset),
+                    transparentBackground: getModelCapabilities(model).supportsTransparentBackground
+                        ? state.transparentBackground
+                        : false,
                 }))
             },
             setSteps: (steps) => set({ steps }),
@@ -269,6 +275,7 @@ export const useGenerationStore = create<GenerationState>()(
                     modelMode: normalizeModelMode(preset.model, 'anime'),
                     qualityTagPreset: normalizeQualityTagPreset(preset.model, 'standard'),
                     ucPreset: normalizeUcPreset(preset.model, preset.ucPreset ?? 0),
+                    transparentBackground: false,
                     selectedResolution: preset.selectedResolution,
                 })
             },
@@ -292,6 +299,7 @@ export const useGenerationStore = create<GenerationState>()(
             setUcPreset: (ucPreset) => set(state => ({
                 ucPreset: normalizeUcPreset(state.model, ucPreset),
             })),
+            setTransparentBackground: (transparentBackground) => set({ transparentBackground }),
 
             setBatchCount: (count) => set({ batchCount: count }),
 
@@ -509,6 +517,7 @@ export const useGenerationStore = create<GenerationState>()(
                             qualityToggle: get().qualityToggle,
                             qualityTagPreset: get().qualityTagPreset,
                             ucPreset: get().ucPreset,
+                            transparentBackground: get().transparentBackground,
                             promptWhitespaceMode,
                             removeEmptyPromptSeparators,
                             insertBlankLinesBetweenPromptParts,
