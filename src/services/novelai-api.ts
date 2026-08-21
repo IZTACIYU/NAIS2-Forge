@@ -32,6 +32,12 @@ export interface AnlasInfo {
     total: number
 }
 
+export interface ImageGenerationUsage {
+    percent: number
+    isNegative: boolean
+    timeUntilNextPercent: number
+}
+
 export interface GenerationParams {
     prompt: string
     negative_prompt: string
@@ -178,6 +184,7 @@ function decodeBase64Bytes(value: string): Uint8Array {
 export async function getUserInfo(token: string): Promise<{
     anlas: AnlasInfo
     imageGenerationEntitlement: ImageGenerationEntitlement | null
+    imageGenerationUsage: ImageGenerationUsage | null
 } | null> {
     try {
         const trimmedToken = token.trim()
@@ -189,6 +196,7 @@ export async function getUserInfo(token: string): Promise<{
                 fixed?: number
                 purchased?: number
                 unlimitedImageGeneration?: boolean
+                imageGenerationUsage?: ImageGenerationUsage
                 error?: string
             }>('get_anlas_balance', { token: trimmedToken })
 
@@ -204,6 +212,7 @@ export async function getUserInfo(token: string): Promise<{
                     imageGenerationEntitlement: result.unlimitedImageGeneration === undefined
                         ? null
                         : { unlimitedImageGeneration: result.unlimitedImageGeneration },
+                    imageGenerationUsage: result.imageGenerationUsage ?? null,
                 }
             }
             return null

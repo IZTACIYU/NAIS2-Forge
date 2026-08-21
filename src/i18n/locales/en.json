@@ -612,7 +612,8 @@
   },
   "layout": {
     "toggleLeftSidebar": "Toggle Left Sidebar",
-    "toggleRightSidebar": "Toggle Right Sidebar"
+    "toggleRightSidebar": "Toggle Right Sidebar",
+    "v5Usage": "V5 Limit {{percent}}%"
   },
   "resolutions": {
     "title": "Resolution",

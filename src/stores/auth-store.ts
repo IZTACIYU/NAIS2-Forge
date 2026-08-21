@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { indexedDBStorage } from '@/lib/indexed-db'
-import { getUserInfo, verifyToken, type AnlasInfo } from '@/services/novelai-api'
+import { getUserInfo, verifyToken, type AnlasInfo, type ImageGenerationUsage } from '@/services/novelai-api'
 import type { ImageGenerationEntitlement } from '@/lib/anlas-calculator'
 
 interface AuthState {
@@ -10,6 +10,7 @@ interface AuthState {
     tier: string | null
     anlas: AnlasInfo | null
     imageGenerationEntitlement: ImageGenerationEntitlement | null
+    imageGenerationUsage: ImageGenerationUsage | null
     isLoading: boolean
 
     setToken: (token: string) => void
@@ -26,6 +27,7 @@ export const useAuthStore = create<AuthState>()(
             tier: null,
             anlas: null,
             imageGenerationEntitlement: null,
+            imageGenerationUsage: null,
             isLoading: false,
 
             setToken: (token) => set({ token }),
@@ -36,18 +38,18 @@ export const useAuthStore = create<AuthState>()(
                 const result = await verifyToken(token)
 
                 if (result.valid) {
-                    set({ token, isVerified: true, tier: result.tier || null, anlas: null, imageGenerationEntitlement: null })
+                    set({ token, isVerified: true, tier: result.tier || null, anlas: null, imageGenerationEntitlement: null, imageGenerationUsage: null })
 
                     // Fetch Anlas balance
                     const userInfo = await getUserInfo(token)
                     if (userInfo) {
-                        set({ anlas: userInfo.anlas, imageGenerationEntitlement: userInfo.imageGenerationEntitlement })
+                        set({ anlas: userInfo.anlas, imageGenerationEntitlement: userInfo.imageGenerationEntitlement, imageGenerationUsage: userInfo.imageGenerationUsage })
                     }
 
                     set({ isLoading: false })
                     return true
                 } else {
-                    set({ isVerified: false, tier: null, anlas: null, imageGenerationEntitlement: null, isLoading: false })
+                    set({ isVerified: false, tier: null, anlas: null, imageGenerationEntitlement: null, imageGenerationUsage: null, isLoading: false })
                     return false
                 }
             },
@@ -58,7 +60,7 @@ export const useAuthStore = create<AuthState>()(
 
                 const userInfo = await getUserInfo(token)
                 if (userInfo) {
-                    set({ anlas: userInfo.anlas, imageGenerationEntitlement: userInfo.imageGenerationEntitlement })
+                    set({ anlas: userInfo.anlas, imageGenerationEntitlement: userInfo.imageGenerationEntitlement, imageGenerationUsage: userInfo.imageGenerationUsage })
                 }
             },
 
@@ -68,6 +70,7 @@ export const useAuthStore = create<AuthState>()(
                 tier: null,
                 anlas: null,
                 imageGenerationEntitlement: null,
+                imageGenerationUsage: null,
             }),
         }),
         {

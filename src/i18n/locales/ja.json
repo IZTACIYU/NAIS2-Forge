@@ -611,7 +611,8 @@
   },
   "layout": {
     "toggleLeftSidebar": "左サイドバー切替",
-    "toggleRightSidebar": "右サイドバー切替"
+    "toggleRightSidebar": "右サイドバー切替",
+    "v5Usage": "V5 上限 {{percent}}%"
   },
   "resolutions": {
     "title": "解像度",

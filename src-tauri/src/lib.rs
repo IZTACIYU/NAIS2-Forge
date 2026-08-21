@@ -14,6 +14,8 @@ pub struct AnlasResult {
     pub purchased: Option<i64>,
     #[serde(rename = "unlimitedImageGeneration")]
     pub unlimited_image_generation: Option<bool>,
+    #[serde(rename = "imageGenerationUsage")]
+    pub image_generation_usage: Option<UsageLimit>,
     pub error: Option<String>,
 }
 
@@ -25,6 +27,7 @@ struct SubscriptionResponse {
     is_grace_period: Option<bool>,
     #[serde(rename = "trainingStepsLeft")]
     training_steps_left: Option<TrainingSteps>,
+    usage: Option<UsageLimit>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -33,6 +36,15 @@ struct TrainingSteps {
     fixed_training_steps_left: Option<i64>,
     #[serde(rename = "purchasedTrainingSteps")]
     purchased_training_steps: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UsageLimit {
+    percent: Option<i64>,
+    #[serde(rename = "isNegative")]
+    is_negative: Option<bool>,
+    #[serde(rename = "timeUntilNextPercent")]
+    time_until_next_percent: Option<i64>,
 }
 
 #[tauri::command]
@@ -149,6 +161,7 @@ async fn get_anlas_balance(token: String) -> AnlasResult {
                             fixed,
                             purchased,
                             unlimited_image_generation: Some(unlimited_image_generation),
+                            image_generation_usage: data.usage,
                             error: None,
                         }
                     }
@@ -157,6 +170,7 @@ async fn get_anlas_balance(token: String) -> AnlasResult {
                         fixed: None,
                         purchased: None,
                         unlimited_image_generation: None,
+                        image_generation_usage: None,
                         error: Some(format!("JSON 파싱 오류: {}", e)),
                     },
                 }
@@ -166,6 +180,7 @@ async fn get_anlas_balance(token: String) -> AnlasResult {
                     fixed: None,
                     purchased: None,
                     unlimited_image_generation: None,
+                    image_generation_usage: None,
                     error: Some(format!("API 오류: {}", response.status().as_u16())),
                 }
             }
@@ -175,6 +190,7 @@ async fn get_anlas_balance(token: String) -> AnlasResult {
             fixed: None,
             purchased: None,
             unlimited_image_generation: None,
+            image_generation_usage: None,
             error: Some(format!("네트워크 오류: {}", e)),
         },
     }

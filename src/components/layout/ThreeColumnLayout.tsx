@@ -21,6 +21,7 @@ import {
     Cloud,
     Settings,
     Coins,
+    Gauge,
     Wand2,
     Eraser,
     PanelLeft,
@@ -35,6 +36,7 @@ interface ThreeColumnLayoutProps {
 import { usePresetStore } from '@/stores/preset-store'
 import { useLayoutStore } from '@/stores/layout-store'
 import { useSettingsStore } from '@/stores/settings-store'
+import { useGenerationStore } from '@/stores/generation-store'
 
 // Check if running on Mac (works in browser and Tauri WebView)
 const isMac = navigator.platform.toUpperCase().includes('MAC') ||
@@ -47,11 +49,13 @@ const SceneRandomCharacterDialog = lazy(() => import('@/components/scene/SceneRa
 export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const { t } = useTranslation()
     const location = useLocation()
-    const { anlas, isVerified, refreshAnlas } = useAuthStore(useShallow(state => ({
+    const { anlas, imageGenerationUsage, isVerified, refreshAnlas } = useAuthStore(useShallow(state => ({
         anlas: state.anlas,
+        imageGenerationUsage: state.imageGenerationUsage,
         isVerified: state.isVerified,
         refreshAnlas: state.refreshAnlas,
     })))
+    const model = useGenerationStore(state => state.model)
     const { leftSidebarVisible, rightSidebarVisible, toggleLeftSidebar, toggleRightSidebar, leftSidebarWidth, rightSidebarWidth, setLeftSidebarWidth, setRightSidebarWidth } = useLayoutStore(useShallow(state => ({
         leftSidebarVisible: state.leftSidebarVisible,
         rightSidebarVisible: state.rightSidebarVisible,
@@ -192,6 +196,8 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const formatAnlas = (value: number) => {
         return value.toLocaleString()
     }
+    const isV5Model = model === 'nai-diffusion-5-full' || model === 'nai-diffusion-5-curated'
+    const v5UsagePercent = Math.max(0, Math.min(100, imageGenerationUsage?.percent ?? 0))
 
     return (
         <div className="flex flex-col h-screen bg-background overflow-hidden">
@@ -238,7 +244,20 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                             </Tip>
                         )}
                         {isVerified && anlas ? (
-                            <div className="flex shrink-0 items-center">
+                            <div className="flex shrink-0 items-center gap-1.5">
+                                {isV5Model && imageGenerationUsage && (
+                                    <Tip content={t('layout.v5Usage', 'V5 Limit {{percent}}%', { percent: v5UsagePercent })}>
+                                        <div className="flex h-8 w-[66px] items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-1.5 text-cyan-400">
+                                            <Gauge className="h-3 w-3 shrink-0" />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="text-[9px] font-semibold leading-3">V5 {v5UsagePercent}%</div>
+                                                <div className="h-1 overflow-hidden rounded-full bg-cyan-950/60">
+                                                    <div className="h-full rounded-full bg-cyan-400" style={{ width: `${v5UsagePercent}%` }} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Tip>
+                                )}
                                 <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 rounded-full border border-amber-500/30">
                                     <Coins className="h-4 w-4 text-amber-500" />
                                     <span className="text-sm font-semibold text-amber-500">
