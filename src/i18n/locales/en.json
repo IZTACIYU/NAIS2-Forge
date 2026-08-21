@@ -613,7 +613,7 @@
   "layout": {
     "toggleLeftSidebar": "Toggle Left Sidebar",
     "toggleRightSidebar": "Toggle Right Sidebar",
-    "v5Usage": "V5 Limit {{percent}}%"
+    "v5Usage": "Limit {{percent}}%"
   },
   "resolutions": {
     "title": "Resolution",

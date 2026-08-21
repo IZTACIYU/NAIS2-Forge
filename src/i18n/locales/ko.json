@@ -645,7 +645,7 @@
   "layout": {
     "toggleLeftSidebar": "왼쪽 사이드바 토글",
     "toggleRightSidebar": "오른쪽 사이드바 토글",
-    "v5Usage": "V5 한도 {{percent}}%"
+    "v5Usage": "한도 {{percent}}%"
   },
   "resolutions": {
     "title": "해상도",

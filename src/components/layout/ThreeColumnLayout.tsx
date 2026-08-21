@@ -21,7 +21,6 @@ import {
     Cloud,
     Settings,
     Coins,
-    Gauge,
     Wand2,
     Eraser,
     PanelLeft,
@@ -246,14 +245,11 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                         {isVerified && anlas ? (
                             <div className="flex shrink-0 items-center gap-1.5">
                                 {isV5Model && imageGenerationUsage && (
-                                    <Tip content={t('layout.v5Usage', 'V5 Limit {{percent}}%', { percent: v5UsagePercent })}>
-                                        <div className="flex h-8 w-[66px] items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-1.5 text-cyan-400">
-                                            <Gauge className="h-3 w-3 shrink-0" />
-                                            <div className="min-w-0 flex-1">
-                                                <div className="text-[9px] font-semibold leading-3">V5 {v5UsagePercent}%</div>
-                                                <div className="h-1 overflow-hidden rounded-full bg-cyan-950/60">
-                                                    <div className="h-full rounded-full bg-cyan-400" style={{ width: `${v5UsagePercent}%` }} />
-                                                </div>
+                                    <Tip content={t('layout.v5Usage', 'Limit {{percent}}%', { percent: v5UsagePercent })}>
+                                        <div className="flex h-8 w-24 flex-col justify-center rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 text-cyan-400">
+                                            <div className="text-[10px] font-semibold leading-3">{v5UsagePercent}%</div>
+                                            <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-cyan-950/60">
+                                                <div className="h-full rounded-full bg-cyan-400" style={{ width: `${v5UsagePercent}%` }} />
                                             </div>
                                         </div>
                                     </Tip>
