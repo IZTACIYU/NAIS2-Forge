@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-import { CHARACTER_POSITION_GRID_SIZE, snapCharacterPosition } from '@/lib/character-position-grid'
+import {
+    CHARACTER_POSITION_GRID_SIZE,
+    resolveCharacterPosition,
+    type CharacterPositionMode,
+} from '@/lib/character-position-grid'
 
 export interface CharacterPositionMarker {
     id: string
@@ -14,24 +18,32 @@ interface CharacterPositionBoardProps {
     markers: CharacterPositionMarker[]
     aspectRatio: number
     onPositionChange: (id: string, x: number, y: number) => void
+    onPositionCommit?: (id: string, x: number, y: number) => void
     className?: string
     markerClassName?: string
     emptyContent?: ReactNode
     selectedId?: string | null
     onSelectedIdChange?: (id: string | null) => void
+    mode?: CharacterPositionMode
+    onDraggingChange?: (dragging: boolean) => void
 }
 
 export function CharacterPositionBoard({
     markers,
     aspectRatio,
     onPositionChange,
+    onPositionCommit,
     className,
     markerClassName = 'h-10 w-10 text-sm',
     emptyContent,
     selectedId: controlledSelectedId,
     onSelectedIdChange,
+    mode = 'grid',
+    onDraggingChange,
 }: CharacterPositionBoardProps) {
     const boardRef = useRef<HTMLDivElement>(null)
+    const draggingIdRef = useRef<string | null>(null)
+    const lastPositionRef = useRef<{ id: string, x: number, y: number } | null>(null)
     const [draggingId, setDraggingId] = useState<string | null>(null)
     const [uncontrolledSelectedId, setUncontrolledSelectedId] = useState<string | null>(null)
     const enabledMarkers = markers.filter(marker => marker.enabled !== false)
@@ -44,20 +56,26 @@ export function CharacterPositionBoard({
     const updatePositionFromPointer = (id: string, clientX: number, clientY: number) => {
         if (!boardRef.current) return
         const rect = boardRef.current.getBoundingClientRect()
-        const x = snapCharacterPosition((clientX - rect.left) / rect.width)
-        const y = snapCharacterPosition((clientY - rect.top) / rect.height)
+        const x = resolveCharacterPosition((clientX - rect.left) / rect.width, mode)
+        const y = resolveCharacterPosition((clientY - rect.top) / rect.height, mode)
+        lastPositionRef.current = { id, x, y }
         onPositionChange(id, x, y)
+        return { x, y }
     }
 
     const handleMarkerMouseDown = (event: ReactMouseEvent, id: string) => {
         event.preventDefault()
+        draggingIdRef.current = id
+        lastPositionRef.current = null
         setDraggingId(id)
+        onDraggingChange?.(true)
         setSelectedId(id)
     }
 
     const handleBoardMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
         if (event.button !== 0 || event.target !== event.currentTarget || !selectedId) return
-        updatePositionFromPointer(selectedId, event.clientX, event.clientY)
+        const position = updatePositionFromPointer(selectedId, event.clientX, event.clientY)
+        if (position) onPositionCommit?.(selectedId, position.x, position.y)
     }
 
     const handleBoardMouseMove = (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -65,10 +83,19 @@ export function CharacterPositionBoard({
     }
 
     useEffect(() => {
-        const stopDragging = () => setDraggingId(null)
+        const stopDragging = () => {
+            const lastPosition = lastPositionRef.current
+            if (lastPosition && lastPosition.id === draggingIdRef.current) {
+                onPositionCommit?.(lastPosition.id, lastPosition.x, lastPosition.y)
+            }
+            draggingIdRef.current = null
+            lastPositionRef.current = null
+            setDraggingId(null)
+            onDraggingChange?.(false)
+        }
         window.addEventListener('mouseup', stopDragging)
         return () => window.removeEventListener('mouseup', stopDragging)
-    }, [])
+    }, [onDraggingChange, onPositionCommit])
 
     useEffect(() => {
         if (selectedId && enabledMarkers.some(marker => marker.id === selectedId)) return
@@ -82,14 +109,14 @@ export function CharacterPositionBoard({
             style={{ aspectRatio }}
             onMouseDown={handleBoardMouseDown}
             onMouseMove={handleBoardMouseMove}
-            onMouseUp={() => setDraggingId(null)}
-            onMouseLeave={() => setDraggingId(null)}
         >
-            <div className="pointer-events-none absolute inset-0 grid grid-cols-5 grid-rows-5">
-                {Array.from({ length: CHARACTER_POSITION_GRID_SIZE ** 2 }, (_, index) => (
-                    <div key={index} className="border border-border/20" />
-                ))}
-            </div>
+            {mode === 'grid' && (
+                <div className="pointer-events-none absolute inset-0 grid grid-cols-5 grid-rows-5">
+                    {Array.from({ length: CHARACTER_POSITION_GRID_SIZE ** 2 }, (_, index) => (
+                        <div key={index} className="border border-border/20" />
+                    ))}
+                </div>
+            )}
 
             {enabledMarkers.map(marker => (
                 <div

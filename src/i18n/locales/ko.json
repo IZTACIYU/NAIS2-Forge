@@ -1185,6 +1185,8 @@
     "positionTitle": "이미지 내 캐릭터 위치 지정",
     "positionDesc": "캐릭터 위치 기능 활성화",
     "positionHelp": "캐릭터를 드래그하여 위치를 지정하세요",
+    "positionGrid": "그리드",
+    "positionFree": "자유",
     "noActiveCharacters": "활성화된 캐릭터가 없습니다",
     "addDesc": "새 캐릭터 프롬프트 추가",
     "addFolderDesc": "캐릭터 폴더 생성",

@@ -12,6 +12,7 @@
     "tauri:dev": "npx tauri dev --config src-tauri/tauri.dev.conf.json",
     "tauri:build": "npx tauri build",
     "release:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release-windows.ps1",
+    "check:character-position": "node --experimental-strip-types scripts/check-character-position.mjs",
     "check:model-capabilities": "node --experimental-strip-types scripts/check-model-capabilities.mjs",
     "tags:build": "node scripts/build-tag-index.mjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"

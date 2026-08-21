@@ -1040,6 +1040,8 @@
     "positionTitle": "画像内のキャラクター位置指定",
     "positionDesc": "キャラクター位置機能を有効化",
     "positionHelp": "キャラクターをドラッグして位置を指定",
+    "positionGrid": "グリッド",
+    "positionFree": "自由",
     "noActiveCharacters": "有効なキャラクターがありません",
     "addDesc": "新規キャラクタープロンプト追加",
     "addFolderDesc": "キャラクターフォルダ作成",

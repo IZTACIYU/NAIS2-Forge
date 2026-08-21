@@ -309,7 +309,7 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                     </div>}
 
                     {/* Page Content */}
-                    <main className={cn(
+                    <main data-character-position-host className={cn(
                         "flex-1 relative",
                         (location.pathname === '/' || location.pathname === '/library' || location.pathname === '/web') ? "p-0 overflow-hidden" : "p-4 overflow-y-auto"
                     )}>

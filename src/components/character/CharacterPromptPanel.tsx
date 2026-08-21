@@ -1,4 +1,6 @@
 import { memo, useState, useEffect, useRef, useCallback, useMemo, MouseEvent as ReactMouseEvent } from 'react'
+import { createPortal } from 'react-dom'
+import { useLocation } from 'react-router-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
 import {
@@ -60,7 +62,12 @@ import { useGenerationStore } from '@/stores/generation-store'
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { getCharacterGender, type CharacterGender } from '@/lib/character-gender'
-import { getCharacterPositionBoardAspectRatio } from '@/lib/character-position-grid'
+import {
+    fitCharacterPositionRect,
+    getContainedImageRect,
+    type CharacterPositionMode,
+    type CharacterPositionRect,
+} from '@/lib/character-position-grid'
 import { getModelCapabilities } from '@/lib/model-capabilities'
 import { COSTUME_PROMPT_MARKER, splitCostumePrompt } from '@/lib/costume-prompt'
 import { toast } from '@/components/ui/use-toast'
@@ -318,7 +325,10 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
 
     // Reopen with all existing cards collapsed.
     useEffect(() => {
-        if (!open) setExpandedId(null)
+        if (!open) {
+            setExpandedId(null)
+            setPositionDialogOpen(false)
+        }
     }, [open])
 
     const handleAddCharacter = () => {
@@ -1411,8 +1421,7 @@ export function CharacterPromptPanel({ open, onOpenChange }: CharacterPromptPane
                 </DndContext>
             </div>
 
-            {/* Position Dialog */}
-            <PositionDialog
+            <PositionOverlay
                 open={positionDialogOpen}
                 onOpenChange={setPositionDialogOpen}
                 characters={characters}
@@ -2068,59 +2077,175 @@ function CharacterCard({
     )
 }
 
-// --- Position Dialog ---
-interface PositionDialogProps {
+// --- Position Overlay ---
+interface PositionOverlayProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     characters: CharacterPrompt[]
     onPositionChange: (id: string, x: number, y: number) => void
 }
 
-function PositionDialog({ open, onOpenChange, characters, onPositionChange }: PositionDialogProps) {
+interface PositionOverlayPlacement extends CharacterPositionRect {
+    whiteBackground: boolean
+}
+
+function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: PositionOverlayProps) {
     const { t } = useTranslation()
+    const location = useLocation()
     const selectedResolution = useGenerationStore(state => state.selectedResolution)
-    const boardAspectRatio = getCharacterPositionBoardAspectRatio(
-        selectedResolution.width,
-        selectedResolution.height
-    )
+    const [mode, setMode] = useState<CharacterPositionMode>('grid')
+    const [placement, setPlacement] = useState<PositionOverlayPlacement | null>(null)
+    const [dragging, setDragging] = useState(false)
+    const [draftPositions, setDraftPositions] = useState<Record<string, { x: number, y: number }>>({})
+    const surfaceRef = useRef<HTMLDivElement>(null)
+    const boardAspectRatio = selectedResolution.width / selectedResolution.height
     const enabledCharacters = characters.filter(c => c.enabled)
 
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <MapPin className="h-5 w-5" />
-                        {t('characterPanel.positionTitle', '캐릭터 위치 지정')}
-                    </DialogTitle>
-                </DialogHeader>
+    useEffect(() => {
+        if (!open) {
+            setPlacement(null)
+            setDraftPositions({})
+            return
+        }
 
+        document.documentElement.dataset.characterPositionOpen = 'true'
+        const host = document.querySelector<HTMLElement>('[data-character-position-host]')
+        const image = document.querySelector<HTMLImageElement>('[data-character-position-image]')
+        if (!host) return () => {
+            delete document.documentElement.dataset.characterPositionOpen
+        }
+
+        const updatePlacement = () => {
+            const matchesPreview = location.pathname === '/'
+                && image?.complete
+                && image.naturalWidth === selectedResolution.width
+                && image.naturalHeight === selectedResolution.height
+            const rect = matchesPreview && image
+                ? getContainedImageRect(image.getBoundingClientRect(), image.naturalWidth, image.naturalHeight)
+                : fitCharacterPositionRect(host.getBoundingClientRect(), boardAspectRatio)
+            setPlacement({ ...rect, whiteBackground: !matchesPreview })
+        }
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape') return
+            event.preventDefault()
+            event.stopPropagation()
+            onOpenChange(false)
+        }
+
+        updatePlacement()
+        const resizeObserver = new ResizeObserver(updatePlacement)
+        resizeObserver.observe(host)
+        if (image) {
+            resizeObserver.observe(image)
+            image.addEventListener('load', updatePlacement)
+        }
+        window.addEventListener('resize', updatePlacement)
+        window.addEventListener('scroll', updatePlacement, true)
+        window.addEventListener('keydown', handleKeyDown, true)
+        return () => {
+            resizeObserver.disconnect()
+            image?.removeEventListener('load', updatePlacement)
+            window.removeEventListener('resize', updatePlacement)
+            window.removeEventListener('scroll', updatePlacement, true)
+            window.removeEventListener('keydown', handleKeyDown, true)
+            delete document.documentElement.dataset.characterPositionOpen
+        }
+    }, [open, location.pathname, selectedResolution.width, selectedResolution.height, boardAspectRatio, onOpenChange])
+
+    const handleDraftPositionChange = useCallback((id: string, x: number, y: number) => {
+        setDraftPositions(current => ({ ...current, [id]: { x, y } }))
+    }, [])
+
+    const handlePositionCommit = useCallback((id: string, x: number, y: number) => {
+        onPositionChange(id, x, y)
+        setDraftPositions(current => {
+            const next = { ...current }
+            delete next[id]
+            return next
+        })
+    }, [onPositionChange])
+
+    if (!open || !placement) return null
+
+    const handleOutsideMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
+        if (event.button !== 0 || dragging || !surfaceRef.current) return
+        const rect = surfaceRef.current.getBoundingClientRect()
+        const padding = 12
+        if (
+            event.clientX < rect.left - padding
+            || event.clientX > rect.right + padding
+            || event.clientY < rect.top - padding
+            || event.clientY > rect.bottom + padding
+        ) {
+            onOpenChange(false)
+        }
+    }
+
+    return createPortal(
+        <div
+            className="fixed inset-0 z-[100]"
+            role="dialog"
+            aria-label={t('characterPanel.positionTitle', '캐릭터 위치 지정')}
+            onMouseDown={handleOutsideMouseDown}
+        >
+            <div
+                ref={surfaceRef}
+                className={cn('absolute', placement.whiteBackground && 'bg-white')}
+                style={{
+                    left: placement.left,
+                    top: placement.top,
+                    width: placement.width,
+                    height: placement.height,
+                }}
+            >
                 <CharacterPositionBoard
                     aspectRatio={boardAspectRatio}
+                    mode={mode}
+                    className="h-full w-full rounded-none border-0 bg-transparent shadow-none"
+                    markerClassName="h-9 w-9 text-sm"
                     markers={enabledCharacters.map((character) => {
                         const colorIndex = characters.findIndex(candidate => candidate.id === character.id)
                         return {
                             id: character.id,
                             label: String(colorIndex + 1),
-                            position: character.position,
+                            position: draftPositions[character.id] || character.position,
                             color: CHARACTER_COLORS[colorIndex % CHARACTER_COLORS.length],
                         }
                     })}
-                    onPositionChange={onPositionChange}
-                    emptyContent={(
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center text-sm text-muted-foreground">
-                                <Users className="mx-auto mb-2 h-8 w-8 opacity-30" />
-                                <p>{t('characterPanel.noActiveCharacters', '활성화된 캐릭터가 없습니다')}</p>
-                            </div>
-                        </div>
-                    )}
+                    onPositionChange={handleDraftPositionChange}
+                    onPositionCommit={handlePositionCommit}
+                    onDraggingChange={setDragging}
                 />
 
-                <p className="text-xs text-muted-foreground text-center">
-                    {t('characterPanel.positionHelp', '캐릭터를 드래그하여 위치를 지정하세요')}
-                </p>
-            </DialogContent>
-        </Dialog>
+                <button
+                    type="button"
+                    autoFocus
+                    className="absolute right-2 top-2 z-30 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black"
+                    onClick={() => onOpenChange(false)}
+                    aria-label={t('common.close', '닫기')}
+                >
+                    <X className="h-4 w-4" />
+                </button>
+
+                <div className="absolute bottom-2 right-2 z-30 flex rounded-full bg-black/70 p-1">
+                    {(['grid', 'free'] as const).map(value => (
+                        <button
+                            key={value}
+                            type="button"
+                            className={cn(
+                                'h-7 rounded-full px-3 text-xs font-medium transition-colors',
+                                mode === value ? 'bg-white text-black' : 'text-white/70 hover:text-white',
+                            )}
+                            onClick={() => setMode(value)}
+                        >
+                            {value === 'grid'
+                                ? t('characterPanel.positionGrid', '그리드')
+                                : t('characterPanel.positionFree', '자유')}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>,
+        document.body,
     )
 }
