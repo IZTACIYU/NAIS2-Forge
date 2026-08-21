@@ -375,9 +375,14 @@ export function PromptPanel() {
                 ])
                 if (!cancelled) {
                     setTokenTotals({
-                        positive: countTokens(normalizePromptCommas(appendTransparentBackgroundPrompt(
-                            mergeQualityTags(resolvedPositive, model, qualityToggle, qualityTagPreset),
-                            modelCapabilities.supportsTransparentBackground && transparentBackground,
+                        positive: countTokens(normalizePromptCommas(mergeQualityTags(
+                            appendTransparentBackgroundPrompt(
+                                resolvedPositive,
+                                modelCapabilities.supportsTransparentBackground && transparentBackground,
+                            ),
+                            model,
+                            qualityToggle,
+                            qualityTagPreset,
                         ))),
                         negative: countTokens(normalizePromptCommas(resolvedNegative)),
                     })

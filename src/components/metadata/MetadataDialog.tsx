@@ -188,12 +188,12 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
                 // External image: merged prompt lands in basePrompt (fallback).
                 let prompt = metadata.prompt
                 if (loadOptions.parameters && metadata.modelId) {
-                    prompt = stripTransparentBackgroundPrompt(prompt, metadata.transparentBackground === true)
                     prompt = stripQualityTags(
                         prompt,
                         metadata.modelId,
                         metadata.qualityTagPreset ?? (metadata.qualityToggle ? 'standard' : 'none'),
                     )
+                    prompt = stripTransparentBackgroundPrompt(prompt, metadata.transparentBackground === true)
                 }
                 genStore.setBasePrompt(prompt)
             }

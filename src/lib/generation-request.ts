@@ -159,14 +159,14 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         characterGenders: activeCharacterInputs.map(({ character }) => getCharacterGender(character.prompt)),
         mainCharacterGenders: activeMainCharacterInputs.map(({ character }) => getCharacterGender(character.prompt)),
     }
-    const prompt = appendTransparentBackgroundPrompt(
-        mergeQualityTags(
+    const prompt = mergeQualityTags(
+        appendTransparentBackgroundPrompt(
             cleanup(await processWildcards(resolveConditionalPositivePrompt(rawMainPrompt, conditionalContext))),
-            input.model,
-            input.qualityToggle,
-            input.qualityTagPreset,
+            capabilities.supportsTransparentBackground && input.transparentBackground,
         ),
-        capabilities.supportsTransparentBackground && input.transparentBackground,
+        input.model,
+        input.qualityToggle,
+        input.qualityTagPreset,
     )
     const resolvedCharacterPrompts = await Promise.all(characterPrompts.map(async ({ rawPrompt, rawNegative, ...character }) => ({
         ...character,

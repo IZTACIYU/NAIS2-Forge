@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { getModelCapabilities } from '../src/lib/model-capabilities.ts'
-import { stripQualityTags, stripUcPreset } from '../src/lib/nai-presets.ts'
+import { mergeQualityTags, stripQualityTags, stripUcPreset } from '../src/lib/nai-presets.ts'
+import {
+    appendTransparentBackgroundPrompt,
+    stripTransparentBackgroundPrompt,
+} from '../src/lib/prompt-formatting.ts'
 
 const full = getModelCapabilities('nai-diffusion-5-full')
 const curated = getModelCapabilities('nai-diffusion-5-curated')
@@ -32,3 +36,18 @@ assert.equal(stripQualityTags(`A${standardSuffix}${standardSuffix}`, 'nai-diffus
 assert.equal(stripUcPreset(`${heavyPrefix}, custom`, 'nai-diffusion-5-full', 0), 'custom')
 assert.equal(stripUcPreset(heavyPrefix, 'nai-diffusion-5-full', 0), '')
 assert.equal(stripUcPreset(`custom, ${heavyPrefix}`, 'nai-diffusion-5-full', 0), `custom, ${heavyPrefix}`)
+
+const combinedPrompt = mergeQualityTags(
+    appendTransparentBackgroundPrompt('A', true),
+    'nai-diffusion-5-full',
+    true,
+    'standard',
+)
+assert.equal(combinedPrompt, `A, transparent background${standardSuffix}`)
+assert.equal(
+    stripTransparentBackgroundPrompt(
+        stripQualityTags(combinedPrompt, 'nai-diffusion-5-full', 'standard'),
+        true,
+    ),
+    'A',
+)
