@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { getModelCapabilities } from '../src/lib/model-capabilities.ts'
+import { stripQualityTags, stripUcPreset } from '../src/lib/nai-presets.ts'
 
 const full = getModelCapabilities('nai-diffusion-5-full')
 const curated = getModelCapabilities('nai-diffusion-5-curated')
@@ -22,3 +23,12 @@ assert.deepEqual(curated.ucPresets.map(preset => preset.value), [0, 1, 2, 3, 4])
 assert.deepEqual(curated.qualityTagPresets.map(preset => preset.tagHint), [1, 3, 0])
 assert.deepEqual(curated.ucPresets.map(preset => preset.tagHint), [2, 3, 5, 4, 0])
 assert.equal(getModelCapabilities('nai-diffusion-4-5-full').supportsTransparentBackground, false)
+
+const standardSuffix = full.qualityTagPresets.find(preset => preset.value === 'standard').suffix
+const heavyPrefix = full.ucPresets.find(preset => preset.value === 0).prefix
+assert.equal(stripQualityTags(`A${standardSuffix}`, 'nai-diffusion-5-full', 'standard'), 'A')
+assert.equal(stripQualityTags(`A${standardSuffix}`, 'nai-diffusion-5-full', 'light'), `A${standardSuffix}`)
+assert.equal(stripQualityTags(`A${standardSuffix}${standardSuffix}`, 'nai-diffusion-5-full', 'standard'), `A${standardSuffix}`)
+assert.equal(stripUcPreset(`${heavyPrefix}, custom`, 'nai-diffusion-5-full', 0), 'custom')
+assert.equal(stripUcPreset(heavyPrefix, 'nai-diffusion-5-full', 0), '')
+assert.equal(stripUcPreset(`custom, ${heavyPrefix}`, 'nai-diffusion-5-full', 0), `custom, ${heavyPrefix}`)

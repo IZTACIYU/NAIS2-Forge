@@ -28,6 +28,8 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { toast } from '@/components/ui/use-toast'
 import { FileImage, Download, AlertCircle } from 'lucide-react'
 import { useCharacterStore } from '@/stores/character-store'
+import { stripQualityTags, stripUcPreset } from '@/lib/nai-presets'
+import { stripTransparentBackgroundPrompt } from '@/lib/prompt-formatting'
 
 interface MetadataDialogProps {
     open: boolean
@@ -184,15 +186,28 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
                 }
             } else if (metadata.prompt) {
                 // External image: merged prompt lands in basePrompt (fallback).
-                genStore.setBasePrompt(metadata.prompt)
+                let prompt = metadata.prompt
+                if (loadOptions.parameters && metadata.modelId) {
+                    prompt = stripTransparentBackgroundPrompt(prompt, metadata.transparentBackground === true)
+                    prompt = stripQualityTags(
+                        prompt,
+                        metadata.modelId,
+                        metadata.qualityTagPreset ?? (metadata.qualityToggle ? 'standard' : 'none'),
+                    )
+                }
+                genStore.setBasePrompt(prompt)
             }
             // V4 negative prompt has priority over legacy uc when not already set
             // by promptParts above.
-            if (!metadata.promptParts?.negative) {
-                if (metadata.v4_negative_prompt?.caption?.base_caption) {
-                    genStore.setNegativePrompt(metadata.v4_negative_prompt.caption.base_caption)
-                } else if (metadata.negativePrompt) {
-                    genStore.setNegativePrompt(metadata.negativePrompt)
+            if (metadata.promptParts?.negative === undefined) {
+                const importedNegative = metadata.v4_negative_prompt?.caption?.base_caption
+                    ?? metadata.negativePrompt
+                if (importedNegative !== undefined) {
+                    genStore.setNegativePrompt(
+                        loadOptions.parameters && metadata.modelId && typeof metadata.ucPreset === 'number'
+                            ? stripUcPreset(importedNegative, metadata.modelId, metadata.ucPreset)
+                            : importedNegative,
+                    )
                 }
             }
         }
@@ -495,10 +510,12 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
                                             </div>
                                             <div className="bg-muted/30 rounded-lg p-2">
                                                 <span className="text-muted-foreground">Quality Tags:</span>
-                                                <span className="ml-1 font-medium">
-                                                    {typeof metadata.qualityToggle === 'boolean'
+                                                <span className="ml-1 font-medium capitalize">
+                                                    {metadata.qualityTagPreset ?? (
+                                                        typeof metadata.qualityToggle === 'boolean'
                                                         ? (metadata.qualityToggle ? 'ON' : 'OFF')
-                                                        : '-'}
+                                                        : '-'
+                                                    )}
                                                 </span>
                                             </div>
                                             <div className="bg-muted/30 rounded-lg p-2">

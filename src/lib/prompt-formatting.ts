@@ -27,3 +27,10 @@ export function appendTransparentBackgroundPrompt(prompt: string, enabled: boole
     if (!enabled) return prompt
     return prompt ? `${prompt}, transparent background` : 'transparent background'
 }
+
+export function stripTransparentBackgroundPrompt(prompt: string, enabled: boolean) {
+    if (!enabled) return prompt
+    if (prompt === 'transparent background') return ''
+    const suffix = ', transparent background'
+    return prompt.endsWith(suffix) ? prompt.slice(0, -suffix.length) : prompt
+}
