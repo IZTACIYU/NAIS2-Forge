@@ -221,7 +221,7 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
             if (metadata.modelId) genStore.setModel(metadata.modelId)
             if (metadata.steps) genStore.setSteps(metadata.steps)
             if (metadata.cfgScale) genStore.setCfgScale(metadata.cfgScale)
-            if (metadata.cfgRescale) genStore.setCfgRescale(metadata.cfgRescale)
+            if (metadata.cfgRescale !== undefined) genStore.setCfgRescale(metadata.cfgRescale)
             if (metadata.sampler) genStore.setSampler(metadata.sampler)
             if (metadata.scheduler) genStore.setScheduler(metadata.scheduler)
             if (typeof metadata.smea === 'boolean') genStore.setSmea(metadata.smea)

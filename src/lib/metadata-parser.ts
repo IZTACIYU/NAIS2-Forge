@@ -792,7 +792,9 @@ function convertNAIFormat(data: Record<string, unknown>): NAIMetadata {
     // Generation params
     if (data.steps) metadata.steps = Number(data.steps)
     if (data.scale) metadata.cfgScale = Number(data.scale)
-    if (data.cfg_rescale) metadata.cfgRescale = Number(data.cfg_rescale)
+    if (data.cfg_rescale !== undefined && data.cfg_rescale !== null) {
+        metadata.cfgRescale = Number(data.cfg_rescale)
+    }
     if (data.seed) metadata.seed = Number(data.seed)
     if (data.sampler) metadata.sampler = String(data.sampler)
     if (data.noise_schedule) metadata.scheduler = String(data.noise_schedule)
