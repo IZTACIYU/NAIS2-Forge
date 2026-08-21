@@ -2193,7 +2193,7 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
         >
             <div
                 ref={surfaceRef}
-                className={cn('absolute', placement.whiteBackground ? 'bg-white' : 'bg-black/25')}
+                className={cn('absolute', placement.whiteBackground ? 'bg-white' : 'bg-black/40')}
                 style={{
                     left: placement.left,
                     top: placement.top,
@@ -2235,7 +2235,7 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
                 </button>
 
                 <div className={cn(
-                    'absolute z-30 flex rounded-full bg-black/90 p-1',
+                    'absolute z-30 flex w-max rounded-full bg-black/90 p-1',
                     controlsOnRight ? 'left-full bottom-0 ml-2' : 'left-0 bottom-full mb-2',
                 )}>
                     {(['grid', 'free'] as const).map(value => (
@@ -2243,7 +2243,7 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
                             key={value}
                             type="button"
                             className={cn(
-                                'h-7 rounded-full px-3 text-xs font-medium transition-colors',
+                                'h-7 whitespace-nowrap rounded-full px-3 text-xs font-medium transition-colors',
                                 mode === value ? 'bg-white text-black' : 'text-white/70 hover:text-white',
                             )}
                             onClick={() => setMode(value)}
