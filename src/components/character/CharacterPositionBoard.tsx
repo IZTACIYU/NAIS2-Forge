@@ -21,6 +21,7 @@ interface CharacterPositionBoardProps {
     onPositionCommit?: (id: string, x: number, y: number) => void
     className?: string
     markerClassName?: string
+    gridClassName?: string
     emptyContent?: ReactNode
     selectedId?: string | null
     onSelectedIdChange?: (id: string | null) => void
@@ -35,6 +36,7 @@ export function CharacterPositionBoard({
     onPositionCommit,
     className,
     markerClassName = 'h-10 w-10 text-sm',
+    gridClassName = 'border-border/20',
     emptyContent,
     selectedId: controlledSelectedId,
     onSelectedIdChange,
@@ -113,7 +115,7 @@ export function CharacterPositionBoard({
             {mode === 'grid' && (
                 <div className="pointer-events-none absolute inset-0 grid grid-cols-5 grid-rows-5">
                     {Array.from({ length: CHARACTER_POSITION_GRID_SIZE ** 2 }, (_, index) => (
-                        <div key={index} className="border border-border/20" />
+                        <div key={index} className={cn('border', gridClassName)} />
                     ))}
                 </div>
             )}

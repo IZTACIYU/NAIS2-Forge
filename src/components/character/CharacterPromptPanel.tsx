@@ -2169,6 +2169,7 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
 
     const handleOutsideMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
         if (event.button !== 0 || dragging || !surfaceRef.current) return
+        if (surfaceRef.current.contains(event.target as Node)) return
         const rect = surfaceRef.current.getBoundingClientRect()
         const padding = 12
         if (
@@ -2181,6 +2182,8 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
         }
     }
 
+    const controlsOnRight = placement.left + placement.width + 132 <= window.innerWidth
+
     return createPortal(
         <div
             className="fixed inset-0 z-[100]"
@@ -2190,7 +2193,7 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
         >
             <div
                 ref={surfaceRef}
-                className={cn('absolute', placement.whiteBackground && 'bg-white')}
+                className={cn('absolute', placement.whiteBackground ? 'bg-white' : 'bg-black/25')}
                 style={{
                     left: placement.left,
                     top: placement.top,
@@ -2203,6 +2206,7 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
                     mode={mode}
                     className="h-full w-full rounded-none border-0 bg-transparent shadow-none"
                     markerClassName="h-9 w-9 text-sm"
+                    gridClassName={placement.whiteBackground ? 'border-black/30' : 'border-white/50'}
                     markers={enabledCharacters.map((character) => {
                         const colorIndex = characters.findIndex(candidate => candidate.id === character.id)
                         return {
@@ -2220,14 +2224,20 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
                 <button
                     type="button"
                     autoFocus
-                    className="absolute right-2 top-2 z-30 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black"
+                    className={cn(
+                        'absolute z-30 flex h-8 w-8 items-center justify-center rounded-full bg-black/90 text-white hover:bg-black',
+                        controlsOnRight ? 'left-full top-0 ml-2' : 'right-0 bottom-full mb-2',
+                    )}
                     onClick={() => onOpenChange(false)}
                     aria-label={t('common.close', '닫기')}
                 >
                     <X className="h-4 w-4" />
                 </button>
 
-                <div className="absolute bottom-2 right-2 z-30 flex rounded-full bg-black/70 p-1">
+                <div className={cn(
+                    'absolute z-30 flex rounded-full bg-black/90 p-1',
+                    controlsOnRight ? 'left-full bottom-0 ml-2' : 'left-0 bottom-full mb-2',
+                )}>
                     {(['grid', 'free'] as const).map(value => (
                         <button
                             key={value}
