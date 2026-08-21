@@ -17,3 +17,8 @@ export function removeExactEmptyPromptSeparators(prompt: string) {
     while (result.includes(', ,')) result = result.split(', ,').join(',')
     return result
 }
+
+/** Matches NovelAI's built-in comma spacing without trimming user whitespace. */
+export function normalizePromptCommas(prompt: string) {
+    return prompt.replace(/ ,/g, ',').replace(/,(?! |$)/g, ', ')
+}

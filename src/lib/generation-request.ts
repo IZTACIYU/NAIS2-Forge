@@ -15,6 +15,7 @@ import { resolveConditionalNegativePrompt, resolveConditionalPositivePrompt } fr
 import { getCharacterGender } from '@/lib/character-gender'
 import {
     formatPromptWhitespace,
+    normalizePromptCommas,
     removeExactEmptyPromptSeparators,
     type PromptWhitespaceMode,
 } from '@/lib/prompt-formatting'
@@ -81,9 +82,12 @@ const joinPromptParts = (
         .join(insertBlankLines ? '\n\n' : ', ')
 
 export const buildGenerationRequest = async (input: GenerationRequestInput): Promise<GenerationParams> => {
-    const cleanup = (prompt: string) => input.removeEmptyPromptSeparators
-        ? removeExactEmptyPromptSeparators(prompt)
-        : prompt
+    const cleanup = (prompt: string) => {
+        const normalized = normalizePromptCommas(prompt)
+        return input.removeEmptyPromptSeparators
+            ? removeExactEmptyPromptSeparators(normalized)
+            : normalized
+    }
     const rawBasePrompt = joinPromptParts(
         input.positiveParts,
         input.promptWhitespaceMode,

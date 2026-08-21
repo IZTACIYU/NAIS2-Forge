@@ -638,7 +638,7 @@ export async function generateImage(
                     // Always add negative char_caption (empty string if no negative)
                     // NAI requires 1:1 matching between positive and negative char_captions
                     apiParameters.v4_negative_prompt.caption.char_captions.push({
-                        char_caption: removePromptComments(char.negative?.trim() || ''),
+                        char_caption: removePromptComments(char.negative || ''),
                         centers: centers
                     })
                 }
@@ -656,7 +656,7 @@ export async function generateImage(
                 .filter(c => c.enabled && c.prompt.trim())
                 .map(c => ({
                     prompt: c.prompt,
-                    uc: c.negative?.trim() || '',
+                    uc: c.negative || '',
                     center: params.characterPositionEnabled
                         ? { x: c.position.x, y: c.position.y }
                         : { x: 0.5, y: 0.5 },
@@ -1171,7 +1171,7 @@ export async function generateImageStream(
                     // Always add negative char_caption (empty string if no negative)
                     // NAI requires 1:1 matching between positive and negative char_captions
                     apiParameters.v4_negative_prompt.caption.char_captions.push({
-                        char_caption: removePromptComments(char.negative?.trim() || ''),
+                        char_caption: removePromptComments(char.negative || ''),
                         centers: centers
                     })
                 }
@@ -1187,7 +1187,7 @@ export async function generateImageStream(
                 .filter(c => c.enabled && c.prompt.trim())
                 .map(c => ({
                     prompt: c.prompt,
-                    uc: c.negative?.trim() || '',
+                    uc: c.negative || '',
                     center: params.characterPositionEnabled
                         ? { x: c.position.x, y: c.position.y }
                         : { x: 0.5, y: 0.5 },

@@ -64,6 +64,7 @@ import { ResolutionSelector } from '@/components/ui/ResolutionSelector'
 import { useSceneQueueHasItems, useSceneQueueTotal } from '@/hooks/use-scene-queue'
 import { getModelCapabilities } from '@/lib/model-capabilities'
 import { mergeQualityTags, mergeUcPreset } from '@/lib/nai-presets'
+import { normalizePromptCommas } from '@/lib/prompt-formatting'
 import { calculateGenerationAnlasCost } from '@/lib/anlas-calculator'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -374,8 +375,10 @@ export function PromptPanel() {
                 ])
                 if (!cancelled) {
                     setTokenTotals({
-                        positive: countTokens(mergeQualityTags(resolvedPositive, model, qualityToggle, qualityTagPreset)),
-                        negative: countTokens(resolvedNegative),
+                        positive: countTokens(normalizePromptCommas(
+                            mergeQualityTags(resolvedPositive, model, qualityToggle, qualityTagPreset),
+                        )),
+                        negative: countTokens(normalizePromptCommas(resolvedNegative)),
                     })
                 }
             })
