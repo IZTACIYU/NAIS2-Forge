@@ -36,6 +36,10 @@ export interface AvailableModel extends ModelCapabilities {
 }
 
 const NONE_QUALITY_TAGS: QualityTagPresetOption = { value: 'none', label: 'None', suffix: '' }
+const V5_MODES: readonly ModelModeOption[] = [
+    { value: 'anime', label: 'Anime' },
+    { value: 'furry', label: 'Furry', promptPrefix: 'fur dataset' },
+]
 
 const V4_CAPABILITIES: ModelCapabilities = {
     maxCharacterPrompts: 6,
@@ -101,10 +105,7 @@ const V5_FULL_CAPABILITIES: ModelCapabilities = {
     maxCharacterPrompts: 32,
     maxPromptTokens: 1471,
     supportsVariety: false,
-    modes: [
-        { value: 'anime', label: 'Anime' },
-        { value: 'furry', label: 'Furry', promptPrefix: 'fur dataset' },
-    ],
+    modes: V5_MODES,
     qualityTagPresets: [
         { value: 'standard', label: 'Standard', suffix: ', very aesthetic, masterpiece, no text' },
         { value: 'light', label: 'Light', suffix: ', very aesthetic, amazing quality, no text' },
@@ -123,6 +124,20 @@ const V5_CURATED_CAPABILITIES: ModelCapabilities = {
     ...V45_CURATED_CAPABILITIES,
     maxCharacterPrompts: 32,
     maxPromptTokens: 703,
+    supportsVariety: false,
+    modes: V5_MODES,
+    qualityTagPresets: [
+        { value: 'standard', label: 'Standard', suffix: ', very aesthetic, masterpiece, no text' },
+        { value: 'light', label: 'Light', suffix: ', very aesthetic, amazing quality, no text' },
+        NONE_QUALITY_TAGS,
+    ],
+    ucPresets: [
+        { value: 0, label: 'heavy', prefix: 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page' },
+        { value: 1, label: 'light', prefix: 'lowres, bad hands, bad anatomy, artistic error, sepia, white haze, worst quality, very displeasing, jpeg artifacts, 0::ai-generated::' },
+        { value: 2, label: 'furryFocus', prefix: '{worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, {{grandfathered content}}, blurred foreground, chromatic aberration, sketch, everyone, [sketch background], simple, [flat colors], ych (character), outline, multiple scenes, [[horror (theme)]], comic' },
+        { value: 3, label: 'humanFocus', prefix: 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, @_@, mismatched pupils, glowing eyes, bad anatomy' },
+        { value: 4, label: 'none' },
+    ],
 }
 
 const V3_ANIME_CAPABILITIES: ModelCapabilities = {
