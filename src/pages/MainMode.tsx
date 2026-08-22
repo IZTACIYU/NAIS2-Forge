@@ -490,7 +490,7 @@ export default function MainMode() {
                     // Generated Image with Context Menu
                     <ContextMenu>
                         <ContextMenuTrigger asChild>
-                            <div className="relative w-full h-full group cursor-context-menu">
+                            <div data-character-position-preview className="relative w-full h-full group cursor-context-menu">
                                 <img
                                     data-character-position-image
                                     src={previewImage}

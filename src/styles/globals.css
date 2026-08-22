@@ -6,6 +6,10 @@ html[data-character-position-open='true'] [data-character-position-chrome] {
   visibility: hidden !important;
 }
 
+html[data-character-position-fallback='true'] [data-character-position-preview] {
+  visibility: hidden !important;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

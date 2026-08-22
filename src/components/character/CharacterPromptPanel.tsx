@@ -2085,7 +2085,7 @@ interface PositionOverlayProps {
 }
 
 interface PositionOverlayPlacement extends CharacterPositionRect {
-    whiteBackground: boolean
+    fallbackBackground: boolean
     controlsTop: number
     controlsRight: number
 }
@@ -2108,6 +2108,7 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
         if (!open) {
             setPlacement(null)
             setDraftPositions({})
+            delete document.documentElement.dataset.characterPositionFallback
             return
         }
 
@@ -2129,9 +2130,14 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
             const rect = matchesPreview && image
                 ? getContainedImageRect(image.getBoundingClientRect(), image.naturalWidth, image.naturalHeight)
                 : fitCharacterPositionRect(hostRect, boardAspectRatio)
+            if (matchesPreview) {
+                delete document.documentElement.dataset.characterPositionFallback
+            } else {
+                document.documentElement.dataset.characterPositionFallback = 'true'
+            }
             setPlacement({
                 ...rect,
-                whiteBackground: !matchesPreview,
+                fallbackBackground: !matchesPreview,
                 controlsTop: actionsRect?.top ?? hostRect.top + 16,
                 controlsRight: window.innerWidth - (actionsRect?.right ?? hostRect.right - 16),
             })
@@ -2160,6 +2166,7 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
             window.removeEventListener('scroll', updatePlacement, true)
             window.removeEventListener('keydown', handleKeyDown, true)
             delete document.documentElement.dataset.characterPositionOpen
+            delete document.documentElement.dataset.characterPositionFallback
         }
     }, [open, location.pathname, selectedResolution.width, selectedResolution.height, boardAspectRatio, onOpenChange])
 
@@ -2203,7 +2210,7 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
         >
             <div
                 ref={surfaceRef}
-                className={cn('absolute', placement.whiteBackground ? 'bg-white' : 'bg-black/40')}
+                className={cn('absolute', placement.fallbackBackground ? 'bg-muted/80' : 'bg-black/40')}
                 style={{
                     left: placement.left,
                     top: placement.top,
@@ -2216,7 +2223,7 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
                     mode={mode}
                     className="h-full w-full rounded-none border-0 bg-transparent shadow-none"
                     markerClassName="h-9 w-9 text-sm"
-                    gridClassName={placement.whiteBackground ? 'border-black/30' : 'border-white/50'}
+                    gridClassName={placement.fallbackBackground ? 'border-foreground/25' : 'border-white/50'}
                     markers={enabledCharacters.map((character) => {
                         const colorIndex = characters.findIndex(candidate => candidate.id === character.id)
                         return {
@@ -2237,15 +2244,6 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
                 className="absolute z-30 flex w-max items-center gap-2"
                 style={{ top: placement.controlsTop, right: placement.controlsRight }}
             >
-                <button
-                    type="button"
-                    autoFocus
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/90 text-white hover:bg-black"
-                    onClick={() => onOpenChange(false)}
-                    aria-label={t('common.close', '닫기')}
-                >
-                    <X className="h-5 w-5" />
-                </button>
                 <div className="flex rounded-full bg-black/90 p-1">
                     {(['grid', 'free'] as const).map(value => (
                         <button
@@ -2263,6 +2261,15 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
                         </button>
                     ))}
                 </div>
+                <button
+                    type="button"
+                    autoFocus
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/90 text-white hover:bg-black"
+                    onClick={() => onOpenChange(false)}
+                    aria-label={t('common.close', '닫기')}
+                >
+                    <X className="h-5 w-5" />
+                </button>
             </div>
         </div>,
         document.body,
