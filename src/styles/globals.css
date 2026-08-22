@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 html[data-character-position-open='true'] [data-character-position-chrome] {
-  display: none !important;
+  visibility: hidden !important;
 }
 
 @layer base {

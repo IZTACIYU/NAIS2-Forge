@@ -504,7 +504,7 @@ export default function MainMode() {
                                     />
                                 )}
                                 {/* Image Actions Overlay (Visible on hover) */}
-                                <div data-character-position-chrome className="absolute top-4 right-4 z-20 flex gap-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                                <div data-character-position-chrome data-character-position-actions className="absolute top-4 right-4 z-20 flex gap-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                                     <Button
                                         size="icon"
                                         variant="secondary"

@@ -64,7 +64,6 @@ import { cn } from '@/lib/utils'
 import { getCharacterGender, type CharacterGender } from '@/lib/character-gender'
 import {
     fitCharacterPositionRect,
-    getCharacterPositionControlsLayout,
     getContainedImageRect,
     type CharacterPositionRect,
 } from '@/lib/character-position-grid'
@@ -2087,6 +2086,8 @@ interface PositionOverlayProps {
 
 interface PositionOverlayPlacement extends CharacterPositionRect {
     whiteBackground: boolean
+    controlsTop: number
+    controlsRight: number
 }
 
 function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: PositionOverlayProps) {
@@ -2099,6 +2100,7 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
     const [dragging, setDragging] = useState(false)
     const [draftPositions, setDraftPositions] = useState<Record<string, { x: number, y: number }>>({})
     const surfaceRef = useRef<HTMLDivElement>(null)
+    const controlsRef = useRef<HTMLDivElement>(null)
     const boardAspectRatio = selectedResolution.width / selectedResolution.height
     const enabledCharacters = characters.filter(c => c.enabled)
 
@@ -2112,19 +2114,27 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
         document.documentElement.dataset.characterPositionOpen = 'true'
         const host = document.querySelector<HTMLElement>('[data-character-position-host]')
         const image = document.querySelector<HTMLImageElement>('[data-character-position-image]')
+        const actions = document.querySelector<HTMLElement>('[data-character-position-actions]')
         if (!host) return () => {
             delete document.documentElement.dataset.characterPositionOpen
         }
 
         const updatePlacement = () => {
+            const hostRect = host.getBoundingClientRect()
+            const actionsRect = actions?.getBoundingClientRect()
             const matchesPreview = location.pathname === '/'
                 && image?.complete
                 && image.naturalWidth === selectedResolution.width
                 && image.naturalHeight === selectedResolution.height
             const rect = matchesPreview && image
                 ? getContainedImageRect(image.getBoundingClientRect(), image.naturalWidth, image.naturalHeight)
-                : fitCharacterPositionRect(host.getBoundingClientRect(), boardAspectRatio)
-            setPlacement({ ...rect, whiteBackground: !matchesPreview })
+                : fitCharacterPositionRect(hostRect, boardAspectRatio)
+            setPlacement({
+                ...rect,
+                whiteBackground: !matchesPreview,
+                controlsTop: actionsRect?.top ?? hostRect.top + 16,
+                controlsRight: window.innerWidth - (actionsRect?.right ?? hostRect.right - 16),
+            })
         }
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key !== 'Escape') return
@@ -2171,6 +2181,7 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
     const handleOutsideMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
         if (event.button !== 0 || dragging || !surfaceRef.current) return
         if (surfaceRef.current.contains(event.target as Node)) return
+        if (controlsRef.current?.contains(event.target as Node)) return
         const rect = surfaceRef.current.getBoundingClientRect()
         const padding = 12
         if (
@@ -2182,12 +2193,6 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
             onOpenChange(false)
         }
     }
-
-    const controlsLayout = getCharacterPositionControlsLayout(
-        placement,
-        window.innerWidth,
-        window.innerHeight,
-    )
 
     return createPortal(
         <div
@@ -2226,38 +2231,37 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
                     onDraggingChange={setDragging}
                 />
 
-                <div className={cn(
-                    'absolute z-30 flex w-max gap-2',
-                    controlsLayout === 'right' && 'left-full top-0 ml-2 h-full flex-col justify-between',
-                    controlsLayout === 'above' && 'right-0 bottom-full mb-2 flex-row-reverse items-center',
-                    controlsLayout === 'below' && 'right-0 top-full mt-2 flex-row-reverse items-center',
-                )}>
-                    <button
-                        type="button"
-                        autoFocus
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/90 text-white hover:bg-black"
-                        onClick={() => onOpenChange(false)}
-                        aria-label={t('common.close', '닫기')}
-                    >
-                        <X className="h-4 w-4" />
-                    </button>
-                    <div className="flex rounded-full bg-black/90 p-1">
-                        {(['grid', 'free'] as const).map(value => (
-                            <button
-                                key={value}
-                                type="button"
-                                className={cn(
-                                    'h-7 whitespace-nowrap rounded-full px-3 text-xs font-medium transition-colors',
-                                    mode === value ? 'bg-white text-black' : 'text-white/70 hover:text-white',
-                                )}
-                                onClick={() => setMode(value)}
-                            >
-                                {value === 'grid'
-                                    ? t('characterPanel.positionGrid', '그리드')
-                                    : t('characterPanel.positionFree', '자유')}
-                            </button>
-                        ))}
-                    </div>
+            </div>
+            <div
+                ref={controlsRef}
+                className="absolute z-30 flex w-max items-center gap-2"
+                style={{ top: placement.controlsTop, right: placement.controlsRight }}
+            >
+                <button
+                    type="button"
+                    autoFocus
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/90 text-white hover:bg-black"
+                    onClick={() => onOpenChange(false)}
+                    aria-label={t('common.close', '닫기')}
+                >
+                    <X className="h-5 w-5" />
+                </button>
+                <div className="flex rounded-full bg-black/90 p-1">
+                    {(['grid', 'free'] as const).map(value => (
+                        <button
+                            key={value}
+                            type="button"
+                            className={cn(
+                                'h-8 whitespace-nowrap rounded-full px-3 text-xs font-medium transition-colors',
+                                mode === value ? 'bg-white text-black' : 'text-white/70 hover:text-white',
+                            )}
+                            onClick={() => setMode(value)}
+                        >
+                            {value === 'grid'
+                                ? t('characterPanel.positionGrid', '그리드')
+                                : t('characterPanel.positionFree', '자유')}
+                        </button>
+                    ))}
                 </div>
             </div>
         </div>,
