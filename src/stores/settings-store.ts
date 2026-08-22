@@ -5,6 +5,7 @@ import type { SceneRandomCharacterMode } from '@/lib/random-character-selection'
 import type { CharacterGender } from '@/lib/character-gender'
 import type { SceneExportNamePart } from '@/lib/scene-export-name'
 import type { PromptWhitespaceMode } from '@/lib/prompt-formatting'
+import type { CharacterPositionMode } from '@/lib/character-position-grid'
 import type { SceneCharacterAdditionMode } from './scene-store'
 
 export interface CustomResolution {
@@ -29,6 +30,7 @@ interface SettingsState {
     additionalPromptCollapsed: boolean  // 추가 프롬프트 접기 상태
     detailPromptCollapsed: boolean  // 세부 프롬프트 접기 상태
     negativePromptCollapsed: boolean  // 네거티브 프롬프트 접기 상태
+    characterPositionMode: CharacterPositionMode
 
     // Generation settings
     useStreaming: boolean  // Use streaming API for image generation
@@ -101,6 +103,7 @@ interface SettingsState {
     setAdditionalPromptCollapsed: (collapsed: boolean) => void
     setDetailPromptCollapsed: (collapsed: boolean) => void
     setNegativePromptCollapsed: (collapsed: boolean) => void
+    setCharacterPositionMode: (mode: CharacterPositionMode) => void
     setUseStreaming: (useStreaming: boolean) => void
     setGenerationDelay: (delay: number) => void
     setGeminiApiKey: (key: string) => void
@@ -154,6 +157,7 @@ export const useSettingsStore = create<SettingsState>()(
             additionalPromptCollapsed: false, // Default: expanded
             detailPromptCollapsed: false, // Default: expanded
             negativePromptCollapsed: false, // Default: expanded
+            characterPositionMode: 'grid',
             useStreaming: true, // Default: enabled
             generationDelay: 500, // Default: 500ms delay between batch generations
             geminiApiKey: '', // Default: empty
@@ -225,6 +229,7 @@ export const useSettingsStore = create<SettingsState>()(
             setAdditionalPromptCollapsed: (collapsed) => set({ additionalPromptCollapsed: collapsed }),
             setDetailPromptCollapsed: (collapsed) => set({ detailPromptCollapsed: collapsed }),
             setNegativePromptCollapsed: (collapsed) => set({ negativePromptCollapsed: collapsed }),
+            setCharacterPositionMode: (characterPositionMode) => set({ characterPositionMode }),
             setUseStreaming: (useStreaming) => set({ useStreaming }),
             setGenerationDelay: (delay) => set({ generationDelay: Math.max(0, Math.min(5000, delay)) }),
             setGeminiApiKey: (key) => set({ geminiApiKey: key }),

@@ -66,7 +66,6 @@ import {
     fitCharacterPositionRect,
     getCharacterPositionControlsLayout,
     getContainedImageRect,
-    type CharacterPositionMode,
     type CharacterPositionRect,
 } from '@/lib/character-position-grid'
 import { getModelCapabilities } from '@/lib/model-capabilities'
@@ -2094,7 +2093,8 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
     const { t } = useTranslation()
     const location = useLocation()
     const selectedResolution = useGenerationStore(state => state.selectedResolution)
-    const [mode, setMode] = useState<CharacterPositionMode>('grid')
+    const mode = useSettingsStore(state => state.characterPositionMode)
+    const setMode = useSettingsStore(state => state.setCharacterPositionMode)
     const [placement, setPlacement] = useState<PositionOverlayPlacement | null>(null)
     const [dragging, setDragging] = useState(false)
     const [draftPositions, setDraftPositions] = useState<Record<string, { x: number, y: number }>>({})
