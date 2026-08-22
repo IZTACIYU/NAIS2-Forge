@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {
     appendQuotedTextPrompt,
     appendTransparentBackgroundPrompt,
+    formatWeightedPrompt,
     normalizePromptCommas,
     removeExactEmptyPromptSeparators,
     stripTransparentBackgroundPrompt,
@@ -18,6 +19,10 @@ assert.equal(normalizePromptCommas('A  ,'), 'A ,')
 assert.equal(normalizePromptCommas('A,   '), 'A,   ')
 assert.equal(normalizePromptCommas('A  ,     '), 'A ,     ')
 assert.equal(removeExactEmptyPromptSeparators(normalizePromptCommas('A,,B')), 'A, B')
+assert.equal(formatWeightedPrompt('11a', 1.1), '1.1:: 11a::')
+assert.equal(formatWeightedPrompt('a11', 1.1), '1.1::a11 ::')
+assert.equal(formatWeightedPrompt('11a11', 1.1), '1.1:: 11a11 ::')
+assert.equal(formatWeightedPrompt('a11a', 1.1), '1.1::a11a::')
 assert.equal(appendTransparentBackgroundPrompt('A', true), 'A, transparent background')
 assert.equal(appendTransparentBackgroundPrompt('A', false), 'A')
 assert.equal(stripTransparentBackgroundPrompt('A, transparent background', true), 'A')

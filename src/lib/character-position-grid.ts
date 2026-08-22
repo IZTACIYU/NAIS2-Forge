@@ -8,6 +8,19 @@ export interface CharacterPositionRect {
     height: number
 }
 
+export type CharacterPositionControlsLayout = 'right' | 'above' | 'below'
+
+export function getCharacterPositionControlsLayout(
+    rect: CharacterPositionRect,
+    viewportWidth: number,
+    viewportHeight: number,
+): CharacterPositionControlsLayout {
+    if (viewportWidth - rect.left - rect.width >= 132) return 'right'
+    const spaceAbove = rect.top
+    const spaceBelow = viewportHeight - rect.top - rect.height
+    return spaceBelow >= 44 || spaceBelow >= spaceAbove ? 'below' : 'above'
+}
+
 export function clampCharacterPosition(value: number) {
     return Math.max(0, Math.min(1, value))
 }

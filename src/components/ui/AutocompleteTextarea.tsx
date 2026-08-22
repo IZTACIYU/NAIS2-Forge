@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { searchTags } from '@/lib/tag-search-client'
 import { useFragmentStore } from '@/stores/fragment-store'
 import { isPromptCommentLine } from '@/lib/prompt-comments'
+import { formatWeightedPrompt } from '@/lib/prompt-formatting'
 
 // --- Types ---
 interface SuggestionItem {
@@ -480,8 +481,9 @@ export function AutocompleteTextarea({
 
         const weight = Math.round(((weighted ? Number(weighted[1]) : 1) + direction * 0.1) * 10) / 10
         const weightText = String(weight)
-        const nextValue = `${code.slice(0, bodyStart)}${weightText}::${prompt}::${trailing}${code.slice(end)}`
-        const promptStart = bodyStart + weightText.length + 2
+        const weightedPrompt = formatWeightedPrompt(prompt, weightText)
+        const nextValue = `${code.slice(0, bodyStart)}${weightedPrompt}${trailing}${code.slice(end)}`
+        const promptStart = bodyStart + weightText.length + 2 + (/^\d/.test(prompt) ? 1 : 0)
         const previousPromptStart = weighted ? bodyStart + weighted[1].length + 2 : bodyStart
         const nextCaret = promptStart + Math.max(0, Math.min(caret - previousPromptStart, prompt.length))
 

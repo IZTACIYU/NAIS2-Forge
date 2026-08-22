@@ -10,3 +10,7 @@ const tokenizer = new Tokenizer(
 assert.deepEqual(tokenizer.encode('Hello world', { add_special_tokens: false }).ids, [9419, 1814])
 assert.deepEqual(tokenizer.encode('1girl, blue eyes', { add_special_tokens: false }).ids, [16, 27620, 11, 6105, 6213])
 assert.deepEqual(tokenizer.encode('안녕하세요', { add_special_tokens: false }).ids, [148924, 154982, 88005])
+assert.notDeepEqual(
+    tokenizer.encode('1.1::11a::', { add_special_tokens: false }).ids,
+    tokenizer.encode('11a', { add_special_tokens: false }).ids,
+)

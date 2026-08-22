@@ -23,6 +23,11 @@ export function normalizePromptCommas(prompt: string) {
     return prompt.replace(/ ,/g, ',').replace(/,(?! |$)/g, ', ')
 }
 
+export function formatWeightedPrompt(prompt: string, weight: string | number) {
+    const spacedPrompt = `${/^\d/.test(prompt) ? ' ' : ''}${prompt}${/\d$/.test(prompt) ? ' ' : ''}`
+    return `${weight}::${spacedPrompt}::`
+}
+
 export function appendTransparentBackgroundPrompt(prompt: string, enabled: boolean) {
     if (!enabled) return prompt
     return prompt ? `${prompt}, transparent background` : 'transparent background'

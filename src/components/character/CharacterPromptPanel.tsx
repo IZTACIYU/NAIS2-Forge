@@ -64,6 +64,7 @@ import { cn } from '@/lib/utils'
 import { getCharacterGender, type CharacterGender } from '@/lib/character-gender'
 import {
     fitCharacterPositionRect,
+    getCharacterPositionControlsLayout,
     getContainedImageRect,
     type CharacterPositionMode,
     type CharacterPositionRect,
@@ -2182,7 +2183,11 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
         }
     }
 
-    const controlsOnRight = placement.left + placement.width + 132 <= window.innerWidth
+    const controlsLayout = getCharacterPositionControlsLayout(
+        placement,
+        window.innerWidth,
+        window.innerHeight,
+    )
 
     return createPortal(
         <div
@@ -2221,38 +2226,38 @@ function PositionOverlay({ open, onOpenChange, characters, onPositionChange }: P
                     onDraggingChange={setDragging}
                 />
 
-                <button
-                    type="button"
-                    autoFocus
-                    className={cn(
-                        'absolute z-30 flex h-8 w-8 items-center justify-center rounded-full bg-black/90 text-white hover:bg-black',
-                        controlsOnRight ? 'left-full top-0 ml-2' : 'right-0 bottom-full mb-2',
-                    )}
-                    onClick={() => onOpenChange(false)}
-                    aria-label={t('common.close', '닫기')}
-                >
-                    <X className="h-4 w-4" />
-                </button>
-
                 <div className={cn(
-                    'absolute z-30 flex w-max rounded-full bg-black/90 p-1',
-                    controlsOnRight ? 'left-full bottom-0 ml-2' : 'left-0 bottom-full mb-2',
+                    'absolute z-30 flex w-max gap-2',
+                    controlsLayout === 'right' && 'left-full top-0 ml-2 h-full flex-col justify-between',
+                    controlsLayout === 'above' && 'right-0 bottom-full mb-2 flex-row-reverse items-center',
+                    controlsLayout === 'below' && 'right-0 top-full mt-2 flex-row-reverse items-center',
                 )}>
-                    {(['grid', 'free'] as const).map(value => (
-                        <button
-                            key={value}
-                            type="button"
-                            className={cn(
-                                'h-7 whitespace-nowrap rounded-full px-3 text-xs font-medium transition-colors',
-                                mode === value ? 'bg-white text-black' : 'text-white/70 hover:text-white',
-                            )}
-                            onClick={() => setMode(value)}
-                        >
-                            {value === 'grid'
-                                ? t('characterPanel.positionGrid', '그리드')
-                                : t('characterPanel.positionFree', '자유')}
-                        </button>
-                    ))}
+                    <button
+                        type="button"
+                        autoFocus
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/90 text-white hover:bg-black"
+                        onClick={() => onOpenChange(false)}
+                        aria-label={t('common.close', '닫기')}
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                    <div className="flex rounded-full bg-black/90 p-1">
+                        {(['grid', 'free'] as const).map(value => (
+                            <button
+                                key={value}
+                                type="button"
+                                className={cn(
+                                    'h-7 whitespace-nowrap rounded-full px-3 text-xs font-medium transition-colors',
+                                    mode === value ? 'bg-white text-black' : 'text-white/70 hover:text-white',
+                                )}
+                                onClick={() => setMode(value)}
+                            >
+                                {value === 'grid'
+                                    ? t('characterPanel.positionGrid', '그리드')
+                                    : t('characterPanel.positionFree', '자유')}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>,
