@@ -17,6 +17,7 @@ src-tauri/gen/schemas/
 *.key.pub
 .tauri/
 release-secrets.*
+.tag-sync/
 
 # Logs
 npm-debug.log*

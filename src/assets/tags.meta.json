@@ -1,0 +1,34 @@
+{
+  "runId": "97d62239-17fe-4b89-84a3-05983421591b",
+  "mode": "full",
+  "baseUrl": "https://hijiribe.donmai.us",
+  "syncedAt": "2026-08-23T10:54:05.285Z",
+  "totals": {
+    "tags": 1809307,
+    "deprecated": 4025,
+    "aliases": 40636,
+    "inactiveAliases": 23940,
+    "implications": 45500,
+    "inactiveImplications": 10164
+  },
+  "appTags": 300000,
+  "appAliases": 31836,
+  "changes": {
+    "inserted": 108349,
+    "updated": 187646,
+    "unchanged": 4005,
+    "missing": 21305,
+    "duplicateLocalTags": 87044,
+    "aliasesInserted": 31836,
+    "aliasesUpdated": 0,
+    "aliasesMissing": 0
+  },
+  "validation": {
+    "integrity": "ok",
+    "duplicateNames": 0,
+    "brokenAliases": 0,
+    "brokenImplications": 0,
+    "aliasCycles": 0,
+    "implicationCycles": 0
+  }
+}

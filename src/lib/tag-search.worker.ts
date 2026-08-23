@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
 import tagsBinaryUrl from '@/assets/tags.bin?url'
+import aliasesBinaryUrl from '@/assets/tag-aliases.bin?url'
 
 interface Tag {
     label: string
@@ -38,7 +39,8 @@ interface TagIndex {
 }
 
 const BINARY_MAGIC = 'NAITAG01'
-const TYPE_NAMES = ['general', 'copyright', 'character', 'artist'] as const
+const ALIAS_BINARY_MAGIC = 'NAIALI01'
+const TYPE_NAMES = ['general', 'copyright', 'character', 'artist', 'meta'] as const
 const EMPTY_INDEXES = new Uint32Array(0)
 const synonyms: Record<string, string> = {
     naked: 'nude',
@@ -54,6 +56,7 @@ const synonyms: Record<string, string> = {
 }
 
 let tagIndexPromise: Promise<TagIndex> | null = null
+let aliasIndexPromise: Promise<Map<string, number>> | null = null
 
 async function loadTagIndex(): Promise<TagIndex> {
     const response = await fetch(tagsBinaryUrl)
@@ -106,6 +109,42 @@ async function loadTagIndex(): Promise<TagIndex> {
 function getTagIndex(): Promise<TagIndex> {
     tagIndexPromise ||= loadTagIndex()
     return tagIndexPromise
+}
+
+async function loadAliasIndex(index: TagIndex): Promise<Map<string, number>> {
+    const response = await fetch(aliasesBinaryUrl)
+    if (!response.ok) throw new Error(`Tag alias index load failed: ${response.status}`)
+
+    const buffer = await response.arrayBuffer()
+    if (buffer.byteLength < 20) throw new Error('Tag alias index is truncated')
+
+    const decoder = new TextDecoder()
+    const magic = decoder.decode(new Uint8Array(buffer, 0, 8))
+    if (magic !== ALIAS_BINARY_MAGIC) throw new Error('Unsupported tag alias index format')
+
+    const view = new DataView(buffer)
+    const count = view.getUint32(8, true)
+    const aliasesLength = view.getUint32(12, true)
+    const canonicalsLength = view.getUint32(16, true)
+    const aliasesOffset = 20
+    const canonicalsOffset = aliasesOffset + aliasesLength
+    if (canonicalsOffset + canonicalsLength !== buffer.byteLength) throw new Error('Invalid tag alias index size')
+
+    const aliases = count === 0 ? [] : decoder.decode(new Uint8Array(buffer, aliasesOffset, aliasesLength)).split('\n')
+    const canonicals = count === 0 ? [] : decoder.decode(new Uint8Array(buffer, canonicalsOffset, canonicalsLength)).split('\n')
+    if (aliases.length !== count || canonicals.length !== count) throw new Error('Invalid tag alias count')
+
+    const result = new Map<string, number>()
+    aliases.forEach((alias, aliasIndex) => {
+        const canonicalIndex = index.exactTags.get(canonicals[aliasIndex].toLowerCase())
+        if (canonicalIndex !== undefined && !result.has(alias.toLowerCase())) result.set(alias.toLowerCase(), canonicalIndex)
+    })
+    return result
+}
+
+function getAliasIndex(index: TagIndex): Promise<Map<string, number>> {
+    aliasIndexPromise ||= loadAliasIndex(index)
+    return aliasIndexPromise
 }
 
 function toTag(index: TagIndex, tagIndex: number): Tag {
@@ -169,13 +208,18 @@ function findFuzzyAlternatives(index: TagIndex, normalized: string): Tag[] {
     return best.map(candidate => toTag(index, candidate.tagIndex))
 }
 
-function matchSingleTag(index: TagIndex, tag: string): TagMatchResult {
+function matchSingleTag(index: TagIndex, aliases: Map<string, number>, tag: string): TagMatchResult {
     const normalized = tag.trim().toLowerCase().replace(/_/g, ' ')
     if (!normalized) return { original: tag, matched: null, alternatives: [], status: 'unmatched' }
 
     const exactIndex = index.exactTags.get(normalized)
     if (exactIndex !== undefined) {
         return { original: tag, matched: toTag(index, exactIndex), alternatives: [], status: 'matched' }
+    }
+
+    const aliasIndex = aliases.get(normalized)
+    if (aliasIndex !== undefined) {
+        return { original: tag, matched: toTag(index, aliasIndex), alternatives: [], status: 'matched' }
     }
 
     const synonym = synonyms[normalized]
@@ -207,6 +251,7 @@ async function handleMessage(data: SearchRequest | MatchRequest): Promise<void> 
     const index = await getTagIndex()
 
     if (data.kind === 'match') {
+        const aliases = await getAliasIndex(index)
         const results: TagMatchResult[] = []
         for (const original of data.tags) {
             const normalized = original.trim().toLowerCase()
@@ -214,7 +259,7 @@ async function handleMessage(data: SearchRequest | MatchRequest): Promise<void> 
             const expanded = synonym
                 ? (synonym.includes(',') ? synonym.split(',').map(tag => tag.trim()) : [synonym])
                 : [normalized]
-            for (const tag of expanded) results.push(matchSingleTag(index, tag))
+            for (const tag of expanded) results.push(matchSingleTag(index, aliases, tag))
         }
         scope.postMessage({ id: data.id, kind: 'match', results })
         return
