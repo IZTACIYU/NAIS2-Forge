@@ -61,6 +61,7 @@ interface SettingsState {
     expertSceneCharacterVariantOverrideEnabled: boolean
     expertSceneCharacterCostumeOverrideEnabled: boolean
     expertSceneCharacterRepeatEnabled: boolean
+    expertSceneRoundRobinEnabled: boolean
     expertSceneCharacterAdditionsEnabled: boolean
     sceneCharacterAdditionMode: SceneCharacterAdditionMode
     expertSceneMultiCharacterEnabled: boolean
@@ -123,6 +124,7 @@ interface SettingsState {
     setExpertSceneCharacterVariantOverrideEnabled: (enabled: boolean) => void
     setExpertSceneCharacterCostumeOverrideEnabled: (enabled: boolean) => void
     setExpertSceneCharacterRepeatEnabled: (enabled: boolean) => void
+    setExpertSceneRoundRobinEnabled: (enabled: boolean) => void
     setExpertSceneCharacterAdditionsEnabled: (enabled: boolean) => void
     setSceneCharacterAdditionMode: (mode: SceneCharacterAdditionMode) => void
     setExpertSceneMultiCharacterEnabled: (enabled: boolean) => void
@@ -178,6 +180,7 @@ export const useSettingsStore = create<SettingsState>()(
             expertSceneCharacterVariantOverrideEnabled: false,
             expertSceneCharacterCostumeOverrideEnabled: false,
             expertSceneCharacterRepeatEnabled: false,
+            expertSceneRoundRobinEnabled: false,
             expertSceneCharacterAdditionsEnabled: false,
             sceneCharacterAdditionMode: 'preset',
             expertSceneMultiCharacterEnabled: false,
@@ -252,6 +255,7 @@ export const useSettingsStore = create<SettingsState>()(
             setExpertSceneCharacterVariantOverrideEnabled: (expertSceneCharacterVariantOverrideEnabled) => set({ expertSceneCharacterVariantOverrideEnabled }),
             setExpertSceneCharacterCostumeOverrideEnabled: (expertSceneCharacterCostumeOverrideEnabled) => set({ expertSceneCharacterCostumeOverrideEnabled }),
             setExpertSceneCharacterRepeatEnabled: (expertSceneCharacterRepeatEnabled) => set({ expertSceneCharacterRepeatEnabled }),
+            setExpertSceneRoundRobinEnabled: (expertSceneRoundRobinEnabled) => set({ expertSceneRoundRobinEnabled }),
             setExpertSceneCharacterAdditionsEnabled: (expertSceneCharacterAdditionsEnabled) => set({ expertSceneCharacterAdditionsEnabled }),
             setSceneCharacterAdditionMode: (sceneCharacterAdditionMode) => set({ sceneCharacterAdditionMode }),
             setExpertSceneMultiCharacterEnabled: (expertSceneMultiCharacterEnabled) => set({ expertSceneMultiCharacterEnabled }),

@@ -8,6 +8,7 @@ import { notifySceneQueueChanged } from '@/lib/scene-queue-events'
 import { getSceneFolderFromImages, replaceSceneFolderPrefix, sanitizeSceneFolderName } from '@/lib/scene-path'
 import { createHistoryIndexScope, moveHistoryIndexPathPrefix } from '@/lib/history-index'
 import { normalizeCostumePromptMarkersForExport } from '@/lib/costume-prompt'
+import { buildSceneQueueOrder, findNextQueuedSceneIndex } from '@/lib/scene-queue-order'
 
 export interface SceneImage {
     id: string
@@ -238,7 +239,7 @@ interface SceneState {
     getSceneThumbnail: (scene: SceneCard) => string | undefined
 
     // Actions - Generation
-    decrementFirstQueuedScene: (presetId: string) => SceneCard | null
+    decrementQueuedScene: (presetId: string, roundRobin?: boolean) => SceneCard | null
     getNextCharacterSequenceScene: (presetId: string) => { scene: SceneCard; entry: SceneCharacterSequenceEntry | null } | null
     getHasMoreSceneGeneration: (presetId: string) => boolean
 
@@ -270,6 +271,7 @@ interface SceneState {
     cancelSceneGeneration: () => void  // Request cancel (keeps button locked until API completes)
     generationSessionId: number  // Incremented on each new generation session to invalidate old ones
     generationSource: SceneGenerationSource
+    sceneQueueCursorId: string | null
     startNewGenerationSession: (source?: SceneGenerationSource) => number  // Returns new session ID
 
     // Streaming State
@@ -943,13 +945,19 @@ export const useSceneStore = create<SceneState>()(
             },
 
             // Generation Actions
-            decrementFirstQueuedScene: (presetId) => {
-                const preset = get().presets.find(p => p.id === presetId)
+            decrementQueuedScene: (presetId, roundRobin = false) => {
+                const state = get()
+                const preset = state.presets.find(p => p.id === presetId)
                 if (!preset) return null
 
-                const queuedScene = preset.scenes.find(s => s.queueCount > 0)
-                if (!queuedScene) return null
+                const sceneIndex = findNextQueuedSceneIndex(preset.scenes, state.sceneQueueCursorId, roundRobin)
+                if (sceneIndex < 0) {
+                    state.sceneQueueCursorId = null
+                    return null
+                }
 
+                const queuedScene = preset.scenes[sceneIndex]
+                state.sceneQueueCursorId = roundRobin ? queuedScene.id : null
                 get().setQueueCount(presetId, queuedScene.id, queuedScene.queueCount - 1)
                 return queuedScene
             },
@@ -960,8 +968,10 @@ export const useSceneStore = create<SceneState>()(
                 if (!preset) return null
 
                 const enabledEntries = state.characterSequenceEntries.filter(e => e.enabled)
+                const roundRobin = state.generationSource !== 'detail'
+                    && useSettingsStore.getState().expertSceneRoundRobinEnabled
                 if (state.generationSource === 'detail' || !state.characterSequenceEnabled || enabledEntries.length === 0) {
-                    const scene = state.decrementFirstQueuedScene(presetId)
+                    const scene = state.decrementQueuedScene(presetId, roundRobin)
                     set({ activeCharacterSequenceEntryId: null })
                     return scene ? { scene, entry: null } : null
                 }
@@ -974,14 +984,11 @@ export const useSceneStore = create<SceneState>()(
                         return null
                     }
 
-                    queue = enabledEntries.flatMap(entry =>
-                        queuedScenes.flatMap(scene =>
-                            Array.from({ length: scene.queueCount }, () => ({
-                                sceneId: scene.id,
-                                entryId: entry.id,
-                            }))
-                        )
-                    )
+                    const sceneOrder = buildSceneQueueOrder(queuedScenes, roundRobin)
+                    queue = enabledEntries.flatMap(entry => sceneOrder.map(sceneId => ({
+                        sceneId,
+                        entryId: entry.id,
+                    })))
 
                     set(state => ({
                         characterSequenceQueue: queue,
@@ -1134,7 +1141,7 @@ export const useSceneStore = create<SceneState>()(
             setIsGenerating: (isGenerating) => {
                 // When stopping generation, increment session ID to invalidate any in-progress operations
                 if (!isGenerating) {
-                    set({ isGenerating: false, isCancelling: false, generationSessionId: Date.now(), generationSource: 'queue', characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
+                    set({ isGenerating: false, isCancelling: false, generationSessionId: Date.now(), generationSource: 'queue', sceneQueueCursorId: null, characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
                 } else {
                     set({ isGenerating: true, isCancelling: false })
                 }
@@ -1142,13 +1149,14 @@ export const useSceneStore = create<SceneState>()(
             cancelSceneGeneration: () => {
                 // Request cancel but keep isGenerating=true until API completes
                 // This prevents 429 errors from rapid cancel/restart
-                set({ isCancelling: true, generationSessionId: Date.now(), generationSource: 'queue', characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
+                set({ isCancelling: true, generationSessionId: Date.now(), generationSource: 'queue', sceneQueueCursorId: null, characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
             },
             generationSessionId: 0,
             generationSource: 'queue',
+            sceneQueueCursorId: null,
             startNewGenerationSession: (source = 'queue') => {
                 const newSessionId = Date.now()
-                set({ generationSessionId: newSessionId, generationSource: source, isGenerating: true, isCancelling: false, characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
+                set({ generationSessionId: newSessionId, generationSource: source, isGenerating: true, isCancelling: false, sceneQueueCursorId: null, characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
                 return newSessionId
             },
 

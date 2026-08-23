@@ -866,6 +866,8 @@
       "sceneMode": {
         "header": "Scene Mode",
         "description": "Advanced tools for batch scene generation.",
+        "roundRobinTitle": "Round-robin Scene Repeats",
+        "roundRobinDesc": "Runs each queued scene once in order, then repeats from the first scene.",
         "characterRepeatTitle": "Character Repeat",
         "characterRepeatDesc": "Adds a lightweight character queue to Scene Mode so the same scene reservations can run for multiple characters in order.",
         "characterAdditionsTitle": "Scene Character Additions",

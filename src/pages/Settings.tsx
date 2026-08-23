@@ -95,6 +95,7 @@ export default function Settings() {
     const { theme, setTheme } = useThemeStore()
     const { token, isVerified, anlas, isLoading, verifyAndSave } = useAuthStore()
     const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, promptWhitespaceMode, setPromptWhitespaceMode, removeEmptyPromptSeparators, setRemoveEmptyPromptSeparators, insertBlankLinesBetweenPromptParts, setInsertBlankLinesBetweenPromptParts, expertCharacterPromptFolderBrowserEnabled, setExpertCharacterPromptFolderBrowserEnabled, expertLibraryFolderBrowserEnabled, setExpertLibraryFolderBrowserEnabled, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertCharacterPromptGenderIndicatorEnabled, setExpertCharacterPromptGenderIndicatorEnabled, expertMetadataAlwaysAddCharacters, setExpertMetadataAlwaysAddCharacters, characterPromptGenderIndicatorMode, setCharacterPromptGenderIndicatorMode, expertSceneCharacterVariantOverrideEnabled, setExpertSceneCharacterVariantOverrideEnabled, expertSceneCharacterCostumeOverrideEnabled, setExpertSceneCharacterCostumeOverrideEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, sceneCharacterAdditionMode, setSceneCharacterAdditionMode, expertSceneMultiCharacterEnabled, setExpertSceneMultiCharacterEnabled, sceneMultiCharacterGenderSelectionMode, setSceneMultiCharacterGenderSelectionMode, expertSceneExportNameEnabled, setExpertSceneExportNameEnabled, sceneExportNamePart, setSceneExportNamePart, expertSceneRandomCharactersEnabled, setExpertSceneRandomCharactersEnabled, expertExifDirectActionEnabled, setExpertExifDirectActionEnabled, expertExifManagerEnabled, setExpertExifManagerEnabled, expertExifQuickActionEnabled, setExpertExifQuickActionEnabled, expertExifAutoSaveEnabled, setExpertExifAutoSaveEnabled, exifAutoSaveName, setExifAutoSaveName, exifAutoSavePath, setExifAutoSavePath, exifOutputFormat, setExifOutputFormat, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertR2ExifRemovalEnabled, setExpertR2ExifRemovalEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
+    const expertSceneRoundRobinEnabled = useSettingsStore(state => state.expertSceneRoundRobinEnabled)
     const { bindings, enabled: shortcutsEnabled, setBinding, resetBinding, resetAllBindings, setEnabled: setShortcutsEnabled } = useShortcutStore()
     const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey)
 
@@ -1447,6 +1448,18 @@ export default function Settings() {
 
                             <div className="border border-border/50 rounded-xl p-6 bg-card/30 space-y-5">
                                 <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <label className="text-sm font-medium">{t('settingsPage.expert.sceneMode.roundRobinTitle')}</label>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            {t('settingsPage.expert.sceneMode.roundRobinDesc')}
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={expertSceneRoundRobinEnabled}
+                                        onChange={(e) => useSettingsStore.getState().setExpertSceneRoundRobinEnabled(e.target.checked)}
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-4">
                                     <div>
                                         <label className="text-sm font-medium">{t('settingsPage.expert.sceneMode.characterRepeatTitle')}</label>
                                         <p className="text-xs text-muted-foreground mt-1">
