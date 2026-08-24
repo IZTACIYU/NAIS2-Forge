@@ -34,3 +34,13 @@ assert.equal(appendQuotedTextPrompt(quotedPrompt, true), quotedPromptWithText)
 assert.equal(appendQuotedTextPrompt(quotedPrompt, false), quotedPrompt)
 assert.equal(stripQuotedTextPrompt(quotedPromptWithText, true), quotedPrompt)
 assert.equal(stripQuotedTextPrompt(`${quotedPrompt}, teXt: different`, true), `${quotedPrompt}, teXt: different`)
+
+const possessivePrompt = `.3::hands on another's head::, head grab,
+female all fours on floor, between legs,
+2::looking at viewer::, dashed eyes,
+hand on another's thigh,`
+assert.equal(appendQuotedTextPrompt(possessivePrompt, true), possessivePrompt)
+assert.equal(
+    appendQuotedTextPrompt(`another's hand, sign "STOP", artist:'someone's name'`, true),
+    `another's hand, sign "STOP", artist:'someone's name', teXt: STOP\n\nsomeone's name`,
+)

@@ -42,7 +42,10 @@ export function stripTransparentBackgroundPrompt(prompt: string, enabled: boolea
 
 export function appendQuotedTextPrompt(prompt: string, enabled: boolean) {
     if (!enabled) return prompt
-    const texts = Array.from(prompt.matchAll(/(["'])(.*?)\1/gs), match => match[2])
+    const texts = Array.from(
+        prompt.matchAll(/"(.*?)"|(?<![\p{L}\p{N}_])'(.*?)'(?![\p{L}\p{N}_])/gsu),
+        match => match[1] ?? match[2],
+    )
         .filter(Boolean)
     return texts.length ? `${prompt}, teXt: ${texts.join('\n\n')}` : prompt
 }
