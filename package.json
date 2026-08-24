@@ -17,7 +17,7 @@
     "check:tokenizer": "node scripts/check-tokenizer.mjs",
     "check:prompt-formatting": "node --experimental-strip-types scripts/check-prompt-formatting.mjs",
     "check:scene-queue-order": "node --experimental-strip-types scripts/check-scene-queue-order.mjs",
-    "check:tag-index": "node scripts/check-tag-index.mjs",
+    "check:tag-index": "node --experimental-strip-types scripts/check-tag-index.mjs",
     "tags:update": "node scripts/sync-danbooru-tags.mjs",
     "tags:build": "node scripts/build-tag-index.mjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"

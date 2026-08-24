@@ -229,9 +229,9 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Symptom/Risk:** 원격 category와 alias를 추가하면서 기존 타입 숫자의 순서를 바꾸거나 중복 label을 그대로 두면, 과거 타입이 다른 category로 해석되거나 exact match 결과가 데이터 순서에 따라 달라질 수 있다.
 - **Root cause:** 기존 정적 자산은 category별 목록을 합치며 동일 label을 중복 포함했고, 바이너리에는 category 이름 대신 위치 기반 숫자 코드만 저장했다.
 - **Invariant to preserve:** `NAITAG01`의 기존 코드는 general=0, copyright=1, character=2, artist=3으로 유지하고 meta=4만 끝에 추가한다. 앱용 30만 label은 고유해야 하며 Danbooru alias는 포함된 canonical label만 가리킨다. 원격 전체 데이터와 sync 상태는 `.tag-sync` 스테이징에만 두고 사용자 저장소와 연결하지 않는다.
-- **Fix:** 전체 원격 스냅샷을 트랜잭션 스테이징에서 검증한 뒤 count 순 고유 30만 태그와 별도 alias 바이너리를 원자적으로 생성한다. alias는 prompt exact matching 경로에서만 지연 로드한다.
+- **Fix:** 전체 원격 스냅샷을 트랜잭션 스테이징에서 검증한 뒤 count 순 고유 30만 태그와 별도 alias 바이너리를 원자적으로 생성한다. alias는 prompt exact matching 또는 사용자가 자동완성 검색을 시작할 때만 지연 로드하며, alias의 exact/prefix/substring 검색 결과는 canonical 태그로 합치고 중복을 제거한다.
 - **Regression coverage:** `npm run check:tag-index`, 인덱스 재생성 전후 SHA-256 비교, TypeScript 및 production build.
-- **Do not "fix" by:** category 배열을 알파벳순으로 재배열하거나, API 응답을 런타임에서 직접 읽거나, 별칭 전체를 자동완성 초기 로드에 합치거나, `.tag-sync`를 사용자 persisted storage로 이동하기.
+- **Do not "fix" by:** category 배열을 알파벳순으로 재배열하거나, API 응답을 런타임에서 직접 읽거나, 별칭을 앱 시작 시 미리 로드하거나 alias 자체를 canonical과 별도 추천으로 중복 표시하거나, `.tag-sync`를 사용자 persisted storage로 이동하기.
 
 ---
 

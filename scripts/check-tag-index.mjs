@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
+import { searchTagIndexes } from '../src/lib/tag-search-ranking.ts'
 
 const tags = JSON.parse(await readFile('src/assets/tags.json', 'utf8'))
 const aliases = JSON.parse(await readFile('src/assets/tag-aliases.json', 'utf8'))
@@ -46,5 +47,16 @@ const canonicalLength = aliasBytes.readUInt32LE(16)
 assert.equal(20 + aliasLength + canonicalLength, aliasBytes.length)
 assert.deepEqual(decoder.decode(aliasBytes.subarray(20, 20 + aliasLength)).split('\n'), aliases.map(alias => alias.alias))
 assert.deepEqual(decoder.decode(aliasBytes.subarray(20 + aliasLength)).split('\n'), aliases.map(alias => alias.canonical))
+
+const exactTags = new Map(tags.map((tag, index) => [tag.label.toLowerCase(), index]))
+const prefixBuckets = {}
+tags.forEach((tag, index) => (prefixBuckets[tag.label[0].toLowerCase()] ||= []).push(index))
+const prefixIndex = Object.fromEntries(Object.entries(prefixBuckets).map(([key, indexes]) => [key, Uint32Array.from(indexes)]))
+const aliasIndex = new Map(aliases.map(alias => [alias.alias.toLowerCase(), exactTags.get(alias.canonical.toLowerCase())]))
+const searchableIndex = { labels: tags.map(tag => tag.label), prefixIndex }
+assert.equal(tags[searchTagIndexes(searchableIndex, aliasIndex, 'catgirl', 10)[0]].label, 'cat girl')
+assert.ok(searchTagIndexes(searchableIndex, aliasIndex, 'aida suru', 10).some(index => tags[index].label === 'aida rayhunton'))
+assert.equal(searchTagIndexes(searchableIndex, aliasIndex, 'blond', 20).filter(index => tags[index].label === 'blonde hair').length, 1)
+assert.equal(tags[searchTagIndexes(searchableIndex, aliasIndex, '1girl', 10)[0]].label, '1girl')
 
 console.log(`Tag index check passed: ${tags.length.toLocaleString()} tags, ${aliases.length.toLocaleString()} aliases.`)

@@ -2,6 +2,7 @@
 
 import tagsBinaryUrl from '@/assets/tags.bin?url'
 import aliasesBinaryUrl from '@/assets/tag-aliases.bin?url'
+import { searchTagIndexes } from '@/lib/tag-search-ranking'
 
 interface Tag {
     label: string
@@ -266,24 +267,8 @@ async function handleMessage(data: SearchRequest | MatchRequest): Promise<void> 
     }
 
     const query = data.query.toLowerCase()
-    const matches: Tag[] = []
-    const matchedIndexes = new Set<number>()
-
-    for (const tagIndex of index.prefixIndex[query[0] || '_'] || EMPTY_INDEXES) {
-        if (matches.length >= data.limit) break
-        if (index.labels[tagIndex].toLowerCase().startsWith(query)) {
-            matches.push(toTag(index, tagIndex))
-            matchedIndexes.add(tagIndex)
-        }
-    }
-
-    if (matches.length < data.limit) {
-        for (let tagIndex = 0; tagIndex < index.labels.length && matches.length < data.limit; tagIndex++) {
-            if (!matchedIndexes.has(tagIndex) && index.labels[tagIndex].toLowerCase().includes(query)) {
-                matches.push(toTag(index, tagIndex))
-            }
-        }
-    }
+    const aliases = await getAliasIndex(index)
+    const matches = searchTagIndexes(index, aliases, query, data.limit).map(tagIndex => toTag(index, tagIndex))
 
     scope.postMessage({ id: data.id, kind: 'search', matches })
 }
