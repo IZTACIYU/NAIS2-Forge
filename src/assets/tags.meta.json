@@ -11,17 +11,20 @@
     "implications": 45500,
     "inactiveImplications": 10164
   },
-  "appTags": 300000,
+  "currentTags": 300000,
+  "legacySourceTags": 21306,
+  "legacyAppTags": 21288,
+  "appTags": 321288,
   "appAliases": 31836,
   "changes": {
-    "inserted": 108349,
-    "updated": 187646,
-    "unchanged": 4005,
-    "missing": 21305,
-    "duplicateLocalTags": 87044,
-    "aliasesInserted": 31836,
-    "aliasesUpdated": 0,
-    "aliasesMissing": 0
+    "inserted": 4,
+    "updated": 6,
+    "unchanged": 321278,
+    "missing": 0,
+    "duplicateLocalTags": 0,
+    "aliasesInserted": 1,
+    "aliasesUpdated": 2,
+    "aliasesMissing": 1
   },
   "validation": {
     "integrity": "ok",

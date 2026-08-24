@@ -11,10 +11,11 @@ npm run tags:update -- --incremental
 - `--dry-run` fetches and validates data but does not change `src/assets`.
 - `--use-cache` applies the last complete validated fetch without downloading it again.
 - `--incremental` currently performs the same complete ID scan as `--full`. Danbooru updated-time pagination does not guarantee an omission-free incremental result.
+- `--legacy-source=<path>` imports only labels missing from the current application index into `legacy-tags.json`. Later syncs preserve that committed compatibility set without reimporting every Danbooru alias as a tag.
 - The default API host is `https://hijiribe.donmai.us`. Override it with `DANBOORU_BASE_URL`.
 - Optional authentication uses `DANBOORU_USERNAME` and `DANBOORU_API_KEY`.
 - Request spacing can be changed with `DANBOORU_REQUEST_INTERVAL_MS`; the default is 200ms and requests are sequential.
 
 Before applying, the tool copies existing generated assets into `.tag-sync/backups/<timestamp>/`. Fetches are staged transactionally in SQLite, can resume by ID cursor after interruption, never delete missing upstream rows, and only replace application assets after all three resources and integrity validation complete.
 
-The shipped `tags.json` preserves the existing NovelAI label convention (`_` to spaces, `artist:` prefix), while adding Danbooru ID, source name, category, count, deprecation state, and timestamps. Active aliases are compiled separately and loaded lazily for prompt-generator exact matching. Implications remain in the staging database as direct `antecedent -> consequent` edges; automatic prompt expansion is intentionally outside the updater.
+The shipped `tags.json` preserves the existing NovelAI label convention (`_` to spaces, `artist:` prefix), while adding Danbooru ID, source name, category, count, deprecation state, and timestamps. Previously shipped labels omitted by the new index remain alongside current tags through `legacy-tags.json`; legacy punctuation labels also preserve meaningful underscores. Active aliases are compiled separately and loaded lazily for autocomplete and prompt-generator matching. Implications remain in the staging database as direct `antecedent -> consequent` edges; automatic prompt expansion is intentionally outside the updater.

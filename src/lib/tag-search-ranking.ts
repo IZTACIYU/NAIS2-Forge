@@ -1,6 +1,7 @@
 export interface SearchableTagIndex {
     labels: string[]
     prefixIndex: Record<string, Uint32Array>
+    exactTags: ReadonlyMap<string, number>
 }
 
 export function searchTagIndexes(
@@ -19,6 +20,9 @@ export function searchTagIndexes(
             matched.add(tagIndex)
         }
     }
+
+    const exactTag = index.exactTags.get(query)
+    if (exactTag !== undefined) add(exactTag)
 
     const exactAlias = aliases.get(query)
     if (exactAlias !== undefined) add(exactAlias)

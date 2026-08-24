@@ -14,16 +14,17 @@ const hasArg = value => args.includes(value)
 const argValue = name => args.find(value => value.startsWith(`${name}=`))?.slice(name.length + 1)
 const dryRun = hasArg('--dry-run')
 const useCache = hasArg('--use-cache')
+const legacySource = argValue('--legacy-source')
 const mode = hasArg('--incremental') ? 'incremental' : 'full'
 const shouldApply = !dryRun
 const baseUrl = (argValue('--base-url') || process.env.DANBOORU_BASE_URL || 'https://hijiribe.donmai.us').replace(/\/$/, '')
 const requestInterval = Number(process.env.DANBOORU_REQUEST_INTERVAL_MS || 200)
 const pageLimit = 1000
-const appTagLimit = 300_000
+const currentTagLimit = 300_000
 const userAgent = process.env.DANBOORU_USER_AGENT || 'NAIS2-Forge-TagSync/1.0 (https://github.com/IZTACIYU/NAIS2-Forge)'
 
 if (!dryRun && !hasArg('--full') && !hasArg('--incremental')) {
-    console.error('Usage: npm run tags:update -- --dry-run [--full|--incremental] | --full | --incremental [--use-cache]')
+    console.error('Usage: npm run tags:update -- --dry-run [--full|--incremental] | --full | --incremental [--use-cache] [--legacy-source=PATH]')
     process.exit(1)
 }
 if (hasArg('--full') && hasArg('--incremental')) throw new Error('Choose either --full or --incremental')
@@ -310,9 +311,16 @@ function validateDatabase() {
 }
 
 const categoryNames = new Map([[0, 'general'], [1, 'artist'], [3, 'copyright'], [4, 'character'], [5, 'meta']])
-const displayName = (name, category) => `${category === 1 ? 'artist:' : ''}${name.replaceAll('_', ' ')}`
+const tagTypes = new Set(categoryNames.values())
+const defaultDisplayName = (name, category) => `${category === 1 ? 'artist:' : ''}${name.replaceAll('_', ' ')}`
+const legacyRemoteName = label => label.replace(/^artist:/, '').replaceAll(' ', '_')
 
-function buildAssets() {
+function buildAssets(legacyTags) {
+    const legacyLabels = new Set(legacyTags.map(tag => tag.label))
+    const legacyLabelsByRemoteName = new Map(
+        legacyTags.filter(tag => tag.label.includes('_')).map(tag => [legacyRemoteName(tag.label), tag.label]),
+    )
+    const displayName = (name, category) => legacyLabelsByRemoteName.get(name) || defaultDisplayName(name, category)
     const rows = db.prepare(`
         SELECT id, name, category, post_count, is_deprecated, created_at, updated_at
         FROM tags
@@ -341,9 +349,19 @@ function buildAssets() {
         tags.push(tag)
         labels.add(label)
         selectedByRemoteName.set(row.name, { label, category: row.category })
-        if (tags.length === appTagLimit) break
+        if (tags.length === currentTagLimit) break
     }
-    if (tags.length !== appTagLimit) throw new Error(`Expected ${appTagLimit} app tags, got ${tags.length}`)
+    if (tags.length !== currentTagLimit) throw new Error(`Expected ${currentTagLimit} current tags, got ${tags.length}`)
+
+    for (const legacyTag of legacyTags) {
+        if (labels.has(legacyTag.label)) continue
+        if (legacyTag.label !== legacyTag.value || !Number.isInteger(legacyTag.count) || !tagTypes.has(legacyTag.type)) {
+            throw new Error(`Invalid legacy tag: ${legacyTag.label}`)
+        }
+        tags.push({ ...legacyTag, isLegacy: true })
+        labels.add(legacyTag.label)
+    }
+    tags.sort((left, right) => right.count - left.count)
 
     const aliases = []
     const aliasLabels = new Set()
@@ -356,12 +374,12 @@ function buildAssets() {
         const canonical = selectedByRemoteName.get(row.consequent_name)
         if (!canonical) continue
         const alias = displayName(row.antecedent_name, canonical.category)
-        if (alias === canonical.label || labels.has(alias) || aliasLabels.has(alias)) continue
+        if (alias === canonical.label || (labels.has(alias) && !legacyLabels.has(alias)) || aliasLabels.has(alias)) continue
         aliases.push({ alias, canonical: canonical.label, danbooruId: row.id, updatedAt: row.updated_at })
         aliasLabels.add(alias)
     }
     aliases.sort((left, right) => left.alias.localeCompare(right.alias))
-    return { tags, aliases }
+    return { tags, aliases, legacyAppTags: tags.filter(tag => tag.isLegacy).length }
 }
 
 async function readJsonOrEmpty(filePath) {
@@ -371,6 +389,19 @@ async function readJsonOrEmpty(filePath) {
         if (error?.code === 'ENOENT') return []
         throw error
     }
+}
+
+function buildLegacyCompatibilityTags(sourceTags, currentTags) {
+    const currentLabels = new Set(currentTags.map(tag => tag.label))
+    const unique = new Map()
+    for (const tag of sourceTags) {
+        const previous = unique.get(tag.label)
+        if (!previous || tag.count > previous.count) unique.set(tag.label, tag)
+    }
+    return [...unique.values()]
+        .filter(tag => !currentLabels.has(tag.label))
+        .map(({ label, value, count, type }) => ({ label, value, count, type }))
+        .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
 }
 
 function compareAssets(currentTags, nextTags, currentAliases, nextAliases) {
@@ -414,7 +445,7 @@ async function backupAssets() {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     const backupDirectory = path.join(stateDirectory, 'backups', timestamp)
     await mkdir(backupDirectory, { recursive: true })
-    for (const name of ['tags.json', 'tags.bin', 'tag-aliases.json', 'tag-aliases.bin', 'tags.meta.json']) {
+    for (const name of ['tags.json', 'tags.bin', 'legacy-tags.json', 'tag-aliases.json', 'tag-aliases.bin', 'tags.meta.json']) {
         try {
             await copyFile(path.join(assetsDirectory, name), path.join(backupDirectory, name))
         } catch (error) {
@@ -446,9 +477,20 @@ if (useCache) {
 }
 
 const validation = validateDatabase()
-const { tags, aliases } = buildAssets()
 const currentTags = await readJsonOrEmpty(path.join(assetsDirectory, 'tags.json'))
 const currentAliases = await readJsonOrEmpty(path.join(assetsDirectory, 'tag-aliases.json'))
+let legacyTags = await readJsonOrEmpty(path.join(assetsDirectory, 'legacy-tags.json'))
+if (legacySource) {
+    const sourceTags = JSON.parse(await readFile(path.resolve(root, legacySource), 'utf8'))
+    const importedTags = buildLegacyCompatibilityTags(sourceTags, currentTags)
+    const mergedTags = new Map(legacyTags.map(tag => [tag.label, tag]))
+    for (const tag of importedTags) {
+        const previous = mergedTags.get(tag.label)
+        if (!previous || tag.count > previous.count) mergedTags.set(tag.label, tag)
+    }
+    legacyTags = [...mergedTags.values()].sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
+}
+const { tags, aliases, legacyAppTags } = buildAssets(legacyTags)
 const changes = compareAssets(currentTags, tags, currentAliases, aliases)
 const totals = {
     tags: db.prepare('SELECT COUNT(*) AS count FROM tags WHERE remote_missing = 0').get().count,
@@ -458,7 +500,20 @@ const totals = {
     implications: db.prepare("SELECT COUNT(*) AS count FROM tag_implications WHERE remote_missing = 0 AND status = 'active'").get().count,
     inactiveImplications: db.prepare("SELECT COUNT(*) AS count FROM tag_implications WHERE remote_missing = 0 AND status != 'active'").get().count,
 }
-const summary = { runId, mode, baseUrl, syncedAt: getMeta('sync.last_successful_at'), totals, appTags: tags.length, appAliases: aliases.length, changes, validation }
+const summary = {
+    runId,
+    mode,
+    baseUrl,
+    syncedAt: getMeta('sync.last_successful_at'),
+    totals,
+    currentTags: currentTagLimit,
+    legacySourceTags: legacyTags.length,
+    legacyAppTags,
+    appTags: tags.length,
+    appAliases: aliases.length,
+    changes,
+    validation,
+}
 console.log(JSON.stringify(summary, null, 2))
 
 if (validation.integrity !== 'ok' || validation.duplicateNames > 0) {
@@ -467,6 +522,7 @@ if (validation.integrity !== 'ok' || validation.duplicateNames > 0) {
 
 if (shouldApply) {
     const backupDirectory = await backupAssets()
+    if (legacySource) await writeAtomic(path.join(assetsDirectory, 'legacy-tags.json'), JSON.stringify(legacyTags))
     await writeAtomic(path.join(assetsDirectory, 'tags.json'), JSON.stringify(tags))
     await writeAtomic(path.join(assetsDirectory, 'tag-aliases.json'), JSON.stringify(aliases))
     await writeAtomic(path.join(assetsDirectory, 'tags.meta.json'), JSON.stringify(summary, null, 2))
