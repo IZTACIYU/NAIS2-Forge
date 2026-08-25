@@ -278,6 +278,19 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+## R-022 — 프롬프트 편집 이력은 표시 값과 프로그램 편집을 함께 소유한다
+
+- **Date:** 2026-08-26
+- **Area:** Prompt autocomplete editor, text undo/redo, IME input
+- **Symptom/Risk:** 한 글자 수정 후 Undo가 예상보다 오래 전 상태로 이동하거나, Redo가 보이는 편집 순서보다 앞이나 뒤로 이동했다.
+- **Root cause:** 외부 코드 편집기의 3초 영단어 병합 이력과 React의 현재 값이 따로 관리됐고, 자동완성·가중치 조절·자동 구문 완성은 외부 편집기 이력을 거치지 않아 표시 값과 Undo stack이 달라졌다.
+- **Invariant to preserve:** 프롬프트의 보이는 값과 Undo/Redo stack은 자동완성 편집기가 함께 소유한다. 짧고 인접한 일반 문자 입력·삭제만 묶고, 공백·쉼표·개행·커서 이동·선택 교체·붙여넣기·자동완성·가중치 조절·IME 조합은 작업 경계를 만든다. Undo 후 새 편집은 Redo 분기를 버리며 이력은 최대 100개만 유지한다.
+- **Fix:** 입력 전후 차이와 caret 연속성을 기준으로 700ms 이내의 인접 단일 문자 입력·삭제만 병합하고, 모든 프로그램 편집과 IME 완료를 명시적 transaction으로 기록한다. `Ctrl+Z`, `Ctrl+Shift+Z`, `Ctrl+Y`는 이 이력만 이동한다.
+- **Regression coverage:** `npm run check:shortcuts`, TypeScript 및 production build, 인접 입력/시간 경과/커서 이동/공백·쉼표/Backspace·Delete/붙여넣기 분기 검사.
+- **Do not "fix" by:** 부모 `onChange` debounce 시간을 Undo 단위로 사용하거나, 프로그램 편집을 외부 편집기 내부 이력과 별도로 갱신하거나, IME 조합 중간값을 각각 한 단계로 기록하기.
+
+---
+
 ## 새 항목 템플릿
 
 ### R-XXX — 짧은 제목

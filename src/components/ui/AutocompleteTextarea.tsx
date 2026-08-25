@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom'
 import Editor from 'react-simple-code-editor'
 import { getCaretCoordinates } from '@/utils/caret-coords'
-import { cn } from '@/lib/utils'
+import { appendBoundedHistory, cn, describeTextEdit, groupTextEdit, type TextEditGroup } from '@/lib/utils'
 import { searchTags } from '@/lib/tag-search-client'
 import { useFragmentStore } from '@/stores/fragment-store'
 import { isPromptCommentLine } from '@/lib/prompt-comments'
@@ -53,6 +53,14 @@ const TYPOGRAPHY = {
     tabSize: 4,
 }
 
+interface TextHistoryRecord {
+    value: string
+    selectionStart: number
+    selectionEnd: number
+}
+
+const TEXT_HISTORY_LIMIT = 100
+
 export function AutocompleteTextarea({
     value,
     onChange,
@@ -101,11 +109,49 @@ export function AutocompleteTextarea({
     // ?대? state濡?利됱떆 ?뚮뜑留?(uncontrolled 諛⑹떇)
     const [internalValue, setInternalValue] = useState(value)
     const internalValueRef = useRef(value)
+    const textHistoryRef = useRef<{ stack: TextHistoryRecord[]; offset: number }>({
+        stack: [{ value, selectionStart: 0, selectionEnd: 0 }],
+        offset: 0,
+    })
+    const lastTextEditRef = useRef<TextEditGroup | null>(null)
+    const isComposingRef = useRef(false)
+    const compositionCommitPendingRef = useRef(false)
+    const compositionCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const selectionRestorePendingRef = useRef(false)
     const [suggestions, setSuggestions] = useState<SuggestionItem[]>([])
     const [selectedIndex, setSelectedIndex] = useState(0)
     const [isVisible, setIsVisible] = useState(false)
     const [coords, setCoords] = useState({ top: 0, left: 0 })
     const [suggestionMode, setSuggestionMode] = useState<'tag' | 'wildcard' | 'directive'>('tag')
+
+    const updateCurrentHistorySelection = useCallback(() => {
+        if (selectionRestorePendingRef.current) return
+        const editor = textareaRef.current
+        const history = textHistoryRef.current
+        const current = history.stack[history.offset]
+        if (!editor || !current) return
+        history.stack[history.offset] = {
+            ...current,
+            selectionStart: editor.selectionStart,
+            selectionEnd: editor.selectionEnd,
+        }
+    }, [])
+
+    const resetTextHistory = useCallback((nextValue: string) => {
+        if (compositionCommitTimerRef.current) {
+            clearTimeout(compositionCommitTimerRef.current)
+            compositionCommitTimerRef.current = null
+        }
+        isComposingRef.current = false
+        compositionCommitPendingRef.current = false
+        selectionRestorePendingRef.current = false
+        const caret = Math.min(textareaRef.current?.selectionStart ?? nextValue.length, nextValue.length)
+        textHistoryRef.current = {
+            stack: [{ value: nextValue, selectionStart: caret, selectionEnd: caret }],
+            offset: 0,
+        }
+        lastTextEditRef.current = null
+    }, [])
 
     // ?몃? value媛 蹂寃쎈릺硫??대? state ?숆린??(?? ?꾨━??濡쒕뱶)
     // ?? ?대?媛믨낵 ?숈씪?섎㈃ ?숆린???ㅽ궢 (而ㅼ꽌 ?먰봽 諛⑹?)
@@ -121,7 +167,8 @@ export function AutocompleteTextarea({
 
         internalValueRef.current = value
         setInternalValue(value)
-    }, [value])
+        resetTextHistory(value)
+    }, [resetTextHistory, value])
 
     useEffect(() => {
         const textarea = containerRef.current?.querySelector<HTMLTextAreaElement>('textarea')
@@ -150,6 +197,81 @@ export function AutocompleteTextarea({
             onChangeRef.current({ target: { value: pendingValue } })
         }
     }, [])
+
+    const recordTextHistory = useCallback((record: TextHistoryRecord, merge: boolean) => {
+        const history = textHistoryRef.current
+        const current = history.stack[history.offset]
+        if (current?.value === record.value) {
+            history.stack[history.offset] = record
+            return
+        }
+
+        if (merge && history.offset > 0) {
+            const applied = history.stack.slice(0, history.offset + 1)
+            applied[applied.length - 1] = record
+            history.stack = applied
+            history.offset = applied.length - 1
+            return
+        }
+
+        const nextStack = appendBoundedHistory(
+            history.stack,
+            history.offset + 1,
+            record,
+            TEXT_HISTORY_LIMIT,
+        )
+        history.stack = nextStack
+        history.offset = nextStack.length - 1
+    }, [])
+
+    const applyTextHistoryOffset = useCallback((nextOffset: number) => {
+        const history = textHistoryRef.current
+        if (nextOffset < 0 || nextOffset >= history.stack.length || nextOffset === history.offset) return
+
+        updateCurrentHistorySelection()
+        history.offset = nextOffset
+        const record = history.stack[nextOffset]
+
+        if (onChangeTimerRef.current) {
+            clearTimeout(onChangeTimerRef.current)
+            onChangeTimerRef.current = null
+        }
+        pendingLocalValueRef.current = record.value
+        internalValueRef.current = record.value
+        lastTextEditRef.current = null
+        selectionRestorePendingRef.current = true
+        autocompleteRequestRef.current++
+        setInternalValue(record.value)
+        setIsVisible(false)
+        onChangeRef.current({ target: { value: record.value } })
+
+        requestAnimationFrame(() => {
+            const editor = textareaRef.current
+            if (editor) {
+                editor.setSelectionRange(record.selectionStart, record.selectionEnd)
+                editor.focus()
+            }
+            selectionRestorePendingRef.current = false
+        })
+    }, [updateCurrentHistorySelection])
+
+    const commitProgrammaticText = useCallback((nextValue: string, caret: number, delay: number) => {
+        updateCurrentHistorySelection()
+        recordTextHistory({ value: nextValue, selectionStart: caret, selectionEnd: caret }, false)
+        lastTextEditRef.current = null
+        selectionRestorePendingRef.current = true
+        internalValueRef.current = nextValue
+        setInternalValue(nextValue)
+        scheduleValueChange(nextValue, delay)
+        requestAnimationFrame(() => {
+            const editor = textareaRef.current
+            if (editor) {
+                editor.setSelectionRange(caret, caret)
+                editor.focus()
+            }
+            selectionRestorePendingRef.current = false
+        })
+    }, [recordTextHistory, scheduleValueChange, updateCurrentHistorySelection])
 
     // --- Helpers ---
     const getCurrentWord = (text: string, position: number) => {
@@ -309,8 +431,7 @@ export function AutocompleteTextarea({
             const newValue = val.slice(0, start) + suggestion.value + val.slice(pos)
             const newCursorPos = start + suggestion.value.length
 
-            internalValueRef.current = newValue
-            setInternalValue(newValue)
+            commitProgrammaticText(newValue, newCursorPos, 50)
             setIsVisible(false)
 
             requestAnimationFrame(() => {
@@ -320,8 +441,6 @@ export function AutocompleteTextarea({
                     scrollToCaret()
                 }
             })
-
-            scheduleValueChange(newValue, 50)
         } else if (suggestionMode === 'wildcard') {
             // ??쇰뱶移대뱶 ?쎌엯: <name> ?뺥깭濡?
             const wildcardWord = getWildcardWord(val, pos)
@@ -340,20 +459,9 @@ export function AutocompleteTextarea({
             const newCursorPos = bracketPos + suggestion.value.length + 2 // <name>
 
             // Update internal state immediately (no flicker)
-            internalValueRef.current = newValue
-            setInternalValue(newValue)
+            commitProgrammaticText(newValue, newCursorPos, 50)
             setIsVisible(false)
 
-            // Set cursor position immediately
-            requestAnimationFrame(() => {
-                if (textareaRef.current) {
-                    textareaRef.current.setSelectionRange(newCursorPos, newCursorPos)
-                    textareaRef.current.focus()
-                }
-            })
-
-            // Debounce external onChange to avoid re-render resetting cursor
-            scheduleValueChange(newValue, 50)
         } else {
             // ?쇰컲 ?쒓렇 ?쎌엯 (:: 臾몃쾿 吏??
             const left = val.slice(0, pos)
@@ -379,8 +487,7 @@ export function AutocompleteTextarea({
             const newCursorPos = wordStart + prefix.length + suggestion.value.length + suffix.length
 
             // Update internal state immediately (no flicker)
-            internalValueRef.current = newValue
-            setInternalValue(newValue)
+            commitProgrammaticText(newValue, newCursorPos, 50)
             setIsVisible(false)
 
             // Set cursor position immediately
@@ -391,9 +498,6 @@ export function AutocompleteTextarea({
                     scrollToCaret()
                 }
             })
-
-            // Debounce external onChange to avoid re-render resetting cursor
-            scheduleValueChange(newValue, 50)
         }
     }
 
@@ -438,13 +542,25 @@ export function AutocompleteTextarea({
     const handleValueChange = (code: string) => {
         const editor = textareaRef.current
         const cursor = editor?.selectionEnd ?? code.length
-        const isDeletion = code.length < internalValueRef.current.length
+        const previousValue = internalValueRef.current
+        const isDeletion = code.length < previousValue.length
         const nextValue = !isDeletion && shouldInsertWeightClosing(code, cursor)
             ? code.slice(0, cursor) + "::" + code.slice(cursor)
             : code
 
+        if (nextValue !== code) selectionRestorePendingRef.current = true
         internalValueRef.current = nextValue
         setInternalValue(nextValue)
+
+        if (isComposingRef.current || compositionCommitPendingRef.current) return
+
+        const selectionStart = editor?.selectionStart ?? cursor
+        const selectionEnd = editor?.selectionEnd ?? cursor
+        const groupedEdit = nextValue === code
+            ? groupTextEdit(lastTextEditRef.current, describeTextEdit(previousValue, nextValue), selectionEnd, Date.now())
+            : { merge: false, group: null }
+        recordTextHistory({ value: nextValue, selectionStart, selectionEnd }, groupedEdit.merge)
+        lastTextEditRef.current = groupedEdit.group
         scheduleValueChange(nextValue, 100)
 
         if (editor) {
@@ -452,12 +568,37 @@ export function AutocompleteTextarea({
                 requestAnimationFrame(() => {
                     textareaRef.current?.setSelectionRange(cursor, cursor)
                     textareaRef.current?.focus()
+                    selectionRestorePendingRef.current = false
                     scrollToCaret()
                 })
             }
             checkAutocomplete(nextValue, editor)
             scrollToCaret()
         }
+    }
+
+    const handleCompositionStart = () => {
+        if (compositionCommitTimerRef.current) clearTimeout(compositionCommitTimerRef.current)
+        updateCurrentHistorySelection()
+        isComposingRef.current = true
+        compositionCommitPendingRef.current = true
+        lastTextEditRef.current = null
+    }
+
+    const handleCompositionEnd = () => {
+        isComposingRef.current = false
+        if (compositionCommitTimerRef.current) clearTimeout(compositionCommitTimerRef.current)
+        compositionCommitTimerRef.current = setTimeout(() => {
+            compositionCommitTimerRef.current = null
+            compositionCommitPendingRef.current = false
+            const editor = textareaRef.current
+            const nextValue = internalValueRef.current
+            const selectionStart = editor?.selectionStart ?? nextValue.length
+            const selectionEnd = editor?.selectionEnd ?? selectionStart
+            recordTextHistory({ value: nextValue, selectionStart, selectionEnd }, false)
+            scheduleValueChange(nextValue, 0)
+            if (editor) checkAutocomplete(nextValue, editor)
+        }, 0)
     }
 
     const adjustWeightAtCaret = (direction: 1 | -1) => {
@@ -487,14 +628,8 @@ export function AutocompleteTextarea({
         const previousPromptStart = weighted ? bodyStart + weighted[1].length + 2 : bodyStart
         const nextCaret = promptStart + Math.max(0, Math.min(caret - previousPromptStart, prompt.length))
 
-        internalValueRef.current = nextValue
-        setInternalValue(nextValue)
+        commitProgrammaticText(nextValue, nextCaret, 0)
         setIsVisible(false)
-        scheduleValueChange(nextValue, 0)
-        requestAnimationFrame(() => {
-            textareaRef.current?.setSelectionRange(nextCaret, nextCaret)
-            textareaRef.current?.focus()
-        })
         return true
     }
 
@@ -504,12 +639,30 @@ export function AutocompleteTextarea({
             textareaRef.current = e.target
         }
 
+        const key = e.key.toLowerCase()
+        const historyAction = !isComposingRef.current && !e.altKey && (e.ctrlKey || e.metaKey)
+            ? key === 'z'
+                ? (e.shiftKey ? 'redo' : 'undo')
+                : key === 'y' && !e.shiftKey ? 'redo' : null
+            : null
+        if (historyAction) {
+            e.preventDefault()
+            e.stopPropagation()
+            const history = textHistoryRef.current
+            applyTextHistoryOffset(history.offset + (historyAction === 'undo' ? -1 : 1))
+            return
+        }
+
         if (e.ctrlKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
             if (adjustWeightAtCaret(e.key === 'ArrowUp' ? 1 : -1)) {
                 e.preventDefault()
                 e.stopPropagation()
             }
             return
+        }
+
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) {
+            lastTextEditRef.current = null
         }
 
         if (isVisible && suggestions.length > 0) {
@@ -542,6 +695,7 @@ export function AutocompleteTextarea({
     useEffect(() => {
         return () => {
             autocompleteRequestRef.current++
+            if (compositionCommitTimerRef.current) clearTimeout(compositionCommitTimerRef.current)
             flushPendingValue()
         }
     }, [flushPendingValue])
@@ -706,14 +860,28 @@ export function AutocompleteTextarea({
                     textareaClassName="focus:outline-none bg-transparent min-h-full min-w-0 resize-none"
 
                     // Event wiring
-                    onFocus={(e) => textareaRef.current = e.target as HTMLTextAreaElement}
-                    onBlur={flushPendingValue}
+                    onFocus={(e) => {
+                        textareaRef.current = e.target as HTMLTextAreaElement
+                        updateCurrentHistorySelection()
+                    }}
+                    onBlur={() => {
+                        updateCurrentHistorySelection()
+                        flushPendingValue()
+                    }}
                     onClick={(e) => {
                         textareaRef.current = e.target as HTMLTextAreaElement
+                        lastTextEditRef.current = null
+                        updateCurrentHistorySelection()
                         scrollToCaret()
                     }}
-                    onKeyUp={scrollToCaret} // Handle arrow keys
+                    onKeyUp={() => {
+                        updateCurrentHistorySelection()
+                        scrollToCaret()
+                    }} // Handle arrow keys
                     onKeyDown={handleKeyDown}
+                    onSelect={updateCurrentHistorySelection}
+                    onCompositionStart={handleCompositionStart}
+                    onCompositionEnd={handleCompositionEnd}
 
                     placeholder={placeholder}
                     readOnly={props.readOnly}

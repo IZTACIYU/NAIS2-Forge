@@ -28,3 +28,60 @@ export function getHistoryShortcut(event: Pick<KeyboardEvent, 'ctrlKey' | 'metaK
 export function appendBoundedHistory<T>(history: readonly T[], appliedSteps: number, entry: T, limit: number): T[] {
   return [...history.slice(0, appliedSteps), entry].slice(-Math.max(1, limit))
 }
+
+export interface TextEdit {
+  start: number
+  removed: string
+  inserted: string
+}
+
+export interface TextEditGroup {
+  kind: 'insert' | 'delete'
+  start: number
+  caretAfter: number
+  timestamp: number
+}
+
+export function describeTextEdit(before: string, after: string): TextEdit {
+  let start = 0
+  while (start < before.length && start < after.length && before[start] === after[start]) start++
+
+  let beforeEnd = before.length
+  let afterEnd = after.length
+  while (beforeEnd > start && afterEnd > start && before[beforeEnd - 1] === after[afterEnd - 1]) {
+    beforeEnd--
+    afterEnd--
+  }
+
+  return {
+    start,
+    removed: before.slice(start, beforeEnd),
+    inserted: after.slice(start, afterEnd),
+  }
+}
+
+export function groupTextEdit(
+  previous: TextEditGroup | null,
+  edit: TextEdit,
+  caretAfter: number,
+  timestamp: number,
+  timeGap = 700,
+): { merge: boolean; group: TextEditGroup | null } {
+  const isInsert = edit.removed === '' && edit.inserted.length === 1
+  const isDelete = edit.inserted === '' && edit.removed.length === 1
+  const character = isInsert ? edit.inserted : edit.removed
+  if ((!isInsert && !isDelete) || /[\s,]/.test(character)) return { merge: false, group: null }
+
+  const kind = isInsert ? 'insert' : 'delete'
+  const merge = previous !== null
+    && previous.kind === kind
+    && timestamp - previous.timestamp <= timeGap
+    && (kind === 'insert'
+      ? edit.start === previous.caretAfter
+      : edit.start === previous.start || edit.start + 1 === previous.start)
+
+  return {
+    merge,
+    group: { kind, start: edit.start, caretAfter, timestamp },
+  }
+}
