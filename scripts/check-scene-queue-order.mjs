@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { buildSceneQueueOrder, findNextQueuedSceneIndex } from '../src/lib/scene-queue-order.ts'
+import { flushScenePromptDrafts, subscribeScenePromptDraftFlush } from '../src/lib/scene-prompt-drafts.ts'
 
 const scenes = [
     { id: 'A', queueCount: 3 },
@@ -17,3 +18,11 @@ assert.equal(findNextQueuedSceneIndex(scenes, null, true), 0)
 assert.equal(findNextQueuedSceneIndex([{ ...scenes[0], queueCount: 2 }, scenes[1], scenes[2]], 'A', true), 1)
 assert.equal(findNextQueuedSceneIndex([{ ...scenes[0], queueCount: 2 }, { ...scenes[1], queueCount: 0 }, scenes[2]], 'A', true), 2)
 assert.equal(findNextQueuedSceneIndex([{ ...scenes[0], queueCount: 2 }, { ...scenes[1], queueCount: 0 }, { ...scenes[2], queueCount: 0 }], 'A', true), 0)
+
+let promptFlushes = 0
+const unsubscribePromptFlush = subscribeScenePromptDraftFlush(() => { promptFlushes++ })
+flushScenePromptDrafts()
+assert.equal(promptFlushes, 1)
+unsubscribePromptFlush()
+flushScenePromptDrafts()
+assert.equal(promptFlushes, 1)

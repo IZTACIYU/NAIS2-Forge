@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { Button } from '@/components/ui/button'
 import {
@@ -62,6 +62,7 @@ import { getSceneFolderFromImages, sanitizeSceneFolderName } from '@/lib/scene-p
 import { SceneMultiCharacterPanel } from '@/components/scene/SceneMultiCharacterPanel'
 import { SceneCharacterAdditionDialog } from '@/components/scene/SceneCharacterAdditionDialog'
 import { SceneCustomCharacterDialog } from '@/components/scene/SceneCustomCharacterDialog'
+import { subscribeScenePromptDraftFlush } from '@/lib/scene-prompt-drafts'
 
 export default function SceneDetail() {
     const { id: sceneId } = useParams()
@@ -183,6 +184,24 @@ export default function SceneDetail() {
     const [sceneCharacterPickerOpen, setSceneCharacterPickerOpen] = useState(false)
     const [sceneCustomCharacterOpen, setSceneCustomCharacterOpen] = useState(false)
 
+    const flushLocalPrompts = useCallback(() => {
+        if (!sceneId || !activePresetId) return
+        const sceneState = useSceneStore.getState()
+        const currentScene = sceneState.presets
+            .find(preset => preset.id === activePresetId)?.scenes
+            .find(candidate => candidate.id === sceneId)
+        if (!currentScene) return
+
+        const latestPrompt = localPromptRef.current
+        if (latestPrompt !== currentScene.scenePrompt) {
+            sceneState.updateScenePrompt(activePresetId, sceneId, latestPrompt)
+        }
+        const latestNegativePrompt = localNegativePromptRef.current
+        if (latestNegativePrompt !== (currentScene.sceneNegativePrompt || '')) {
+            sceneState.updateSceneNegativePrompt(activePresetId, sceneId, latestNegativePrompt)
+        }
+    }, [activePresetId, sceneId])
+
     const nav = useNavigate()
 
     // ESC key handler for closing viewer or navigating back
@@ -246,26 +265,16 @@ export default function SceneDetail() {
         return () => clearTimeout(timer)
     }, [localNegativePrompt, scene?.id, scene?.sceneNegativePrompt, activePresetId, updateSceneNegativePrompt])
 
-    // Preserve the newest local edit when leaving the scene before debounce ends.
+    // Generation starts from multiple UI entry points. Flush the mounted editor's
+    // local draft synchronously at that shared boundary and when leaving the scene.
     useEffect(() => {
         if (!scene || !activePresetId) return
-        const sceneIdToSave = scene.id
-        const presetIdToSave = activePresetId
-
+        const unsubscribe = subscribeScenePromptDraftFlush(flushLocalPrompts)
         return () => {
-            const latestPrompt = localPromptRef.current
-            const currentScene = useSceneStore.getState().presets
-                .find(p => p.id === presetIdToSave)?.scenes
-                .find(s => s.id === sceneIdToSave)
-            if (currentScene && latestPrompt !== currentScene.scenePrompt) {
-                updateScenePrompt(presetIdToSave, sceneIdToSave, latestPrompt)
-            }
-            const latestNegativePrompt = localNegativePromptRef.current
-            if (currentScene && latestNegativePrompt !== (currentScene.sceneNegativePrompt || '')) {
-                updateSceneNegativePrompt(presetIdToSave, sceneIdToSave, latestNegativePrompt)
-            }
+            flushLocalPrompts()
+            unsubscribe()
         }
-    }, [scene?.id, activePresetId, updateScenePrompt, updateSceneNegativePrompt])
+    }, [scene?.id, activePresetId, flushLocalPrompts])
 
     // Auto-validate images on mount - MUST be before conditional return to maintain hook order
     useEffect(() => {
@@ -306,13 +315,7 @@ export default function SceneDetail() {
     }, [scene?.id, activePresetId, validateSceneImages])
 
     const handleBack = () => {
-        // Save prompt immediately before leaving
-        if (scene && activePresetId && localPrompt !== scene.scenePrompt) {
-            updateScenePrompt(activePresetId, scene.id, localPrompt)
-        }
-        if (scene && activePresetId && localNegativePrompt !== (scene.sceneNegativePrompt || '')) {
-            updateSceneNegativePrompt(activePresetId, scene.id, localNegativePrompt)
-        }
+        flushLocalPrompts()
         nav('/scenes')
     }
 
@@ -603,6 +606,10 @@ export default function SceneDetail() {
                         className="mt-2 !h-[164px] min-h-0 resize-none rounded-md"
                         style={{ fontSize: `${promptFontSize}px` }}
                         value={scenePromptMode === 'positive' ? localPrompt : localNegativePrompt}
+                        onDraftChange={(nextValue) => {
+                            if (scenePromptMode === 'positive') localPromptRef.current = nextValue
+                            else localNegativePromptRef.current = nextValue
+                        }}
                         onChange={(event: any) => scenePromptMode === 'positive'
                             ? setLocalPrompt(event.target.value)
                             : setLocalNegativePrompt(event.target.value)

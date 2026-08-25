@@ -35,6 +35,7 @@ const DIRECTIVE_SUGGESTIONS: SuggestionItem[] = [
 interface AutocompleteTextareaProps {
     value: string
     onChange: (e: { target: { value: string } }) => void
+    onDraftChange?: (value: string) => void
     className?: string
     maxSuggestions?: number
     style?: React.CSSProperties
@@ -64,6 +65,7 @@ const TEXT_HISTORY_LIMIT = 100
 export function AutocompleteTextarea({
     value,
     onChange,
+    onDraftChange,
     className,
     maxSuggestions = 15,
     style, // mainly used for fontSize
@@ -99,8 +101,10 @@ export function AutocompleteTextarea({
     const onChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const pendingLocalValueRef = useRef<string | null>(null)
     const onChangeRef = useRef(onChange)
+    const onDraftChangeRef = useRef(onDraftChange)
     const autocompleteRequestRef = useRef(0)
     onChangeRef.current = onChange
+    onDraftChangeRef.current = onDraftChange
 
     // Fragment Store 援щ룆 (議곌컖 ?꾨＼?꾪듃 紐⑸줉)
     const fragmentFiles = useFragmentStore(state => state.files)
@@ -238,6 +242,7 @@ export function AutocompleteTextarea({
         }
         pendingLocalValueRef.current = record.value
         internalValueRef.current = record.value
+        onDraftChangeRef.current?.(record.value)
         lastTextEditRef.current = null
         selectionRestorePendingRef.current = true
         autocompleteRequestRef.current++
@@ -261,6 +266,7 @@ export function AutocompleteTextarea({
         lastTextEditRef.current = null
         selectionRestorePendingRef.current = true
         internalValueRef.current = nextValue
+        onDraftChangeRef.current?.(nextValue)
         setInternalValue(nextValue)
         scheduleValueChange(nextValue, delay)
         requestAnimationFrame(() => {
@@ -550,6 +556,7 @@ export function AutocompleteTextarea({
 
         if (nextValue !== code) selectionRestorePendingRef.current = true
         internalValueRef.current = nextValue
+        onDraftChangeRef.current?.(nextValue)
         setInternalValue(nextValue)
 
         if (isComposingRef.current || compositionCommitPendingRef.current) return

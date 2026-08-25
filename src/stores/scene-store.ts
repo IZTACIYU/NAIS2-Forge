@@ -5,6 +5,7 @@ import { mkdir, rename, exists } from '@tauri-apps/plugin-fs'
 import { pictureDir, join, dirname } from '@tauri-apps/api/path'
 import { useSettingsStore } from './settings-store'
 import { notifySceneQueueChanged } from '@/lib/scene-queue-events'
+import { flushScenePromptDrafts } from '@/lib/scene-prompt-drafts'
 import { getSceneFolderFromImages, replaceSceneFolderPrefix, sanitizeSceneFolderName } from '@/lib/scene-path'
 import { createHistoryIndexScope, moveHistoryIndexPathPrefix } from '@/lib/history-index'
 import { normalizeCostumePromptMarkersForExport } from '@/lib/costume-prompt'
@@ -1155,6 +1156,7 @@ export const useSceneStore = create<SceneState>()(
             generationSource: 'queue',
             sceneQueueCursorId: null,
             startNewGenerationSession: (source = 'queue') => {
+                flushScenePromptDrafts()
                 const newSessionId = Date.now()
                 set({ generationSessionId: newSessionId, generationSource: source, isGenerating: true, isCancelling: false, sceneQueueCursorId: null, characterSequenceQueue: [], activeCharacterSequenceEntryId: null })
                 return newSessionId
