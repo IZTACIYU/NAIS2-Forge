@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label"
 import { useGenerationStore } from '@/stores/generation-store'
 import { useToolsStore } from '@/stores/tools-store'
 import { useTranslation } from 'react-i18next'
-import { Paintbrush, Eraser, Undo, Trash2, Save, ZoomIn, ZoomOut, RotateCcw, Circle, Square } from 'lucide-react'
+import { Paintbrush, Eraser, Redo, Undo, Trash2, Save, ZoomIn, ZoomOut, RotateCcw, Circle, Square } from 'lucide-react'
+import { appendBoundedHistory, getHistoryShortcut } from '@/lib/utils'
 
 interface InpaintingDialogProps {
     open: boolean
@@ -437,11 +438,12 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
     const commitHistory = (action: MaskHistoryAction) => {
         if (action.cells.length === 0) return
 
-        const appliedHistory = historyRef.current.slice(0, historyStepRef.current)
-        appliedHistory.push(action)
-        const nextHistory = appliedHistory.length > MAX_UNDO_STEPS
-            ? appliedHistory.slice(-MAX_UNDO_STEPS)
-            : appliedHistory
+        const nextHistory = appendBoundedHistory(
+            historyRef.current,
+            historyStepRef.current,
+            action,
+            MAX_UNDO_STEPS,
+        )
 
         historyRef.current = nextHistory
         historyStepRef.current = nextHistory.length
@@ -468,15 +470,34 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
         setHistoryStep(nextStep)
     }
 
+    const redo = () => {
+        const canvas = canvasRef.current
+        const ctx = canvas?.getContext('2d')
+        const currentStep = historyStepRef.current
+        const action = historyRef.current[currentStep]
+        if (!canvas || !ctx || !action) return
+
+        const columns = Math.ceil(canvas.width / GRID_SIZE)
+        for (const cellId of action.cells) {
+            setGridCellState(ctx, cellId % columns, Math.floor(cellId / columns), action.painted)
+        }
+
+        const nextStep = currentStep + 1
+        historyStepRef.current = nextStep
+        setHistoryStep(nextStep)
+    }
+
     useEffect(() => {
         if (!open) return
-        const handleUndoShortcut = (event: KeyboardEvent) => {
-            if (!event.ctrlKey || event.shiftKey || event.key.toLowerCase() !== 'z') return
+        const handleHistoryShortcut = (event: KeyboardEvent) => {
+            const action = getHistoryShortcut(event)
+            if (!action) return
             event.preventDefault()
-            undo()
+            if (action === 'undo') undo()
+            else redo()
         }
-        window.addEventListener('keydown', handleUndoShortcut)
-        return () => window.removeEventListener('keydown', handleUndoShortcut)
+        window.addEventListener('keydown', handleHistoryShortcut)
+        return () => window.removeEventListener('keydown', handleHistoryShortcut)
     }, [open])
 
     useLayoutEffect(() => {
@@ -735,8 +756,11 @@ export function InpaintingDialog({ open, onOpenChange, sourceImage: propSourceIm
                             <div className="h-6 w-px bg-border mx-2" />
 
                             <div className="flex items-center gap-1">
-                                <Button variant="ghost" size="icon" onClick={undo} disabled={historyStep <= 0}>
+                                <Button variant="ghost" size="icon" onClick={undo} disabled={historyStep <= 0} title={t('smartTools.undo')} aria-label={t('smartTools.undo')}>
                                     <Undo className="w-4 h-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={redo} disabled={historyStep >= historyRef.current.length} title={t('smartTools.redo')} aria-label={t('smartTools.redo')}>
+                                    <Redo className="w-4 h-4" />
                                 </Button>
                                 <Button variant="ghost" size="icon" onClick={clearCanvas}>
                                     <Trash2 className="w-4 h-4" />

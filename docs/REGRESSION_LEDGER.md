@@ -265,6 +265,19 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+## R-021 — 캔버스 편집 이력은 작업 단위로 제한하고 Redo 분기를 보존한다
+
+- **Date:** 2026-08-25
+- **Area:** Inpainting, Draw Over, Mosaic canvas editors, keyboard shortcuts
+- **Symptom/Risk:** 인페인트와 덧그리기는 실행 취소만 가능하고 모자이크는 이력이 없어서, 한 번 되돌린 작업을 다시 적용하거나 모자이크 실수를 복구할 수 없었다.
+- **Root cause:** 각 편집기가 서로 다른 canvas 상태를 소유하지만 공통적인 undo/redo 분기 규칙이 없었고, 기존 인페인트·덧그리기 이력은 이전 상태만 보관했다.
+- **Invariant to preserve:** 한 번의 pointer stroke와 초기화를 각각 한 작업으로 기록한다. Undo 후 새 작업을 시작하면 기존 Redo 분기를 버리고, 편집기를 닫거나 원본을 교체하면 임시 이력을 정리한다. 입력 요소가 포커스를 가진 동안 전역 단축키가 native undo/redo를 가로채지 않는다.
+- **Fix:** 인페인트와 모자이크는 변경 셀/블록 작업을 최대 50회 보관하고, 덧그리기는 메모리 사용을 제한하기 위해 압축 편집 레이어 snapshot을 최대 12회 보관한다. 세 편집기 모두 버튼과 `Ctrl+Z`, `Ctrl+Shift+Z`, `Ctrl+Y`로 양방향 이동하며, 모자이크는 원본 이미지 전체 snapshot 대신 변경 블록으로 canvas를 재구성한다.
+- **Regression coverage:** `npm run check:shortcuts`, undo 후 redo, undo 후 새 stroke, reset undo/redo, editable target shortcut guard, TypeScript 및 production build.
+- **Do not "fix" by:** 매 pointer move마다 전체 canvas snapshot을 저장하거나, 이력을 무제한 유지하거나, 편집기 밖의 input native undo를 가로채기.
+
+---
+
 ## 새 항목 템플릿
 
 ### R-XXX — 짧은 제목

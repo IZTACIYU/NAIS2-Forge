@@ -551,6 +551,7 @@
     "zoomOut": "Zoom Out",
     "resetZoom": "Reset Zoom",
     "undo": "Undo",
+    "redo": "Redo",
     "color": "Color",
     "opacity": "Opacity",
     "blurAmount": "Blur Amount",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
-import { Circle, Download, Droplets, Eraser, Image as ImageIcon, Paintbrush, RotateCcw, Square, Undo, ZoomIn, ZoomOut } from 'lucide-react'
+import { Circle, Download, Droplets, Eraser, Image as ImageIcon, Paintbrush, Redo, RotateCcw, Square, Undo, ZoomIn, ZoomOut } from 'lucide-react'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { useTranslation } from 'react-i18next'
@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { toast } from '@/components/ui/use-toast'
-import { cn } from '@/lib/utils'
+import { appendBoundedHistory, cn, getHistoryShortcut } from '@/lib/utils'
 
 type DrawMode = 'pen' | 'blur' | 'eraser'
 type TransferMode = 'i2i' | 'inpaint'
@@ -48,6 +48,7 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
     const panningRef = useRef(false)
     const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null)
     const undoHistoryRef = useRef<string[]>([])
+    const redoHistoryRef = useRef<string[]>([])
     const zoomRef = useRef(1)
     const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null)
     const [displaySize, setDisplaySize] = useState<{ width: number; height: number } | null>(null)
@@ -60,6 +61,7 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
     const [opacity, setOpacity] = useState(100)
     const [zoom, setZoom] = useState(1)
     const [undoCount, setUndoCount] = useState(0)
+    const [redoCount, setRedoCount] = useState(0)
 
     const releaseCanvases = useCallback(() => {
         for (const canvas of [baseCanvasRef.current, editCanvasRef.current, blurSourceRef.current]) {
@@ -74,6 +76,7 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         panningRef.current = false
         panStartRef.current = null
         undoHistoryRef.current = []
+        redoHistoryRef.current = []
         zoomRef.current = 1
         panOffsetRef.current = { x: 0, y: 0 }
         setImageSize(null)
@@ -81,6 +84,7 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         setZoom(1)
         setPanOffset({ x: 0, y: 0 })
         setUndoCount(0)
+        setRedoCount(0)
     }, [])
 
     useEffect(() => {
@@ -105,7 +109,9 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
             baseCanvas.getContext('2d')?.drawImage(image, 0, 0)
             editCanvas.getContext('2d')?.clearRect(0, 0, editCanvas.width, editCanvas.height)
             undoHistoryRef.current = []
+            redoHistoryRef.current = []
             setUndoCount(0)
+            setRedoCount(0)
             zoomRef.current = 1
             setZoom(1)
             panOffsetRef.current = { x: 0, y: 0 }
@@ -184,18 +190,40 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         }
     }
 
-    const clearUndoHistory = () => {
-        undoHistoryRef.current = []
-        setUndoCount(0)
-    }
-
-    const captureUndoSnapshot = () => {
+    const captureSnapshot = useCallback(() => {
         const canvas = editCanvasRef.current
-        if (!canvas || canvas.width === 0 || canvas.height === 0) return
+        return canvas && canvas.width > 0 && canvas.height > 0
+            ? canvas.toDataURL('image/webp', 0.9)
+            : null
+    }, [])
 
-        undoHistoryRef.current = [...undoHistoryRef.current, canvas.toDataURL('image/webp', 0.9)].slice(-MAX_UNDO_STEPS)
+    const captureUndoSnapshot = useCallback(() => {
+        const snapshot = captureSnapshot()
+        if (!snapshot) return
+
+        undoHistoryRef.current = appendBoundedHistory(
+            undoHistoryRef.current,
+            undoHistoryRef.current.length,
+            snapshot,
+            MAX_UNDO_STEPS,
+        )
+        redoHistoryRef.current = []
         setUndoCount(undoHistoryRef.current.length)
-    }
+        setRedoCount(0)
+    }, [captureSnapshot])
+
+    const restoreSnapshot = useCallback((snapshot: string) => {
+        const canvas = editCanvasRef.current
+        if (!canvas) return
+        const image = new Image()
+        image.onload = () => {
+            const ctx = canvas.getContext('2d')
+            if (!ctx) return
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
+        }
+        image.src = snapshot
+    }, [])
 
     const drawBlurPoint = useCallback((x: number, y: number) => {
         const canvas = editCanvasRef.current
@@ -341,36 +369,57 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
 
     const resetEdits = () => {
         const canvas = editCanvasRef.current
+        if (!canvas) return
+        captureUndoSnapshot()
         canvas?.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
-        clearUndoHistory()
     }
 
     const undo = useCallback(() => {
-        const canvas = editCanvasRef.current
+        const current = captureSnapshot()
+        if (!current) return
         const snapshot = undoHistoryRef.current.pop()
-        if (!canvas || !snapshot) return
+        if (!snapshot) return
 
+        redoHistoryRef.current = appendBoundedHistory(
+            redoHistoryRef.current,
+            redoHistoryRef.current.length,
+            current,
+            MAX_UNDO_STEPS,
+        )
         setUndoCount(undoHistoryRef.current.length)
-        const image = new Image()
-        image.onload = () => {
-            const ctx = canvas.getContext('2d')
-            if (!ctx) return
-            ctx.clearRect(0, 0, canvas.width, canvas.height)
-            ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
-        }
-        image.src = snapshot
-    }, [])
+        setRedoCount(redoHistoryRef.current.length)
+        restoreSnapshot(snapshot)
+    }, [captureSnapshot, restoreSnapshot])
+
+    const redo = useCallback(() => {
+        const current = captureSnapshot()
+        if (!current) return
+        const snapshot = redoHistoryRef.current.pop()
+        if (!snapshot) return
+
+        undoHistoryRef.current = appendBoundedHistory(
+            undoHistoryRef.current,
+            undoHistoryRef.current.length,
+            current,
+            MAX_UNDO_STEPS,
+        )
+        setUndoCount(undoHistoryRef.current.length)
+        setRedoCount(redoHistoryRef.current.length)
+        restoreSnapshot(snapshot)
+    }, [captureSnapshot, restoreSnapshot])
 
     useEffect(() => {
         if (!open) return
-        const handleUndoShortcut = (event: KeyboardEvent) => {
-            if (!event.ctrlKey || event.shiftKey || event.key.toLowerCase() !== 'z') return
+        const handleHistoryShortcut = (event: KeyboardEvent) => {
+            const action = getHistoryShortcut(event)
+            if (!action) return
             event.preventDefault()
-            undo()
+            if (action === 'undo') undo()
+            else redo()
         }
-        window.addEventListener('keydown', handleUndoShortcut)
-        return () => window.removeEventListener('keydown', handleUndoShortcut)
-    }, [open, undo])
+        window.addEventListener('keydown', handleHistoryShortcut)
+        return () => window.removeEventListener('keydown', handleHistoryShortcut)
+    }, [open, redo, undo])
 
     useLayoutEffect(() => {
         const pendingZoom = pendingZoomRef.current
@@ -573,8 +622,11 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
                         </Button>
                     </div>
                     <div className="h-6 w-px bg-border" />
-                    <Button type="button" variant="ghost" size="icon" onClick={undo} disabled={undoCount === 0} title={t('smartTools.undo')}>
+                    <Button type="button" variant="ghost" size="icon" onClick={undo} disabled={undoCount === 0} title={t('smartTools.undo')} aria-label={t('smartTools.undo')}>
                         <Undo className="h-4 w-4" />
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon" onClick={redo} disabled={redoCount === 0} title={t('smartTools.redo')} aria-label={t('smartTools.redo')}>
+                        <Redo className="h-4 w-4" />
                     </Button>
                     <div className="h-6 w-px bg-border" />
                     <Button type="button" variant="ghost" size="icon" onClick={resetEdits} title={t('smartTools.reset')}>

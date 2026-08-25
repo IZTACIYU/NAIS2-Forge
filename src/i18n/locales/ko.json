@@ -553,6 +553,7 @@
     "zoomOut": "\ucd95\uc18c",
     "resetZoom": "\ubc30\uc728 \ucd08\uae30\ud654",
     "undo": "\uc2e4\ud589 \ucde8\uc18c",
+    "redo": "\ub2e4\uc2dc \uc2e4\ud589",
     "color": "\uc0c9\uc0c1",
     "opacity": "\ubd88\ud22c\uba85\ub3c4",
     "blurAmount": "\ube14\ub7ec \uac15\ub3c4",

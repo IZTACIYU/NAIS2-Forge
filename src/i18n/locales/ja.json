@@ -550,6 +550,7 @@
     "zoomOut": "縮小",
     "resetZoom": "倍率をリセット",
     "undo": "元に戻す",
+    "redo": "やり直す",
     "color": "色",
     "opacity": "不透明度",
     "blurAmount": "ぼかし強度",

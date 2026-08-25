@@ -4,11 +4,27 @@ import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { useState, useRef, useCallback, useEffect, MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { Download, Grid3X3, Minus, Plus } from "lucide-react"
+import { Download, Grid3X3, Minus, Plus, Redo, Undo } from "lucide-react"
 import { save } from "@tauri-apps/plugin-dialog"
 import { writeFile } from "@tauri-apps/plugin-fs"
 import { toast } from "@/components/ui/use-toast"
 import { useToolsStore } from '@/stores/tools-store'
+import { appendBoundedHistory, getHistoryShortcut } from '@/lib/utils'
+
+const MAX_HISTORY_STEPS = 50
+
+interface MosaicBlock {
+    key: string
+    x: number
+    y: number
+    size: number
+    color: string
+}
+
+interface MosaicHistoryAction {
+    added: MosaicBlock[]
+    removed: MosaicBlock[]
+}
 
 interface MosaicDialogProps {
     sourceImage: string | null
@@ -35,10 +51,14 @@ export function MosaicDialog({
         setMosaicBrushSize: setBrushSize
     } = useToolsStore()
 
-    // Track which grid cells have been mosaicked to prevent stacking
-    const mosaickedCellsRef = useRef<Set<string>>(new Set())
+    // Track rendered blocks so undo can rebuild from the untouched source pixels.
+    const mosaicBlocksRef = useRef<Map<string, MosaicBlock>>(new Map())
+    const currentStrokeBlocksRef = useRef<MosaicBlock[]>([])
     // Store original image pixels
     const originalImageDataRef = useRef<ImageData | null>(null)
+    const historyRef = useRef<MosaicHistoryAction[]>([])
+    const historyStepRef = useRef(0)
+    const [historyStep, setHistoryStep] = useState(0)
 
 
     // Initialize canvas when dialog opens or image changes
@@ -74,7 +94,11 @@ export function MosaicDialog({
                 originalImageDataRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height)
 
                 // Clear mosaicked regions tracking
-                mosaickedCellsRef.current.clear()
+                mosaicBlocksRef.current.clear()
+                currentStrokeBlocksRef.current = []
+                historyRef.current = []
+                historyStepRef.current = 0
+                setHistoryStep(0)
             }
             img.onerror = (e) => {
                 console.error("Image load error", e)
@@ -85,8 +109,64 @@ export function MosaicDialog({
         return () => clearTimeout(timer)
     }, [isOpen, sourceImage])
 
+    useEffect(() => {
+        if (isOpen) return
+        mosaicBlocksRef.current.clear()
+        currentStrokeBlocksRef.current = []
+        historyRef.current = []
+        historyStepRef.current = 0
+        setHistoryStep(0)
+    }, [isOpen])
+
+    const rebuildCanvas = useCallback(() => {
+        const canvas = canvasRef.current
+        const original = originalImageDataRef.current
+        const ctx = canvas?.getContext('2d')
+        if (!canvas || !original || !ctx) return
+        ctx.putImageData(original, 0, 0)
+        for (const block of mosaicBlocksRef.current.values()) {
+            ctx.fillStyle = block.color
+            ctx.fillRect(block.x, block.y, block.size, block.size)
+        }
+    }, [])
+
+    const commitHistory = useCallback((action: MosaicHistoryAction) => {
+        if (action.added.length === 0 && action.removed.length === 0) return
+        const nextHistory = appendBoundedHistory(
+            historyRef.current,
+            historyStepRef.current,
+            action,
+            MAX_HISTORY_STEPS,
+        )
+        historyRef.current = nextHistory
+        historyStepRef.current = nextHistory.length
+        setHistoryStep(nextHistory.length)
+    }, [])
+
+    const undo = useCallback(() => {
+        const currentStep = historyStepRef.current
+        const action = historyRef.current[currentStep - 1]
+        if (!action) return
+        for (const block of action.added) mosaicBlocksRef.current.delete(block.key)
+        for (const block of action.removed) mosaicBlocksRef.current.set(block.key, block)
+        rebuildCanvas()
+        historyStepRef.current = currentStep - 1
+        setHistoryStep(currentStep - 1)
+    }, [rebuildCanvas])
+
+    const redo = useCallback(() => {
+        const currentStep = historyStepRef.current
+        const action = historyRef.current[currentStep]
+        if (!action) return
+        for (const block of action.removed) mosaicBlocksRef.current.delete(block.key)
+        for (const block of action.added) mosaicBlocksRef.current.set(block.key, block)
+        rebuildCanvas()
+        historyStepRef.current = currentStep + 1
+        setHistoryStep(currentStep + 1)
+    }, [rebuildCanvas])
+
     const getCellKey = (cellX: number, cellY: number): string => {
-        return `${cellX},${cellY}`
+        return `${pixelSize}:${cellX},${cellY}`
     }
 
     const applyMosaicToRegion = useCallback((clientX: number, clientY: number) => {
@@ -122,7 +202,7 @@ export function MosaicDialog({
                 const cellKey = getCellKey(cellX, cellY)
 
                 // Skip if this cell was already mosaicked
-                if (mosaickedCellsRef.current.has(cellKey)) continue
+                if (mosaicBlocksRef.current.has(cellKey)) continue
 
                 // Get the average color from the ORIGINAL image data
                 const sampleX = Math.min(Math.floor(px), canvas.width - 1)
@@ -135,16 +215,21 @@ export function MosaicDialog({
                 const a = originalData.data[pixelIndex + 3]
 
                 // Draw mosaic block
-                ctx.fillStyle = `rgba(${r},${g},${b},${a / 255})`
+                const color = `rgba(${r},${g},${b},${a / 255})`
+                ctx.fillStyle = color
                 ctx.fillRect(px, py, pixelSize, pixelSize)
 
                 // Mark this cell as mosaicked
-                mosaickedCellsRef.current.add(cellKey)
+                const block = { key: cellKey, x: px, y: py, size: pixelSize, color }
+                mosaicBlocksRef.current.set(cellKey, block)
+                currentStrokeBlocksRef.current.push(block)
             }
         }
     }, [pixelSize, brushSize])
 
     const handleMouseDown = useCallback((e: MouseEvent) => {
+        if (e.button !== 0) return
+        currentStrokeBlocksRef.current = []
         setIsDrawing(true)
         applyMosaicToRegion(e.clientX, e.clientY)
     }, [applyMosaicToRegion])
@@ -156,32 +241,43 @@ export function MosaicDialog({
 
     const handleMouseUp = useCallback(() => {
         setIsDrawing(false)
-    }, [])
+        commitHistory({ added: currentStrokeBlocksRef.current, removed: [] })
+        currentStrokeBlocksRef.current = []
+    }, [commitHistory])
 
     useEffect(() => {
         if (isDrawing) {
-            const handleGlobalMouseUp = () => setIsDrawing(false)
-            window.addEventListener('mouseup', handleGlobalMouseUp)
-            return () => window.removeEventListener('mouseup', handleGlobalMouseUp)
+            window.addEventListener('mouseup', handleMouseUp)
+            return () => window.removeEventListener('mouseup', handleMouseUp)
         }
-    }, [isDrawing])
+    }, [handleMouseUp, isDrawing])
+
+    useEffect(() => {
+        if (!isOpen) return
+        const handleHistoryShortcut = (event: KeyboardEvent) => {
+            const action = getHistoryShortcut(event)
+            if (!action) return
+            event.preventDefault()
+            if (action === 'undo') undo()
+            else redo()
+        }
+        window.addEventListener('keydown', handleHistoryShortcut)
+        return () => window.removeEventListener('keydown', handleHistoryShortcut)
+    }, [isOpen, redo, undo])
 
     const handleReset = useCallback(() => {
-        if (!canvasRef.current || !sourceImage) return
+        if (!canvasRef.current || !originalImageDataRef.current) return
 
         const canvas = canvasRef.current
         const ctx = canvas.getContext('2d')
         if (!ctx) return
 
-        const img = new Image()
-        img.onload = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height)
-            ctx.drawImage(img, 0, 0)
-            originalImageDataRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height)
-            mosaickedCellsRef.current.clear()
-        }
-        img.src = sourceImage
-    }, [sourceImage])
+        const removed = [...mosaicBlocksRef.current.values()]
+        if (removed.length === 0) return
+        mosaicBlocksRef.current.clear()
+        ctx.putImageData(originalImageDataRef.current, 0, 0)
+        commitHistory({ added: [], removed })
+    }, [commitHistory])
 
     const handleSaveAs = async () => {
         if (!canvasRef.current) return
@@ -255,6 +351,12 @@ export function MosaicDialog({
                             <span className="text-xs text-muted-foreground w-8">{brushSize}</span>
                         </div>
                     </div>
+                    <Button variant="ghost" size="icon" onClick={undo} disabled={historyStep === 0} title={t('smartTools.undo')} aria-label={t('smartTools.undo')}>
+                        <Undo className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={redo} disabled={historyStep >= historyRef.current.length} title={t('smartTools.redo')} aria-label={t('smartTools.redo')}>
+                        <Redo className="h-4 w-4" />
+                    </Button>
                     <Button variant="outline" size="sm" onClick={handleReset}>
                         {t('smartTools.reset', '초기화')}
                     </Button>
