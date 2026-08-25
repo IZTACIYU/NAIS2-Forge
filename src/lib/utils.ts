@@ -13,3 +13,7 @@ export function isEditableEventTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement
     && (target.isContentEditable || target.matches('input, textarea, select'))
 }
+
+export function shouldIgnoreGlobalNavigation(event: Pick<KeyboardEvent, 'defaultPrevented' | 'target'>): boolean {
+  return event.defaultPrevented || isEditableEventTarget(event.target)
+}

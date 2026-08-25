@@ -5,6 +5,7 @@ import { useShortcutStore, matchesBinding, ShortcutAction } from '@/stores/short
 import { useGenerationStore } from '@/stores/generation-store'
 import { useFragmentStore } from '@/stores/fragment-store'
 import { useSceneStore } from '@/stores/scene-store'
+import { shouldIgnoreGlobalNavigation } from '@/lib/utils'
 
 // 커스텀 이벤트 (다이얼로그 열기용)
 export const SHORTCUT_EVENTS = {
@@ -61,8 +62,9 @@ export function useShortcuts() {
                 if (!binding) continue
 
                 if (matchesBinding(e, binding)) {
-                    // 네비게이션은 입력 필드에서도 작동
                     if (action.startsWith('navigate:')) {
+                        if (shouldIgnoreGlobalNavigation(e)) return
+
                         // 다이얼로그가 열려 있으면 Tab/Shift+Tab은 네이티브 포커스 이동에 양보
                         if ((action === 'navigate:next' || action === 'navigate:prev') &&
                             document.querySelector('[role="dialog"][data-state="open"]')) {

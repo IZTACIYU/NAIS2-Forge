@@ -73,8 +73,11 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 ## R-006 — Global keyboard navigation must yield to editors
 
 - **Area:** Library, SceneDetail, prompt/editor UI, global keyboard listeners
-- **History:** 편집 중 Escape가 page navigation까지 실행되는 문제를 막기 위해 editable target/defaultPrevented guard가 추가되었다.
+- **History:** 편집 중 Escape가 page navigation까지 실행되는 문제를 막기 위해 editable target/defaultPrevented guard가 추가되었지만, 앱 전체 단축키의 navigation 분기는 초기의 입력 허용 예외를 계속 유지해 Tab/Shift+Tab에서 같은 문제가 재발했다.
+- **Root cause:** `useShortcuts`가 navigation binding과 일치하면 editable target과 `defaultPrevented`를 확인하기 전에 앱 route를 변경했다.
 - **Invariant to preserve:** input/textarea/select/contentEditable 및 이미 처리된 keyboard event는 global navigation이 다시 처리하지 않는다.
+- **Fix:** 모든 앱 navigation shortcut이 공통 editable/defaultPrevented 판단을 먼저 통과하도록 했다. 생성·다이얼로그처럼 navigation이 아닌 shortcut은 기존 동작을 유지한다.
+- **Regression coverage:** `npm run check:shortcuts`, TypeScript 및 production build.
 - **Do not "simplify" by:** page-level `window.keydown`에서 key만 보고 즉시 navigation.
 
 ---
