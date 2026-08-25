@@ -293,6 +293,7 @@ export default function SceneMode() {
 
     const addAllToQueue = useSceneStore(s => s.addAllToQueue)
     const incrementQueue = useSceneStore(s => s.incrementQueue)
+    const setQueueCount = useSceneStore(s => s.setQueueCount)
     const clearAllQueue = useSceneStore(s => s.clearAllQueue)
     const hasQueuedScenes = useSceneQueueHasItems(activePresetId)
     const batchCount = useGenerationStore(s => s.batchCount)
@@ -347,6 +348,11 @@ export default function SceneMode() {
     const handleAddSelectedToQueue = () => {
         if (!activePresetId) return
         selectedSceneIds.forEach(sceneId => incrementQueue(activePresetId, sceneId, batchCount))
+    }
+
+    const handleClearSelectedQueue = () => {
+        if (!activePresetId) return
+        selectedSceneIds.forEach(sceneId => setQueueCount(activePresetId, sceneId, 0))
     }
 
     const [newPresetName, setNewPresetName] = useState('')
@@ -619,6 +625,11 @@ export default function SceneMode() {
                         <Tip content={t('scene.addSelectedQueue', '선택한 씬 생성 대기열에 추가')}>
                             <Button variant="outline" size="icon" className="h-9 w-9" onClick={handleAddSelectedToQueue} disabled={selectedSceneIds.length === 0 || isGenerating}>
                                 <ListPlus className="h-4 w-4" />
+                            </Button>
+                        </Tip>
+                        <Tip content={t('scene.clearSelectedQueue', '선택한 씬 생성 대기열 취소')}>
+                            <Button variant="outline" size="icon" className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={handleClearSelectedQueue} disabled={selectedSceneIds.length === 0 || isGenerating}>
+                                <ListX className="h-4 w-4" />
                             </Button>
                         </Tip>
 

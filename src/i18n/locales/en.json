@@ -88,6 +88,7 @@
     "addToQueue": "Add to Queue",
     "addAllQueue": "Add All +1",
     "addSelectedQueue": "Add selected scenes to queue",
+    "clearSelectedQueue": "Clear selected scenes from queue",
     "clearAllQueue": "Clear Queue",
     "exportZip": "Export ZIP",
     "promptHint": "Prompts are combined: Base + Additional + Scene + Detail",
