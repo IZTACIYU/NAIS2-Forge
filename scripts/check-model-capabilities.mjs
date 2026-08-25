@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import { getModelCapabilities } from '../src/lib/model-capabilities.ts'
-import { transitionModelSpecificOptions } from '../src/lib/model-option-memory.ts'
+import {
+    initializeModelOptionMemory,
+    transitionModelSpecificOptions,
+} from '../src/lib/model-option-memory.ts'
 import { mergeQualityTags, stripQualityTags, stripUcPreset } from '../src/lib/nai-presets.ts'
 import {
     appendQuotedTextPrompt,
@@ -38,6 +41,11 @@ assert.equal(getModelCapabilities('nai-diffusion-4-5-full').promptTokenizer, 't5
 assert.equal(getModelCapabilities('nai-diffusion-4-5-full').supportsQuotedTextPrompt, false)
 
 const v5Options = {
+    steps: 35,
+    cfgScale: 6.2,
+    cfgRescale: 0.4,
+    sampler: 'k_dpmpp_2m',
+    scheduler: 'exponential',
     smea: true,
     smeaDyn: true,
     variety: false,
@@ -46,6 +54,7 @@ const v5Options = {
     qualityTagPreset: 'light',
     ucPreset: 2,
     transparentBackground: true,
+    selectedResolution: { label: 'Custom', width: 1024, height: 768 },
 }
 const legacyActive = transitionModelSpecificOptions(
     'nai-diffusion-5-full',
@@ -55,19 +64,35 @@ const legacyActive = transitionModelSpecificOptions(
 assert.deepEqual(legacyActive.options, v5Options)
 assert.deepEqual(legacyActive.memory, {})
 
+const initializedMemory = initializeModelOptionMemory(
+    'nai-diffusion-5-full',
+    v5Options,
+    { futureModel: v5Options },
+)
+assert.equal(initializedMemory['nai-diffusion-4-5-full'].steps, v5Options.steps)
+assert.equal(initializedMemory['nai-diffusion-4-5-full'].cfgScale, v5Options.cfgScale)
+assert.equal(initializedMemory['nai-diffusion-4-5-full'].sampler, v5Options.sampler)
+assert.deepEqual(initializedMemory['nai-diffusion-4-5-full'].selectedResolution, v5Options.selectedResolution)
+assert.equal(initializedMemory.futureModel, v5Options)
+
 const toV45 = transitionModelSpecificOptions(
     'nai-diffusion-5-full',
     'nai-diffusion-4-5-full',
     v5Options,
-    {},
+    initializedMemory,
 )
-assert.equal(toV45.options.ucPreset, 0)
+assert.equal(toV45.options.steps, 35)
+assert.equal(toV45.options.cfgScale, 6.2)
+assert.equal(toV45.options.ucPreset, 2)
 assert.equal(toV45.options.qualityTagPreset, 'standard')
 assert.equal(toV45.options.transparentBackground, false)
 assert.deepEqual(toV45.memory['nai-diffusion-5-full'], v5Options)
 
 const v45Options = {
     ...toV45.options,
+    steps: 22,
+    cfgScale: 4.3,
+    selectedResolution: { label: 'Landscape', width: 1216, height: 832 },
     variety: true,
     qualityToggle: false,
     ucPreset: 4,
@@ -90,6 +115,19 @@ const backToV45 = transitionModelSpecificOptions(
 )
 assert.deepEqual(backToV45.options, v45Options)
 assert.equal(backToV45.memory['nai-diffusion-4-5-full'], undefined)
+
+const migratedPartialMemory = initializeModelOptionMemory(
+    'nai-diffusion-5-full',
+    v5Options,
+    { 'nai-diffusion-4-5-full': { ucPreset: 4, qualityToggle: false } },
+)
+assert.equal(migratedPartialMemory['nai-diffusion-4-5-full'].ucPreset, 4)
+assert.equal(migratedPartialMemory['nai-diffusion-4-5-full'].qualityToggle, false)
+assert.equal(migratedPartialMemory['nai-diffusion-4-5-full'].steps, v5Options.steps)
+assert.deepEqual(
+    migratedPartialMemory['nai-diffusion-4-5-full'].selectedResolution,
+    v5Options.selectedResolution,
+)
 
 const normalizedCurated = transitionModelSpecificOptions(
     'nai-diffusion-4-5-curated',

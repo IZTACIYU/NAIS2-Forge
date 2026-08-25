@@ -22,6 +22,7 @@ import {
     type QualityTagPresetId,
 } from '@/lib/model-capabilities'
 import {
+    initializeModelOptionMemory,
     normalizeModelSpecificOptions,
     transitionModelSpecificOptions,
     type ModelOptionMemory,
@@ -178,6 +179,25 @@ interface GenerationState {
     clearRuntimeData: () => void
 }
 
+const INITIAL_MODEL = 'nai-diffusion-4-5-full'
+const INITIAL_MODEL_OPTIONS = normalizeModelSpecificOptions(INITIAL_MODEL, {
+    steps: 28,
+    cfgScale: 5,
+    cfgRescale: 0,
+    sampler: 'k_euler_ancestral',
+    scheduler: 'karras',
+    smea: true,
+    smeaDyn: true,
+    variety: false,
+    modelMode: 'anime',
+    qualityToggle: true,
+    qualityTagPreset: 'standard',
+    ucPreset: 0,
+    transparentBackground: false,
+    selectedResolution: { label: 'Portrait', width: 832, height: 1216 },
+})
+const INITIAL_MODEL_OPTION_MEMORY = initializeModelOptionMemory(INITIAL_MODEL, INITIAL_MODEL_OPTIONS)
+
 export const useGenerationStore = create<GenerationState>()(
     persist(
         (set, get) => ({
@@ -188,29 +208,14 @@ export const useGenerationStore = create<GenerationState>()(
             negativePrompt: '',
             inpaintingPrompt: '',
 
-            model: 'nai-diffusion-4-5-full',
-
-            steps: 28,
-            cfgScale: 5.0,
-            cfgRescale: 0.0,
-            sampler: 'k_euler_ancestral',
-            scheduler: 'karras',
-            smea: true,
-            smeaDyn: true,
-            variety: false,
-            modelMode: 'anime',
+            model: INITIAL_MODEL,
+            ...INITIAL_MODEL_OPTIONS,
 
             seed: Math.floor(Math.random() * 4294967295),
             activeImageSeed: null,
             previewSeed: null,
             seedLocked: false,
-            selectedResolution: { label: 'Portrait', width: 832, height: 1216 },
-
-            qualityToggle: true,
-            qualityTagPreset: 'standard',
-            ucPreset: 0,
-            transparentBackground: false,
-            modelOptionMemory: {},
+            modelOptionMemory: INITIAL_MODEL_OPTION_MEMORY,
 
             batchCount: 1,
             currentBatch: 0,
@@ -277,26 +282,26 @@ export const useGenerationStore = create<GenerationState>()(
                         state.modelOptionMemory,
                     )
                     const modelOptions = normalizeModelSpecificOptions(preset.model, {
+                        steps: preset.steps,
+                        cfgScale: preset.cfgScale,
+                        cfgRescale: preset.cfgRescale,
+                        sampler: preset.sampler,
+                        scheduler: preset.scheduler,
                         smea: preset.smea,
                         smeaDyn: preset.smeaDyn,
                         variety: preset.variety,
                         qualityToggle: preset.qualityToggle,
                         ucPreset: preset.ucPreset,
-                    })
+                        selectedResolution: preset.selectedResolution,
+                    }, transition.options)
                     return {
                         basePrompt: preset.basePrompt,
                         additionalPrompt: preset.additionalPrompt,
                         detailPrompt: preset.detailPrompt,
                         negativePrompt: preset.negativePrompt,
                         model: preset.model,
-                        steps: preset.steps,
-                        cfgScale: preset.cfgScale,
-                        cfgRescale: preset.cfgRescale,
-                        sampler: preset.sampler,
-                        scheduler: preset.scheduler,
                         ...modelOptions,
                         modelOptionMemory: transition.memory,
-                        selectedResolution: preset.selectedResolution,
                     }
                 })
             },
@@ -801,16 +806,18 @@ export const useGenerationStore = create<GenerationState>()(
                 const persistedWithoutHistory = { ...(persistedState || {}) } as Record<string, unknown>
                 delete persistedWithoutHistory.history
                 const merged = { ...currentState, ...persistedWithoutHistory } as GenerationState
-                const transition = transitionModelSpecificOptions(
-                    merged.model,
+                const activeOptions = normalizeModelSpecificOptions(
                     merged.model,
                     merged,
-                    merged.modelOptionMemory,
                 )
                 return {
                     ...merged,
-                    ...transition.options,
-                    modelOptionMemory: transition.memory,
+                    ...activeOptions,
+                    modelOptionMemory: initializeModelOptionMemory(
+                        merged.model,
+                        activeOptions,
+                        merged.modelOptionMemory,
+                    ),
                 }
             },
             onRehydrateStorage: () => (state, error) => {

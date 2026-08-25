@@ -252,16 +252,16 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
-## R-020 — 모델 전용 선택값은 모델 전환 때 교환한다
+## R-020 — 모든 모델 파라미터는 모델 전환 때 교환한다
 
 - **Date:** 2026-08-25
 - **Area:** generation persisted store, model capabilities, preset/metadata application
 - **Symptom:** V5에서 선택한 UC Preset이 V4.5로 전환한 뒤에도 같은 숫자 ID로 유지되어 대상 모델의 내장 네거티브가 의도치 않게 적용됨.
-- **Root cause:** 모델별 허용 옵션과 prompt 값은 capability에 분리됐지만 사용자의 현재 `ucPreset` 등 선택값은 generation store의 단일 전역 필드만 사용했다. 모델 전환은 그 값을 대상 모델 규격으로 normalize할 뿐 모델별 마지막 선택을 기억하지 않았다.
-- **Invariant to preserve:** 활성 모델의 기존 필드가 현재 선택의 유일한 owner이며, `modelOptionMemory`에는 비활성 모델 값만 둔다. 모델 전환은 떠나는 모델 값을 저장하고 대상 모델 값을 꺼내면서 대상 entry를 memory에서 제거한다. 공통 Steps·Sampler·Guidance·해상도는 계속 공유한다.
-- **Fix:** 모델 전용 선택값을 모델 ID별로 교환하고 additive persisted field에 비활성 모델 값을 저장한다. 기존 데이터에서는 현재 활성 모델의 legacy 필드를 그대로 유지하고 처음 방문하는 모델만 기본값을 사용한다.
-- **Regression coverage:** `npm run check:model-capabilities`, 기존 payload merge, V5 Full ↔ V4.5 Full 왕복, TypeScript 및 production build.
-- **Do not "fix" by:** 모델 정의의 preset 문자열을 사용자 저장 데이터에 복제하거나, 모델 전환 때 현재 UC 숫자를 대상 모델에 그대로 재사용하거나, active 값과 memory entry를 동시에 authoritative하게 유지하기.
+- **Root cause:** 모델별 허용 옵션과 prompt 값은 capability에 분리됐지만 사용자의 현재 생성 파라미터는 generation store의 단일 전역 필드만 사용했다. 모델 전환은 일부 값을 대상 모델 규격으로 normalize할 뿐 모델별 마지막 설정을 기억하지 않았다.
+- **Invariant to preserve:** 활성 모델의 기존 필드가 현재 설정의 유일한 owner이며, `modelOptionMemory`에는 비활성 모델 값만 둔다. 모델 전환은 떠나는 모델의 Steps, Guidance, Rescale, Sampler, Scheduler, 해상도, SMEA, Variety, Mode, Quality, UC, 투명 배경을 저장하고 대상 모델 값을 꺼내면서 대상 entry를 memory에서 제거한다. Prompt, Seed, Batch, I2I 작업 상태는 모델 파라미터가 아니므로 공유한다.
+- **Fix:** 모든 모델 생성 파라미터를 모델 ID별로 교환하고 기존 additive persisted field에 비활성 모델 값을 저장한다. 이 구조를 처음 읽을 때 현재 활성 모델의 기존 값을 모든 모델에 복제하되, 이미 저장된 모델별 값은 보존하고 누락 필드만 현재값으로 채운다.
+- **Regression coverage:** `npm run check:model-capabilities`, 기존 payload merge, 부분 필드로 저장된 이전 `modelOptionMemory` 확장, V5 Full ↔ V4.5 Full 전체 파라미터 왕복, TypeScript 및 production build.
+- **Do not "fix" by:** 모델 정의의 preset 문자열을 사용자 저장 데이터에 복제하거나, 모델 전환 때 현재 모델 값을 대상 모델 entry에 다시 덮어쓰거나, active 값과 memory entry를 동시에 authoritative하게 유지하기.
 
 ---
 
