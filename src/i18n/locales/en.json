@@ -87,6 +87,7 @@
     "noGeneratedImages": "No generated images yet",
     "addToQueue": "Add to Queue",
     "addAllQueue": "Add All +1",
+    "addSelectedQueue": "Add selected scenes to queue",
     "clearAllQueue": "Clear Queue",
     "exportZip": "Export ZIP",
     "promptHint": "Prompts are combined: Base + Additional + Scene + Detail",

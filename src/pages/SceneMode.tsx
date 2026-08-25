@@ -292,6 +292,7 @@ export default function SceneMode() {
     const importPreset = useSceneStore(s => s.importPreset)
 
     const addAllToQueue = useSceneStore(s => s.addAllToQueue)
+    const incrementQueue = useSceneStore(s => s.incrementQueue)
     const clearAllQueue = useSceneStore(s => s.clearAllQueue)
     const hasQueuedScenes = useSceneQueueHasItems(activePresetId)
     const batchCount = useGenerationStore(s => s.batchCount)
@@ -341,6 +342,11 @@ export default function SceneMode() {
     const handleApplyResolutionToSelected = () => {
         updateSelectedScenesResolution(editModeResolution.width, editModeResolution.height)
         toast({ description: t('scene.resolutionApplied', { count: selectedSceneIds.length, width: editModeResolution.width, height: editModeResolution.height }) })
+    }
+
+    const handleAddSelectedToQueue = () => {
+        if (!activePresetId) return
+        selectedSceneIds.forEach(sceneId => incrementQueue(activePresetId, sceneId, batchCount))
     }
 
     const [newPresetName, setNewPresetName] = useState('')
@@ -607,6 +613,15 @@ export default function SceneMode() {
                                 <Square className="h-4 w-4" />
                             </Button>
                         </Tip>
+                        <div className="h-6 w-px bg-border" />
+
+                        {/* Add Selected to Queue */}
+                        <Tip content={t('scene.addSelectedQueue', '선택한 씬 생성 대기열에 추가')}>
+                            <Button variant="outline" size="icon" className="h-9 w-9" onClick={handleAddSelectedToQueue} disabled={selectedSceneIds.length === 0 || isGenerating}>
+                                <ListPlus className="h-4 w-4" />
+                            </Button>
+                        </Tip>
+
                         <div className="h-6 w-px bg-border" />
 
                         {/* Change Resolution */}

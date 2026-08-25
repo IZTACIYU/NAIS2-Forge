@@ -87,6 +87,7 @@
     "noGeneratedImages": "아직 생성된 이미지가 없습니다",
     "addToQueue": "예약 추가",
     "addAllQueue": "전체 예약 +1",
+    "addSelectedQueue": "선택한 씬 예약 추가",
     "clearAllQueue": "예약 초기화",
     "exportZip": "ZIP 내보내기",
     "promptHint": "이 프롬프트는 기본 + 추가 + 씬 + 세부 순서로 조합됩니다.",

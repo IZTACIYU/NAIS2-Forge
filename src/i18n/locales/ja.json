@@ -86,6 +86,7 @@
     "noGeneratedImages": "まだ生成された画像はありません",
     "addToQueue": "予約追加",
     "addAllQueue": "全予約 +1",
+    "addSelectedQueue": "選択したシーンを予約に追加",
     "clearAllQueue": "予約クリア",
     "exportZip": "ZIP出力",
     "promptHint": "プロンプト結合順: 基本 + 追加 + シーン + 詳細",
