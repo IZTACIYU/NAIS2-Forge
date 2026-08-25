@@ -103,10 +103,11 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Area:** model capabilities, generation store, V5 request builder
 - **Symptom/Risk:** V4.5에서 저장된 `variety=true`를 V5 Furry로 재해석하면 모델을 전환한 사용자가 의도치 않게 `fur dataset,` prompt를 전송할 수 있다.
 - **Root cause:** `variety`는 V4.5의 `skip_cfg_above_sigma: 58`을 뜻하며 generation store와 preset에 영속화된다.
-- **Invariant to preserve:** 모델별 지원 옵션과 API 힌트 값은 모델 파라미터 정의가 소유하고, V5 Anime/Furry·품질·투명 배경 선택을 위해 사용자 저장 schema를 확장하거나 legacy `variety` 의미를 바꾸지 않는다.
-- **Fix:** V5 Full/Curated request builder는 모델 정의의 Mode로 Furry dataset을 조립하고 Variety+ transport를 비활성화한다. Quality/UC 힌트는 모델별 프리셋 정의에서 전송값으로 변환하며, 투명 배경이 꺼진 경우 `false`가 아닌 `null`을 전송한다. 선택값은 런타임에만 유지한다.
+- **Invariant to preserve:** 모델별 지원 옵션과 API 힌트 값은 모델 파라미터 정의가 소유하고, legacy `variety`의 의미를 V5 Mode로 바꾸지 않는다. 모델별 선택 저장은 정의 문자열을 복제하지 않고 선택 ID만 별도 기억한다.
+- **Fix:** V5 Full/Curated request builder는 모델 정의의 Mode로 Furry dataset을 조립하고 Variety+ transport를 비활성화한다. Quality/UC 힌트는 모델별 프리셋 정의에서 전송값으로 변환하며, 투명 배경이 꺼진 경우 `false`가 아닌 `null`을 전송한다. 최초 구현에서는 선택값을 런타임에만 유지했고, 이후 사용자 승인에 따라 R-020의 additive 모델별 기억 구조를 추가했다.
 - **Regression coverage:** `npm run check:model-capabilities`, TypeScript 및 production build.
-- **Do not "fix" by:** 기존 `variety` boolean을 Furry mode로 재해석하거나 V5 전용 필드를 generation/preset persistence에 추가.
+- **Do not "fix" by:** 기존 `variety` boolean을 Furry mode로 재해석하거나 모델 정의의 prompt/prefix 문자열을 사용자 persistence에 복제.
+- **Related:** R-020
 
 ---
 
@@ -248,6 +249,19 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Fix:** 기존 원본 이미지 로더를 복사에도 사용하고 성공·실패 결과를 사용자에게 알린다.
 - **Regression coverage:** TypeScript 및 production build, 저장 이미지와 임시 이미지 복사 경로 확인.
 - **Do not "fix" by:** 썸네일 캐시 크기를 늘리거나 action 직전에 썸네일을 다시 채워 원본 의존 문제를 숨기기.
+
+---
+
+## R-020 — 모델 전용 선택값은 모델 전환 때 교환한다
+
+- **Date:** 2026-08-25
+- **Area:** generation persisted store, model capabilities, preset/metadata application
+- **Symptom:** V5에서 선택한 UC Preset이 V4.5로 전환한 뒤에도 같은 숫자 ID로 유지되어 대상 모델의 내장 네거티브가 의도치 않게 적용됨.
+- **Root cause:** 모델별 허용 옵션과 prompt 값은 capability에 분리됐지만 사용자의 현재 `ucPreset` 등 선택값은 generation store의 단일 전역 필드만 사용했다. 모델 전환은 그 값을 대상 모델 규격으로 normalize할 뿐 모델별 마지막 선택을 기억하지 않았다.
+- **Invariant to preserve:** 활성 모델의 기존 필드가 현재 선택의 유일한 owner이며, `modelOptionMemory`에는 비활성 모델 값만 둔다. 모델 전환은 떠나는 모델 값을 저장하고 대상 모델 값을 꺼내면서 대상 entry를 memory에서 제거한다. 공통 Steps·Sampler·Guidance·해상도는 계속 공유한다.
+- **Fix:** 모델 전용 선택값을 모델 ID별로 교환하고 additive persisted field에 비활성 모델 값을 저장한다. 기존 데이터에서는 현재 활성 모델의 legacy 필드를 그대로 유지하고 처음 방문하는 모델만 기본값을 사용한다.
+- **Regression coverage:** `npm run check:model-capabilities`, 기존 payload merge, V5 Full ↔ V4.5 Full 왕복, TypeScript 및 production build.
+- **Do not "fix" by:** 모델 정의의 preset 문자열을 사용자 저장 데이터에 복제하거나, 모델 전환 때 현재 UC 숫자를 대상 모델에 그대로 재사용하거나, active 값과 memory entry를 동시에 authoritative하게 유지하기.
 
 ---
 

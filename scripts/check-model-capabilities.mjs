@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { getModelCapabilities } from '../src/lib/model-capabilities.ts'
+import { transitionModelSpecificOptions } from '../src/lib/model-option-memory.ts'
 import { mergeQualityTags, stripQualityTags, stripUcPreset } from '../src/lib/nai-presets.ts'
 import {
     appendQuotedTextPrompt,
@@ -35,6 +36,72 @@ assert.deepEqual(curated.ucPresets.map(preset => preset.tagHint), [2, 3, 5, 4, 0
 assert.equal(getModelCapabilities('nai-diffusion-4-5-full').supportsTransparentBackground, false)
 assert.equal(getModelCapabilities('nai-diffusion-4-5-full').promptTokenizer, 't5')
 assert.equal(getModelCapabilities('nai-diffusion-4-5-full').supportsQuotedTextPrompt, false)
+
+const v5Options = {
+    smea: true,
+    smeaDyn: true,
+    variety: false,
+    modelMode: 'furry',
+    qualityToggle: true,
+    qualityTagPreset: 'light',
+    ucPreset: 2,
+    transparentBackground: true,
+}
+const legacyActive = transitionModelSpecificOptions(
+    'nai-diffusion-5-full',
+    'nai-diffusion-5-full',
+    v5Options,
+)
+assert.deepEqual(legacyActive.options, v5Options)
+assert.deepEqual(legacyActive.memory, {})
+
+const toV45 = transitionModelSpecificOptions(
+    'nai-diffusion-5-full',
+    'nai-diffusion-4-5-full',
+    v5Options,
+    {},
+)
+assert.equal(toV45.options.ucPreset, 0)
+assert.equal(toV45.options.qualityTagPreset, 'standard')
+assert.equal(toV45.options.transparentBackground, false)
+assert.deepEqual(toV45.memory['nai-diffusion-5-full'], v5Options)
+
+const v45Options = {
+    ...toV45.options,
+    variety: true,
+    qualityToggle: false,
+    ucPreset: 4,
+}
+const backToV5 = transitionModelSpecificOptions(
+    'nai-diffusion-4-5-full',
+    'nai-diffusion-5-full',
+    v45Options,
+    toV45.memory,
+)
+assert.deepEqual(backToV5.options, v5Options)
+assert.equal(backToV5.memory['nai-diffusion-5-full'], undefined)
+assert.deepEqual(backToV5.memory['nai-diffusion-4-5-full'], v45Options)
+
+const backToV45 = transitionModelSpecificOptions(
+    'nai-diffusion-5-full',
+    'nai-diffusion-4-5-full',
+    backToV5.options,
+    backToV5.memory,
+)
+assert.deepEqual(backToV45.options, v45Options)
+assert.equal(backToV45.memory['nai-diffusion-4-5-full'], undefined)
+
+const normalizedCurated = transitionModelSpecificOptions(
+    'nai-diffusion-4-5-curated',
+    'nai-diffusion-4-5-curated',
+    v5Options,
+    { 'nai-diffusion-4-5-curated': v45Options },
+)
+assert.equal(normalizedCurated.options.modelMode, 'anime')
+assert.equal(normalizedCurated.options.qualityTagPreset, 'standard')
+assert.equal(normalizedCurated.options.ucPreset, 0)
+assert.equal(normalizedCurated.options.transparentBackground, false)
+assert.equal(normalizedCurated.memory['nai-diffusion-4-5-curated'], undefined)
 
 const standardSuffix = full.qualityTagPresets.find(preset => preset.value === 'standard').suffix
 const heavyPrefix = full.ucPresets.find(preset => preset.value === 0).prefix

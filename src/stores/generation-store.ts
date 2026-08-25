@@ -21,6 +21,11 @@ import {
     type ModelMode,
     type QualityTagPresetId,
 } from '@/lib/model-capabilities'
+import {
+    normalizeModelSpecificOptions,
+    transitionModelSpecificOptions,
+    type ModelOptionMemory,
+} from '@/lib/model-option-memory'
 
 interface Resolution {
     label: string
@@ -68,6 +73,8 @@ interface GenerationState {
     qualityTagPreset: QualityTagPresetId
     ucPreset: number
     transparentBackground: boolean
+    // Remembers only inactive models; the active model uses the fields above.
+    modelOptionMemory: ModelOptionMemory
 
     // Batch generation
     batchCount: number
@@ -203,6 +210,7 @@ export const useGenerationStore = create<GenerationState>()(
             qualityTagPreset: 'standard',
             ucPreset: 0,
             transparentBackground: false,
+            modelOptionMemory: {},
 
             batchCount: 1,
             currentBatch: 0,
@@ -237,15 +245,19 @@ export const useGenerationStore = create<GenerationState>()(
                 useCharacterPromptStore.getState().setActiveCharacterLimit(
                     getModelCapabilities(model).maxCharacterPrompts
                 )
-                set(state => ({
-                    model,
-                    modelMode: normalizeModelMode(model, state.modelMode),
-                    qualityTagPreset: normalizeQualityTagPreset(model, state.qualityTagPreset),
-                    ucPreset: normalizeUcPreset(model, state.ucPreset),
-                    transparentBackground: getModelCapabilities(model).supportsTransparentBackground
-                        ? state.transparentBackground
-                        : false,
-                }))
+                set(state => {
+                    const transition = transitionModelSpecificOptions(
+                        state.model,
+                        model,
+                        state,
+                        state.modelOptionMemory,
+                    )
+                    return {
+                        model,
+                        ...transition.options,
+                        modelOptionMemory: transition.memory,
+                    }
+                })
             },
             setSteps: (steps) => set({ steps }),
             setCfgScale: (cfgScale) => set({ cfgScale }),
@@ -257,26 +269,35 @@ export const useGenerationStore = create<GenerationState>()(
                 useCharacterPromptStore.getState().setActiveCharacterLimit(
                     getModelCapabilities(preset.model).maxCharacterPrompts
                 )
-                set({
-                    basePrompt: preset.basePrompt,
-                    additionalPrompt: preset.additionalPrompt,
-                    detailPrompt: preset.detailPrompt,
-                    negativePrompt: preset.negativePrompt,
-                    model: preset.model,
-                    steps: preset.steps,
-                    cfgScale: preset.cfgScale,
-                    cfgRescale: preset.cfgRescale,
-                    sampler: preset.sampler,
-                    scheduler: preset.scheduler,
-                    smea: preset.smea,
-                    smeaDyn: preset.smeaDyn,
-                    variety: preset.variety ?? false,
-                    qualityToggle: preset.qualityToggle ?? true,
-                    modelMode: normalizeModelMode(preset.model, 'anime'),
-                    qualityTagPreset: normalizeQualityTagPreset(preset.model, 'standard'),
-                    ucPreset: normalizeUcPreset(preset.model, preset.ucPreset ?? 0),
-                    transparentBackground: false,
-                    selectedResolution: preset.selectedResolution,
+                set(state => {
+                    const transition = transitionModelSpecificOptions(
+                        state.model,
+                        preset.model,
+                        state,
+                        state.modelOptionMemory,
+                    )
+                    const modelOptions = normalizeModelSpecificOptions(preset.model, {
+                        smea: preset.smea,
+                        smeaDyn: preset.smeaDyn,
+                        variety: preset.variety,
+                        qualityToggle: preset.qualityToggle,
+                        ucPreset: preset.ucPreset,
+                    })
+                    return {
+                        basePrompt: preset.basePrompt,
+                        additionalPrompt: preset.additionalPrompt,
+                        detailPrompt: preset.detailPrompt,
+                        negativePrompt: preset.negativePrompt,
+                        model: preset.model,
+                        steps: preset.steps,
+                        cfgScale: preset.cfgScale,
+                        cfgRescale: preset.cfgRescale,
+                        sampler: preset.sampler,
+                        scheduler: preset.scheduler,
+                        ...modelOptions,
+                        modelOptionMemory: transition.memory,
+                        selectedResolution: preset.selectedResolution,
+                    }
                 })
             },
             setScheduler: (scheduler) => set({ scheduler }),
@@ -758,6 +779,9 @@ export const useGenerationStore = create<GenerationState>()(
                 qualityToggle: state.qualityToggle,
                 qualityTagPreset: state.qualityTagPreset,
                 ucPreset: state.ucPreset,
+                modelMode: state.modelMode,
+                transparentBackground: state.transparentBackground,
+                modelOptionMemory: state.modelOptionMemory,
                 // Seed - only save if locked
                 ...(state.seedLocked ? { seed: state.seed } : {}),
                 seedLocked: state.seedLocked,
@@ -776,7 +800,18 @@ export const useGenerationStore = create<GenerationState>()(
             merge: (persistedState, currentState) => {
                 const persistedWithoutHistory = { ...(persistedState || {}) } as Record<string, unknown>
                 delete persistedWithoutHistory.history
-                return { ...currentState, ...persistedWithoutHistory } as GenerationState
+                const merged = { ...currentState, ...persistedWithoutHistory } as GenerationState
+                const transition = transitionModelSpecificOptions(
+                    merged.model,
+                    merged.model,
+                    merged,
+                    merged.modelOptionMemory,
+                )
+                return {
+                    ...merged,
+                    ...transition.options,
+                    modelOptionMemory: transition.memory,
+                }
             },
             onRehydrateStorage: () => (state, error) => {
                 if (error) {
