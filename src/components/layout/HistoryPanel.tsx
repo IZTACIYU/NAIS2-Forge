@@ -809,17 +809,16 @@ export function HistoryPanel() {
     }
 
     const handleCopyImage = async (image: SavedImage) => {
-        const imageData = imageThumbnails[image.path]
-        if (!imageData) return
-
         try {
-            const response = await fetch(imageData)
+            const response = await fetch(await getFullImageData(image))
             const blob = await response.blob()
             await navigator.clipboard.write([
                 new ClipboardItem({ [blob.type]: blob })
             ])
+            toast({ title: t('actions.copied', '복사 완료'), variant: 'success' })
         } catch (e) {
             console.error('Copy failed:', e)
+            toast({ title: t('actions.copyFailed', '복사 실패'), variant: 'destructive' })
         }
     }
 
