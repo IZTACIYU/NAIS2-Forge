@@ -42,10 +42,9 @@ export function stripTransparentBackgroundPrompt(prompt: string, enabled: boolea
 
 export function appendQuotedTextPrompt(prompt: string, enabled: boolean) {
     if (!enabled) return prompt
-    const texts = Array.from(
-        prompt.matchAll(/"(.*?)"|(?<![\p{L}\p{N}_])'(.*?)'(?![\p{L}\p{N}_])/gsu),
-        match => match[1] ?? match[2],
-    )
+    const texts = Array.from(prompt.matchAll(/"(.*?)"|(?<![\p{L}\p{N}_])'(.*?)'(?![\p{L}\p{N}_])/gsu))
+        .filter(match => !/\bartist:\s*$/i.test(prompt.slice(0, match.index)))
+        .map(match => match[1] ?? match[2])
         .filter(Boolean)
     return texts.length ? `${prompt}, teXt: ${texts.join('\n\n')}` : prompt
 }
@@ -55,5 +54,7 @@ export function stripQuotedTextPrompt(prompt: string, enabled: boolean) {
     const markerIndex = prompt.lastIndexOf(', teXt: ')
     if (markerIndex < 0) return prompt
     const basePrompt = prompt.slice(0, markerIndex)
-    return appendQuotedTextPrompt(basePrompt, true) === prompt ? basePrompt : prompt
+    if (appendQuotedTextPrompt(basePrompt, true) === prompt) return basePrompt
+    const legacyTexts = Array.from(basePrompt.matchAll(/(["'])(.*?)\1/gs), match => match[2]).filter(Boolean)
+    return legacyTexts.length && `${basePrompt}, teXt: ${legacyTexts.join('\n\n')}` === prompt ? basePrompt : prompt
 }
