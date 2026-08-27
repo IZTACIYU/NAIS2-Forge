@@ -1006,7 +1006,14 @@
     "linkName": "Name",
     "linkUrl": "URL",
     "linkNamePlaceholder": "e.g. Pixiv",
-    "linkUrlPlaceholder": "e.g. https://pixiv.net"
+    "linkUrlPlaceholder": "e.g. https://pixiv.net",
+    "danbooruSettings": "Danbooru Tag Settings",
+    "copyDanbooruTags": "Copy Danbooru Tags",
+    "artist": "Artist",
+    "copyright": "Copyright",
+    "characters": "Characters",
+    "general": "General",
+    "meta": "Meta"
   },
   "promptGenerator": {
     "title": "AI Prompt Generator",

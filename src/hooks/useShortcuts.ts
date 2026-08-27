@@ -16,6 +16,7 @@ export const SHORTCUT_EVENTS = {
     OPEN_CHARACTER_PROMPT: 'shortcut:openCharacterPrompt',
     OPEN_PRESET_DIALOG: 'shortcut:openPresetDialog',
     RESET_FRAGMENT_COUNTERS: 'shortcut:resetFragmentCounters',
+    COPY_DANBOORU_TAGS: 'shortcut:copyDanbooruTags',
 }
 
 // 메뉴 순서 정의
@@ -55,6 +56,7 @@ export function useShortcuts() {
                 'open:presetDialog',
                 'action:generate',
                 'action:resetFragmentCounters',
+                'action:copyDanbooruTags',
             ]
 
             for (const action of actions) {
@@ -180,6 +182,13 @@ export function useShortcuts() {
                         e.preventDefault()
                         resetSequentialCounter()
                         window.dispatchEvent(new CustomEvent(SHORTCUT_EVENTS.RESET_FRAGMENT_COUNTERS))
+                        return
+                    }
+
+                    if (action === 'action:copyDanbooruTags') {
+                        if (location.pathname !== '/web' || shouldIgnoreGlobalNavigation(e)) return
+                        e.preventDefault()
+                        window.dispatchEvent(new CustomEvent(SHORTCUT_EVENTS.COPY_DANBOORU_TAGS))
                         return
                     }
                 }

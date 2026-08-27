@@ -1005,7 +1005,14 @@
     "linkName": "名前",
     "linkUrl": "URL",
     "linkNamePlaceholder": "例: Pixiv",
-    "linkUrlPlaceholder": "例: https://pixiv.net"
+    "linkUrlPlaceholder": "例: https://pixiv.net",
+    "danbooruSettings": "Danbooruタグ設定",
+    "copyDanbooruTags": "Danbooruタグをコピー",
+    "artist": "Artist",
+    "copyright": "Copyright",
+    "characters": "Characters",
+    "general": "General",
+    "meta": "Meta"
   },
   "promptGenerator": {
     "title": "AIプロンプト生成",

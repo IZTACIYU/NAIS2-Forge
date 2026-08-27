@@ -304,6 +304,19 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+## R-024 — 외부 WebView 태그 추출은 페이지 표시 문자열을 신뢰하지 않는다
+
+- **Date:** 2026-08-27
+- **Area:** Embedded WebView, Danbooru tag copy, shortcut handling
+- **Symptom/Risk:** 외부 단부루 페이지의 `?` 링크·게시물 수·표시용 공백이 프롬프트에 섞이거나, 단부루가 아닌 페이지에 DOM 스크립트를 실행할 수 있다.
+- **Evidence:** 저장된 단부루 페이지 HTML에서 실제 태그 값은 각 `li[data-tag-name]`에 있고, 표시 문자열에는 wiki 링크와 post count가 함께 있다.
+- **Invariant to preserve:** 복사는 현재 child WebView가 `donmai.us` 도메인일 때만 실행하며, 지정된 category class의 `data-tag-name`만 원본으로 사용한다. 태그 선택 설정은 WebView 전용 Store에만 저장하고 프롬프트·프리셋·생성 state와 섞지 않는다. Native child WebView를 열기 전에 크기를 읽는 target element는 닫힌 상태에도 mount되어 있어야 한다.
+- **Fix:** native WebView 경계에서 도메인을 확인하고, category별 raw attribute를 `, `와 줄바꿈으로 조립한 뒤 Clipboard API 실패 시 page-local copy fallback을 사용한다. 단축키는 WebView route와 editable target guard를 통과할 때만 실행한다.
+- **Regression coverage:** Danbooru host 경계와 raw selector/구분자 Rust test, `npm run check:shortcuts`의 명령 등록 및 focus guard 검사, TypeScript 및 production build.
+- **Do not "fix" by:** 화면 textContent를 파싱하거나, 일반 페이지에 같은 script를 실행하거나, 새 설정을 generation/preset persisted store에 넣기.
+
+---
+
 ## 새 항목 템플릿
 
 ### R-XXX — 짧은 제목

@@ -1899,6 +1899,47 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Url};
 
+#[derive(Serialize, Deserialize)]
+struct DanbooruTagCategories {
+    artist: bool,
+    copyright: bool,
+    characters: bool,
+    general: bool,
+    meta: bool,
+}
+
+fn is_danbooru_url(url: &Url) -> bool {
+    matches!(url.host_str(), Some("donmai.us"))
+        || url.host_str().is_some_and(|host| host.ends_with(".donmai.us"))
+}
+
+fn build_danbooru_copy_script(categories: &DanbooruTagCategories) -> String {
+    let categories = serde_json::to_string(categories).expect("Danbooru category flags are serializable");
+    format!(r#"(() => {{
+        const categories = {categories};
+        const types = {{ artist: 1, copyright: 3, characters: 4, general: 0, meta: 5 }};
+        const text = Object.entries(types)
+            .filter(([category]) => categories[category])
+            .map(([, type]) => Array.from(document.querySelectorAll(`li[data-tag-name].tag-type-${{type}}`))
+                .map((tag) => tag.getAttribute('data-tag-name'))
+                .filter(Boolean)
+                .join(', '))
+            .filter(Boolean)
+            .join('\n');
+        if (!text) return;
+        const fallback = () => {{
+            const input = document.createElement('textarea');
+            input.value = text;
+            input.style.cssText = 'position:fixed;opacity:0';
+            document.body.append(input);
+            input.select();
+            try {{ document.execCommand('copy'); }} finally {{ input.remove(); }}
+        }};
+        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).catch(fallback);
+        else fallback();
+    }})();"#)
+}
+
 // Store for tracking embedded webviews
 struct EmbeddedWebviews {
     webviews: HashMap<String, bool>,
@@ -2029,6 +2070,55 @@ async fn zoom_embedded_browser(app: AppHandle, zoom_level: f64) -> Result<(), St
     Ok(())
 }
 
+#[tauri::command]
+async fn is_danbooru_browser_page(app: AppHandle) -> bool {
+    app.get_webview("embedded_browser")
+        .and_then(|webview| webview.url().ok())
+        .is_some_and(|url| is_danbooru_url(&url))
+}
+
+#[tauri::command]
+async fn copy_danbooru_tags(
+    app: AppHandle,
+    categories: DanbooruTagCategories,
+) -> Result<(), String> {
+    let webview = app.get_webview("embedded_browser").ok_or("Embedded browser is not open")?;
+    let url = webview.url().map_err(|error| format!("Failed to read browser URL: {error}"))?;
+    if !is_danbooru_url(&url) {
+        return Err("Danbooru tag copying is only available on donmai.us pages".to_string());
+    }
+    webview
+        .eval(build_danbooru_copy_script(&categories))
+        .map_err(|error| format!("Failed to copy Danbooru tags: {error}"))
+}
+
+#[cfg(test)]
+mod embedded_browser_tests {
+    use super::*;
+
+    #[test]
+    fn accepts_only_danbooru_hosts() {
+        assert!(is_danbooru_url(&Url::parse("https://danbooru.donmai.us/posts/1").unwrap()));
+        assert!(is_danbooru_url(&Url::parse("https://hijiribe.donmai.us/posts/1").unwrap()));
+        assert!(!is_danbooru_url(&Url::parse("https://donmai.us.example/posts/1").unwrap()));
+    }
+
+    #[test]
+    fn copy_script_reads_raw_tag_attributes() {
+        let script = build_danbooru_copy_script(&DanbooruTagCategories {
+            artist: true,
+            copyright: false,
+            characters: true,
+            general: true,
+            meta: false,
+        });
+        assert!(script.contains("li[data-tag-name].tag-type-${type}"));
+        assert!(script.contains("getAttribute('data-tag-name')"));
+        assert!(script.contains("join(', ')"));
+        assert!(script.contains("join('\\n')"));
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default();
@@ -2069,6 +2159,8 @@ pub fn run() {
             hide_embedded_browser,
             is_browser_open,
             zoom_embedded_browser,
+            is_danbooru_browser_page,
+            copy_danbooru_tags,
             r2_list_objects,
             r2_put_object,
             r2_delete_object,

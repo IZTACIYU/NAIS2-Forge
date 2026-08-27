@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 
 class MockElement {
     constructor(tag, isContentEditable = false) {
@@ -62,3 +63,11 @@ assert.equal(groupTextEdit(firstBackspace.group, describeTextEdit('ab', 'a'), 1,
 const firstDelete = groupTextEdit(null, describeTextEdit('abc', 'ac'), 1, 1000)
 assert.equal(groupTextEdit(firstDelete.group, describeTextEdit('ac', 'a'), 1, 1100).merge, true)
 assert.equal(groupTextEdit(null, describeTextEdit('a', 'paste'), 5, 1000).group, null)
+
+const [shortcutStoreSource, shortcutHookSource] = await Promise.all([
+    readFile(new URL('../src/stores/shortcut-store.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/hooks/useShortcuts.ts', import.meta.url), 'utf8'),
+])
+assert.match(shortcutStoreSource, /'action:copyDanbooruTags': \{ key: 'e', ctrl: true/)
+assert.match(shortcutHookSource, /COPY_DANBOORU_TAGS/)
+assert.match(shortcutHookSource, /location\.pathname !== '\/web' \|\| shouldIgnoreGlobalNavigation\(e\)/)

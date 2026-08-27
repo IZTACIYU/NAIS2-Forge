@@ -1102,7 +1102,14 @@
     "linkName": "이름",
     "linkUrl": "URL",
     "linkNamePlaceholder": "예: Pixiv",
-    "linkUrlPlaceholder": "예: https://pixiv.net"
+    "linkUrlPlaceholder": "예: https://pixiv.net",
+    "danbooruSettings": "단부루 태그 설정",
+    "copyDanbooruTags": "단부루 태그 복사",
+    "artist": "Artist",
+    "copyright": "Copyright",
+    "characters": "Characters",
+    "general": "General",
+    "meta": "Meta"
   },
   "promptGenerator": {
     "title": "AI 프롬프트 생성",

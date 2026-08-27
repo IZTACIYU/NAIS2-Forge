@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Switch } from '@/components/ui/switch'
 import { invoke } from '@tauri-apps/api/core'
 import { Store } from '@tauri-apps/plugin-store'
+import { SHORTCUT_EVENTS } from '@/hooks/useShortcuts'
 import {
     Globe,
     Home,
@@ -16,6 +18,8 @@ import {
     Edit,
     ZoomIn,
     ZoomOut,
+    Settings2,
+    Copy,
 } from 'lucide-react'
 
 interface QuickLink {
@@ -31,6 +35,39 @@ const DEFAULT_QUICK_LINKS: QuickLink[] = [
 ]
 
 const STORE_KEY = 'webview_quick_links'
+const DANBOORU_TAG_CATEGORIES_KEY = 'danbooru_tag_categories'
+
+type DanbooruTagCategory = 'artist' | 'copyright' | 'characters' | 'general' | 'meta'
+type DanbooruTagCategories = Record<DanbooruTagCategory, boolean>
+
+const DEFAULT_DANBOORU_TAG_CATEGORIES: DanbooruTagCategories = {
+    artist: true,
+    copyright: true,
+    characters: true,
+    general: true,
+    meta: true,
+}
+
+const DANBOORU_TAG_CATEGORY_OPTIONS: { key: DanbooruTagCategory; label: string }[] = [
+    { key: 'artist', label: 'web.artist' },
+    { key: 'copyright', label: 'web.copyright' },
+    { key: 'characters', label: 'web.characters' },
+    { key: 'general', label: 'web.general' },
+    { key: 'meta', label: 'web.meta' },
+]
+
+function readDanbooruTagCategories(value: unknown): DanbooruTagCategories {
+    if (!value || typeof value !== 'object') return DEFAULT_DANBOORU_TAG_CATEGORIES
+    const saved = value as Partial<DanbooruTagCategories>
+    return Object.fromEntries(
+        Object.entries(DEFAULT_DANBOORU_TAG_CATEGORIES).map(([key, defaultValue]) => [
+            key,
+            typeof saved[key as DanbooruTagCategory] === 'boolean'
+                ? saved[key as DanbooruTagCategory]
+                : defaultValue,
+        ])
+    ) as DanbooruTagCategories
+}
 
 export default function WebView() {
     const { t } = useTranslation()
@@ -41,8 +78,12 @@ export default function WebView() {
     const [quickLinks, setQuickLinks] = useState<QuickLink[]>(DEFAULT_QUICK_LINKS)
     const [isEditMode, setIsEditMode] = useState(false)
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+    const [isDanbooruSettingsOpen, setIsDanbooruSettingsOpen] = useState(false)
     const [newLinkName, setNewLinkName] = useState('')
     const [newLinkUrl, setNewLinkUrl] = useState('')
+    const [danbooruTagCategories, setDanbooruTagCategories] = useState<DanbooruTagCategories>(DEFAULT_DANBOORU_TAG_CATEGORIES)
+    const [draftDanbooruTagCategories, setDraftDanbooruTagCategories] = useState<DanbooruTagCategories>(DEFAULT_DANBOORU_TAG_CATEGORIES)
+    const [isDanbooruPage, setIsDanbooruPage] = useState(false)
     const browserAreaRef = useRef<HTMLDivElement>(null)
     const resizeFrameRef = useRef<number | null>(null)
     const resizeInFlightRef = useRef(false)
@@ -82,6 +123,9 @@ export default function WebView() {
                 if (savedLinks && savedLinks.length > 0) {
                     setQuickLinks(savedLinks)
                 }
+                setDanbooruTagCategories(readDanbooruTagCategories(
+                    await storeRef.current.get(DANBOORU_TAG_CATEGORIES_KEY)
+                ))
             } catch (error) {
                 console.error('Failed to load quick links:', error)
             }
@@ -100,6 +144,18 @@ export default function WebView() {
             console.error('Failed to save quick links:', error)
         }
     }, [])
+
+    const saveDanbooruTagCategories = useCallback(async () => {
+        try {
+            if (!storeRef.current) return
+            await storeRef.current.set(DANBOORU_TAG_CATEGORIES_KEY, draftDanbooruTagCategories)
+            await storeRef.current.save()
+            setDanbooruTagCategories(draftDanbooruTagCategories)
+            setIsDanbooruSettingsOpen(false)
+        } catch (error) {
+            console.error('Failed to save Danbooru tag settings:', error)
+        }
+    }, [draftDanbooruTagCategories])
 
     const addQuickLink = () => {
         if (!newLinkName.trim() || !newLinkUrl.trim()) return
@@ -306,10 +362,49 @@ export default function WebView() {
         try {
             await invoke('close_embedded_browser')
             setIsBrowserOpen(false)
+            setIsDanbooruPage(false)
         } catch (error) {
             console.error('Failed to close browser:', error)
         }
     }
+
+    const refreshDanbooruPage = useCallback(async () => {
+        if (!isBrowserOpen) {
+            setIsDanbooruPage(false)
+            return
+        }
+        try {
+            setIsDanbooruPage(await invoke<boolean>('is_danbooru_browser_page'))
+        } catch {
+            setIsDanbooruPage(false)
+        }
+    }, [isBrowserOpen])
+
+    useEffect(() => {
+        if (!isBrowserOpen) {
+            setIsDanbooruPage(false)
+            return
+        }
+        void refreshDanbooruPage()
+        const intervalId = window.setInterval(() => void refreshDanbooruPage(), 1000)
+        return () => window.clearInterval(intervalId)
+    }, [isBrowserOpen, refreshDanbooruPage])
+
+    const copyDanbooruTags = useCallback(async () => {
+        if (!isDanbooruPage) return
+        try {
+            await invoke('copy_danbooru_tags', { categories: danbooruTagCategories })
+        } catch (error) {
+            console.error('Failed to copy Danbooru tags:', error)
+            void refreshDanbooruPage()
+        }
+    }, [danbooruTagCategories, isDanbooruPage, refreshDanbooruPage])
+
+    useEffect(() => {
+        const handleCopyDanbooruTags = () => void copyDanbooruTags()
+        window.addEventListener(SHORTCUT_EVENTS.COPY_DANBOORU_TAGS, handleCopyDanbooruTags)
+        return () => window.removeEventListener(SHORTCUT_EVENTS.COPY_DANBOORU_TAGS, handleCopyDanbooruTags)
+    }, [copyDanbooruTags])
 
     const handleNavigate = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -488,13 +583,26 @@ export default function WebView() {
                             </Button>
                         </div>
                         <Button
-                            variant="destructive"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 rounded-md"
+                            onClick={() => {
+                                setDraftDanbooruTagCategories(danbooruTagCategories)
+                                setIsDanbooruSettingsOpen(true)
+                            }}
+                            title={t('web.danbooruSettings')}
+                        >
+                            <Settings2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                            variant="outline"
                             size="sm"
                             className="h-7 rounded-md px-2 text-xs"
-                            onClick={closeBrowser}
+                            disabled={!isDanbooruPage}
+                            onClick={() => void copyDanbooruTags()}
                         >
-                            <X className="h-3 w-3 mr-1.5" />
-                            {t('web.close')}
+                            <Copy className="mr-1.5 h-3.5 w-3.5" />
+                            {t('common.copy')}
                         </Button>
                     </>
                 )}
@@ -502,12 +610,11 @@ export default function WebView() {
 
             {/* Browser Area */}
             <div
-                ref={browserAreaRef}
-                className="relative min-h-0 flex-1 overflow-hidden"
-                style={{ backgroundColor: isBrowserOpen ? 'transparent' : undefined }}
+                className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
             >
+                <div ref={browserAreaRef} className="min-h-0 flex-1" />
                 {!isBrowserOpen && (
-                    <Card glass className="h-full rounded-none border-0">
+                    <Card glass className="absolute inset-0 rounded-none border-0">
                         <CardContent className="p-6 h-full flex flex-col items-center justify-center text-center">
                             <Globe className="h-16 w-16 text-muted-foreground/50 mb-4" />
                             <h2 className="text-xl font-semibold mb-2">
@@ -553,6 +660,39 @@ export default function WebView() {
                         </Button>
                         <Button onClick={addQuickLink} className="rounded-xl" disabled={!newLinkName.trim() || !newLinkUrl.trim()}>
                             {t('web.add')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isDanbooruSettingsOpen} onOpenChange={setIsDanbooruSettingsOpen}>
+                <DialogContent className="w-72 gap-3 p-4 [&>button]:hidden">
+                    <DialogHeader className="sr-only">
+                        <DialogTitle>{t('web.danbooruSettings')}</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-2">
+                        {DANBOORU_TAG_CATEGORY_OPTIONS.map(({ key, label }) => (
+                            <div key={key} className="flex items-center justify-between">
+                                <label className="text-sm font-medium" htmlFor={`danbooru-tag-category-${key}`}>
+                                    {t(label)}
+                                </label>
+                                <Switch
+                                    id={`danbooru-tag-category-${key}`}
+                                    checked={draftDanbooruTagCategories[key]}
+                                    onChange={(event) => setDraftDanbooruTagCategories((categories) => ({
+                                        ...categories,
+                                        [key]: event.target.checked,
+                                    }))}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                    <DialogFooter className="mt-1 gap-2 sm:justify-end sm:space-x-0">
+                        <Button variant="outline" onClick={() => setIsDanbooruSettingsOpen(false)}>
+                            {t('common.cancel')}
+                        </Button>
+                        <Button onClick={() => void saveDanbooruTagCategories()}>
+                            {t('common.save')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
