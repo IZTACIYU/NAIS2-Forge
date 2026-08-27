@@ -18,6 +18,7 @@
     "check:prompt-formatting": "node --experimental-strip-types scripts/check-prompt-formatting.mjs",
     "check:shortcuts": "node --experimental-strip-types scripts/check-shortcuts.mjs",
     "check:scene-queue-order": "node --experimental-strip-types scripts/check-scene-queue-order.mjs",
+    "check:scene-copy-name": "node --experimental-strip-types scripts/check-scene-copy-name.mjs",
     "check:tag-index": "node --experimental-strip-types scripts/check-tag-index.mjs",
     "tags:update": "node scripts/sync-danbooru-tags.mjs",
     "tags:build": "node scripts/build-tag-index.mjs",

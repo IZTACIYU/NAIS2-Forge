@@ -7,6 +7,7 @@ import { useSettingsStore } from './settings-store'
 import { notifySceneQueueChanged } from '@/lib/scene-queue-events'
 import { flushScenePromptDrafts } from '@/lib/scene-prompt-drafts'
 import { getSceneFolderFromImages, replaceSceneFolderPrefix, sanitizeSceneFolderName } from '@/lib/scene-path'
+import { getUniqueDuplicateName } from '@/lib/scene-copy-name'
 import { createHistoryIndexScope, moveHistoryIndexPathPrefix } from '@/lib/history-index'
 import { normalizeCostumePromptMarkersForExport } from '@/lib/costume-prompt'
 import { buildSceneQueueOrder, findNextQueuedSceneIndex } from '@/lib/scene-queue-order'
@@ -43,24 +44,6 @@ export interface SceneCard {
     // The physical folder is independent from the display name after a scene is renamed.
     folderPath?: string
     createdAt: number
-}
-
-function getUniqueDuplicateSceneName(sourceName: string, scenes: SceneCard[]): string {
-    const baseName = sourceName.replace(/\s*\(복사본(?:\s+\d+)?\)$/u, '') || sourceName
-    const usedNames = new Set(scenes.map(scene => scene.name.toLocaleLowerCase()))
-    const usedFolderNames = new Set(
-        scenes.map(scene => sanitizeSceneFolderName(scene.name).toLocaleLowerCase())
-    )
-
-    for (let copyNumber = 1; ; copyNumber++) {
-        const candidate = copyNumber === 1
-            ? `${baseName} (복사본)`
-            : `${baseName} (복사본 ${copyNumber})`
-        if (!usedNames.has(candidate.toLocaleLowerCase())
-            && !usedFolderNames.has(sanitizeSceneFolderName(candidate).toLocaleLowerCase())) {
-            return candidate
-        }
-    }
 }
 
 export interface ScenePreset {
@@ -202,6 +185,7 @@ interface SceneState {
 
     // Actions - Presets
     addPreset: (name: string) => void
+    duplicatePreset: (id: string) => void
     deletePreset: (id: string) => void
     renamePreset: (id: string, name: string) => void
     reorderPresets: (oldIndex: number, newIndex: number) => void
@@ -440,6 +424,60 @@ export const useSceneStore = create<SceneState>()(
                 }))
             },
 
+            duplicatePreset: (presetId) => {
+                flushScenePromptDrafts()
+                set(state => {
+                    const sourcePreset = state.presets.find(preset => preset.id === presetId)
+                    if (!sourcePreset) return state
+
+                    const copiedPresetId = `scene-preset-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+                    const sceneIds = new Map(sourcePreset.scenes.map((scene, index) => [
+                        scene.id,
+                        `${copiedPresetId}-scene-${index}`,
+                    ]))
+                    const copiedScenes = sourcePreset.scenes.map(scene => ({
+                        ...scene,
+                        id: sceneIds.get(scene.id)!,
+                        images: [],
+                        queueCount: 0,
+                        folderPath: undefined,
+                        multiCharacterSlots: scene.multiCharacterSlots?.map(slot => ({
+                            ...slot,
+                            position: slot.position ? { ...slot.position } : undefined,
+                        })),
+                        createdAt: Date.now(),
+                    }))
+                    const copiedAdditions = Object.fromEntries(
+                        Object.entries(state.sceneCharacterAdditions[presetId] || {}).flatMap(([sceneId, addition]) => {
+                            const copiedSceneId = sceneIds.get(sceneId)
+                            if (!copiedSceneId) return []
+                            return [[copiedSceneId, {
+                                ...addition,
+                                characterPromptIds: [...addition.characterPromptIds],
+                                characterReferenceIds: [...addition.characterReferenceIds],
+                                vibeReferenceIds: [...addition.vibeReferenceIds],
+                                customCharacters: addition.customCharacters?.map(character => ({ ...character })),
+                            }]]
+                        })
+                    )
+                    const copiedPreset: ScenePreset = {
+                        ...sourcePreset,
+                        id: copiedPresetId,
+                        name: getUniqueDuplicateName(sourcePreset.name, state.presets.map(preset => preset.name)),
+                        scenes: copiedScenes,
+                        createdAt: Date.now(),
+                    }
+
+                    return {
+                        presets: [...state.presets, copiedPreset],
+                        activePresetId: copiedPresetId,
+                        sceneCharacterAdditions: Object.keys(copiedAdditions).length > 0
+                            ? { ...state.sceneCharacterAdditions, [copiedPresetId]: copiedAdditions }
+                            : state.sceneCharacterAdditions,
+                    }
+                })
+            },
+
             deletePreset: (id) => {
                 if (id === DEFAULT_PRESET_ID) return
                 const wasActive = get().activePresetId === id
@@ -516,7 +554,7 @@ export const useSceneStore = create<SceneState>()(
                         const duplicated: SceneCard = {
                             ...scene,
                             id: duplicatedId,
-                            name: getUniqueDuplicateSceneName(scene.name, preset.scenes),
+                            name: getUniqueDuplicateName(scene.name, preset.scenes.map(item => item.name)),
                             images: [],
                             folderPath: undefined,
                             multiCharacterSlots: scene.multiCharacterSlots?.map(slot => ({

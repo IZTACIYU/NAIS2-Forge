@@ -317,6 +317,19 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+## R-025 — 씬 프리셋 복제는 이미지 경로를 공유하지 않는다
+
+- **Date:** 2026-08-27
+- **Area:** Scene preset store, scene character additions, generated-image folder paths
+- **Symptom/Risk:** 프리셋을 객체째 복사하면 source와 copy가 같은 Scene ID·이미지·`folderPath`를 공유해, 이후 이미지 삭제 또는 생성이 원본 데이터를 건드리거나 새 파일 경로를 충돌시킬 수 있다. `복사본` 이름을 다시 복제할 때도 물리 폴더명이 겹칠 수 있다.
+- **Evidence:** Scene은 generated image와 physical `folderPath`를 persisted state에 함께 보유하며, 기존 단일 Scene 복제도 새 ID를 만들고 image·folderPath를 비운 뒤 씬별 character addition을 새 Scene ID로 복사한다.
+- **Invariant to preserve:** 프리셋 복제는 source를 읽기만 한다. 새 프리셋과 모든 Scene은 새 ID를 쓰고, 이미지·queue·folderPath는 비운다. scene character additions만 새 Scene ID로 연결한다. 복사본 이름은 표시 이름과 sanitize된 물리 폴더명 모두 기존 프리셋과 충돌하지 않아야 한다.
+- **Fix:** 기존 단일 Scene 복제의 데이터 보존 규칙을 프리셋 복제에도 적용하고, 공통 이름 생성기가 `원본 → 원본 (복사본) → 원본 (복사본 2)` 순서와 sanitize 충돌을 보장한다.
+- **Regression coverage:** `npm run check:scene-copy-name`, TypeScript 및 production build.
+- **Do not "fix" by:** source Scene ID나 image/folderPath를 그대로 재사용하거나, 복제본의 이름만 바꾸고 sanitize된 폴더명 충돌을 확인하지 않기.
+
+---
+
 ## 새 항목 템플릿
 
 ### R-XXX — 짧은 제목

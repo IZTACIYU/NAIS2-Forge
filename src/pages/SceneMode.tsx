@@ -271,6 +271,7 @@ export default function SceneMode() {
     const activePresetId = useSceneStore(s => s.activePresetId)
     const setActivePreset = useSceneStore(s => s.setActivePreset)
     const addPreset = useSceneStore(s => s.addPreset)
+    const duplicatePreset = useSceneStore(s => s.duplicatePreset)
     const deletePreset = useSceneStore(s => s.deletePreset)
     const activePreset = useSceneStore(s => s.presets.find(p => p.id === s.activePresetId))
     const scenes = activePreset?.scenes || []
@@ -962,6 +963,11 @@ export default function SceneMode() {
                                     </Button>
                                 </Tip>
                             )}
+                            <Tip content={t('scene.duplicate', '복제')}>
+                                <Button variant="ghost" size="icon" className="shrink-0 rounded-lg h-8 w-8 hover:bg-white/10" onClick={() => activePresetId && duplicatePreset(activePresetId)} disabled={isGenerating}>
+                                    <Copy className="h-4 w-4" />
+                                </Button>
+                            </Tip>
                             {presets.length > 1 && (
                                 <Tip content={t('scene.deletePreset', '??? ??')}>
                                     <Button variant="ghost" size="icon" className="shrink-0 rounded-lg h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setShowDeletePresetDialog(true)} disabled={isGenerating}>
