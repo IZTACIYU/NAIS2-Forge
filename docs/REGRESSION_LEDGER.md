@@ -330,6 +330,19 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+## R-026 — 다인씬 추가 프롬프트는 같은 대상 캐릭터의 캡션에 결합한다
+
+- **Date:** 2026-08-28
+- **Area:** Scene multi-character slots, prompt token preview, common generation request builder
+- **Symptom/Risk:** 다인씬 슬롯은 positive 추가 프롬프트만 저장·전달할 수 있어 캐릭터별 scene negative를 지정할 수 없었고, UI만 추가하면 토큰 표시와 실제 요청이 달라지거나 main negative에 잘못 섞일 수 있었다.
+- **Evidence:** 슬롯 assignment는 성별/직접 선택으로 최종 캐릭터 ID를 결정한 뒤 positive map만 만들었고, 공통 request builder의 character input도 positive append만 지원했다.
+- **Invariant to preserve:** 다인씬 Base와 Negative는 하나의 slot assignment로 같은 캐릭터를 가리킨다. Base는 해당 character positive caption 뒤에, Negative는 해당 character negative caption 뒤에 결합하며 main prompt/negative에는 넣지 않는다. 슬롯에 `negativePrompt`가 없거나 비어 있으면 기존 payload가 바뀌지 않는다.
+- **Fix:** 공통 slot assignment에서 positive·negative·position의 대상 ID를 함께 결정하고, 공통 generation request character input에 optional negative append를 전달한다. 토큰 미리보기도 동일한 negative map을 사용한다.
+- **Regression coverage:** `npm run check:scene-multi-character`, TypeScript 및 production build.
+- **Do not "fix" by:** UI 또는 API transport에서 성별을 다시 판별하거나, scene character negative를 main negative에 합치거나, 기존 슬롯을 일괄 migration하기.
+
+---
+
 ## 새 항목 템플릿
 
 ### R-XXX — 짧은 제목

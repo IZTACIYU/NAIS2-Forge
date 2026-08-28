@@ -94,6 +94,7 @@ export const buildSceneCharacterPrompt = (character: CharacterPrompt, costumeOve
 interface SceneMultiCharacterAssignment {
     characterId: string
     prompt: string
+    negativePrompt: string
     position?: { x: number; y: number }
 }
 
@@ -107,14 +108,19 @@ const resolveSceneMultiCharacterAssignments = (
     const allCharacterById = new Map(allCharacters.map(character => [character.id, character]))
 
     for (const slot of slots || []) {
-        if (slot.enabled === false || (!slot.prompt.trim() && !slot.position)) continue
+        if (slot.enabled === false || (!slot.prompt.trim() && !slot.negativePrompt?.trim() && !slot.position)) continue
 
         if (slot.target === 'manual') {
             const sourceCharacter = slot.characterId ? allCharacterById.get(slot.characterId) : undefined
             const target = sourceCharacter
                 ? selectedCharacters.find(character => getVariantStackKey(character) === getVariantStackKey(sourceCharacter))
                 : undefined
-            if (target) assignments.push({ characterId: target.id, prompt: slot.prompt.trim(), position: slot.position })
+            if (target) assignments.push({
+                characterId: target.id,
+                prompt: slot.prompt.trim(),
+                negativePrompt: slot.negativePrompt?.trim() || '',
+                position: slot.position,
+            })
             continue
         }
 
@@ -124,7 +130,12 @@ const resolveSceneMultiCharacterAssignments = (
         ))
         if (!target) continue
         usedGenderCharacterIds.add(target.id)
-        assignments.push({ characterId: target.id, prompt: slot.prompt.trim(), position: slot.position })
+        assignments.push({
+            characterId: target.id,
+            prompt: slot.prompt.trim(),
+            negativePrompt: slot.negativePrompt?.trim() || '',
+            position: slot.position,
+        })
     }
 
     return assignments
@@ -140,6 +151,22 @@ export const getSceneMultiCharacterPromptMap = (
         if (!assignment.prompt) continue
         const prompts = promptsByCharacterId.get(assignment.characterId) || []
         prompts.push(assignment.prompt)
+        promptsByCharacterId.set(assignment.characterId, prompts)
+    }
+
+    return promptsByCharacterId
+}
+
+export const getSceneMultiCharacterNegativePromptMap = (
+    slots: SceneMultiCharacterSlot[] | undefined,
+    selectedCharacters: CharacterPrompt[],
+    allCharacters: CharacterPrompt[],
+) => {
+    const promptsByCharacterId = new Map<string, string[]>()
+    for (const assignment of resolveSceneMultiCharacterAssignments(slots, selectedCharacters, allCharacters)) {
+        if (!assignment.negativePrompt) continue
+        const prompts = promptsByCharacterId.get(assignment.characterId) || []
+        prompts.push(assignment.negativePrompt)
         promptsByCharacterId.set(assignment.characterId, prompts)
     }
 

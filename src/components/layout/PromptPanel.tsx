@@ -55,6 +55,7 @@ import { getCharacterGender } from '@/lib/character-gender'
 import {
     buildSceneCharacterPrompt,
     createSceneCustomCharacters,
+    getSceneMultiCharacterNegativePromptMap,
     getSceneMultiCharacterPromptMap,
     selectSceneCharacters,
 } from '@/lib/scene-character-prompts'
@@ -325,6 +326,13 @@ export function PromptPanel() {
                 characters,
             )
             : new Map<string, string[]>()
+        const multiCharacterNegativePrompts = isActiveScene
+            ? getSceneMultiCharacterNegativePromptMap(
+                expertSceneMultiCharacterEnabled ? activeSceneMultiCharacterSlots : undefined,
+                charactersForTokens,
+                characters,
+            )
+            : new Map<string, string[]>()
         const characterPositivePrompts = charactersForTokens.map(character => isActiveScene
             ? [
                 expertCharacterPromptLayoutEnabled
@@ -334,11 +342,12 @@ export function PromptPanel() {
             ].filter(Boolean).join('\n')
             : character.prompt
         )
-        const characterNegativePrompts = charactersForTokens.map(character => (
+        const characterNegativePrompts = charactersForTokens.map(character => [
             isActiveScene && expertCharacterPromptLayoutEnabled && character.negativeEnabled === false
                 ? ''
-                : character.negative
-        ))
+                : character.negative,
+            ...(multiCharacterNegativePrompts.get(character.id) || []),
+        ].filter(Boolean).join('\n'))
         const positive = [
             modelCapabilities.modes.find(mode => mode.value === modelMode)?.promptPrefix || '',
             basePrompt,

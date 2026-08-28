@@ -17,6 +17,7 @@ import { sendSystemNotification } from '@/lib/system-notification'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 import {
     createSceneCustomCharacters,
+    getSceneMultiCharacterNegativePromptMap,
     getSceneMultiCharacterPositionMap,
     getSceneMultiCharacterPromptMap,
     getVariantStackKey,
@@ -245,6 +246,11 @@ export function useSceneGeneration() {
                     characterPrompts,
                     latestPromptStore.characters,
                 )
+                const multiCharacterNegativePromptMap = getSceneMultiCharacterNegativePromptMap(
+                    latestSettingsStore.expertSceneMultiCharacterEnabled ? scene.multiCharacterSlots : undefined,
+                    characterPrompts,
+                    latestPromptStore.characters,
+                )
                 const multiCharacterPositionMap = getSceneMultiCharacterPositionMap(
                     latestSettingsStore.expertSceneMultiCharacterEnabled ? scene.multiCharacterSlots : undefined,
                     characterPrompts,
@@ -316,6 +322,7 @@ export function useSceneGeneration() {
                     characterInputs: characterPrompts.map(character => ({
                         character,
                         appendedPrompts: multiCharacterPromptMap.get(character.id),
+                        appendedNegativePrompts: multiCharacterNegativePromptMap.get(character.id),
                         costumeEnabled: costumeOverride,
                         position: multiCharacterPositionMap.get(character.id) || character.position,
                     })),

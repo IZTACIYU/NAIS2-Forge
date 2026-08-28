@@ -25,6 +25,7 @@ import {
 export interface GenerationCharacterInput {
     character: CharacterPrompt
     appendedPrompts?: string[]
+    appendedNegativePrompts?: string[]
     costumeEnabled?: boolean
     position?: { x: number, y: number }
 }
@@ -108,6 +109,7 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         .map(async ({
         character,
         appendedPrompts = [],
+        appendedNegativePrompts = [],
         costumeEnabled,
         position,
     }) => {
@@ -129,9 +131,12 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
             ...characterParts,
             ...appendedPrompts.map(prompt => formatPromptWhitespace(prompt, input.promptWhitespaceMode)),
         ].filter(part => part?.trim()).join(input.insertBlankLinesBetweenPromptParts ? '\n\n' : '\n')
-        const rawNegative = input.characterPromptLayoutEnabled && character.negativeEnabled === false
-            ? ''
-            : formatPromptWhitespace(character.negative, input.promptWhitespaceMode)
+        const rawNegative = [
+            input.characterPromptLayoutEnabled && character.negativeEnabled === false
+                ? ''
+                : formatPromptWhitespace(character.negative, input.promptWhitespaceMode),
+            ...appendedNegativePrompts.map(prompt => formatPromptWhitespace(prompt, input.promptWhitespaceMode)),
+        ].filter(part => part?.trim()).join(input.insertBlankLinesBetweenPromptParts ? '\n\n' : '\n')
 
         return {
             rawPrompt: removePromptComments(rawPrompt),

@@ -49,6 +49,7 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
     const [selectedPositionSlotId, setSelectedPositionSlotId] = useState<string | null>(null)
     const [draftPositions, setDraftPositions] = useState<Record<string, { x: number, y: number }>>({})
     const [collapsedSlotIds, setCollapsedSlotIds] = useState<Set<string>>(new Set())
+    const [activePromptTabs, setActivePromptTabs] = useState<Record<string, 'prompt' | 'negative'>>({})
     const boardAspectRatio = getCharacterPositionBoardAspectRatio(width ?? 832, height ?? 1216)
     const positionBoardSizeClass = boardAspectRatio > 1
         ? 'w-[min(127.5vh,1163px,calc(100vw-3rem))]'
@@ -164,9 +165,10 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
                         <div key={slot.id} className={cn('rounded-lg border border-border/60 bg-background/50 p-2.5', slot.enabled === false && 'opacity-50')}>
                             {(() => {
                                 const isCollapsed = collapsedSlotIds.has(slot.id)
+                                const activePromptTab = activePromptTabs[slot.id] || 'prompt'
                                 return <>
                             <div className="flex items-center gap-2">
-                                <div className="flex min-w-0 items-center gap-2">
+                                <div className="flex min-w-0 flex-1 items-center gap-2">
                                     {slot.target === 'gender' && genderSelectionMode === 'portrait' ? (
                                         <Button
                                             type="button"
@@ -197,6 +199,20 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
                                     )}
                                     <span className="truncate text-sm font-medium">{getSlotTitle(slot, index)}</span>
                                 </div>
+                                {slot.target === 'gender' && genderSelectionMode === 'dropdown' && (
+                                    <Select
+                                        value={slot.gender || 'unknown'}
+                                        onValueChange={(value) => updateSlot(slot.id, { gender: value as NonNullable<SceneMultiCharacterSlot['gender']> })}
+                                        disabled={slot.enabled === false}
+                                    >
+                                        <SelectTrigger className="h-7 w-[76px] shrink-0 rounded-md text-xs"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="male">{t('sceneMultiCharacter.male')}</SelectItem>
+                                            <SelectItem value="female">{t('sceneMultiCharacter.female')}</SelectItem>
+                                            <SelectItem value="unknown">{t('sceneMultiCharacter.other')}</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                )}
                                 <Select
                                     value={slot.target}
                                     onValueChange={(value: SceneMultiCharacterSlot['target']) => updateSlot(slot.id, value === 'manual'
@@ -245,22 +261,8 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
                             </div>
 
                             {!isCollapsed && <>
-                            {(slot.target === 'manual' || genderSelectionMode === 'dropdown') && (
+                            {slot.target === 'manual' && (
                                 <div className="mt-2">
-                                {slot.target === 'gender' ? (
-                                    <Select
-                                        value={slot.gender || 'unknown'}
-                                        onValueChange={(value) => updateSlot(slot.id, { gender: value as NonNullable<SceneMultiCharacterSlot['gender']> })}
-                                        disabled={slot.enabled === false}
-                                    >
-                                        <SelectTrigger className="h-8 rounded-md text-xs"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="male">{t('sceneMultiCharacter.male')}</SelectItem>
-                                            <SelectItem value="female">{t('sceneMultiCharacter.female')}</SelectItem>
-                                            <SelectItem value="unknown">{t('sceneMultiCharacter.other')}</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                ) : (
                                     <Select
                                         value={slot.characterId || 'none'}
                                         onValueChange={(value) => updateSlot(slot.id, { characterId: value === 'none' ? undefined : value })}
@@ -275,16 +277,37 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
                                             })}
                                         </SelectContent>
                                     </Select>
-                                )}
                                 </div>
                             )}
 
                             <div className="mt-2">
+                                <div className="mb-1.5 flex items-center gap-1 text-xs font-medium">
+                                    <button
+                                        type="button"
+                                        className={cn('rounded-md px-2 py-1', activePromptTab === 'prompt' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted')}
+                                        onClick={() => setActivePromptTabs(current => ({ ...current, [slot.id]: 'prompt' }))}
+                                    >
+                                        {t('sceneMultiCharacter.base')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={cn('rounded-md px-2 py-1', activePromptTab === 'negative' ? 'bg-destructive/15 text-destructive' : 'text-muted-foreground hover:bg-muted')}
+                                        onClick={() => setActivePromptTabs(current => ({ ...current, [slot.id]: 'negative' }))}
+                                    >
+                                        {t('sceneMultiCharacter.negative')}
+                                    </button>
+                                </div>
                                 <AutocompleteTextarea
-                                    value={slot.prompt}
-                                    onChange={(event) => updateSlot(slot.id, { prompt: event.target.value })}
-                                    placeholder={t('sceneMultiCharacter.promptPlaceholder')}
-                                    className="!h-[96px] min-h-0 rounded-md text-sm"
+                                    value={activePromptTab === 'prompt' ? slot.prompt : slot.negativePrompt || ''}
+                                    onChange={(event) => updateSlot(slot.id, activePromptTab === 'prompt'
+                                        ? { prompt: event.target.value }
+                                        : { negativePrompt: event.target.value }
+                                    )}
+                                    placeholder={t(activePromptTab === 'prompt'
+                                        ? 'sceneMultiCharacter.promptPlaceholder'
+                                        : 'sceneMultiCharacter.negativePromptPlaceholder'
+                                    )}
+                                    className={cn('!h-[128px] min-h-0 rounded-md text-sm', activePromptTab === 'negative' && 'border-destructive/20')}
                                     maxSuggestions={8}
                                     disabled={slot.enabled === false}
                                 />

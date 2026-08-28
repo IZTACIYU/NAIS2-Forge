@@ -27,6 +27,7 @@ export interface SceneMultiCharacterSlot {
     characterId?: string
     gender?: 'male' | 'female' | 'unknown'
     prompt: string
+    negativePrompt?: string
     enabled?: boolean
     position?: { x: number; y: number }
 }
@@ -103,6 +104,8 @@ function normalizeSceneMultiCharacterSlots(value: unknown): SceneMultiCharacterS
             target: source.target,
             prompt: typeof source.prompt === 'string' ? source.prompt : '',
         }
+
+        if (typeof source.negativePrompt === 'string') slot.negativePrompt = source.negativePrompt
 
         if (source.target === 'manual' && typeof source.characterId === 'string') {
             slot.characterId = source.characterId
