@@ -50,6 +50,11 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
     const [draftPositions, setDraftPositions] = useState<Record<string, { x: number, y: number }>>({})
     const [collapsedSlotIds, setCollapsedSlotIds] = useState<Set<string>>(new Set())
     const boardAspectRatio = getCharacterPositionBoardAspectRatio(width ?? 832, height ?? 1216)
+    const positionBoardSizeClass = boardAspectRatio > 1
+        ? 'w-[min(127.5vh,1163px,calc(100vw-3rem))]'
+        : boardAspectRatio === 1
+            ? 'w-[min(85vh,775px,calc(100vw-3rem))]'
+            : 'w-[min(56.667vh,517px,calc(100vw-3rem))]'
 
     const genderLabel = (gender: SceneMultiCharacterSlot['gender']) => {
         if (gender === 'male') return t('sceneMultiCharacter.male')
@@ -300,11 +305,11 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
                             {t('sceneMultiCharacter.position')}
                         </DialogTitle>
                     </DialogHeader>
-                    <div className="flex max-h-[68vh] justify-center overflow-hidden rounded-lg border border-border/60 bg-muted/50">
+                    <div className="flex max-h-[85vh] justify-center overflow-hidden rounded-lg border border-border/60 bg-muted/50">
                         <CharacterPositionBoard
                             aspectRatio={boardAspectRatio}
                             mode={positionMode}
-                            className="h-[min(68vh,620px)] !w-auto max-w-[calc(100vw-3rem)] rounded-none border-0 bg-transparent shadow-none"
+                            className={cn('!h-auto max-h-[85vh] rounded-none border-0 bg-transparent shadow-none', positionBoardSizeClass)}
                             markerClassName="h-9 w-9 text-sm"
                             gridClassName="border-foreground/30"
                             markers={positionSlots.map((slot, index) => ({
