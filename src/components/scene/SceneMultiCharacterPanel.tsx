@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp, Eye, EyeOff, Link2, MapPin, Plus, Trash2, UserRound, UsersRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -15,8 +15,8 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { type SceneMultiCharacterSlot } from '@/stores/scene-store'
 import { cn } from '@/lib/utils'
 import { getCharacterPositionBoardAspectRatio } from '@/lib/character-position-grid'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { CharacterPositionBoard } from '@/components/character/CharacterPositionBoard'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface SceneMultiCharacterPanelProps {
     slots: SceneMultiCharacterSlot[]
@@ -42,9 +42,12 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
     const { t } = useTranslation()
     const characters = useCharacterPromptStore(state => state.characters)
     const genderSelectionMode = useSettingsStore(state => state.sceneMultiCharacterGenderSelectionMode)
+    const positionMode = useSettingsStore(state => state.characterPositionMode)
+    const setPositionMode = useSettingsStore(state => state.setCharacterPositionMode)
     const activeCharacters = useMemo(() => characters.filter(character => character.enabled), [characters])
     const [positionBoardOpen, setPositionBoardOpen] = useState(false)
     const [selectedPositionSlotId, setSelectedPositionSlotId] = useState<string | null>(null)
+    const [draftPositions, setDraftPositions] = useState<Record<string, { x: number, y: number }>>({})
     const [collapsedSlotIds, setCollapsedSlotIds] = useState<Set<string>>(new Set())
     const boardAspectRatio = getCharacterPositionBoardAspectRatio(width ?? 832, height ?? 1216)
 
@@ -70,6 +73,19 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
     const updateSlot = (id: string, updates: Partial<SceneMultiCharacterSlot>) => {
         onChange(slots.map(slot => slot.id === id ? { ...slot, ...updates } : slot))
     }
+
+    const updateDraftPosition = useCallback((id: string, x: number, y: number) => {
+        setDraftPositions(current => ({ ...current, [id]: { x, y } }))
+    }, [])
+
+    const commitPosition = useCallback((id: string, x: number, y: number) => {
+        onChange(slots.map(slot => slot.id === id ? { ...slot, position: { x, y } } : slot))
+        setDraftPositions(current => {
+            const next = { ...current }
+            delete next[id]
+            return next
+        })
+    }, [onChange, slots])
 
     const cycleGender = (id: string, gender: NonNullable<SceneMultiCharacterSlot['gender']>) => {
         const nextGender = gender === 'male' ? 'female' : gender === 'female' ? 'unknown' : 'male'
@@ -114,66 +130,18 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
                     <p className="mt-0.5 text-xs text-muted-foreground">{t('sceneMultiCharacter.description')}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                    <Popover open={positionBoardOpen} onOpenChange={setPositionBoardOpen}>
-                        <PopoverTrigger asChild>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className={cn('h-8 w-8', positionSlots.some(slot => slot.position) && 'text-primary')}
-                                disabled={positionSlots.length === 0}
-                                title={t('sceneMultiCharacter.position')}
-                                aria-label={t('sceneMultiCharacter.position')}
-                            >
-                                <MapPin className="h-4 w-4" />
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-2.5" align="end">
-                            <div className="mb-2 flex items-center gap-1.5 text-xs font-medium">
-                                <MapPin className="h-3.5 w-3.5 text-primary" />
-                                {t('sceneMultiCharacter.position')}
-                            </div>
-                            <CharacterPositionBoard
-                                aspectRatio={boardAspectRatio}
-                                markerClassName="h-7 w-7 text-[10px]"
-                                markers={positionSlots.map((slot, index) => ({
-                                    id: slot.id,
-                                    label: String(index + 1),
-                                    position: slot.position || { x: 0.5, y: 0.5 },
-                                    color: CHARACTER_COLORS[index % CHARACTER_COLORS.length],
-                                }))}
-                                selectedId={selectedPositionSlot?.id || null}
-                                onSelectedIdChange={setSelectedPositionSlotId}
-                                onPositionChange={(id, x, y) => updateSlot(id, { position: { x, y } })}
-                            />
-                            <div className="mt-2 flex max-h-20 flex-wrap gap-1 overflow-y-auto">
-                                {positionSlots.map((slot, index) => (
-                                    <Button
-                                        key={slot.id}
-                                        type="button"
-                                        variant={selectedPositionSlot?.id === slot.id ? 'secondary' : 'ghost'}
-                                        size="sm"
-                                        className="h-6 max-w-full gap-1 px-1.5 text-[10px]"
-                                        onClick={() => setSelectedPositionSlotId(slot.id)}
-                                        title={getSlotTitle(slot, slots.indexOf(slot))}
-                                    >
-                                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: CHARACTER_COLORS[index % CHARACTER_COLORS.length] }} />
-                                        <span className="max-w-28 truncate">{getSlotTitle(slot, slots.indexOf(slot))}</span>
-                                    </Button>
-                                ))}
-                            </div>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="mt-2 h-7 w-full text-xs"
-                                disabled={!selectedPositionSlot?.position}
-                                onClick={() => selectedPositionSlot && updateSlot(selectedPositionSlot.id, { position: undefined })}
-                            >
-                                {t('sceneMultiCharacter.clearPosition')}
-                            </Button>
-                        </PopoverContent>
-                    </Popover>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn('h-8 w-8', positionSlots.some(slot => slot.position) && 'text-primary')}
+                        disabled={positionSlots.length === 0}
+                        onClick={() => setPositionBoardOpen(true)}
+                        title={t('sceneMultiCharacter.position')}
+                        aria-label={t('sceneMultiCharacter.position')}
+                    >
+                        <MapPin className="h-4 w-4" />
+                    </Button>
                     <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg" onClick={addSlot}>
                         <Plus className="mr-1.5 h-4 w-4" />
                         {t('sceneMultiCharacter.add')}
@@ -323,6 +291,78 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
                     ))}
                 </div>
             )}
+
+            <Dialog open={positionBoardOpen} onOpenChange={setPositionBoardOpen}>
+                <DialogContent className="w-[min(920px,calc(100vw-2rem))] max-w-[920px] p-4">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-primary" />
+                            {t('sceneMultiCharacter.position')}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="flex max-h-[68vh] justify-center overflow-hidden rounded-lg bg-muted/30">
+                        <CharacterPositionBoard
+                            aspectRatio={boardAspectRatio}
+                            mode={positionMode}
+                            className="h-[min(68vh,620px)] !w-auto max-w-full rounded-none border-0 bg-transparent shadow-none"
+                            markerClassName="h-9 w-9 text-sm"
+                            gridClassName="border-foreground/25"
+                            markers={positionSlots.map((slot, index) => ({
+                                id: slot.id,
+                                label: String(index + 1),
+                                position: draftPositions[slot.id] || slot.position || { x: 0.5, y: 0.5 },
+                                color: CHARACTER_COLORS[index % CHARACTER_COLORS.length],
+                            }))}
+                            selectedId={selectedPositionSlot?.id || null}
+                            onSelectedIdChange={setSelectedPositionSlotId}
+                            onPositionChange={updateDraftPosition}
+                            onPositionCommit={commitPosition}
+                        />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex rounded-lg border border-border p-0.5">
+                            {(['grid', 'free'] as const).map(mode => (
+                                <Button
+                                    key={mode}
+                                    type="button"
+                                    variant={positionMode === mode ? 'secondary' : 'ghost'}
+                                    size="sm"
+                                    className="h-7 px-3 text-xs"
+                                    onClick={() => setPositionMode(mode)}
+                                >
+                                    {mode === 'grid' ? t('characterPanel.positionGrid') : t('characterPanel.positionFree')}
+                                </Button>
+                            ))}
+                        </div>
+                        <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+                            {positionSlots.map((slot, index) => (
+                                <Button
+                                    key={slot.id}
+                                    type="button"
+                                    variant={selectedPositionSlot?.id === slot.id ? 'secondary' : 'ghost'}
+                                    size="sm"
+                                    className="h-7 max-w-full gap-1 px-2 text-xs"
+                                    onClick={() => setSelectedPositionSlotId(slot.id)}
+                                    title={getSlotTitle(slot, slots.indexOf(slot))}
+                                >
+                                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: CHARACTER_COLORS[index % CHARACTER_COLORS.length] }} />
+                                    <span className="max-w-40 truncate">{getSlotTitle(slot, slots.indexOf(slot))}</span>
+                                </Button>
+                            ))}
+                        </div>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={!selectedPositionSlot?.position}
+                            onClick={() => selectedPositionSlot && updateSlot(selectedPositionSlot.id, { position: undefined })}
+                        >
+                            {t('sceneMultiCharacter.clearPosition')}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </section>
     )
 }
