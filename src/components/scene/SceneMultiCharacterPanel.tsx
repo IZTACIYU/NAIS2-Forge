@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronUp, Eye, EyeOff, Link2, MapPin, Plus, Trash2, UserRound, UsersRound } from 'lucide-react'
+import { ChevronDown, ChevronUp, Eye, EyeOff, Link2, MapPin, Plus, Trash2, UserRound, UsersRound, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
     Select,
@@ -16,7 +16,7 @@ import { type SceneMultiCharacterSlot } from '@/stores/scene-store'
 import { cn } from '@/lib/utils'
 import { getCharacterPositionBoardAspectRatio } from '@/lib/character-position-grid'
 import { CharacterPositionBoard } from '@/components/character/CharacterPositionBoard'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 interface SceneMultiCharacterPanelProps {
     slots: SceneMultiCharacterSlot[]
@@ -293,20 +293,15 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
             )}
 
             <Dialog open={positionBoardOpen} onOpenChange={setPositionBoardOpen}>
-                <DialogContent className="w-[min(920px,calc(100vw-2rem))] max-w-[920px] p-4">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-primary" />
-                            {t('sceneMultiCharacter.position')}
-                        </DialogTitle>
-                    </DialogHeader>
-                    <div className="flex max-h-[68vh] justify-center overflow-hidden rounded-lg bg-muted/30">
+                <DialogContent className="!w-auto !max-w-none bg-muted/80 p-0 shadow-2xl [&>button]:hidden">
+                    <DialogTitle className="sr-only">{t('sceneMultiCharacter.position')}</DialogTitle>
+                    <div className="relative">
                         <CharacterPositionBoard
                             aspectRatio={boardAspectRatio}
                             mode={positionMode}
-                            className="h-[min(68vh,620px)] !w-auto max-w-full rounded-none border-0 bg-transparent shadow-none"
+                            className="h-[min(68vh,620px)] !w-auto max-w-[calc(100vw-2rem)] rounded-none border-0 bg-transparent shadow-none"
                             markerClassName="h-9 w-9 text-sm"
-                            gridClassName="border-foreground/25"
+                            gridClassName="border-white/40"
                             markers={positionSlots.map((slot, index) => ({
                                 id: slot.id,
                                 label: String(index + 1),
@@ -318,48 +313,55 @@ export function SceneMultiCharacterPanel({ slots, onChange, width, height, embed
                             onPositionChange={updateDraftPosition}
                             onPositionCommit={commitPosition}
                         />
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex rounded-lg border border-border p-0.5">
-                            {(['grid', 'free'] as const).map(mode => (
-                                <Button
-                                    key={mode}
-                                    type="button"
-                                    variant={positionMode === mode ? 'secondary' : 'ghost'}
-                                    size="sm"
-                                    className="h-7 px-3 text-xs"
-                                    onClick={() => setPositionMode(mode)}
-                                >
-                                    {mode === 'grid' ? t('characterPanel.positionGrid') : t('characterPanel.positionFree')}
-                                </Button>
-                            ))}
+                        <div className="absolute left-0 top-[calc(100%+12px)] flex w-full flex-wrap items-center gap-2">
+                            <div className="flex rounded-full bg-black/90 p-1 shadow-lg">
+                                {(['grid', 'free'] as const).map(mode => (
+                                    <button
+                                        key={mode}
+                                        type="button"
+                                        className={cn(
+                                            'h-8 whitespace-nowrap rounded-full px-3 text-xs font-medium transition-colors',
+                                            positionMode === mode ? 'bg-white text-black' : 'text-white/70 hover:text-white',
+                                        )}
+                                        onClick={() => setPositionMode(mode)}
+                                    >
+                                        {mode === 'grid' ? t('characterPanel.positionGrid') : t('characterPanel.positionFree')}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+                                {positionSlots.map((slot, index) => (
+                                    <Button
+                                        key={slot.id}
+                                        type="button"
+                                        variant={selectedPositionSlot?.id === slot.id ? 'secondary' : 'ghost'}
+                                        size="sm"
+                                        className="h-7 max-w-full gap-1 bg-black/80 px-2 text-xs text-white hover:bg-black hover:text-white"
+                                        onClick={() => setSelectedPositionSlotId(slot.id)}
+                                        title={getSlotTitle(slot, slots.indexOf(slot))}
+                                    >
+                                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: CHARACTER_COLORS[index % CHARACTER_COLORS.length] }} />
+                                        <span className="max-w-40 truncate">{getSlotTitle(slot, slots.indexOf(slot))}</span>
+                                    </Button>
+                                ))}
+                            </div>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 bg-black/80 text-xs text-white hover:bg-black hover:text-white"
+                                disabled={!selectedPositionSlot?.position}
+                                onClick={() => selectedPositionSlot && updateSlot(selectedPositionSlot.id, { position: undefined })}
+                            >
+                                {t('sceneMultiCharacter.clearPosition')}
+                            </Button>
                         </div>
-                        <div className="flex min-w-0 flex-1 flex-wrap gap-1">
-                            {positionSlots.map((slot, index) => (
-                                <Button
-                                    key={slot.id}
-                                    type="button"
-                                    variant={selectedPositionSlot?.id === slot.id ? 'secondary' : 'ghost'}
-                                    size="sm"
-                                    className="h-7 max-w-full gap-1 px-2 text-xs"
-                                    onClick={() => setSelectedPositionSlotId(slot.id)}
-                                    title={getSlotTitle(slot, slots.indexOf(slot))}
-                                >
-                                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: CHARACTER_COLORS[index % CHARACTER_COLORS.length] }} />
-                                    <span className="max-w-40 truncate">{getSlotTitle(slot, slots.indexOf(slot))}</span>
-                                </Button>
-                            ))}
+                        <div className="absolute bottom-[calc(100%+12px)] right-0">
+                            <DialogClose className="flex h-10 w-10 items-center justify-center rounded-full bg-black/90 text-white hover:bg-black">
+                                <X className="h-5 w-5" />
+                                <span className="sr-only">{t('common.close')}</span>
+                            </DialogClose>
                         </div>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs"
-                            disabled={!selectedPositionSlot?.position}
-                            onClick={() => selectedPositionSlot && updateSlot(selectedPositionSlot.id, { position: undefined })}
-                        >
-                            {t('sceneMultiCharacter.clearPosition')}
-                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>
