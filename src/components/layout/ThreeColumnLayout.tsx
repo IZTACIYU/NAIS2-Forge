@@ -318,12 +318,15 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                 <label className="flex items-center justify-between gap-3 text-sm">
                     <span>{t('layout.imagesPerAccount')}</span>
                     <Input
-                        type="number"
-                        min={1}
-                        max={999}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={accountRotationImages}
                         disabled={!accountRotationEnabled}
-                        onChange={event => setAccountRotationConfig({ accountRotationImages: event.target.valueAsNumber })}
+                        onChange={event => {
+                            const digits = event.target.value.replace(/\D/g, '')
+                            if (digits) setAccountRotationConfig({ accountRotationImages: Number(digits) })
+                        }}
                         className="w-20 text-right"
                     />
                 </label>
