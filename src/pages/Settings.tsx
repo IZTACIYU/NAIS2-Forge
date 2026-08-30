@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,6 +41,8 @@ import {
     Cloud,
     SlidersHorizontal,
     FolderInput,
+    Plus,
+    Trash2,
 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
@@ -71,6 +73,7 @@ import {
     type FolderMigrationResult,
     type PathMapping,
 } from '@/lib/storage-migration'
+import { getAuthTokenRows } from '@/lib/auth-token-list'
 
 const LANGUAGES = [
     { code: 'ko', name: '한국어' },
@@ -79,6 +82,7 @@ const LANGUAGES = [
 ]
 
 type SettingsSection = 'general' | 'appearance' | 'api' | 'storage' | 'shortcuts' | 'expert' | 'backup'
+type TokenStatus = 'idle' | 'valid' | 'invalid' | 'verifying'
 
 const SECTIONS = [
     { id: 'general' as const, icon: Settings2, labelKey: 'settingsPage.sections.general' },
@@ -93,17 +97,18 @@ const SECTIONS = [
 export default function Settings() {
     const { t, i18n } = useTranslation()
     const { theme, setTheme } = useThemeStore()
-    const { token, isVerified, anlas, isLoading, verifyAndSave } = useAuthStore()
+    const { token, tokens, isVerified, anlas, isLoading, verifyAndSave, removeToken } = useAuthStore()
     const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, promptWhitespaceMode, setPromptWhitespaceMode, removeEmptyPromptSeparators, setRemoveEmptyPromptSeparators, insertBlankLinesBetweenPromptParts, setInsertBlankLinesBetweenPromptParts, expertCharacterPromptFolderBrowserEnabled, setExpertCharacterPromptFolderBrowserEnabled, expertLibraryFolderBrowserEnabled, setExpertLibraryFolderBrowserEnabled, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertCharacterPromptGenderIndicatorEnabled, setExpertCharacterPromptGenderIndicatorEnabled, expertMetadataAlwaysAddCharacters, setExpertMetadataAlwaysAddCharacters, characterPromptGenderIndicatorMode, setCharacterPromptGenderIndicatorMode, expertSceneCharacterVariantOverrideEnabled, setExpertSceneCharacterVariantOverrideEnabled, expertSceneCharacterCostumeOverrideEnabled, setExpertSceneCharacterCostumeOverrideEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, sceneCharacterAdditionMode, setSceneCharacterAdditionMode, expertSceneMultiCharacterEnabled, setExpertSceneMultiCharacterEnabled, sceneMultiCharacterGenderSelectionMode, setSceneMultiCharacterGenderSelectionMode, expertSceneExportNameEnabled, setExpertSceneExportNameEnabled, sceneExportNamePart, setSceneExportNamePart, expertSceneRandomCharactersEnabled, setExpertSceneRandomCharactersEnabled, expertExifDirectActionEnabled, setExpertExifDirectActionEnabled, expertExifManagerEnabled, setExpertExifManagerEnabled, expertExifQuickActionEnabled, setExpertExifQuickActionEnabled, expertExifAutoSaveEnabled, setExpertExifAutoSaveEnabled, exifAutoSaveName, setExifAutoSaveName, exifAutoSavePath, setExifAutoSavePath, exifOutputFormat, setExifOutputFormat, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertR2ExifRemovalEnabled, setExpertR2ExifRemovalEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
     const expertSceneRoundRobinEnabled = useSettingsStore(state => state.expertSceneRoundRobinEnabled)
     const { bindings, enabled: shortcutsEnabled, setBinding, resetBinding, resetAllBindings, setEnabled: setShortcutsEnabled } = useShortcutStore()
     const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey)
 
     const [activeSection, setActiveSection] = useState<SettingsSection>('general')
-    const [apiToken, setApiToken] = useState(token)
-    const [tokenStatus, setTokenStatus] = useState<'idle' | 'valid' | 'invalid' | 'verifying'>(
-        isVerified ? 'valid' : 'idle'
+    const [apiTokens, setApiTokens] = useState(() => getAuthTokenRows(token, tokens))
+    const [tokenStatuses, setTokenStatuses] = useState<TokenStatus[]>(() =>
+        getAuthTokenRows(token, tokens).map(value => isVerified && value === token ? 'valid' : 'idle')
     )
+    const authRowsSourceRef = useRef({ token, tokens })
     const [localSavePath, setLocalSavePath] = useState(savePath)
     const [isAbsolutePath, setIsAbsolutePath] = useState(useAbsolutePath)
     const [localLibraryPath, setLocalLibraryPath] = useState(libraryPath)
@@ -145,23 +150,33 @@ export default function Settings() {
     }, [activeSection])
 
     useEffect(() => {
-        if (token) {
-            setApiToken(token)
-            if (isVerified) {
-                setTokenStatus('valid')
-            }
-        }
-    }, [token, isVerified])
+        if (authRowsSourceRef.current.token === token && authRowsSourceRef.current.tokens === tokens) return
+        authRowsSourceRef.current = { token, tokens }
+        const rows = getAuthTokenRows(token, tokens)
+        setApiTokens(rows)
+        setTokenStatuses(rows.map(value => isVerified && value === token ? 'valid' : 'idle'))
+    }, [token, tokens, isVerified])
 
-
-    const handleVerifyToken = async () => {
-        if (!apiToken) return
-        setTokenStatus('verifying')
-        const success = await verifyAndSave(apiToken)
-        setTokenStatus(success ? 'valid' : 'invalid')
+    const handleVerifyToken = async (index: number) => {
+        const candidate = apiTokens[index]
+        if (!candidate) return
+        setTokenStatuses(statuses => statuses.map((status, row) => row === index ? 'verifying' : status))
+        const success = await verifyAndSave(candidate, apiTokens)
         if (success) {
             toast({ title: t('settingsPage.api.verified'), variant: 'success' })
+        } else {
+            setTokenStatuses(statuses => statuses.map((status, row) => row === index ? 'invalid' : status))
         }
+    }
+
+    const handleRemoveToken = (index: number) => {
+        const removed = apiTokens[index]
+        if (tokens.includes(removed)) removeToken(removed)
+        const rows = apiTokens.filter((_, row) => row !== index)
+        if (token && !rows.includes(token)) rows.unshift(token)
+        if (rows.length === 0) rows.push('')
+        setApiTokens(rows)
+        setTokenStatuses(rows.map(value => isVerified && value === token ? 'valid' : 'idle'))
     }
 
     const handleSavePath = () => {
@@ -814,46 +829,81 @@ export default function Settings() {
 
                             <div className="border border-border/50 rounded-xl p-6 space-y-4 bg-card/30">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium flex items-center gap-2">
-                                        <img src={NovelAILogo} alt="NovelAI" className="h-4 w-4" />
-                                        {t('settingsPage.api.token')}
-                                    </label>
-                                    <div className="flex gap-2">
-                                        <div className="relative flex-1">
-                                            <Input
-                                                type="password"
-                                                placeholder={t('settingsPage.api.tokenPlaceholder')}
-                                                value={apiToken}
-                                                onChange={(e) => {
-                                                    setApiToken(e.target.value)
-                                                    setTokenStatus('idle')
-                                                }}
-                                                className={cn(
-                                                    'pr-10',
-                                                    tokenStatus === 'valid' && 'border-green-500 focus-visible:ring-green-500',
-                                                    tokenStatus === 'invalid' && 'border-destructive focus-visible:ring-destructive'
-                                                )}
-                                            />
-                                            {tokenStatus !== 'idle' && tokenStatus !== 'verifying' && (
-                                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                                    {tokenStatus === 'valid' ? (
-                                                        <Check className="h-4 w-4 text-green-500" />
-                                                    ) : (
-                                                        <X className="h-4 w-4 text-destructive" />
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-sm font-medium flex items-center gap-2">
+                                            <img src={NovelAILogo} alt="NovelAI" className="h-4 w-4" />
+                                            {t('settingsPage.api.token')}
+                                        </label>
                                         <Button
-                                            onClick={handleVerifyToken}
-                                            disabled={tokenStatus === 'verifying' || isLoading}
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-7 w-7"
+                                            onClick={() => {
+                                                setApiTokens(values => [...values, ''])
+                                                setTokenStatuses(statuses => [...statuses, 'idle'])
+                                            }}
+                                            aria-label={t('settingsPage.api.addToken')}
+                                            title={t('settingsPage.api.addToken')}
                                         >
-                                            {tokenStatus === 'verifying' || isLoading ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                                t('settingsPage.api.verify')
-                                            )}
+                                            <Plus className="h-4 w-4" />
                                         </Button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {apiTokens.map((apiToken, index) => {
+                                            const tokenStatus = tokenStatuses[index] ?? 'idle'
+                                            return (
+                                                <div key={index} className="flex gap-2">
+                                                    <div className="relative flex-1">
+                                                        <Input
+                                                            type="password"
+                                                            placeholder={t('settingsPage.api.tokenPlaceholder')}
+                                                            value={apiToken}
+                                                            onChange={(e) => {
+                                                                const value = e.target.value
+                                                                setApiTokens(values => values.map((tokenValue, row) => row === index ? value : tokenValue))
+                                                                setTokenStatuses(statuses => statuses.map((status, row) => row === index ? 'idle' : status))
+                                                            }}
+                                                            className={cn(
+                                                                'pr-10',
+                                                                tokenStatus === 'valid' && 'border-green-500 focus-visible:ring-green-500',
+                                                                tokenStatus === 'invalid' && 'border-destructive focus-visible:ring-destructive'
+                                                            )}
+                                                        />
+                                                        {tokenStatus !== 'idle' && tokenStatus !== 'verifying' && (
+                                                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                                {tokenStatus === 'valid' ? (
+                                                                    <Check className="h-4 w-4 text-green-500" />
+                                                                ) : (
+                                                                    <X className="h-4 w-4 text-destructive" />
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <Button
+                                                        onClick={() => handleVerifyToken(index)}
+                                                        disabled={!apiToken || tokenStatus === 'verifying' || isLoading}
+                                                    >
+                                                        {tokenStatus === 'verifying' ? (
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                            t('settingsPage.api.verify')
+                                                        )}
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => handleRemoveToken(index)}
+                                                        disabled={apiTokens.length === 1 || apiToken === token}
+                                                        aria-label={t('settingsPage.api.removeToken')}
+                                                        title={apiToken === token ? t('settingsPage.api.activeToken') : t('settingsPage.api.removeToken')}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            )
+                                        })}
                                     </div>
                                     <p className="text-xs text-muted-foreground">
                                         {t('settingsPage.api.tokenHelp')}

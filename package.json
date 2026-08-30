@@ -13,6 +13,7 @@
     "tauri:build": "npx tauri build",
     "release:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release-windows.ps1",
     "check:character-position": "node --experimental-strip-types scripts/check-character-position.mjs",
+    "check:auth-token-list": "node --experimental-strip-types scripts/check-auth-token-list.mjs",
     "check:model-capabilities": "node --experimental-strip-types scripts/check-model-capabilities.mjs",
     "check:tokenizer": "node scripts/check-tokenizer.mjs",
     "check:prompt-formatting": "node --experimental-strip-types scripts/check-prompt-formatting.mjs",
