@@ -369,6 +369,19 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+## R-029 — V5 할당량 표시값은 계정 생성 가능 여부가 아니다
+
+- **Date:** 2026-08-31
+- **Area:** NovelAI account rotation, image generation transport errors
+- **Symptom/Risk:** V5 할당량이 0%로 표시된 계정을 요청 전에 제외하면 반올림 오차로 남아 있는 생성분이나 사용 가능한 Anlas를 쓰지 못한다. 반대로 임의 오류에 계정을 바꿔 재시도하면 이미 처리된 요청을 중복 생성할 수 있다.
+- **Evidence:** NovelAI 공식 FAQ는 V5 Opus 사용 한도가 소진돼도 사용 가능한 Anlas로 계속 생성한다고 명시한다. 생성 endpoint는 HTTP 402로 해당 요청의 결제 불가를 구분하며, 일반·스트리밍·native reference transport 모두 원래 응답 상태를 보존할 수 있다.
+- **Invariant to preserve:** 계정 생성 가능 여부를 게이지 퍼센트나 조회 잔액으로 사전 추정하지 않는다. 자동 순환과 생성 불가 계정 건너뛰기가 모두 켜진 경우에만 실제 생성 요청의 HTTP 402에 반응해 아직 시도하지 않은 다음 계정으로 넘긴다. 402 이외 오류는 자동 재시도하지 않는다. 계정이 하나이거나 후보가 모두 402이면 마지막 원본 생성 오류를 기존 화면 흐름에 그대로 반환한다.
+- **Fix:** 네 생성 경로가 공유하는 auth-store 실행 경계에서 요청·성공 장수 기록·402 fallback을 한 번에 소유하고, web/native 일반 및 스트리밍 transport가 HTTP status를 구조적으로 반환한다.
+- **Regression coverage:** `npm run check:auth-token-list`의 402 전용 fallback 판정, 전체 생성 호출자 검색, TypeScript, Rust `cargo check`, production build.
+- **Do not "fix" by:** V5 할당량 0% 또는 Anlas 조회값만 보고 계정을 제외하기, 오류 문자열을 화면별로 정규식 파싱하기, 429·timeout·5xx를 다른 계정에 자동 재전송하기.
+
+---
+
 ## 새 항목 템플릿
 
 ### R-XXX — 짧은 제목

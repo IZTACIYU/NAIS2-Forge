@@ -33,3 +33,10 @@ export const shouldRotateAuthAccount = (
     imagesPerAccount: number,
     accountCount: number,
 ) => enabled && accountCount > 1 && successfulImages >= Math.max(1, imagesPerAccount)
+
+export const shouldRetryWithNextAuthAccount = (
+    enabled: boolean,
+    skipUnavailable: boolean,
+    httpStatus: number | undefined,
+    accountCount: number,
+) => enabled && skipUnavailable && httpStatus === 402 && accountCount > 1

@@ -1438,6 +1438,22 @@ struct NativeGenerationResult {
     response_base64: Option<String>,
     encoded_vibes: Vec<String>,
     error: Option<String>,
+    status_code: Option<u16>,
+}
+
+#[derive(Debug)]
+struct NativeGenerationError {
+    message: String,
+    status_code: Option<u16>,
+}
+
+impl From<String> for NativeGenerationError {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            status_code: None,
+        }
+    }
 }
 
 fn read_reference_bytes(
@@ -1514,7 +1530,7 @@ async fn prepare_generation_references(
     mut payload: serde_json::Value,
     character_references: Vec<NativeCharacterReference>,
     vibe_references: Vec<NativeVibeReference>,
-) -> Result<(serde_json::Value, Vec<String>), String> {
+) -> Result<(serde_json::Value, Vec<String>), NativeGenerationError> {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
 
     let mut processed_characters = Vec::new();
@@ -1570,7 +1586,10 @@ async fn prepare_generation_references(
         let status = response.status();
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
-            return Err(format!("Vibe encoding failed: {status} {body}"));
+            return Err(NativeGenerationError {
+                message: format!("Vibe encoding failed: {status} {body}"),
+                status_code: Some(status.as_u16()),
+            });
         }
         let encoded = STANDARD.encode(
             response
@@ -1647,7 +1666,8 @@ async fn generate_image_with_references(
                 success: false,
                 response_base64: None,
                 encoded_vibes: Vec::new(),
-                error: Some(error),
+                status_code: error.status_code,
+                error: Some(error.message),
             }
         }
     };
@@ -1670,6 +1690,7 @@ async fn generate_image_with_references(
                     response_base64: None,
                     encoded_vibes,
                     error: Some(format!("API Error: {status} {body}")),
+                    status_code: Some(status.as_u16()),
                 };
             }
             match response.bytes().await {
@@ -1678,12 +1699,14 @@ async fn generate_image_with_references(
                     response_base64: Some(STANDARD.encode(bytes)),
                     encoded_vibes,
                     error: None,
+                    status_code: None,
                 },
                 Err(error) => NativeGenerationResult {
                     success: false,
                     response_base64: None,
                     encoded_vibes,
                     error: Some(format!("Failed to read generation response: {error}")),
+                    status_code: None,
                 },
             }
         }
@@ -1692,6 +1715,7 @@ async fn generate_image_with_references(
             response_base64: None,
             encoded_vibes,
             error: Some(format!("Generation request failed: {error}")),
+            status_code: None,
         },
     }
 }
@@ -1721,7 +1745,8 @@ async fn generate_image_stream_with_references(
                 success: false,
                 response_base64: None,
                 encoded_vibes: Vec::new(),
-                error: Some(error),
+                status_code: error.status_code,
+                error: Some(error.message),
             }
         }
     };
@@ -1743,6 +1768,7 @@ async fn generate_image_stream_with_references(
                 response_base64: None,
                 encoded_vibes,
                 error: Some(format!("Streaming request failed: {error}")),
+                status_code: None,
             }
         }
     };
@@ -1754,6 +1780,7 @@ async fn generate_image_stream_with_references(
             response_base64: None,
             encoded_vibes,
             error: Some(format!("API Error: {status} {body}")),
+            status_code: Some(status.as_u16()),
         };
     }
 
@@ -1768,6 +1795,7 @@ async fn generate_image_stream_with_references(
                         response_base64: None,
                         encoded_vibes,
                         error: Some(format!("Failed to forward stream data: {error}")),
+                        status_code: None,
                     };
                 }
             }
@@ -1778,6 +1806,7 @@ async fn generate_image_stream_with_references(
                     response_base64: None,
                     encoded_vibes,
                     error: Some(format!("Failed to read stream data: {error}")),
+                    status_code: None,
                 }
             }
         }
@@ -1791,6 +1820,7 @@ async fn generate_image_stream_with_references(
             response_base64: None,
             encoded_vibes,
             error: Some(format!("Failed to send stream completion: {error}")),
+            status_code: None,
         };
     }
 
@@ -1799,6 +1829,7 @@ async fn generate_image_stream_with_references(
         response_base64: None,
         encoded_vibes,
         error: None,
+        status_code: None,
     }
 }
 

@@ -118,7 +118,26 @@ interface NativeGenerationResult {
     responseBase64?: string
     encodedVibes: string[]
     error?: string
+    statusCode?: number
 }
+
+export interface ImageGenerationResult {
+    success: boolean
+    imageData?: string
+    error?: string
+    httpStatus?: number
+    encodedVibes?: string[]
+    encodedVibeIndices?: number[]
+    charCacheKeys?: string[]
+}
+
+class NovelAIHttpError extends Error {
+    constructor(public readonly status: number, message: string) {
+        super(message)
+    }
+}
+
+const getNovelAIHttpStatus = (error: unknown) => error instanceof NovelAIHttpError ? error.status : undefined
 
 interface NativeCharacterReference {
     filePath: string | null
@@ -386,7 +405,7 @@ async function encodeVibeImage(token: string, imageBase64: string, info: number 
     })
 
     if (!response.ok) {
-        throw new Error(`Vibe encoding failed: ${response.status}`)
+        throw new NovelAIHttpError(response.status, `Vibe encoding failed: ${response.status}`)
     }
 
     const blob = await response.blob()
@@ -466,7 +485,7 @@ function processCharacterImage(imageBase64: string): Promise<string> {
 export async function generateImage(
     token: string,
     params: GenerationParams
-): Promise<{ success: boolean; imageData?: string; error?: string; encodedVibes?: string[]; encodedVibeIndices?: number[]; charCacheKeys?: string[] }> {
+): Promise<ImageGenerationResult> {
     if (!token) {
         return { success: false, error: 'API 토큰이 필요합니다' }
     }
@@ -495,7 +514,7 @@ export async function generateImage(
                 } catch (e) {
                     console.error('Vibe encoding error:', e)
                     // Continue or fail? Let's fail for now to be safe
-                    return { success: false, error: `Vibe Processing Failed: ${e}` }
+                    return { success: false, error: `Vibe Processing Failed: ${e}`, httpStatus: getNovelAIHttpStatus(e) }
                 }
             }
         }
@@ -763,7 +782,7 @@ export async function generateImage(
                 ...buildNativeReferenceArgs(params),
             })
             if (!nativeResult.success || !nativeResult.responseBase64) {
-                return { success: false, error: nativeResult.error || 'Native generation failed' }
+                return { success: false, error: nativeResult.error || 'Native generation failed', httpStatus: nativeResult.statusCode }
             }
             newlyEncodedVibes = nativeResult.encodedVibes
             newlyEncodedVibeIndices = buildNativeReferenceArgs(params).vibeReferences
@@ -782,7 +801,7 @@ export async function generateImage(
             if (!response.ok) {
                 const errorText = await response.text()
                 console.error('API Error:', response.status, errorText)
-                return { success: false, error: `API 오류 (${response.status}): ${errorText}` }
+                return { success: false, error: `API 오류 (${response.status}): ${errorText}`, httpStatus: response.status }
             }
             zipData = await response.arrayBuffer()
         }
@@ -1015,7 +1034,7 @@ export async function generateImageStream(
     token: string,
     params: GenerationParams,
     onProgress?: (progress: number, partialImage?: string) => void
-): Promise<{ success: boolean; imageData?: string; error?: string; encodedVibes?: string[]; encodedVibeIndices?: number[] }> {
+): Promise<ImageGenerationResult> {
     if (!token) {
         return { success: false, error: 'API 토큰이 필요합니다' }
     }
@@ -1050,7 +1069,7 @@ export async function generateImageStream(
                     newlyEncodedVibes.push(encoded)  // Newly encoded - can be cached
                 } catch (e) {
                     console.error('Vibe encoding error (Stream):', e)
-                    return { success: false, error: `Vibe Processing Failed: ${e}` }
+                    return { success: false, error: `Vibe Processing Failed: ${e}`, httpStatus: getNovelAIHttpStatus(e) }
                 }
             }
         }
@@ -1333,7 +1352,7 @@ export async function generateImageStream(
             })
             if (!nativeResult.success) {
                 processor.clear()
-                return { success: false, error: nativeResult.error || 'Native streaming generation failed' }
+                return { success: false, error: nativeResult.error || 'Native streaming generation failed', httpStatus: nativeResult.statusCode }
             }
             await streamComplete
             newlyEncodedVibes = nativeResult.encodedVibes
@@ -1351,7 +1370,7 @@ export async function generateImageStream(
             })
             if (!response.ok) {
                 const errorText = await response.text()
-                return { success: false, error: `API Error: ${response.status} ${errorText}` }
+                return { success: false, error: `API Error: ${response.status} ${errorText}`, httpStatus: response.status }
             }
             if (!response.body) return { success: false, error: '스트리밍 응답 없음' }
 

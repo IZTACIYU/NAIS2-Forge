@@ -624,7 +624,7 @@
     "accountSettings": "Account settings",
     "accountRotation": "Rotate accounts",
     "imagesPerAccount": "Images per account",
-    "skipDepletedAccounts": "Skip accounts with no quota",
+    "skipDepletedAccounts": "Skip unavailable accounts",
     "noAccounts": "No accounts registered",
     "accountSwitchFailed": "Failed to switch account",
     "v5Quota": "Quota"

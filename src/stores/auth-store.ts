@@ -7,12 +7,19 @@ import {
     getAuthRotationCandidates,
     normalizeAuthTokenList,
     shouldRotateAuthAccount,
+    shouldRetryWithNextAuthAccount,
     updateAuthRotationOrder,
 } from '@/lib/auth-token-list'
 
 let successfulImagesWithActiveAccount = 0
 let accountRotationOrder: string[] = []
 let accountRotationPromise: Promise<string> | null = null
+
+interface AccountGenerationResult {
+    success: boolean
+    imageData?: string
+    httpStatus?: number
+}
 
 interface AuthState {
     token: string
@@ -33,6 +40,7 @@ interface AuthState {
     setAccountRotationConfig: (config: Partial<Pick<AuthState, 'accountRotationEnabled' | 'accountRotationImages' | 'accountRotationSkipDepleted'>>) => void
     prepareGenerationToken: () => Promise<string>
     recordGenerationSuccess: () => void
+    runGenerationWithAccountFallback: <T extends AccountGenerationResult>(request: (token: string) => Promise<T>) => Promise<T>
     refreshAnlas: () => Promise<void>
     clearToken: () => void
 }
@@ -127,10 +135,6 @@ export const useAuthStore = create<AuthState>()(
                     )) return state.token
 
                     for (const candidate of getAuthRotationCandidates(state.token, accountRotationOrder)) {
-                        if (state.accountRotationSkipDepleted) {
-                            const info = await getUserInfo(candidate)
-                            if (!info || (info.imageGenerationUsage && info.imageGenerationUsage.percent <= 0)) continue
-                        }
                         if (await get().verifyAndSave(candidate, accountRotationOrder)) return candidate
                     }
 
@@ -146,6 +150,38 @@ export const useAuthStore = create<AuthState>()(
 
             recordGenerationSuccess: () => {
                 if (get().accountRotationEnabled) successfulImagesWithActiveAccount += 1
+            },
+
+            runGenerationWithAccountFallback: async (request) => {
+                let generationToken = await get().prepareGenerationToken()
+                let result = await request(generationToken)
+                if (result.success && result.imageData) {
+                    get().recordGenerationSuccess()
+                    return result
+                }
+
+                accountRotationOrder = updateAuthRotationOrder(accountRotationOrder, generationToken, get().tokens)
+                if (!shouldRetryWithNextAuthAccount(
+                    get().accountRotationEnabled,
+                    get().accountRotationSkipDepleted,
+                    result.httpStatus,
+                    accountRotationOrder.length,
+                )) return result
+
+                for (const candidate of getAuthRotationCandidates(generationToken, accountRotationOrder)) {
+                    if (!get().accountRotationEnabled || !get().accountRotationSkipDepleted) return result
+                    if (!await get().verifyAndSave(candidate, accountRotationOrder)) continue
+
+                    generationToken = candidate
+                    result = await request(generationToken)
+                    if (result.success && result.imageData) {
+                        get().recordGenerationSuccess()
+                        return result
+                    }
+                    if (result.httpStatus !== 402) return result
+                }
+
+                return result
             },
 
             refreshAnlas: async () => {

@@ -564,13 +564,15 @@ export const useGenerationStore = create<GenerationState>()(
                         // Use streaming or non-streaming based on settings
                         // Streaming API supports I2I/Inpainting (same ImageGenerationRequest schema)
                         const canUseStreaming = useStreaming
-                        const generationToken = await useAuthStore.getState().prepareGenerationToken()
 
-                        let result
                         const streamMimeType = imageFormat === 'webp' ? 'image/webp' : 'image/png'
-                        if (canUseStreaming) {
+                        const result = await useAuthStore.getState().runGenerationWithAccountFallback(async generationToken => {
+                            if (!canUseStreaming) {
+                                console.log('[Generate] Using standard API...')
+                                return generateImage(generationToken, generationParams)
+                            }
                             console.log('[Generate] Using streaming API...')
-                            result = await generateImageStream(generationToken, generationParams, (progress, partialImage) => {
+                            return generateImageStream(generationToken, generationParams, (progress, partialImage) => {
                                 // Update preview image directly (no null clearing - causes flicker)
                                 if (partialImage) {
                                     set({ streamProgress: progress, previewImage: `data:${streamMimeType};base64,${partialImage}` })
@@ -578,12 +580,8 @@ export const useGenerationStore = create<GenerationState>()(
                                     set({ streamProgress: progress })
                                 }
                             })
-                            set({ streamProgress: 0 })
-                        } else {
-                            console.log('[Generate] Using standard API...')
-                            result = await generateImage(generationToken, generationParams)
-                        }
-                        if (result.success && result.imageData) useAuthStore.getState().recordGenerationSuccess()
+                        })
+                        if (canUseStreaming) set({ streamProgress: 0 })
 
                         // Persist newly encoded vibes before releasing transient source data.
                         if (result.encodedVibes && result.encodedVibes.length > 0) {

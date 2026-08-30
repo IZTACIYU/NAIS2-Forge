@@ -881,8 +881,7 @@ export function HistoryPanel() {
                 return 'nai-diffusion-4-5-full'
             }
 
-            const generationToken = await useAuthStore.getState().prepareGenerationToken()
-            const result = await generateImage(generationToken, {
+            const result = await useAuthStore.getState().runGenerationWithAccountFallback(generationToken => generateImage(generationToken, {
                 prompt: metadata.prompt || '',
                 negative_prompt: metadata.negativePrompt || '',
                 model: mapModelNameToId(metadata.model),
@@ -898,10 +897,9 @@ export function HistoryPanel() {
                 variety: metadata.variety ?? false,
                 seed: newSeed,
                 imageFormat: useSettingsStore.getState().imageFormat,
-            })
+            }))
 
             if (result.success && result.imageData) {
-                useAuthStore.getState().recordGenerationSuccess()
                 const { imageFormat } = useSettingsStore.getState()
                 const mimeType = imageFormat === 'webp' ? 'image/webp' : 'image/png'
                 const fileExt = imageFormat === 'webp' ? 'webp' : 'png'

@@ -5,6 +5,7 @@ import {
     getAuthTokenRows,
     normalizeAuthTokenList,
     shouldRotateAuthAccount,
+    shouldRetryWithNextAuthAccount,
     updateAuthRotationOrder,
 } from '../src/lib/auth-token-list.ts'
 
@@ -23,5 +24,10 @@ assert.deepEqual(getAuthRotationCandidates('b', ['a', 'b', 'c']), ['c', 'a'])
 assert.equal(shouldRotateAuthAccount(true, 3, 3, 2), true)
 assert.equal(shouldRotateAuthAccount(true, 2, 3, 2), false)
 assert.equal(shouldRotateAuthAccount(true, 3, 3, 1), false)
+assert.equal(shouldRetryWithNextAuthAccount(true, true, 402, 2), true)
+assert.equal(shouldRetryWithNextAuthAccount(true, true, 429, 2), false)
+assert.equal(shouldRetryWithNextAuthAccount(true, true, undefined, 2), false)
+assert.equal(shouldRetryWithNextAuthAccount(false, true, 402, 2), false)
+assert.equal(shouldRetryWithNextAuthAccount(true, true, 402, 1), false)
 
 console.log('Auth token list checks passed.')
