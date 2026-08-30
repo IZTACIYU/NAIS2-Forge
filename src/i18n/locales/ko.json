@@ -651,7 +651,11 @@
   "layout": {
     "toggleLeftSidebar": "왼쪽 사이드바 토글",
     "toggleRightSidebar": "오른쪽 사이드바 토글",
-    "v5Usage": "한도 {{percent}}%"
+    "v5Usage": "한도 {{percent}}%",
+    "account": "계정",
+    "noAccounts": "등록된 계정 없음",
+    "accountSwitchFailed": "계정 전환 실패",
+    "v5Quota": "할당량"
   },
   "resolutions": {
     "title": "해상도",

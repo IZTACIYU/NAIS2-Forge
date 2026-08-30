@@ -10,3 +10,5 @@ export const getAuthTokenRows = (activeToken: string, tokens: string[] = []) => 
     const rows = normalizeAuthTokenList(activeToken, tokens)
     return rows.length > 0 ? rows : ['']
 }
+
+export const getAuthTokenLabel = (token: string) => token.length > 12 ? `${token.slice(0, 12)}…` : token

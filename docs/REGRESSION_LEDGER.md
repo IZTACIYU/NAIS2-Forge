@@ -349,9 +349,9 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Area:** NovelAI authentication, API settings, persisted auth state
 - **Symptom/Risk:** 다중 계정 지원을 위해 인증 저장 구조를 교체하면 기존 사용자의 토큰이 사라지거나, 추가 토큰 검증 실패가 정상 사용 중인 계정까지 로그아웃시킬 수 있다.
 - **Evidence:** 생성·도구·잔액 조회 경로는 모두 auth store의 단일 `token`을 활성 인증값으로 소비하며, 기존 설치의 `nais2-forge-auth`에는 `token`, `isVerified`, `tier`만 저장되어 있다.
-- **Invariant to preserve:** `token`은 현재 활성 계정의 유일한 owner로 유지한다. `tokens`는 전환 가능한 저장 목록일 뿐 생성 요청에 직접 쓰지 않는다. 목록이 없는 이전 데이터는 기존 `token`을 첫 행으로 표시하며, 비활성 후보 검증 실패는 활성 계정 상태를 무효화하지 않는다.
-- **Fix:** 기존 auth 저장 키와 활성 토큰 필드를 유지한 채 선택적 토큰 목록을 추가하고, 검증 성공 시에만 후보를 목록에 저장하면서 활성 토큰을 전환한다.
-- **Regression coverage:** `npm run check:auth-token-list`, 기존 단일 토큰 fallback, 목록 중복 제거, 빈 설치 첫 행, TypeScript 및 production build.
+- **Invariant to preserve:** `token`은 현재 활성 계정의 유일한 owner로 유지한다. `tokens`는 전환 가능한 저장 목록일 뿐 생성 요청에 직접 쓰지 않는다. 목록이 없는 이전 데이터는 기존 `token`을 첫 행으로 표시하며, 비활성 후보 검증 실패는 활성 계정 상태를 무효화하지 않는다. 계정별 Anlas·V5 할당량은 조회 결과일 뿐 영속화하지 않는다.
+- **Fix:** 기존 auth 저장 키와 활성 토큰 필드를 유지한 채 선택적 토큰 목록을 추가하고, 설정 및 헤더 계정 메뉴에서 기존 검증 action을 통과한 경우에만 활성 토큰을 전환한다.
+- **Regression coverage:** `npm run check:auth-token-list`, 기존 단일 토큰 fallback, 목록 중복 제거, 빈 설치 첫 행, 토큰 앞부분 표시, TypeScript 및 production build.
 - **Do not "fix" by:** 기존 `token`을 목록으로 migration하거나 삭제하기, 모든 API 호출자가 토큰 목록에서 임의 선택하게 만들기, 비활성 토큰 검증 실패 시 현재 인증 상태를 초기화하기.
 
 ---

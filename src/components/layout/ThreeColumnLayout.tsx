@@ -13,6 +13,10 @@ import { useAuthStore } from '@/stores/auth-store'
 import { SHORTCUT_EVENTS } from '@/hooks/useShortcuts'
 import GlassSurface from '@/components/ui/GlassSurface'
 import { Tip } from '@/components/ui/tooltip'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { getAuthTokenLabel, normalizeAuthTokenList } from '@/lib/auth-token-list'
+import { getUserInfo } from '@/services/novelai-api'
+import { toast } from '@/components/ui/use-toast'
 import {
     Home,
     Film,
@@ -26,11 +30,16 @@ import {
     PanelLeft,
     PanelRight,
     Dices,
+    Check,
+    Loader2,
+    UserRound,
 } from 'lucide-react'
 
 interface ThreeColumnLayoutProps {
     children: ReactNode
 }
+
+type AccountSummary = { anlas: number; v5Usage: number | null } | null
 
 import { usePresetStore } from '@/stores/preset-store'
 import { useLayoutStore } from '@/stores/layout-store'
@@ -48,10 +57,14 @@ const SceneRandomCharacterDialog = lazy(() => import('@/components/scene/SceneRa
 export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const { t } = useTranslation()
     const location = useLocation()
-    const { anlas, imageGenerationUsage, isVerified, refreshAnlas } = useAuthStore(useShallow(state => ({
+    const { token, tokens, anlas, imageGenerationUsage, isVerified, isLoading, verifyAndSave, refreshAnlas } = useAuthStore(useShallow(state => ({
+        token: state.token,
+        tokens: state.tokens,
         anlas: state.anlas,
         imageGenerationUsage: state.imageGenerationUsage,
         isVerified: state.isVerified,
+        isLoading: state.isLoading,
+        verifyAndSave: state.verifyAndSave,
         refreshAnlas: state.refreshAnlas,
     })))
     const model = useGenerationStore(state => state.model)
@@ -87,6 +100,8 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const [presetDialogOpen, setPresetDialogOpen] = useState(false)
     const [fragmentPanelOpen, setFragmentPanelOpen] = useState(false)
     const [randomCharacterDialogOpen, setRandomCharacterDialogOpen] = useState(false)
+    const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+    const [accountSummaries, setAccountSummaries] = useState<Record<string, AccountSummary>>({})
     const fragmentPanelPathRef = useRef<string | null>(null)
 
     useEffect(() => {
@@ -180,6 +195,31 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
         }
     }, [isVerified, refreshAnlas])
 
+    useEffect(() => {
+        if (!accountMenuOpen) return
+        let cancelled = false
+        const accountTokens = normalizeAuthTokenList(token, tokens)
+        setAccountSummaries({})
+        void Promise.all(accountTokens.map(async accountToken => {
+            const info = await getUserInfo(accountToken)
+            return [accountToken, info ? {
+                anlas: info.anlas.total,
+                v5Usage: info.imageGenerationUsage
+                    ? Math.max(0, Math.min(100, info.imageGenerationUsage.percent))
+                    : null,
+            } : null] as const
+        })).then(entries => {
+            if (!cancelled) setAccountSummaries(Object.fromEntries(entries))
+        })
+        return () => { cancelled = true }
+    }, [accountMenuOpen, token, tokens])
+
+    const handleAccountSelect = async (accountToken: string) => {
+        if (accountToken === token) return
+        const success = await verifyAndSave(accountToken, normalizeAuthTokenList(token, tokens))
+        if (!success) toast({ title: t('layout.accountSwitchFailed'), variant: 'destructive' })
+    }
+
     const navItems = [
         { path: '/', icon: Home, labelKey: 'nav.main' },
         { path: '/scenes', icon: Film, labelKey: 'nav.scenes' },
@@ -197,11 +237,50 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     }
     const isV5Model = model === 'nai-diffusion-5-full' || model === 'nai-diffusion-5-curated'
     const v5UsagePercent = Math.max(0, Math.min(100, imageGenerationUsage?.percent ?? 0))
+    const accountTokens = normalizeAuthTokenList(token, tokens)
+    const accountMenu = (
+        <DropdownMenu open={accountMenuOpen} onOpenChange={setAccountMenuOpen}>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    className="flex h-8 shrink-0 items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                    aria-label={t('layout.account')}
+                >
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRound className="h-4 w-4" />}
+                    <span>{t('layout.account')}</span>
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-60">
+                {accountTokens.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">{t('layout.noAccounts')}</div>
+                ) : accountTokens.map(accountToken => {
+                    const summary = accountSummaries[accountToken]
+                    return (
+                        <DropdownMenuItem
+                            key={accountToken}
+                            disabled={isLoading}
+                            onSelect={() => { void handleAccountSelect(accountToken) }}
+                            className="gap-3 px-3 py-2.5"
+                        >
+                            <div className="min-w-0 flex-1">
+                                <div className="truncate font-medium">{getAuthTokenLabel(accountToken)}</div>
+                                <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
+                                    <span>Anlas {summary === undefined ? '…' : summary ? summary.anlas.toLocaleString() : '-'}</span>
+                                    <span>{t('layout.v5Quota')} {summary === undefined ? '…' : summary?.v5Usage == null ? '-' : `${Math.round(summary.v5Usage)}%`}</span>
+                                </div>
+                            </div>
+                            {accountToken === token && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                        </DropdownMenuItem>
+                    )
+                })}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
 
     return (
         <div className="flex flex-col h-screen bg-background overflow-hidden">
             {/* Custom Title Bar - Only show on Windows (Mac uses native decorations) */}
-            {!isMac && <CustomTitleBar navigation={<AnimatedNavBar items={navItems} />} />}
+            {!isMac && <CustomTitleBar leading={accountMenu} navigation={<AnimatedNavBar items={navItems} />} />}
 
             {/* Main Layout */}
             <div className="flex flex-1 p-3 gap-3 overflow-hidden">
@@ -280,6 +359,7 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                 <div className="layout-surface flex-1 flex flex-col min-w-0 bg-card/30 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg">
                     {/* Tab Navigation (Glass Surface) */}
                     {isMac && <div className="shrink-0 flex items-center justify-center py-2 z-10 gap-2">
+                        {accountMenu}
                         {/* Mac: Left sidebar toggle */}
                         {isMac && (
                             <Tip content={t('layout.toggleLeftSidebar', 'Toggle Left Sidebar')}>

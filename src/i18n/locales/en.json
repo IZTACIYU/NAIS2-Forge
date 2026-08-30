@@ -619,7 +619,11 @@
   "layout": {
     "toggleLeftSidebar": "Toggle Left Sidebar",
     "toggleRightSidebar": "Toggle Right Sidebar",
-    "v5Usage": "Limit {{percent}}%"
+    "v5Usage": "Limit {{percent}}%",
+    "account": "Account",
+    "noAccounts": "No accounts registered",
+    "accountSwitchFailed": "Failed to switch account",
+    "v5Quota": "Quota"
   },
   "resolutions": {
     "title": "Resolution",

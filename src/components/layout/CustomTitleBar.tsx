@@ -9,7 +9,7 @@ import { Tip } from '@/components/ui/tooltip'
 
 const appWindow = getCurrentWindow()
 
-export function CustomTitleBar({ navigation }: { navigation?: ReactNode }) {
+export function CustomTitleBar({ navigation, leading }: { navigation?: ReactNode; leading?: ReactNode }) {
     const { t } = useTranslation()
     const [isMaximized, setIsMaximized] = useState(false)
     const {
@@ -97,6 +97,7 @@ export function CustomTitleBar({ navigation }: { navigation?: ReactNode }) {
             <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
                 <div className="pointer-events-auto">{navigation}</div>
             </div>
+            {leading && <div className="relative z-20 ml-2 flex items-center">{leading}</div>}
             {/* Drag Region */}
             <div
                 className="flex-1 h-full cursor-default"

@@ -618,7 +618,11 @@
   "layout": {
     "toggleLeftSidebar": "左サイドバー切替",
     "toggleRightSidebar": "右サイドバー切替",
-    "v5Usage": "上限 {{percent}}%"
+    "v5Usage": "上限 {{percent}}%",
+    "account": "アカウント",
+    "noAccounts": "登録済みアカウントなし",
+    "accountSwitchFailed": "アカウントの切り替えに失敗しました",
+    "v5Quota": "割り当て"
   },
   "resolutions": {
     "title": "解像度",
