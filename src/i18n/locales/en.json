@@ -621,6 +621,10 @@
     "toggleRightSidebar": "Toggle Right Sidebar",
     "v5Usage": "Limit {{percent}}%",
     "account": "Account",
+    "accountSettings": "Account settings",
+    "accountRotation": "Rotate accounts",
+    "imagesPerAccount": "Images per account",
+    "skipDepletedAccounts": "Skip accounts with no quota",
     "noAccounts": "No accounts registered",
     "accountSwitchFailed": "Failed to switch account",
     "v5Quota": "Quota"

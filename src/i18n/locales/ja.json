@@ -620,6 +620,10 @@
     "toggleRightSidebar": "右サイドバー切替",
     "v5Usage": "上限 {{percent}}%",
     "account": "アカウント",
+    "accountSettings": "アカウント設定",
+    "accountRotation": "アカウントを順番に切り替える",
+    "imagesPerAccount": "アカウントごとの画像数",
+    "skipDepletedAccounts": "割り当てがないアカウントをスキップ",
     "noAccounts": "登録済みアカウントなし",
     "accountSwitchFailed": "アカウントの切り替えに失敗しました",
     "v5Quota": "割り当て"

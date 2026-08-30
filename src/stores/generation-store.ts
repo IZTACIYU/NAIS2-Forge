@@ -564,12 +564,13 @@ export const useGenerationStore = create<GenerationState>()(
                         // Use streaming or non-streaming based on settings
                         // Streaming API supports I2I/Inpainting (same ImageGenerationRequest schema)
                         const canUseStreaming = useStreaming
+                        const generationToken = await useAuthStore.getState().prepareGenerationToken()
 
                         let result
                         const streamMimeType = imageFormat === 'webp' ? 'image/webp' : 'image/png'
                         if (canUseStreaming) {
                             console.log('[Generate] Using streaming API...')
-                            result = await generateImageStream(token, generationParams, (progress, partialImage) => {
+                            result = await generateImageStream(generationToken, generationParams, (progress, partialImage) => {
                                 // Update preview image directly (no null clearing - causes flicker)
                                 if (partialImage) {
                                     set({ streamProgress: progress, previewImage: `data:${streamMimeType};base64,${partialImage}` })
@@ -580,8 +581,9 @@ export const useGenerationStore = create<GenerationState>()(
                             set({ streamProgress: 0 })
                         } else {
                             console.log('[Generate] Using standard API...')
-                            result = await generateImage(token, generationParams)
+                            result = await generateImage(generationToken, generationParams)
                         }
+                        if (result.success && result.imageData) useAuthStore.getState().recordGenerationSuccess()
 
                         // Persist newly encoded vibes before releasing transient source data.
                         if (result.encodedVibes && result.encodedVibes.length > 0) {

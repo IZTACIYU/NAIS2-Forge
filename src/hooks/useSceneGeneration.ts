@@ -366,11 +366,12 @@ export function useSceneGeneration() {
                 })
 
                 let result
+                const generationToken = await useAuthStore.getState().prepareGenerationToken()
 
                 const streamMimeType = params.imageFormat === 'webp' ? 'image/webp' : 'image/png'
                 if (streamingView) {
                     // Streaming Generation - real-time preview updates
-                    result = await generateImageStream(token, params, (progress, image) => {
+                    result = await generateImageStream(generationToken, params, (progress, image) => {
                         if (image) {
                             setStreamingData(scene.id, `data:${streamMimeType};base64,${image}`, progress / 100)
                         } else {
@@ -380,8 +381,9 @@ export function useSceneGeneration() {
                     })
                 } else {
                     // Normal Generation
-                    result = await generateImage(token, params)
+                    result = await generateImage(generationToken, params)
                 }
+                if (result.success && result.imageData) useAuthStore.getState().recordGenerationSuccess()
 
                 // Persist newly encoded vibes before releasing transient source data.
                 if (result.encodedVibes && result.encodedVibes.length > 0) {

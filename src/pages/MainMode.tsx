@@ -144,7 +144,8 @@ export default function MainMode() {
 
             // Call API directly with metadata (without modifying UI store)
             // Use all settings from metadata, only randomize seed
-            const result = await generateImage(token, {
+            const generationToken = await useAuthStore.getState().prepareGenerationToken()
+            const result = await generateImage(generationToken, {
                 prompt: metadata.prompt || '',
                 negative_prompt: metadata.negativePrompt || '',
                 model: mapModelNameToId(metadata.model),
@@ -163,6 +164,7 @@ export default function MainMode() {
             })
 
             if (result.success && result.imageData) {
+                useAuthStore.getState().recordGenerationSuccess()
                 // Update preview with new image
                 const { imageFormat } = useSettingsStore.getState()
                 const mimeType = imageFormat === 'webp' ? 'image/webp' : 'image/png'

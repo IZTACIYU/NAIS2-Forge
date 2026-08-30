@@ -356,6 +356,19 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+## R-028 — 계정 순환 장수는 모든 이미지 생성 경로가 공유한다
+
+- **Date:** 2026-08-30
+- **Area:** NovelAI authentication, main generation, scene queue, image regeneration
+- **Symptom/Risk:** 화면별 생성 코드가 최초에 읽은 활성 토큰을 계속 사용하면 계정 순환이 일부 반복 생성이나 씬 큐에 적용되지 않고, 활성 토큰 우선으로 재정렬된 목록만 따라가면 세 계정 이상에서 일부 계정이 영구히 선택되지 않을 수 있다.
+- **Evidence:** NovelAI 이미지 생성 호출자는 메인 생성 store, 씬 생성 hook, 메인 이미지 재생성, 히스토리 재생성의 네 경로이며 각각 API 호출 직전 토큰을 넘긴다. 기존 토큰 목록 정규화는 현재 활성 토큰을 항상 첫 항목으로 옮긴다.
+- **Invariant to preserve:** 네 생성 경로는 실제 API 호출 직전에 auth store에서 생성 토큰을 준비하고, 이미지 데이터가 반환된 성공 건만 같은 실행 중 카운터에 기록한다. 순환 순서는 활성 토큰 표시에 따른 목록 재정렬과 독립적으로 안정되어야 한다. 사용자 정보 조회는 성공했지만 V5 할당량 필드가 없는 계정은 0으로 간주하지 않으며, 사용할 대체 계정이 없으면 현재 계정을 유지한다.
+- **Fix:** auth store가 실행 중 순환 순서·성공 장수·동시 전환을 소유하고 기존 계정 검증 action으로만 활성 계정을 바꾼다. 각 생성 호출자는 요청 직전 준비와 성공 직후 기록만 수행한다.
+- **Regression coverage:** `npm run check:auth-token-list`, 전체 `generateImage`/`generateImageStream` 호출자 검색, TypeScript 및 production build.
+- **Do not "fix" by:** 화면별 별도 카운터를 두기, API transport에서 UI의 계정 순환 의미를 추론하기, 실패 요청을 성공 장수로 세기, 생성마다 카운터를 영속 저장하기.
+
+---
+
 ## 새 항목 템플릿
 
 ### R-XXX — 짧은 제목

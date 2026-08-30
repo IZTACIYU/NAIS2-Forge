@@ -653,6 +653,10 @@
     "toggleRightSidebar": "오른쪽 사이드바 토글",
     "v5Usage": "한도 {{percent}}%",
     "account": "계정",
+    "accountSettings": "계정 설정",
+    "accountRotation": "계정 순환",
+    "imagesPerAccount": "계정당 이미지 수",
+    "skipDepletedAccounts": "할당량 0 계정 건너뛰기",
     "noAccounts": "등록된 계정 없음",
     "accountSwitchFailed": "계정 전환 실패",
     "v5Quota": "할당량"

@@ -14,6 +14,9 @@ import { SHORTCUT_EVENTS } from '@/hooks/useShortcuts'
 import GlassSurface from '@/components/ui/GlassSurface'
 import { Tip } from '@/components/ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
 import { getAuthTokenLabel, normalizeAuthTokenList } from '@/lib/auth-token-list'
 import { getUserInfo } from '@/services/novelai-api'
 import { toast } from '@/components/ui/use-toast'
@@ -57,15 +60,32 @@ const SceneRandomCharacterDialog = lazy(() => import('@/components/scene/SceneRa
 export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
     const { t } = useTranslation()
     const location = useLocation()
-    const { token, tokens, anlas, imageGenerationUsage, isVerified, isLoading, verifyAndSave, refreshAnlas } = useAuthStore(useShallow(state => ({
+    const {
+        token,
+        tokens,
+        anlas,
+        imageGenerationUsage,
+        isVerified,
+        isLoading,
+        accountRotationEnabled,
+        accountRotationImages,
+        accountRotationSkipDepleted,
+        verifyAndSave,
+        refreshAnlas,
+        setAccountRotationConfig,
+    } = useAuthStore(useShallow(state => ({
         token: state.token,
         tokens: state.tokens,
         anlas: state.anlas,
         imageGenerationUsage: state.imageGenerationUsage,
         isVerified: state.isVerified,
         isLoading: state.isLoading,
+        accountRotationEnabled: state.accountRotationEnabled,
+        accountRotationImages: state.accountRotationImages,
+        accountRotationSkipDepleted: state.accountRotationSkipDepleted,
         verifyAndSave: state.verifyAndSave,
         refreshAnlas: state.refreshAnlas,
+        setAccountRotationConfig: state.setAccountRotationConfig,
     })))
     const model = useGenerationStore(state => state.model)
     const { leftSidebarVisible, rightSidebarVisible, toggleLeftSidebar, toggleRightSidebar, leftSidebarWidth, rightSidebarWidth, setLeftSidebarWidth, setRightSidebarWidth } = useLayoutStore(useShallow(state => ({
@@ -276,11 +296,54 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
             </DropdownMenuContent>
         </DropdownMenu>
     )
+    const accountSettings = (
+        <Popover>
+            <PopoverTrigger asChild>
+                <button
+                    type="button"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/30 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                    aria-label={t('layout.accountSettings')}
+                >
+                    <Settings className="h-4 w-4" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-72 space-y-4">
+                <label className="flex items-center justify-between gap-3 text-sm font-medium">
+                    <span>{t('layout.accountRotation')}</span>
+                    <Switch
+                        checked={accountRotationEnabled}
+                        onChange={event => setAccountRotationConfig({ accountRotationEnabled: event.target.checked })}
+                    />
+                </label>
+                <label className="flex items-center justify-between gap-3 text-sm">
+                    <span>{t('layout.imagesPerAccount')}</span>
+                    <Input
+                        type="number"
+                        min={1}
+                        max={999}
+                        value={accountRotationImages}
+                        disabled={!accountRotationEnabled}
+                        onChange={event => setAccountRotationConfig({ accountRotationImages: event.target.valueAsNumber })}
+                        className="w-20 text-right"
+                    />
+                </label>
+                <label className="flex items-center justify-between gap-3 text-sm">
+                    <span>{t('layout.skipDepletedAccounts')}</span>
+                    <Switch
+                        checked={accountRotationSkipDepleted}
+                        disabled={!accountRotationEnabled}
+                        onChange={event => setAccountRotationConfig({ accountRotationSkipDepleted: event.target.checked })}
+                    />
+                </label>
+            </PopoverContent>
+        </Popover>
+    )
+    const accountControls = <div className="flex items-center gap-1">{accountMenu}{accountSettings}</div>
 
     return (
         <div className="flex flex-col h-screen bg-background overflow-hidden">
             {/* Custom Title Bar - Only show on Windows (Mac uses native decorations) */}
-            {!isMac && <CustomTitleBar leading={accountMenu} navigation={<AnimatedNavBar items={navItems} />} />}
+            {!isMac && <CustomTitleBar leading={accountControls} navigation={<AnimatedNavBar items={navItems} />} />}
 
             {/* Main Layout */}
             <div className="flex flex-1 p-3 gap-3 overflow-hidden">
@@ -359,7 +422,7 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
                 <div className="layout-surface flex-1 flex flex-col min-w-0 bg-card/30 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden shadow-lg">
                     {/* Tab Navigation (Glass Surface) */}
                     {isMac && <div className="shrink-0 flex items-center justify-center py-2 z-10 gap-2">
-                        {accountMenu}
+                        {accountControls}
                         {/* Mac: Left sidebar toggle */}
                         {isMac && (
                             <Tip content={t('layout.toggleLeftSidebar', 'Toggle Left Sidebar')}>
