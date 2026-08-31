@@ -1,6 +1,4 @@
-use sha2::{Digest, Sha256};
 use std::fs;
-use std::io::{self, Read};
 use std::path::Path;
 use tauri::{AppHandle, Manager};
 
@@ -31,19 +29,47 @@ pub fn migrate_legacy_app_data(app: &AppHandle) -> Result<(), String> {
                 destination.display()
             )
         })?;
-        migrate_directory(&parent.join(LEGACY_IDENTIFIER), &destination)?;
+        move_directory(&parent.join(LEGACY_IDENTIFIER), &destination)?;
     }
 
     Ok(())
 }
 
-fn migrate_directory(source: &Path, destination: &Path) -> Result<(), String> {
-    if !source.is_dir() {
+fn move_directory(source: &Path, destination: &Path) -> Result<(), String> {
+    let marker = destination.join(MIGRATION_MARKER);
+    if marker.is_file() {
         return Ok(());
     }
 
-    let marker = destination.join(MIGRATION_MARKER);
-    if marker.is_file() {
+    let file_name = destination
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| format!("Invalid migration destination: {}", destination.display()))?;
+    let temporary = destination.with_file_name(format!("{file_name}.migration-v1.tmp"));
+
+    if temporary.exists() {
+        if source.exists() || destination.exists() {
+            return Err(format!(
+                "Migration paths contain conflicting data beside {}",
+                temporary.display()
+            ));
+        }
+        return activate_temporary_directory(&temporary, destination);
+    }
+
+    if !source.is_dir() {
+        if source.exists() {
+            return Err(format!(
+                "Legacy app data path is not a directory: {}",
+                source.display()
+            ));
+        }
+        if destination.exists() {
+            return Err(format!(
+                "Unverified migration destination already exists: {}",
+                destination.display()
+            ));
+        }
         return Ok(());
     }
 
@@ -69,20 +95,19 @@ fn migrate_directory(source: &Path, destination: &Path) -> Result<(), String> {
             .map_err(|error| format!("Failed to remove empty migration destination: {error}"))?;
     }
 
-    let file_name = destination
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| format!("Invalid migration destination: {}", destination.display()))?;
-    let temporary = destination.with_file_name(format!("{file_name}.migration-v1.tmp"));
+    fs::rename(source, &temporary)
+        .map_err(|error| format!("Failed to move legacy app data: {error}"))?;
+    activate_temporary_directory(&temporary, destination)
+}
 
-    copy_tree(source, &temporary)?;
-    verify_tree(source, &temporary)?;
+fn activate_temporary_directory(temporary: &Path, destination: &Path) -> Result<(), String> {
+    let before = tree_stats(temporary)?;
     fs::write(temporary.join(MIGRATION_MARKER), b"complete\n")
         .map_err(|error| format!("Failed to write migration marker: {error}"))?;
     fs::rename(&temporary, destination)
         .map_err(|error| format!("Failed to activate migrated app data: {error}"))?;
 
-    if !destination.join(MIGRATION_MARKER).is_file() {
+    if !destination.join(MIGRATION_MARKER).is_file() || tree_stats(destination)? != before {
         return Err(format!(
             "Migrated app data could not be read: {}",
             destination.display()
@@ -92,55 +117,36 @@ fn migrate_directory(source: &Path, destination: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn copy_tree(source: &Path, destination: &Path) -> Result<(), String> {
-    fs::create_dir_all(destination)
-        .map_err(|error| format!("Failed to create migration directory: {error}"))?;
-
-    for entry in fs::read_dir(source)
-        .map_err(|error| format!("Failed to read {}: {error}", source.display()))?
-    {
-        let entry = entry.map_err(|error| format!("Failed to read migration entry: {error}"))?;
-        let file_type = entry
-            .file_type()
-            .map_err(|error| format!("Failed to inspect {}: {error}", entry.path().display()))?;
-        let target = destination.join(entry.file_name());
-
-        if file_type.is_dir() {
-            copy_tree(&entry.path(), &target)?;
-        } else if file_type.is_file() {
-            fs::copy(entry.path(), &target)
-                .map_err(|error| format!("Failed to copy {}: {error}", entry.path().display()))?;
-        } else {
-            return Err(format!(
-                "Unsupported app data entry: {}",
-                entry.path().display()
-            ));
-        }
-    }
-
-    Ok(())
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct TreeStats {
+    files: u64,
+    bytes: u64,
 }
 
-fn verify_tree(source: &Path, destination: &Path) -> Result<(), String> {
-    for entry in fs::read_dir(source)
-        .map_err(|error| format!("Failed to verify {}: {error}", source.display()))?
+fn tree_stats(directory: &Path) -> Result<TreeStats, String> {
+    let mut stats = TreeStats { files: 0, bytes: 0 };
+    for entry in fs::read_dir(directory)
+        .map_err(|error| format!("Failed to inspect {}: {error}", directory.display()))?
     {
-        let entry = entry.map_err(|error| format!("Failed to read verification entry: {error}"))?;
+        let entry = entry.map_err(|error| format!("Failed to inspect migration entry: {error}"))?;
         let file_type = entry
             .file_type()
             .map_err(|error| format!("Failed to inspect {}: {error}", entry.path().display()))?;
-        let target = destination.join(entry.file_name());
 
         if file_type.is_dir() {
-            if !target.is_dir() {
-                return Err(format!(
-                    "Migrated directory is missing: {}",
-                    target.display()
-                ));
+            let child = tree_stats(&entry.path())?;
+            stats.files += child.files;
+            stats.bytes += child.bytes;
+        } else if file_type.is_file() {
+            if entry.file_name() != MIGRATION_MARKER {
+                stats.files += 1;
+                stats.bytes += entry
+                    .metadata()
+                    .map_err(|error| {
+                        format!("Failed to inspect {}: {error}", entry.path().display())
+                    })?
+                    .len();
             }
-            verify_tree(&entry.path(), &target)?;
-        } else if file_type.is_file() {
-            verify_file(&entry.path(), &target)?;
         } else {
             return Err(format!(
                 "Unsupported app data entry: {}",
@@ -149,44 +155,7 @@ fn verify_tree(source: &Path, destination: &Path) -> Result<(), String> {
         }
     }
 
-    Ok(())
-}
-
-fn verify_file(source: &Path, destination: &Path) -> Result<(), String> {
-    let source_metadata = fs::metadata(source)
-        .map_err(|error| format!("Failed to inspect {}: {error}", source.display()))?;
-    let destination_metadata = fs::metadata(destination).map_err(|error| {
-        format!(
-            "Migrated file is missing {}: {error}",
-            destination.display()
-        )
-    })?;
-    if source_metadata.len() != destination_metadata.len()
-        || file_digest(source)
-            .map_err(|error| format!("Failed to hash {}: {error}", source.display()))?
-            != file_digest(destination)
-                .map_err(|error| format!("Failed to hash {}: {error}", destination.display()))?
-    {
-        return Err(format!(
-            "Migrated file verification failed: {}",
-            destination.display()
-        ));
-    }
-    Ok(())
-}
-
-fn file_digest(path: &Path) -> io::Result<[u8; 32]> {
-    let mut file = fs::File::open(path)?;
-    let mut digest = Sha256::new();
-    let mut buffer = [0_u8; 64 * 1024];
-    loop {
-        let read = file.read(&mut buffer)?;
-        if read == 0 {
-            break;
-        }
-        digest.update(&buffer[..read]);
-    }
-    Ok(digest.finalize().into())
+    Ok(stats)
 }
 
 #[cfg(test)]
@@ -204,7 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn copies_verifies_and_preserves_legacy_data() {
+    fn moves_and_verifies_legacy_data() {
         let root = test_root("app-data-migration");
         let source = root.join(LEGACY_IDENTIFIER);
         let destination = root.join(CURRENT_IDENTIFIER);
@@ -212,9 +181,9 @@ mod tests {
         fs::write(source.join("state.sqlite3"), b"state").unwrap();
         fs::write(source.join("nested").join("settings.json"), b"settings").unwrap();
 
-        migrate_directory(&source, &destination).unwrap();
+        move_directory(&source, &destination).unwrap();
 
-        assert_eq!(fs::read(source.join("state.sqlite3")).unwrap(), b"state");
+        assert!(!source.exists());
         assert_eq!(
             fs::read(destination.join("state.sqlite3")).unwrap(),
             b"state"
@@ -224,7 +193,7 @@ mod tests {
             b"settings"
         );
         assert!(destination.join(MIGRATION_MARKER).is_file());
-        migrate_directory(&source, &destination).unwrap();
+        move_directory(&source, &destination).unwrap();
 
         fs::remove_dir_all(root).unwrap();
     }
@@ -239,9 +208,28 @@ mod tests {
         fs::write(source.join("old"), b"old").unwrap();
         fs::write(destination.join("new"), b"new").unwrap();
 
-        assert!(migrate_directory(&source, &destination).is_err());
+        assert!(move_directory(&source, &destination).is_err());
         assert_eq!(fs::read(source.join("old")).unwrap(), b"old");
         assert_eq!(fs::read(destination.join("new")).unwrap(), b"new");
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn resumes_after_interruption_at_temporary_directory() {
+        let root = test_root("app-data-resume");
+        let source = root.join(LEGACY_IDENTIFIER);
+        let destination = root.join(CURRENT_IDENTIFIER);
+        let temporary = root.join(format!("{CURRENT_IDENTIFIER}.migration-v1.tmp"));
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("state"), b"state").unwrap();
+        fs::rename(&source, &temporary).unwrap();
+
+        move_directory(&source, &destination).unwrap();
+
+        assert!(!source.exists());
+        assert!(!temporary.exists());
+        assert_eq!(fs::read(destination.join("state")).unwrap(), b"state");
 
         fs::remove_dir_all(root).unwrap();
     }

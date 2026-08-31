@@ -2217,7 +2217,7 @@ pub fn run() {
                 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
                 app.dialog()
                     .message(format!(
-                        "App data migration failed. The original data was left unchanged, and the app will close to prevent starting with empty data.\n\n{error}"
+                        "App data migration failed. No files were deleted, and the app will close to prevent starting with empty data. Restart the app to retry.\n\n{error}"
                     ))
                     .title("NAIS2-Forge data migration")
                     .kind(MessageDialogKind::Error)
