@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "NAIS2-Forge",
   "version": "1.9.0",
-  "identifier": "com.sunakgo.nais2forge",
+  "identifier": "com.iztaciyu.nais2forge",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:9090",
@@ -13,6 +13,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "NAIS2-Forge - NovelAI Image Studio",
         "width": 1600,
         "height": 900,

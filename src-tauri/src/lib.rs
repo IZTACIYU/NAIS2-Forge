@@ -1,3 +1,6 @@
+#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+mod app_data_migration;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2209,6 +2212,30 @@ pub fn run() {
             export_scene_images_zip,
         ])
         .setup(|app| {
+            #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+            if let Err(error) = app_data_migration::migrate_legacy_app_data(app.handle()) {
+                use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+                app.dialog()
+                    .message(format!(
+                        "App data migration failed. The original data was left unchanged, and the app will close to prevent starting with empty data.\n\n{error}"
+                    ))
+                    .title("NAIS2-Forge data migration")
+                    .kind(MessageDialogKind::Error)
+                    .blocking_show();
+                return Err(std::io::Error::other(error).into());
+            }
+
+            if app.get_webview_window("main").is_none() {
+                let window_config = app
+                    .config()
+                    .app
+                    .windows
+                    .iter()
+                    .find(|config| config.label == "main")
+                    .ok_or_else(|| std::io::Error::other("Main window config is missing"))?;
+                tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?.build()?;
+            }
+
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
