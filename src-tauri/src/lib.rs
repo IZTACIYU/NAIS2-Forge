@@ -2170,7 +2170,6 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
@@ -2224,6 +2223,8 @@ pub fn run() {
                     .blocking_show();
                 return Err(std::io::Error::other(error).into());
             }
+
+            app.handle().plugin(tauri_plugin_http::init())?;
 
             if app.get_webview_window("main").is_none() {
                 let window_config = app

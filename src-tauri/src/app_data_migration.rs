@@ -5,20 +5,22 @@ use tauri::{AppHandle, Manager};
 const LEGACY_IDENTIFIER: &str = "com.sunakgo.nais2forge";
 const CURRENT_IDENTIFIER: &str = "com.iztaciyu.nais2forge";
 const MIGRATION_MARKER: &str = ".identifier-migration-v1";
+const HTTP_COOKIES_FILENAME: &str = ".cookies";
 
 pub fn migrate_legacy_app_data(app: &AppHandle) -> Result<(), String> {
     if app.config().identifier != CURRENT_IDENTIFIER {
         return Ok(());
     }
 
-    let mut destinations = vec![
-        app.path()
-            .app_data_dir()
-            .map_err(|error| format!("Failed to resolve app data directory: {error}"))?,
-        app.path()
-            .app_local_data_dir()
-            .map_err(|error| format!("Failed to resolve app local data directory: {error}"))?,
-    ];
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Failed to resolve app data directory: {error}"))?;
+    let app_local_data_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| format!("Failed to resolve app local data directory: {error}"))?;
+    let mut destinations = vec![app_data_dir, app_local_data_dir.clone()];
     destinations.sort();
     destinations.dedup();
 
@@ -29,13 +31,21 @@ pub fn migrate_legacy_app_data(app: &AppHandle) -> Result<(), String> {
                 destination.display()
             )
         })?;
-        move_directory(&parent.join(LEGACY_IDENTIFIER), &destination)?;
+        move_directory(
+            &parent.join(LEGACY_IDENTIFIER),
+            &destination,
+            destination == app_local_data_dir,
+        )?;
     }
 
     Ok(())
 }
 
-fn move_directory(source: &Path, destination: &Path) -> Result<(), String> {
+fn move_directory(
+    source: &Path,
+    destination: &Path,
+    allow_http_bootstrap: bool,
+) -> Result<(), String> {
     let marker = destination.join(MIGRATION_MARKER);
     if marker.is_file() {
         return Ok(());
@@ -80,6 +90,9 @@ fn move_directory(source: &Path, destination: &Path) -> Result<(), String> {
                 destination.display()
             ));
         }
+        if allow_http_bootstrap {
+            remove_empty_http_bootstrap_file(destination)?;
+        }
         if destination
             .read_dir()
             .map_err(|error| format!("Failed to inspect migration destination: {error}"))?
@@ -98,6 +111,35 @@ fn move_directory(source: &Path, destination: &Path) -> Result<(), String> {
     fs::rename(source, &temporary)
         .map_err(|error| format!("Failed to move legacy app data: {error}"))?;
     activate_temporary_directory(&temporary, destination)
+}
+
+fn remove_empty_http_bootstrap_file(destination: &Path) -> Result<(), String> {
+    let entries = fs::read_dir(destination)
+        .map_err(|error| format!("Failed to inspect migration destination: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Failed to inspect migration destination: {error}"))?;
+
+    if entries.len() != 1 {
+        return Ok(());
+    }
+
+    let entry = &entries[0];
+    let file_type = entry
+        .file_type()
+        .map_err(|error| format!("Failed to inspect {}: {error}", entry.path().display()))?;
+    let metadata = entry
+        .metadata()
+        .map_err(|error| format!("Failed to inspect {}: {error}", entry.path().display()))?;
+
+    if entry.file_name() == std::ffi::OsStr::new(HTTP_COOKIES_FILENAME)
+        && file_type.is_file()
+        && metadata.len() == 0
+    {
+        fs::remove_file(entry.path())
+            .map_err(|error| format!("Failed to remove HTTP bootstrap file: {error}"))?;
+    }
+
+    Ok(())
 }
 
 fn activate_temporary_directory(temporary: &Path, destination: &Path) -> Result<(), String> {
@@ -181,7 +223,7 @@ mod tests {
         fs::write(source.join("state.sqlite3"), b"state").unwrap();
         fs::write(source.join("nested").join("settings.json"), b"settings").unwrap();
 
-        move_directory(&source, &destination).unwrap();
+        move_directory(&source, &destination, false).unwrap();
 
         assert!(!source.exists());
         assert_eq!(
@@ -193,7 +235,7 @@ mod tests {
             b"settings"
         );
         assert!(destination.join(MIGRATION_MARKER).is_file());
-        move_directory(&source, &destination).unwrap();
+        move_directory(&source, &destination, false).unwrap();
 
         fs::remove_dir_all(root).unwrap();
     }
@@ -208,9 +250,48 @@ mod tests {
         fs::write(source.join("old"), b"old").unwrap();
         fs::write(destination.join("new"), b"new").unwrap();
 
-        assert!(move_directory(&source, &destination).is_err());
+        assert!(move_directory(&source, &destination, false).is_err());
         assert_eq!(fs::read(source.join("old")).unwrap(), b"old");
         assert_eq!(fs::read(destination.join("new")).unwrap(), b"new");
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn recovers_from_empty_http_cookie_bootstrap_file() {
+        let root = test_root("app-data-http-bootstrap");
+        let source = root.join(LEGACY_IDENTIFIER);
+        let destination = root.join(CURRENT_IDENTIFIER);
+        fs::create_dir_all(&source).unwrap();
+        fs::create_dir_all(&destination).unwrap();
+        fs::write(source.join("state"), b"state").unwrap();
+        fs::write(destination.join(HTTP_COOKIES_FILENAME), b"").unwrap();
+
+        move_directory(&source, &destination, true).unwrap();
+
+        assert!(!source.exists());
+        assert_eq!(fs::read(destination.join("state")).unwrap(), b"state");
+        assert!(destination.join(MIGRATION_MARKER).is_file());
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn refuses_nonempty_http_cookie_destination() {
+        let root = test_root("app-data-http-cookie-conflict");
+        let source = root.join(LEGACY_IDENTIFIER);
+        let destination = root.join(CURRENT_IDENTIFIER);
+        fs::create_dir_all(&source).unwrap();
+        fs::create_dir_all(&destination).unwrap();
+        fs::write(source.join("state"), b"state").unwrap();
+        fs::write(destination.join(HTTP_COOKIES_FILENAME), b"cookie").unwrap();
+
+        assert!(move_directory(&source, &destination, true).is_err());
+        assert_eq!(fs::read(source.join("state")).unwrap(), b"state");
+        assert_eq!(
+            fs::read(destination.join(HTTP_COOKIES_FILENAME)).unwrap(),
+            b"cookie"
+        );
 
         fs::remove_dir_all(root).unwrap();
     }
@@ -225,7 +306,7 @@ mod tests {
         fs::write(source.join("state"), b"state").unwrap();
         fs::rename(&source, &temporary).unwrap();
 
-        move_directory(&source, &destination).unwrap();
+        move_directory(&source, &destination, false).unwrap();
 
         assert!(!source.exists());
         assert!(!temporary.exists());

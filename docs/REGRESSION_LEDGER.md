@@ -387,11 +387,11 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Date:** 2026-08-31
 - **Area:** Tauri identifier, app data paths, native SQLite, WebView IndexedDB/localStorage
 - **Symptom/Risk:** 정식 앱 식별자를 바꾸면 Tauri의 Roaming·Local·WebView 저장 경로가 함께 바뀌어 기존 프롬프트, 프리셋, 씬, 인증, 레퍼런스가 삭제되지 않았어도 빈 앱처럼 보일 수 있다.
-- **Evidence:** 기존 식별자 경로에 native SQLite, references와 WebView `IndexedDB`·`Local Storage`가 실제 존재하며, Tauri config schema는 identifier를 WebView data directory에 사용한다고 명시한다.
-- **Invariant to preserve:** 정식 앱의 설정 기반 WebView는 identifier migration 완료 전 생성하지 않는다. 기존 Roaming·Local 경로와 새 경로가 동시에 비어 있지 않은 상태를 임의 병합하지 않으며, 같은 데이터 루트 안에서 `old → temporary → new` 순서로 원자적 이전한다. 중간 종료는 temporary 상태에서 재개하고, 충돌이나 실패 시 새 빈 저장소로 앱을 계속 시작하지 않는다.
-- **Fix:** main window 자동 생성을 끄고 Tauri setup에서 두 데이터 루트를 임시 경로로 rename한 뒤 파일 수·총 크기를 확인하고 새 식별자 경로로 활성화한다. 완료 marker로 재실행을 멱등 처리하고 기존 데이터가 있는 destination은 덮어쓰지 않는다.
-- **Regression coverage:** 임시 디렉터리에서 중첩 데이터 이전·원본 경로 제거·통계 검증·재실행·temporary 상태 복구·destination 충돌 거부 Rust test, 전체 Rust test, production build, config identifier/create 순서 검사.
-- **Do not "fix" by:** identifier만 바꾸기, WebView가 열린 뒤 frontend에서 복구하기, 서로 다른 상태의 old/new 경로를 자동 병합하기, 새 경로의 데이터를 묻지 않고 덮어쓰기, 임시 상태 복구 없이 다단계 경로를 직접 바꾸기.
+- **Evidence:** 기존 식별자 경로에 native SQLite, references와 WebView `IndexedDB`·`Local Storage`가 실제 존재하며, Tauri config schema는 identifier를 WebView data directory에 사용한다고 명시한다. v1.9.1 첫 실행에서는 HTTP 플러그인이 migration setup보다 먼저 새 Local 경로에 0바이트 `.cookies`를 만들고, 충돌 검사가 이를 별도 사용자 데이터로 판정해 이전을 중단했다.
+- **Invariant to preserve:** 정식 앱의 설정 기반 WebView와 새 app-data 파일을 만드는 플러그인은 identifier migration 완료 전 초기화하지 않는다. 기존 Roaming·Local 경로와 새 경로가 동시에 비어 있지 않은 상태를 임의 병합하지 않으며, 같은 데이터 루트 안에서 `old → temporary → new` 순서로 원자적 이전한다. 중간 종료는 temporary 상태에서 재개하고, 충돌이나 실패 시 새 빈 저장소로 앱을 계속 시작하지 않는다.
+- **Fix:** main window 자동 생성을 끄고 Tauri setup에서 두 데이터 루트를 임시 경로로 rename한 뒤 파일 수·총 크기를 확인하고 새 식별자 경로로 활성화한다. HTTP 플러그인은 이전 후 초기화한다. 이미 실패한 실행이 남긴 destination은 정확히 0바이트 `.cookies` 하나만 있을 때만 bootstrap 흔적을 제거하고 재개한다. 완료 marker로 재실행을 멱등 처리하고 기존 데이터가 있는 destination은 덮어쓰지 않는다.
+- **Regression coverage:** 임시 디렉터리에서 중첩 데이터 이전·원본 경로 제거·통계 검증·재실행·temporary 상태 복구·destination 충돌 거부·0바이트 HTTP bootstrap 복구·내용 있는 cookie 보존 Rust test, 전체 Rust test, production build, config identifier/create/plugin 순서 검사.
+- **Do not "fix" by:** identifier만 바꾸기, WebView나 app-data 생성 플러그인을 migration보다 먼저 초기화하기, WebView가 열린 뒤 frontend에서 복구하기, 서로 다른 상태의 old/new 경로를 자동 병합하기, 새 경로의 데이터를 묻지 않고 덮어쓰기, 알려진 0바이트 bootstrap 파일 외의 destination 내용을 자동 삭제하기.
 
 ---
 
