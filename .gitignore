@@ -45,6 +45,4 @@ agents/
 logs/
 .claude/
 docs/
-supabase/
-discord_setup/
 arcalive-intro.html

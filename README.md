@@ -9,12 +9,6 @@
 </p>
 
 <p align="center">
-  <a href="https://discord.gg/YQbP2xbr">
-    <img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white" alt="Discord Server">
-  </a>
-</p>
-
-<p align="center">
   <a href="./README.md">English</a> •
   <a href="./README.ko.md">한국어</a> •
   <a href="./README.ja.md">日本語</a>
@@ -72,8 +66,8 @@ xattr -cr /Applications/NAIS2.app
 
 ### Build from Source
 ```bash
-git clone https://github.com/sunanakgo/NAIS2.git
-cd NAIS2
+git clone https://github.com/IZTACIYU/NAIS2-Forge.git
+cd NAIS2-Forge
 npm install
 npm run tauri dev      # Development
 npm run tauri build    # Production

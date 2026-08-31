@@ -2,7 +2,7 @@
 name = "nais2"
 version = "1.9.0"
 description = "NovelAI Image Studio"
-authors = ["sunakgo"]
+authors = ["IZTACIYU"]
 license = "GPL-3.0"
 repository = "https://github.com/IZTACIYU/NAIS2-Forge"
 edition = "2021"
@@ -42,7 +42,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 webp = "0.3"
 
 # Desktop-only: single-instance plugin is not available on mobile targets,
-# and the "deep-link" feature integrates with our nais2:// callback handler.
+# and the "deep-link" feature integrates with our nais2-forge:// callback handler.
 [target.'cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))'.dependencies]
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
