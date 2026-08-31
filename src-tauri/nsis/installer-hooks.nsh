@@ -1,4 +1,13 @@
 !macro NSIS_HOOK_PREINSTALL
+  ; Keep updates on the install root used before the publisher rename.
+  ReadRegStr $R0 SHCTX "Software\sunakgo\NAIS2-Forge" ""
+  ${If} $R0 != ""
+    ${If} ${FileExists} "$R0\${MAINBINARYNAME}.exe"
+      StrCpy $INSTDIR $R0
+      SetOutPath $INSTDIR
+    ${EndIf}
+  ${EndIf}
+
   ; Kill any running tagger-server.exe processes before installation
   ; Use /T to kill child processes as well
   nsExec::ExecToLog 'taskkill /F /T /IM tagger-server.exe'

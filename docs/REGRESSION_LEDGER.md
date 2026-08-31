@@ -409,6 +409,20 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+## R-032 — 제작자명 변경 후에도 기존 설치 경로를 이어받는다
+
+- **Date:** 2026-08-31
+- **Area:** Tauri NSIS updater, Windows install registry
+- **Symptom:** 기존 바로가기는 `D:\NAIS2-Forge`의 이전 버전을 실행하지만 업데이트는 Local Programs에 새로 설치되어, 사용자가 이전 버전을 거쳐야만 최신 데이터가 연결된 앱에 진입할 수 있었다.
+- **Root cause:** Tauri NSIS의 이전 설치 위치 복원은 `Software\\<manufacturer>\\NAIS2-Forge`만 읽는데, 제작자명이 `sunakgo`에서 `IZTACIYU`로 바뀌면서 기존 설치 위치 등록값을 찾지 못했다.
+- **Evidence:** 기존 레지스트리 키는 `D:\NAIS2-Forge`, 새 제작자 키와 uninstall 항목은 Local Programs를 가리켰고, 생성된 NSIS 스크립트의 `RestorePreviousInstallLocation`은 현재 제작자 키만 조회했다.
+- **Invariant to preserve:** 이전 제작자 키가 가리키는 위치에 실제 주 실행파일이 있으면 업데이트 설치 전에 그 경로를 재사용한다. 문자열만 남은 오래된 키나 사용자 데이터 경로는 설치 대상으로 사용하지 않는다.
+- **Fix:** NSIS preinstall 훅이 legacy 제작자 키와 실행파일 존재를 확인해 `$INSTDIR`을 복원한다. 이후 표준 설치 흐름이 현재 제작자 키도 같은 경로로 기록하므로 다음 업데이트부터는 기본 복원 로직이 연속성을 유지한다.
+- **Regression coverage:** `npm run check:installer-continuity`가 legacy 키 조회, 실행파일 존재 확인, 설치 경로 복원을 검사한다.
+- **Do not "fix" by:** 새 설치 루트를 정착시키거나, 사용자 데이터 폴더를 다시 복사·이동하거나, 실행파일 존재 확인 없이 오래된 레지스트리 문자열을 신뢰하기.
+
+---
+
 ## 새 항목 템플릿
 
 ### R-XXX — 짧은 제목
