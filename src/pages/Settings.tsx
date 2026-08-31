@@ -632,6 +632,7 @@ export default function Settings() {
                                                                                         }
                                                                                     }
                                                                                 })
+                                                                                setCurrentUpdateObject(update, true)
                                                                                 setPendingUpdate({ version: update.version, downloadedAt: Date.now() })
                                                                                 toast({
                                                                                     title: t('update.downloadComplete', '다운로드 완료'),
@@ -640,8 +641,7 @@ export default function Settings() {
                                                                                         <Button
                                                                                             size="sm"
                                                                                             onClick={async () => {
-                                                                                                await update.install()
-                                                                                                await relaunch()
+                                                                                                await installPendingUpdate()
                                                                                             }}
                                                                                         >
                                                                                             <Sparkles className="h-4 w-4 mr-1" />

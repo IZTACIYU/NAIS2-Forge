@@ -395,6 +395,20 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+## R-031 — 앱 내부 업데이트 설치는 공통 백업 경계를 통과한다
+
+- **Date:** 2026-08-31
+- **Area:** updater UI, `src/stores/update-store.ts`, `src/pages/Settings.tsx`
+- **Symptom:** 릴리스마다 바로 업데이트했는데도 최신 3개가 아니라 `v1.4.3`, `v1.4.4`, `v1.8.0` 백업만 남았다.
+- **Root cause:** 일반 업데이트 알림은 설치 전 백업을 만드는 공통 action을 사용했지만, 설정 화면의 다운로드 완료 action은 updater 객체의 `install()`을 직접 호출해 백업을 건너뛰었다.
+- **Evidence:** 같은 백업 폴더에서 중간 버전 백업이 한 번이라도 생성됐다면 3개 순환 과정에서 1.4.x가 먼저 제거돼야 한다. 모든 관련 릴리스의 설정 화면에 직접 설치 호출이 남아 있었다.
+- **Invariant to preserve:** 앱 내부의 모든 업데이트 설치 진입점은 `installPendingUpdate()`를 사용하며, 이미 다운로드한 updater 객체는 공통 action에 다운로드 완료 상태로 넘긴다. 백업 실패 시 설치하지 않는다.
+- **Fix:** 설정 화면의 다운로드 완료 상태를 공통 update owner에 등록하고 직접 설치 호출을 공통 설치 action으로 교체했다.
+- **Regression coverage:** updater 객체의 직접 `install()`/`downloadAndInstall()` 호출자가 공통 owner에만 남았는지 검색, TypeScript, lint 및 production build.
+- **Do not "fix" by:** 새 설치 버튼에서 updater 객체를 직접 설치하거나 화면별 백업 호출을 복제하기.
+
+---
+
 ## 새 항목 템플릿
 
 ### R-XXX — 짧은 제목
