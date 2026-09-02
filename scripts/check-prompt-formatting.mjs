@@ -8,6 +8,7 @@ import {
     stripTransparentBackgroundPrompt,
     stripQuotedTextPrompt,
 } from '../src/lib/prompt-formatting.ts'
+import { resolveConditionalPrompt } from '../src/lib/conditional-prompts.ts'
 
 assert.equal(normalizePromptCommas('A,B'), 'A, B')
 assert.equal(normalizePromptCommas('A,     B'), 'A,     B')
@@ -47,3 +48,19 @@ assert.equal(
     `another's hand, sign "STOP", artist:'someone's name', teXt: STOP`,
 )
 assert.equal(appendQuotedTextPrompt(`artist:"someone", caption "HELLO"`, true), `artist:"someone", caption "HELLO", teXt: HELLO`)
+
+const conditionalContext = {
+    basePrompt: '',
+    positivePrompt: '',
+    negativePrompt: '',
+    characterGenders: [],
+    mainCharacterGenders: [],
+}
+const weightedConditionalPrompt = `1.2::foo, bar::
+#if+foo&bar: included
+#if-foo&bar: excluded`
+assert.equal(
+    resolveConditionalPrompt(weightedConditionalPrompt, weightedConditionalPrompt, conditionalContext),
+    `1.2::foo, bar::
+included`,
+)

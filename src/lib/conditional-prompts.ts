@@ -26,7 +26,7 @@ const getPromptCandidates = (prompt: string) => {
         const normalizedLine = normalize(line)
         if (normalizedLine) candidates.add(normalizedLine)
 
-        for (const tag of line.split(',')) {
+        for (const tag of normalizedLine.split(',')) {
             const normalizedTag = normalize(tag)
             if (normalizedTag) candidates.add(normalizedTag)
         }
