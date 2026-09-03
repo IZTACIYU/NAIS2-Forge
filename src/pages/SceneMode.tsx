@@ -65,7 +65,6 @@ import {
     Square,
     FolderInput,
     ArrowRight,
-    Grid3x3,
     Upload,
     LayoutGrid,
     LayoutList,
@@ -254,12 +253,12 @@ function ScenePresetDropdown({
     return (
         <DropdownMenu open={open} onOpenChange={onOpenChange}>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-10 w-[260px] justify-between rounded-xl border-white/10 bg-transparent px-3 font-normal" disabled={disabled}>
+                <Button variant="outline" className="h-10 w-[220px] justify-between rounded-xl border-white/10 bg-transparent px-3 font-normal" disabled={disabled}>
                     <span className="truncate">{activePreset?.name || t('scene.preset')}</span>
                     <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="max-h-[420px] w-[260px] overflow-y-auto p-1">
+            <DropdownMenuContent align="start" className="max-h-[420px] w-[220px] overflow-y-auto p-1">
                 <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToParentElement]}>
                     <SortableContext items={presets.map(p => p.id)} strategy={verticalListSortingStrategy}>
                         <div className="space-y-0.5">
@@ -883,6 +882,13 @@ export default function SceneMode() {
                                 )}
                             </div>
                         )}
+                        {activePreset && (
+                            <Tip content={t('scene.editMode', '여러 씬을 선택하여 일괄 편집')}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setEditMode(true)} disabled={scenes.length === 0 || isGenerating}>
+                                    <Edit3 className="h-4 w-4" />
+                                </Button>
+                            </Tip>
+                        )}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                         <Tip content={t('scene.reviewImages')}>
@@ -896,8 +902,7 @@ export default function SceneMode() {
                             </Button>
                         </Tip>
                         <Tip content={t('scene.gridColumnsDesc', '그리드 열 개수 변경')}>
-                            <Button variant="ghost" size="sm" className="h-9 text-muted-foreground hover:text-foreground hover:bg-white/10" onClick={handleToggleGrid}>
-                                <Grid3x3 className="h-4 w-4 mr-1.5" />
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:bg-white/10 hover:text-foreground" onClick={handleToggleGrid}>
                                 <span className="font-medium text-sm">{gridColumns}</span>
                             </Button>
                         </Tip>
@@ -911,12 +916,6 @@ export default function SceneMode() {
                             className="hidden"
                             onChange={handleFileInputChange}
                         />
-                        {/* Edit Mode Toggle Button */}
-                        <Tip content={t('scene.editMode', '여러 씬을 선택하여 일괄 편집')}>
-                            <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" onClick={() => setEditMode(true)} disabled={scenes.length === 0 || isGenerating}>
-                                <Edit3 className="h-4 w-4" />
-                            </Button>
-                        </Tip>
                         {expertSceneCharacterRepeatEnabled && (
                                 <Tip content={t('sceneSequence.toggleTooltip', 'Character queue repeat')}>
                                     <div className={cn(
