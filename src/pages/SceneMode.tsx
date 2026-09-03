@@ -77,6 +77,7 @@ import {
     Cloud,
     FolderOpen,
     ChevronDown,
+    Ratio,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNearViewport } from '@/hooks/use-near-viewport'
@@ -421,6 +422,7 @@ export default function SceneMode() {
     const [isRenamingPreset, setIsRenamingPreset] = useState(false)
     const [presetActionsOpen, setPresetActionsOpen] = useState(false)
     const [fileActionsOpen, setFileActionsOpen] = useState(false)
+    const [showResolutionBadges, setShowResolutionBadges] = useState(true)
     const presetActionsRef = useRef<HTMLDivElement>(null)
     const fileActionsRef = useRef<HTMLDivElement>(null)
 
@@ -917,6 +919,18 @@ export default function SceneMode() {
                                 <ImageIcon className="h-4 w-4" />
                             </Button>
                         </Tip>
+                        <Tip content={t('scene.toggleResolutionBadges', '씬 비율 표시')}>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className={cn('h-9 w-9 hover:bg-white/10', showResolutionBadges ? 'bg-white/10 text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                                onClick={() => setShowResolutionBadges(visible => !visible)}
+                                aria-pressed={showResolutionBadges}
+                                aria-label={t('scene.toggleResolutionBadges', '씬 비율 표시')}
+                            >
+                                <Ratio className="h-4 w-4" />
+                            </Button>
+                        </Tip>
                         <Tip content={t('scene.thumbnailLayout', '세로/가로 썸네일 전환')}>
                             <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-white/10" onClick={() => setThumbnailLayout(getNextThumbnailLayout(thumbnailLayout))}>
                                 {thumbnailLayout === 'vertical' ? <LayoutGrid className="h-4 w-4" /> : thumbnailLayout === 'horizontal' ? <LayoutList className="h-4 w-4" /> : <Square className="h-4 w-4" />}
@@ -1099,6 +1113,7 @@ export default function SceneMode() {
                                     <SortableSceneCard
                                         key={scene.id}
                                         scene={scene}
+                                        showResolutionBadge={showResolutionBadges}
                                         disabled={isGenerating}
                                         onOpenSceneCharacterAddition={setSceneCharacterAdditionSceneId}
                                     />
@@ -1110,7 +1125,7 @@ export default function SceneMode() {
                             </div>
                         </SortableContext>
                         <DragOverlay dropAnimation={dropAnimation} modifiers={[snapCenterToCursor]}>
-                            {activeItem ? <SceneCardItem scene={activeItem} isOverlay /> : null}
+                            {activeItem ? <SceneCardItem scene={activeItem} isOverlay showResolutionBadge={showResolutionBadges} /> : null}
                         </DragOverlay>
                     </DndContext>
                 )}
@@ -1224,7 +1239,7 @@ const scheduleSceneThumbnailValidation = (
 })
 
 // Memoized SceneCard to prevent unnecessary re-renders
-const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = false, isOverlay = false, isNearViewport = false, style, dragAttributes, dragListeners, onOpenSceneCharacterAddition }: any) {
+const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = false, isOverlay = false, isNearViewport = false, showResolutionBadge = true, style, dragAttributes, dragListeners, onOpenSceneCharacterAddition }: any) {
     const { t } = useTranslation()
     const navigate = useNavigate()
     const [isEditing, setIsEditing] = useState(false)
@@ -1379,7 +1394,7 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
                     )}
 
                     <div className="pointer-events-none absolute left-2 top-2 z-30 flex max-w-[calc(100%-1rem)] flex-col items-start gap-1">
-                        <SceneResolutionBadge width={scene.width || 832} height={scene.height || 1216} />
+                        {showResolutionBadge && <SceneResolutionBadge width={scene.width || 832} height={scene.height || 1216} />}
                         <SceneQueueBadge activePresetId={activePresetId} sceneId={scene.id} />
                     </div>
 
@@ -1579,5 +1594,6 @@ const SortableSceneCard = memo(function SortableSceneCard(props: any) {
         prevProps.scene.images?.length === nextProps.scene.images?.length &&
         prevProps.scene.width === nextProps.scene.width &&
         prevProps.scene.height === nextProps.scene.height &&
+        prevProps.showResolutionBadge === nextProps.showResolutionBadge &&
         prevProps.disabled === nextProps.disabled
 })
