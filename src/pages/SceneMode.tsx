@@ -1187,6 +1187,9 @@ export default function SceneMode() {
                 open={showReviewDialog}
                 onOpenChange={setShowReviewDialog}
                 scenes={scenes}
+                outputScenes={scenesForOutput}
+                activePresetName={activePreset?.name || ''}
+                cloudflareEnabled={expertR2DirectUploadEnabled}
                 decisions={reviewDecisions || {}}
                 onDecision={handleReviewDecision}
             />

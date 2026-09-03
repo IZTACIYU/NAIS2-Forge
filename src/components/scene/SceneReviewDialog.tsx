@@ -9,15 +9,20 @@ import { SourceImagePanel } from '@/components/layout/SourceImagePanel'
 import { ImageReferenceDialog } from '@/components/metadata/ImageReferenceDialog'
 import { MetadataDialog } from '@/components/metadata/MetadataDialog'
 import { PresetDropdown } from '@/components/preset/PresetDropdown'
+import { ExportDialog } from '@/components/scene/ExportDialog'
 import { SceneImageContextMenu } from '@/components/scene/SceneImageContextMenu'
+import { SceneR2DirectUploadDialog } from '@/components/scene/SceneR2DirectUploadDialog'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { AutocompleteTextarea } from '@/components/ui/AutocompleteTextarea'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SHORTCUT_EVENTS } from '@/hooks/useShortcuts'
 import { cn } from '@/lib/utils'
 import { pickSceneRepresentativeImage, type SceneReviewDecision, type SceneReviewDecisions } from '@/lib/scene-image-selection'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
+import type { SceneExportNamePart } from '@/lib/scene-export-name'
+import { subscribeScenePromptDraftFlush } from '@/lib/scene-prompt-drafts'
 import {
     addUniqueReviewHistoryImage,
     findNextReviewItem,
@@ -37,11 +42,15 @@ interface SceneReviewDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     scenes: SceneCard[]
+    outputScenes: SceneCard[]
+    activePresetName: string
+    cloudflareEnabled: boolean
     decisions: SceneReviewDecisions
     onDecision: (sceneId: string, decision: SceneReviewDecision) => void
 }
 
-type ReviewTab = 'all' | 'pending' | 'completed'
+type ReviewTab = 'all' | 'pending' | 'completed' | 'final'
+type ReviewOutputMethod = 'zip' | 'cloudflare'
 
 interface ReviewImage extends SceneImage {
     sceneId: string
@@ -49,6 +58,50 @@ interface ReviewImage extends SceneImage {
 }
 
 const imageSrc = (url: string) => url.startsWith('data:') ? url : convertFileSrc(url)
+
+function ReviewScenePromptEditor({ presetId, scene }: { presetId: string; scene: SceneCard }) {
+    const { t } = useTranslation()
+    const promptFontSize = useSettingsStore(state => state.promptFontSize)
+    const updateScenePrompt = useSceneStore(state => state.updateScenePrompt)
+    const [prompt, setPrompt] = useState(scene.scenePrompt)
+    const promptRef = useRef(prompt)
+    promptRef.current = prompt
+
+    const flushPrompt = useCallback(() => {
+        const currentScene = useSceneStore.getState().presets
+            .find(preset => preset.id === presetId)?.scenes
+            .find(candidate => candidate.id === scene.id)
+        if (currentScene && promptRef.current !== currentScene.scenePrompt) {
+            useSceneStore.getState().updateScenePrompt(presetId, scene.id, promptRef.current)
+        }
+    }, [presetId, scene.id])
+
+    useEffect(() => {
+        if (prompt === scene.scenePrompt) return
+        const timer = setTimeout(() => updateScenePrompt(presetId, scene.id, prompt), 1000)
+        return () => clearTimeout(timer)
+    }, [presetId, prompt, scene.id, scene.scenePrompt, updateScenePrompt])
+
+    useEffect(() => {
+        const unsubscribe = subscribeScenePromptDraftFlush(flushPrompt)
+        return () => {
+            flushPrompt()
+            unsubscribe()
+        }
+    }, [flushPrompt])
+
+    return (
+        <AutocompleteTextarea
+            value={prompt}
+            aria-label={t('scene.scenePrompt')}
+            placeholder={t('sceneEditor.positivePlaceholder')}
+            className="mt-2 h-24 shrink-0 resize-none rounded-lg"
+            style={{ fontSize: `${promptFontSize}px` }}
+            onDraftChange={value => { promptRef.current = value }}
+            onChange={event => setPrompt(event.target.value)}
+        />
+    )
+}
 
 function ReviewImageGrid({ images, onSelect, emptyLabel }: { images: ReviewImage[]; onSelect: (image: ReviewImage) => void; emptyLabel?: string }) {
     const { t } = useTranslation()
@@ -69,6 +122,71 @@ function ReviewImageGrid({ images, onSelect, emptyLabel }: { images: ReviewImage
                     <img src={imageSrc(image.url)} alt={image.sceneName} loading="lazy" decoding="async" className="h-full w-full object-contain" />
                 </button>
             ))}
+        </div>
+    )
+}
+
+function FinalReviewView({ images, sceneCount, outputMethod, cloudflareEnabled, onOutputMethodChange, onOutput, onSelectImage }: {
+    images: ReviewImage[]
+    sceneCount: number
+    outputMethod: ReviewOutputMethod
+    cloudflareEnabled: boolean
+    onOutputMethodChange: (method: ReviewOutputMethod) => void
+    onOutput: () => void
+    onSelectImage: (image: ReviewImage) => void
+}) {
+    const { t } = useTranslation()
+    const expertSceneExportNameEnabled = useSettingsStore(state => state.expertSceneExportNameEnabled)
+    const sceneExportNamePart = useSettingsStore(state => state.sceneExportNamePart)
+    const setExpertSceneExportNameEnabled = useSettingsStore(state => state.setExpertSceneExportNameEnabled)
+    const setSceneExportNamePart = useSettingsStore(state => state.setSceneExportNamePart)
+    const nameMode = expertSceneExportNameEnabled ? sceneExportNamePart : 'full'
+
+    const handleNameModeChange = (value: string) => {
+        if (value === 'full') {
+            setExpertSceneExportNameEnabled(false)
+            return
+        }
+        setExpertSceneExportNameEnabled(true)
+        setSceneExportNamePart(value as SceneExportNamePart)
+    }
+
+    return (
+        <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_300px] gap-3">
+            <div className="min-h-0 overflow-y-auto rounded-xl border border-border/50 bg-card/40 p-3 custom-scrollbar">
+                <ReviewImageGrid images={images} onSelect={onSelectImage} emptyLabel={t('scene.noReviewedImages')} />
+            </div>
+            <aside className="flex flex-col gap-5 rounded-xl border border-border/50 bg-card/40 p-4">
+                <div>
+                    <div className="text-xs text-muted-foreground">{t('scene.reviewFinalCount')}</div>
+                    <div className="mt-1 text-2xl font-semibold">{images.length} / {sceneCount}</div>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">{t('scene.reviewImageNameMode')}</label>
+                    <Select value={nameMode} onValueChange={handleNameModeChange}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="full">{t('scene.reviewImageNameFull')}</SelectItem>
+                            <SelectItem value="prefix">{t('settingsPage.expert.sceneMode.exportNamePrefix')}</SelectItem>
+                            <SelectItem value="middle">{t('settingsPage.expert.sceneMode.exportNameMiddle')}</SelectItem>
+                            <SelectItem value="suffix">{t('settingsPage.expert.sceneMode.exportNameSuffix')}</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">{t('scene.reviewOutputMethod')}</label>
+                    <Select value={outputMethod} onValueChange={value => onOutputMethodChange(value as ReviewOutputMethod)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="zip">{t('scene.exportZip')}</SelectItem>
+                            {cloudflareEnabled && <SelectItem value="cloudflare">{t('scene.r2DirectUpload.title')}</SelectItem>}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <Button type="button" className="mt-auto" disabled={images.length === 0} onClick={onOutput}>
+                    {t('scene.reviewRunOutput')}
+                </Button>
+            </aside>
         </div>
     )
 }
@@ -257,7 +375,8 @@ function ReviewFilmstrip({ images, selectedSceneId, decisions, onSelect }: {
     )
 }
 
-function IndividualReviewView({ scene, image, decision, decisions, reviewImages, historyImages, onSelectImage, onSelectReviewImage, onDeleteImage, onAddReference, onLoadMetadata, onInpaint, onGenerate, onRegenerate, onDecision, regenerateDisabled, onBack }: {
+function IndividualReviewView({ presetId, scene, image, decision, decisions, reviewImages, historyImages, onSelectImage, onSelectReviewImage, onDeleteImage, onAddReference, onLoadMetadata, onInpaint, onGenerate, onRegenerate, onDecision, regenerateDisabled, onBack }: {
+    presetId?: string | null
     scene?: SceneCard
     image?: SceneImage | null
     decision?: SceneReviewDecision
@@ -295,12 +414,7 @@ function IndividualReviewView({ scene, image, decision, decisions, reviewImages,
                     )}
                     <h2 className="truncate text-sm font-semibold" title={scene.name}>{scene.name}</h2>
                 </div>
-                <textarea
-                    readOnly
-                    aria-label={t('scene.scenePrompt')}
-                    value={scene.scenePrompt}
-                    className="mt-2 h-24 shrink-0 resize-none rounded-lg border border-border/60 bg-background/50 p-2 text-xs outline-none"
-                />
+                {presetId && <ReviewScenePromptEditor key={scene.id} presetId={presetId} scene={scene} />}
                 <SceneImageContextMenu
                     image={image}
                     onDelete={() => onDeleteImage(image)}
@@ -370,7 +484,7 @@ function IndividualReviewView({ scene, image, decision, decisions, reviewImages,
     )
 }
 
-export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDecision }: SceneReviewDialogProps) {
+export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, activePresetName, cloudflareEnabled, decisions, onDecision }: SceneReviewDialogProps) {
     const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState<ReviewTab>('all')
     const [detailOpen, setDetailOpen] = useState(false)
@@ -380,6 +494,9 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
     const [metadataDialogOpen, setMetadataDialogOpen] = useState(false)
     const [referenceDialogOpen, setReferenceDialogOpen] = useState(false)
     const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false)
+    const [exportDialogOpen, setExportDialogOpen] = useState(false)
+    const [r2DialogOpen, setR2DialogOpen] = useState(false)
+    const [outputMethod, setOutputMethod] = useState<ReviewOutputMethod>('zip')
     const [dialogImage, setDialogImage] = useState<string | null>(null)
     const reviewGenerationSceneIds = useRef(new Set<string>())
     const activePresetId = useSceneStore(state => state.activePresetId)
@@ -391,6 +508,10 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
             return image ? [{ ...image, sceneId: scene.id, sceneName: scene.name }] : []
         })
         : [], [open, scenes])
+    const finalImages = outputScenes.flatMap(scene => {
+        const image = pickSceneRepresentativeImage(scene.images)
+        return image ? [{ ...image, sceneId: scene.id, sceneName: scene.name }] : []
+    })
     const getGridImages = (tab: ReviewTab, reviewDecisions: SceneReviewDecisions) => {
         if (tab === 'all') return images
         if (tab === 'pending') return images.filter(image => reviewDecisions[image.sceneId]?.status !== 'passed')
@@ -423,6 +544,8 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
         setMetadataDialogOpen(false)
         setReferenceDialogOpen(false)
         setInpaintDialogOpen(false)
+        setExportDialogOpen(false)
+        setR2DialogOpen(false)
         setDialogImage(null)
         reviewGenerationSceneIds.current.clear()
     }, [open])
@@ -535,6 +658,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
     }
 
     const individualViewProps = {
+        presetId: activePresetId,
         scene: selectedScene,
         image: selectedImage,
         decision: selectedScene ? decisions[selectedScene.id] : undefined,
@@ -559,6 +683,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
         { id: 'all', label: t('scene.reviewAll') },
         { id: 'pending', label: t('scene.reviewPending') },
         { id: 'completed', label: t('scene.reviewCompleted') },
+        { id: 'final', label: t('scene.reviewFinal') },
     ]
     const emptyLabel = activeTab === 'completed' ? t('scene.noReviewedImages') : undefined
 
@@ -582,13 +707,37 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
                     ))}
                 </div>
                 <div className="min-h-0 flex-1">
-                    <div className={cn('h-full overflow-y-auto custom-scrollbar', detailOpen && 'hidden')}>
-                        <ReviewImageGrid images={gridImages} onSelect={selectImage} emptyLabel={emptyLabel} />
-                    </div>
-                    {detailOpen && <IndividualReviewView {...individualViewProps} onBack={() => setDetailOpen(false)} />}
+                    {activeTab === 'final' ? (
+                        <FinalReviewView
+                            images={finalImages}
+                            sceneCount={scenes.length}
+                            outputMethod={outputMethod}
+                            cloudflareEnabled={cloudflareEnabled}
+                            onOutputMethodChange={setOutputMethod}
+                            onOutput={() => outputMethod === 'zip' ? setExportDialogOpen(true) : setR2DialogOpen(true)}
+                            onSelectImage={image => {
+                                setActiveTab('completed')
+                                selectImage(image)
+                            }}
+                        />
+                    ) : (
+                        <>
+                            <div className={cn('h-full overflow-y-auto custom-scrollbar', detailOpen && 'hidden')}>
+                                <ReviewImageGrid images={gridImages} onSelect={selectImage} emptyLabel={emptyLabel} />
+                            </div>
+                            {detailOpen && <IndividualReviewView {...individualViewProps} onBack={() => setDetailOpen(false)} />}
+                        </>
+                    )}
                 </div>
             </DialogContent>
         </Dialog>
+        <ExportDialog
+            open={exportDialogOpen}
+            onOpenChange={setExportDialogOpen}
+            activePresetName={activePresetName}
+            scenes={outputScenes}
+        />
+        <SceneR2DirectUploadDialog open={r2DialogOpen} onOpenChange={setR2DialogOpen} scenes={outputScenes} />
         <MetadataDialog
             open={metadataDialogOpen}
             onOpenChange={nextOpen => {

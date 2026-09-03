@@ -294,11 +294,11 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 ## R-023 — 씬 생성은 지연 저장 중인 로컬 프롬프트를 먼저 확정한다
 
 - **Date:** 2026-08-26
-- **Area:** Scene prompt editor, scene generation session, queue generation
+- **Area:** Scene detail/review prompt editors, scene generation session, queue generation
 - **Symptom:** 씬 프롬프트를 수정한 직후 생성하면 첫 생성은 이전 프롬프트를 사용하고 두 번째 생성부터 수정값이 적용됐다.
 - **Root cause:** 타이핑 중 큰 persisted scene store 갱신을 줄이기 위해 positive와 negative prompt를 1초 뒤 저장하지만, 씬 상세 버튼·공통 생성 버튼·생성 단축키가 공유하는 generation session 시작점은 대기 중인 로컬 초안을 확정하지 않았다. 자동완성 편집기의 부모 알림도 100ms 지연되므로 입력 직후 단축키 경로에서는 scene component ref보다 편집기 내부 값이 더 최신일 수 있었다.
 - **Invariant to preserve:** 씬 프롬프트는 입력 중 component-local draft를 owner로 유지하고 store 저장은 debounce한다. 실제 generation session을 시작할 때는 현재 마운트된 편집기의 positive와 negative draft를 store에 동기 반영한 후 queue를 읽는다.
-- **Fix:** 자동완성 편집기는 렌더를 일으키지 않는 draft callback으로 최신 문자열을 scene component ref에 즉시 전달한다. 씬 상세 편집기가 런타임 flush callback을 등록하고, 모든 진입점이 공유하는 `startNewGenerationSession`이 session state를 바꾸기 전에 callback을 동기 실행한다. 씬 이동과 상세 화면 종료도 같은 callback으로 최신 초안을 보존한다.
+- **Fix:** 자동완성 편집기는 렌더를 일으키지 않는 draft callback으로 최신 문자열을 scene component ref에 즉시 전달한다. 씬 상세 및 검수 편집기가 런타임 flush callback을 등록하고, 모든 진입점이 공유하는 `startNewGenerationSession`이 session state를 바꾸기 전에 callback을 동기 실행한다. 씬 이동과 상세 화면 종료도 같은 callback으로 최신 초안을 보존한다.
 - **Regression coverage:** `npm run check:scene-queue-order`, 모든 `startNewGenerationSession` 호출자가 공통 store action을 통과하는지 검색, TypeScript 및 production build.
 - **Do not "fix" by:** 매 keystroke마다 전체 persisted scene store를 갱신하거나, 생성 버튼 한 곳에만 별도 지연·중복 prompt override를 추가하거나, API transport에서 화면의 로컬 state를 추정하기.
 
