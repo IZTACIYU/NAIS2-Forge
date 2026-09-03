@@ -105,9 +105,30 @@ const SceneQueueBadge = memo(function SceneQueueBadge({ activePresetId, sceneId 
     if (queueCount <= 0) return null
 
     return (
-        <div className="absolute top-2 left-2 z-30 px-2.5 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">
+        <div className="rounded-full bg-red-500 px-2.5 py-0.5 text-xs font-bold text-white">
             {queueCount}
         </div>
+    )
+})
+
+const SceneResolutionBadge = memo(function SceneResolutionBadge({ width, height }: {
+    width: number
+    height: number
+}) {
+    const { t } = useTranslation()
+    const standardPreset = RESOLUTION_PRESETS.find(preset => preset.width === width && preset.height === height)
+    const customLabel = useSettingsStore(state => state.customResolutions.find(
+        preset => preset.width === width && preset.height === height
+    )?.label)
+    const label = standardPreset ? t(`resolutions.${standardPreset.key}`) : customLabel || `${width} × ${height}`
+
+    return (
+        <span
+            className="inline-block max-w-[7rem] truncate rounded-md bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-sm"
+            title={label}
+        >
+            {label}
+        </span>
     )
 })
 
@@ -147,7 +168,7 @@ import { Command } from '@tauri-apps/plugin-shell'
 import { save } from '@tauri-apps/plugin-dialog'
 import { ExportDialog } from '@/components/scene/ExportDialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { ResolutionPresetSelector, Resolution } from '@/components/ui/ResolutionSelector'
+import { RESOLUTION_PRESETS, ResolutionPresetSelector, Resolution } from '@/components/ui/ResolutionSelector'
 import { Switch } from '@/components/ui/switch'
 import { useSettingsStore } from '@/stores/settings-store'
 import { SceneCharacterSequenceDialog } from '@/components/scene/SceneCharacterSequenceDialog'
@@ -1357,7 +1378,10 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
                         </div>
                     )}
 
-                    <SceneQueueBadge activePresetId={activePresetId} sceneId={scene.id} />
+                    <div className="pointer-events-none absolute left-2 top-2 z-30 flex max-w-[calc(100%-1rem)] flex-col items-start gap-1">
+                        <SceneResolutionBadge width={scene.width || 832} height={scene.height || 1216} />
+                        <SceneQueueBadge activePresetId={activePresetId} sceneId={scene.id} />
+                    </div>
 
                     {/* 3-dot Menu - hidden in edit mode */}
                     {!disabled && !isOverlay && !isEditMode && (
@@ -1553,5 +1577,7 @@ const SortableSceneCard = memo(function SortableSceneCard(props: any) {
     return prevProps.scene.id === nextProps.scene.id &&
         prevProps.scene.name === nextProps.scene.name &&
         prevProps.scene.images?.length === nextProps.scene.images?.length &&
+        prevProps.scene.width === nextProps.scene.width &&
+        prevProps.scene.height === nextProps.scene.height &&
         prevProps.disabled === nextProps.disabled
 })
