@@ -449,6 +449,19 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+## R-035 — 씬 검수와 외부 출력은 같은 대표 이미지 한 장을 사용한다
+
+- **Date:** 2026-09-03
+- **Area:** scene review, ZIP export, Cloudflare R2 upload
+- **Symptom/Risk:** 검수창은 모든 이미지를 표시하고 ZIP은 모든 즐겨찾기를 내보내는 반면 Cloudflare는 한 장만 골라, 검수 결과와 실제 출력 대상이 달랐다.
+- **Root cause:** 세 경로가 각자 이미지 선택 로직을 소유했다.
+- **Invariant to preserve:** 각 씬에서는 최신 즐겨찾기 이미지 한 장을 우선하고, 즐겨찾기가 없으면 최신 이미지 한 장을 선택한다. 검수·ZIP·Cloudflare가 이 규칙을 공유한다.
+- **Fix:** 단일 순회 대표 이미지 선택 함수를 세 경로가 함께 사용하도록 통일했다.
+- **Regression coverage:** `npm run check:scene-image-selection`에서 빈 씬, 최신 이미지 fallback, 복수 즐겨찾기 중 최신 선택을 검사한다.
+- **Do not "fix" by:** 검수창에서만 이미지를 숨기거나 각 출력 컴포넌트에 별도의 즐겨찾기 조건을 다시 추가하기.
+
+---
+
 ## 새 항목 템플릿
 
 ### R-XXX — 짧은 제목

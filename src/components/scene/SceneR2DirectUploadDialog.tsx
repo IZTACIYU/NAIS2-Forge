@@ -12,6 +12,7 @@ import { SceneCard, SceneImage } from '@/stores/scene-store'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 import { exifFormatExtension, stripExifForUpload } from '@/lib/exif-actions'
 import { getSceneExportName } from '@/lib/scene-export-name'
+import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
 
 interface SceneR2DirectUploadDialogProps {
     open: boolean
@@ -56,12 +57,6 @@ const bytesToBase64 = (bytes: Uint8Array) => {
 
 const dataUrlToBase64 = (url: string) => url.split(',')[1] || ''
 
-const pickRepresentativeImage = (scene: SceneCard) => {
-    const favorites = scene.images.filter(image => image.isFavorite)
-    const candidates = favorites.length > 0 ? favorites : scene.images
-    return [...candidates].sort((a, b) => b.timestamp - a.timestamp)[0] || null
-}
-
 export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], items }: SceneR2DirectUploadDialogProps) {
     const { t } = useTranslation()
     const {
@@ -93,7 +88,7 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
     const candidates = useMemo<UploadCandidate[]>(() => items || scenes
         .map(scene => {
             if ('image' in scene) return scene
-            const image = pickRepresentativeImage(scene)
+            const image = pickSceneRepresentativeImage(scene.images)
             return image ? { sceneId: scene.id, sceneName: scene.name, image } : null
         })
         .filter((item): item is UploadCandidate => Boolean(item)), [items, scenes])

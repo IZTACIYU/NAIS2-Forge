@@ -13,6 +13,7 @@ import { listen } from '@tauri-apps/api/event'
 import { toast } from '@/components/ui/use-toast'
 import { useSettingsStore } from '@/stores/settings-store'
 import { getSceneExportName } from '@/lib/scene-export-name'
+import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
 
 interface ExportDialogProps {
     open: boolean
@@ -53,26 +54,20 @@ export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: E
             const entries: Array<{ source: string; fileName: string }> = []
 
             for (const scene of scenes) {
-                const favorites = scene.images.filter(img => img.isFavorite)
-                const imagesToExport = favorites.length > 0
-                    ? favorites
-                    : (scene.images.length > 0 ? [scene.images[0]] : [])
+                const targetImage = pickSceneRepresentativeImage(scene.images)
+                if (!targetImage) continue
 
-                for (let imgIndex = 0; imgIndex < imagesToExport.length; imgIndex++) {
-                    const targetImage = imagesToExport[imgIndex]
-                    const exportName = getSceneExportName(scene.name, expertSceneExportNameEnabled, sceneExportNamePart)
-                    const safeName = exportName.replace(/[<>:"/\\|?*]/g, '_').trim() || `Scene_${entries.length}`
-                    const ext = format === 'jpeg' ? 'jpg' : format
-                    const suffix = imagesToExport.length > 1 ? `_${imgIndex + 1}` : ''
-                    let fileName = `${safeName}${suffix}.${ext}`
-                    let duplicateIndex = 2
-                    while (usedFileNames.has(fileName.toLocaleLowerCase())) {
-                        fileName = `${safeName}${suffix}_${duplicateIndex}.${ext}`
-                        duplicateIndex++
-                    }
-                    usedFileNames.add(fileName.toLocaleLowerCase())
-                    entries.push({ source: targetImage.url, fileName })
+                const exportName = getSceneExportName(scene.name, expertSceneExportNameEnabled, sceneExportNamePart)
+                const safeName = exportName.replace(/[<>:"/\\|?*]/g, '_').trim() || `Scene_${entries.length}`
+                const ext = format === 'jpeg' ? 'jpg' : format
+                let fileName = `${safeName}.${ext}`
+                let duplicateIndex = 2
+                while (usedFileNames.has(fileName.toLocaleLowerCase())) {
+                    fileName = `${safeName}_${duplicateIndex}.${ext}`
+                    duplicateIndex++
                 }
+                usedFileNames.add(fileName.toLocaleLowerCase())
+                entries.push({ source: targetImage.url, fileName })
             }
 
             if (entries.length === 0) {

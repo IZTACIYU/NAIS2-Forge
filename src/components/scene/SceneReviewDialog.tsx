@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { useTranslation } from 'react-i18next'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
 import type { SceneCard } from '@/stores/scene-store'
 
 interface SceneReviewDialogProps {
@@ -13,7 +14,10 @@ interface SceneReviewDialogProps {
 export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDialogProps) {
     const { t } = useTranslation()
     const images = useMemo(() => open
-        ? scenes.flatMap(scene => scene.images.map(image => ({ ...image, sceneId: scene.id, sceneName: scene.name })))
+        ? scenes.flatMap(scene => {
+            const image = pickSceneRepresentativeImage(scene.images)
+            return image ? [{ ...image, sceneId: scene.id, sceneName: scene.name }] : []
+        })
         : [], [open, scenes])
 
     return (
