@@ -92,6 +92,8 @@
     "reviewBack": "すべて表示に戻る",
     "noReviewedImages": "確認済みの画像はありません",
     "noReviewHistory": "確認履歴がありません",
+    "reviewPass": "合格",
+    "reviewFail": "不合格",
     "addToQueue": "予約追加",
     "addAllQueue": "全予約 +1",
     "addSelectedQueue": "選択したシーンを予約に追加",

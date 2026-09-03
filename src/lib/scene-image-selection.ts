@@ -1,4 +1,11 @@
-import type { SceneImage } from '@/stores/scene-store'
+import type { SceneCard, SceneImage } from '@/stores/scene-store'
+
+export interface SceneReviewDecision {
+    status: 'passed' | 'failed'
+    image: SceneImage
+}
+
+export type SceneReviewDecisions = Record<string, SceneReviewDecision>
 
 export function pickSceneRepresentativeImage(images: readonly SceneImage[]): SceneImage | null {
     let newest: SceneImage | null = null
@@ -12,4 +19,15 @@ export function pickSceneRepresentativeImage(images: readonly SceneImage[]): Sce
     }
 
     return newestFavorite || newest
+}
+
+export function applySceneReviewDecisions(scenes: SceneCard[], decisions: SceneReviewDecisions | null): SceneCard[] {
+    if (decisions === null) return scenes
+
+    return scenes.flatMap(scene => {
+        const decision = decisions[scene.id]
+        if (decision?.status !== 'passed') return []
+        const image = scene.images.find(candidate => candidate.url === decision.image.url)
+        return image ? [{ ...scene, images: [image] }] : []
+    })
 }

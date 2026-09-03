@@ -93,6 +93,8 @@
     "reviewBack": "전체보기로 돌아가기",
     "noReviewedImages": "검수 완료된 이미지가 없습니다",
     "noReviewHistory": "검수 히스토리가 없습니다",
+    "reviewPass": "통과",
+    "reviewFail": "탈락",
     "addToQueue": "예약 추가",
     "addAllQueue": "전체 예약 +1",
     "addSelectedQueue": "선택한 씬 예약 추가",

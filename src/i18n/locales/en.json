@@ -93,6 +93,8 @@
     "reviewBack": "Back to all images",
     "noReviewedImages": "No reviewed images",
     "noReviewHistory": "No review history",
+    "reviewPass": "Pass",
+    "reviewFail": "Fail",
     "addToQueue": "Add to Queue",
     "addAllQueue": "Add All +1",
     "addSelectedQueue": "Add selected scenes to queue",

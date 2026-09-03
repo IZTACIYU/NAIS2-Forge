@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { readFile } from '@tauri-apps/plugin-fs'
-import { ArrowLeft, ChevronDown, ChevronUp, ImagePlus, Play, Users } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, ChevronUp, ImagePlus, Play, Users, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CharacterPromptPanel } from '@/components/character/CharacterPromptPanel'
 import { CharacterSettingsDialog } from '@/components/character/CharacterSettingsDialog'
@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { SHORTCUT_EVENTS } from '@/hooks/useShortcuts'
 import { cn } from '@/lib/utils'
-import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
+import { pickSceneRepresentativeImage, type SceneReviewDecision, type SceneReviewDecisions } from '@/lib/scene-image-selection'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 import {
     addUniqueReviewHistoryImage,
@@ -36,6 +36,8 @@ interface SceneReviewDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     scenes: SceneCard[]
+    decisions: SceneReviewDecisions
+    onDecision: (sceneId: string, decision: SceneReviewDecision) => void
 }
 
 type ReviewTab = 'all' | 'individual' | 'pending' | 'completed'
@@ -47,11 +49,11 @@ interface ReviewImage extends SceneImage {
 
 const imageSrc = (url: string) => url.startsWith('data:') ? url : convertFileSrc(url)
 
-function ReviewImageGrid({ images, onSelect }: { images: ReviewImage[]; onSelect: (image: ReviewImage) => void }) {
+function ReviewImageGrid({ images, onSelect, emptyLabel }: { images: ReviewImage[]; onSelect: (image: ReviewImage) => void; emptyLabel?: string }) {
     const { t } = useTranslation()
 
     if (images.length === 0) {
-        return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{t('scene.noGeneratedImages')}</div>
+        return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{emptyLabel || t('scene.noGeneratedImages')}</div>
     }
 
     return (
@@ -245,9 +247,10 @@ function ReviewFilmstrip({ images, selectedSceneId, onSelect }: {
     )
 }
 
-function IndividualReviewView({ scene, image, reviewImages, historyImages, onSelectImage, onSelectReviewImage, onDeleteImage, onAddReference, onLoadMetadata, onInpaint, onGenerate, onRegenerate, regenerateDisabled, onBack }: {
+function IndividualReviewView({ scene, image, decision, reviewImages, historyImages, onSelectImage, onSelectReviewImage, onDeleteImage, onAddReference, onLoadMetadata, onInpaint, onGenerate, onRegenerate, onDecision, regenerateDisabled, onBack }: {
     scene?: SceneCard
     image?: SceneImage | null
+    decision?: SceneReviewDecision
     reviewImages: ReviewImage[]
     historyImages: ReviewImage[]
     onSelectImage: (imageId: string) => void
@@ -258,6 +261,7 @@ function IndividualReviewView({ scene, image, reviewImages, historyImages, onSel
     onInpaint: (base64: string) => void
     onGenerate: () => void
     onRegenerate: () => void
+    onDecision: (decision: SceneReviewDecision) => void
     regenerateDisabled: boolean
     onBack?: () => void
 }) {
@@ -330,12 +334,32 @@ function IndividualReviewView({ scene, image, reviewImages, historyImages, onSel
                         ))}
                     </div>
                 )}
+                <div className="mt-2 grid h-9 shrink-0 grid-cols-2 gap-2">
+                    <Button
+                        type="button"
+                        className={cn('h-9 bg-sky-600 text-white hover:bg-sky-500', decision?.status === 'passed' && decision.image.url === image.url && 'ring-2 ring-sky-300')}
+                        onClick={() => onDecision({ status: 'passed', image })}
+                        aria-pressed={decision?.status === 'passed' && decision.image.url === image.url}
+                    >
+                        <Check className="mr-1.5 h-4 w-4" />
+                        {t('scene.reviewPass')}
+                    </Button>
+                    <Button
+                        type="button"
+                        className={cn('h-9 bg-red-600 text-white hover:bg-red-500', decision?.status === 'failed' && decision.image.url === image.url && 'ring-2 ring-red-300')}
+                        onClick={() => onDecision({ status: 'failed', image })}
+                        aria-pressed={decision?.status === 'failed' && decision.image.url === image.url}
+                    >
+                        <X className="mr-1.5 h-4 w-4" />
+                        {t('scene.reviewFail')}
+                    </Button>
+                </div>
             </aside>
         </div>
     )
 }
 
-export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDialogProps) {
+export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDecision }: SceneReviewDialogProps) {
     const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState<ReviewTab>('all')
     const [allDetailOpen, setAllDetailOpen] = useState(false)
@@ -356,6 +380,11 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
             return image ? [{ ...image, sceneId: scene.id, sceneName: scene.name }] : []
         })
         : [], [open, scenes])
+    const pendingImages = images.filter(image => !decisions[image.sceneId])
+    const completedImages = images.flatMap(image => {
+        const decision = decisions[image.sceneId]
+        return decision ? [{ ...decision.image, sceneId: image.sceneId, sceneName: image.sceneName }] : []
+    })
     const selectedScene = scenes.find(scene => scene.id === selectedSceneId)
         || scenes.find(scene => scene.id === images[0]?.sceneId)
     const selectedHistory = temporaryHistory.filter(image => image.sceneId === selectedScene?.id)
@@ -421,6 +450,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
     const selectImage = (image: ReviewImage, stayInAll: boolean) => {
         setSelectedSceneId(image.sceneId)
         setSelectedImageId(image.id)
+        rememberHistoryImage(image)
         if (stayInAll) setAllDetailOpen(true)
         else setActiveTab('individual')
     }
@@ -482,6 +512,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
     const individualViewProps = {
         scene: selectedScene,
         image: selectedImage,
+        decision: selectedScene ? decisions[selectedScene.id] : undefined,
         reviewImages: images,
         historyImages: selectedHistory,
         onSelectImage: setSelectedImageId,
@@ -495,6 +526,9 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
         },
         onGenerate: handleGenerate,
         onRegenerate: startGeneration,
+        onDecision: (decision: SceneReviewDecision) => {
+            if (selectedScene) onDecision(selectedScene.id, decision)
+        },
         regenerateDisabled: isGenerating || isCancelling,
     }
     const tabs: Array<{ id: ReviewTab; label: string }> = [
@@ -535,11 +569,13 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
                     {activeTab === 'individual' && <IndividualReviewView {...individualViewProps} />}
                     {activeTab === 'pending' && (
                         <div className="h-full overflow-y-auto custom-scrollbar">
-                            <ReviewImageGrid images={images} onSelect={image => selectImage(image, false)} />
+                            <ReviewImageGrid images={pendingImages} onSelect={image => selectImage(image, false)} />
                         </div>
                     )}
                     {activeTab === 'completed' && (
-                        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{t('scene.noReviewedImages')}</div>
+                        <div className="h-full overflow-y-auto custom-scrollbar">
+                            <ReviewImageGrid images={completedImages} onSelect={image => selectImage(image, false)} emptyLabel={t('scene.noReviewedImages')} />
+                        </div>
                     )}
                 </div>
             </DialogContent>

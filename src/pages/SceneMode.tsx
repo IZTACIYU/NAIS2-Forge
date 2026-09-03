@@ -176,6 +176,7 @@ import { SceneCharacterSequenceDialog } from '@/components/scene/SceneCharacterS
 import { SceneCharacterAdditionDialog } from '@/components/scene/SceneCharacterAdditionDialog'
 import { SceneR2DirectUploadDialog } from '@/components/scene/SceneR2DirectUploadDialog'
 import { SceneReviewDialog } from '@/components/scene/SceneReviewDialog'
+import { applySceneReviewDecisions, type SceneReviewDecision, type SceneReviewDecisions } from '@/lib/scene-image-selection'
 
 const dropAnimation = {
     sideEffects: defaultDropAnimationSideEffects({
@@ -598,11 +599,20 @@ export default function SceneMode() {
     const [sceneCharacterAdditionSceneId, setSceneCharacterAdditionSceneId] = useState<string | null>(null)
     const [showR2DirectUploadDialog, setShowR2DirectUploadDialog] = useState(false)
     const [showReviewDialog, setShowReviewDialog] = useState(false)
+    const [reviewDecisions, setReviewDecisions] = useState<SceneReviewDecisions | null>(null)
+
+    useEffect(() => setReviewDecisions(null), [activePresetId])
+
+    const handleReviewDecision = useCallback((sceneId: string, decision: SceneReviewDecision) => {
+        setReviewDecisions(current => ({ ...(current || {}), [sceneId]: decision }))
+    }, [])
 
     // Scenes to export based on filter
-    const scenesToExport = exportScenesFilter === 'selected'
+    const filteredScenes = exportScenesFilter === 'selected'
         ? scenes.filter(s => selectedSceneIds.includes(s.id))
         : scenes
+    const scenesToExport = applySceneReviewDecisions(filteredScenes, reviewDecisions)
+    const scenesForOutput = applySceneReviewDecisions(scenes, reviewDecisions)
 
     const handleExportSelectedZip = () => {
         if (selectedSceneIds.length === 0) {
@@ -653,7 +663,7 @@ export default function SceneMode() {
     }
 
     const handleExportZip = () => {
-        if (!activePresetId || scenes.length === 0) {
+        if (!activePresetId || scenesForOutput.length === 0) {
             toast({ title: t('scene.noImagesToExport', '내보낼 이미지가 없습니다'), variant: 'destructive' })
             return
         }
@@ -1032,7 +1042,7 @@ export default function SceneMode() {
                                     </Tip>
                                     {expertR2DirectUploadEnabled && (
                                         <Tip content={t('scene.r2DirectUpload.title', 'R2 Direct Upload')}>
-                                            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg" onClick={() => setShowR2DirectUploadDialog(true)} disabled={scenes.length === 0 || isGenerating}>
+                                            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg" onClick={() => setShowR2DirectUploadDialog(true)} disabled={scenesForOutput.length === 0 || isGenerating}>
                                                 <Cloud className="h-4 w-4" />
                                             </Button>
                                         </Tip>
@@ -1171,12 +1181,14 @@ export default function SceneMode() {
             <SceneR2DirectUploadDialog
                 open={showR2DirectUploadDialog}
                 onOpenChange={setShowR2DirectUploadDialog}
-                scenes={scenes}
+                scenes={scenesForOutput}
             />
             <SceneReviewDialog
                 open={showReviewDialog}
                 onOpenChange={setShowReviewDialog}
                 scenes={scenes}
+                decisions={reviewDecisions || {}}
+                onDecision={handleReviewDecision}
             />
         </div >
     )
