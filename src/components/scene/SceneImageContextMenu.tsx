@@ -31,9 +31,10 @@ interface SceneContextMenuProps {
     onAddRef?: () => void
     onLoadMetadata?: () => void
     onInpaint?: (base64: string) => void
+    onDrawOver?: (base64: string) => void
 }
 
-export function SceneImageContextMenu({ image, children, onDelete, onRegenerate, regenerateDisabled, onAddRef, onLoadMetadata, onInpaint }: SceneContextMenuProps) {
+export function SceneImageContextMenu({ image, children, onDelete, onRegenerate, regenerateDisabled, onAddRef, onLoadMetadata, onInpaint, onDrawOver }: SceneContextMenuProps) {
     const { t } = useTranslation()
     const navigate = useNavigate()
     const { setActiveImage, setRequestedTool } = useToolsStore()
@@ -196,6 +197,10 @@ export function SceneImageContextMenu({ image, children, onDelete, onRegenerate,
         const base64 = await getImageBase64()
         if (!base64) return
 
+        if (onDrawOver) {
+            onDrawOver(base64)
+            return
+        }
         setActiveImage(base64)
         setRequestedTool('draw-over')
         navigate('/tools')

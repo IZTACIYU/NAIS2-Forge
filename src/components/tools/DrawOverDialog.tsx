@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
-import { Circle, Download, Droplets, Eraser, Image as ImageIcon, Paintbrush, Redo, RotateCcw, Square, Undo, ZoomIn, ZoomOut } from 'lucide-react'
+import { Circle, Download, Droplets, Eraser, Image as ImageIcon, Paintbrush, Redo, RotateCcw, Save as SaveIcon, Square, Undo, ZoomIn, ZoomOut } from 'lucide-react'
 import { save } from '@tauri-apps/plugin-dialog'
-import { writeFile } from '@tauri-apps/plugin-fs'
+import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs'
+import { join, pictureDir } from '@tauri-apps/api/path'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -9,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { toast } from '@/components/ui/use-toast'
 import { appendBoundedHistory, cn, getHistoryShortcut } from '@/lib/utils'
+import { useSettingsStore } from '@/stores/settings-store'
 
 type DrawMode = 'pen' | 'blur' | 'eraser'
 type TransferMode = 'i2i' | 'inpaint'
@@ -536,6 +538,35 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         }
     }
 
+    const handleSave = async () => {
+        const dataUrl = getOutputDataUrl()
+        if (!dataUrl) return
+        try {
+            const { savePath, useAbsolutePath } = useSettingsStore.getState()
+            const outputDir = savePath || 'NAIS_Output'
+            const fileName = `NAIS_DRAW_${Date.now()}.png`
+            let fullPath: string
+
+            if (useAbsolutePath) {
+                if (!(await exists(outputDir))) await mkdir(outputDir, { recursive: true })
+                fullPath = await join(outputDir, fileName)
+                await writeFile(fullPath, dataUrlToBytes(dataUrl))
+            } else {
+                if (!(await exists(outputDir, { baseDir: BaseDirectory.Picture }))) {
+                    await mkdir(outputDir, { baseDir: BaseDirectory.Picture, recursive: true })
+                }
+                await writeFile(`${outputDir}/${fileName}`, dataUrlToBytes(dataUrl), { baseDir: BaseDirectory.Picture })
+                fullPath = await join(await pictureDir(), outputDir, fileName)
+            }
+
+            window.dispatchEvent(new CustomEvent('newImageGenerated', { detail: { path: fullPath } }))
+            toast({ title: t('common.saved'), description: fileName, variant: 'success' })
+        } catch (error) {
+            console.error('Failed to save drawn image:', error)
+            toast({ title: t('common.saveFailed'), variant: 'destructive' })
+        }
+    }
+
     const handleTransfer = (target: TransferMode) => {
         const dataUrl = getOutputDataUrl()
         if (dataUrl) onTransfer(dataUrl, target)
@@ -666,7 +697,11 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
 
                 <DialogFooter className="shrink-0 items-center gap-2 sm:justify-between">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Button variant="outline" onClick={handleSave}>
+                            <SaveIcon className="mr-2 h-4 w-4" />
+                            {t('common.save')}
+                        </Button>
                         <Button variant="outline" onClick={handleDownload}>
                             <Download className="mr-2 h-4 w-4" />
                             {t('library.download')}
