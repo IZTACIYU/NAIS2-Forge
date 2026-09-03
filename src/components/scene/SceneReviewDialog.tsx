@@ -241,10 +241,12 @@ function IndividualReviewView({ scene, image, reviewImages, historyImages, onSel
                     )}
                     <h2 className="truncate text-sm font-semibold" title={scene.name}>{scene.name}</h2>
                 </div>
-                <label className="mt-2 flex shrink-0 flex-col gap-1">
-                    <span className="text-xs font-medium text-muted-foreground">{t('scene.scenePrompt')}</span>
-                    <textarea readOnly value={scene.scenePrompt} className="h-20 resize-none rounded-lg border border-border/60 bg-background/50 p-2 text-xs outline-none" />
-                </label>
+                <textarea
+                    readOnly
+                    aria-label={t('scene.scenePrompt')}
+                    value={scene.scenePrompt}
+                    className="mt-2 h-24 shrink-0 resize-none rounded-lg border border-border/60 bg-background/50 p-2 text-xs outline-none"
+                />
                 <div className="mt-3 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-black/30">
                     <img src={imageSrc(image.url)} alt={scene.name} className="h-full w-full object-contain" />
                 </div>
