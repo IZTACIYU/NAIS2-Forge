@@ -401,6 +401,8 @@ export default function SceneMode() {
     const [isRenamingPreset, setIsRenamingPreset] = useState(false)
     const [presetActionsOpen, setPresetActionsOpen] = useState(false)
     const [fileActionsOpen, setFileActionsOpen] = useState(false)
+    const presetActionsRef = useRef<HTMLDivElement>(null)
+    const fileActionsRef = useRef<HTMLDivElement>(null)
 
     // Generation Store values - used by export logic or future features?
     // Left empty for now as logic moved to hook
@@ -413,6 +415,19 @@ export default function SceneMode() {
             scrollContainerRef.current.scrollTop = scrollPosition
         }
     }, []) // Only on mount
+
+    useEffect(() => {
+        if (!presetActionsOpen && !fileActionsOpen) return
+
+        const handleOutsidePointerDown = (event: PointerEvent) => {
+            const target = event.target as Node
+            if (presetActionsOpen && !presetActionsRef.current?.contains(target)) setPresetActionsOpen(false)
+            if (fileActionsOpen && !fileActionsRef.current?.contains(target)) setFileActionsOpen(false)
+        }
+
+        document.addEventListener('pointerdown', handleOutsidePointerDown)
+        return () => document.removeEventListener('pointerdown', handleOutsidePointerDown)
+    }, [presetActionsOpen, fileActionsOpen])
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -830,7 +845,7 @@ export default function SceneMode() {
                             />
                         )}
                         {activePreset && (
-                            <div className="relative shrink-0">
+                            <div ref={presetActionsRef} className="relative shrink-0">
                                 <Tip content={t('scene.presetSettings', '프리셋 설정')}>
                                     <Button
                                         variant="ghost"
@@ -961,7 +976,7 @@ export default function SceneMode() {
                                 </Button>
                             </Tip>
                         </div>
-                        <div className="relative shrink-0">
+                        <div ref={fileActionsRef} className="relative shrink-0">
                             <Tip content={t('scene.fileActions', '불러오기 및 내보내기')}>
                                 <Button
                                     variant="outline"
@@ -975,26 +990,26 @@ export default function SceneMode() {
                                 </Button>
                             </Tip>
                             {fileActionsOpen && (
-                                <div className="absolute right-0 top-full z-50 mt-1 flex flex-col items-center gap-1 rounded-xl border border-white/10 bg-popover p-1 shadow-md">
+                                <div className="absolute right-0 top-full z-50 mt-1 flex w-10 flex-col items-center gap-1 rounded-xl border border-white/10 bg-popover p-1 shadow-md">
                                     <Tip content={t('scene.exportZip', '모든 씬 이미지 ZIP 내보내기')}>
-                                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg" onClick={handleExportZip} disabled={scenes.length === 0}>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={handleExportZip} disabled={scenes.length === 0}>
                                             <span className="text-[10px] font-bold leading-none">.zip</span>
                                         </Button>
                                     </Tip>
                                     {expertR2DirectUploadEnabled && (
                                         <Tip content={t('scene.r2DirectUpload.title', 'R2 Direct Upload')}>
-                                            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg" onClick={() => setShowR2DirectUploadDialog(true)} disabled={scenes.length === 0 || isGenerating}>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setShowR2DirectUploadDialog(true)} disabled={scenes.length === 0 || isGenerating}>
                                                 <Cloud className="h-4 w-4" />
                                             </Button>
                                         </Tip>
                                     )}
                                     <Tip content={t('scene.importJson', 'JSON 불러오기')}>
-                                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg" onClick={handleImportClick} disabled={isGenerating}>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={handleImportClick} disabled={isGenerating}>
                                             <Upload className="h-4 w-4" />
                                         </Button>
                                     </Tip>
                                     <Tip content={t('scene.exportJson', '씬 데이터를 JSON으로 내보내기')}>
-                                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg" onClick={handleExportJson} disabled={!activePreset || isGenerating}>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={handleExportJson} disabled={!activePreset || isGenerating}>
                                             <Download className="h-4 w-4" />
                                         </Button>
                                     </Tip>
