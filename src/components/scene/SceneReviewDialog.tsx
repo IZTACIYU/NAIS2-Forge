@@ -40,7 +40,7 @@ interface SceneReviewDialogProps {
     onDecision: (sceneId: string, decision: SceneReviewDecision) => void
 }
 
-type ReviewTab = 'all' | 'individual' | 'pending' | 'completed'
+type ReviewTab = 'all' | 'pending' | 'completed'
 
 interface ReviewImage extends SceneImage {
     sceneId: string
@@ -222,9 +222,10 @@ function ReviewPromptStack({ onGenerate }: { onGenerate: () => void }) {
     )
 }
 
-function ReviewFilmstrip({ images, selectedSceneId, onSelect }: {
+function ReviewFilmstrip({ images, selectedSceneId, decisions, onSelect }: {
     images: ReviewImage[]
     selectedSceneId?: string
+    decisions: SceneReviewDecisions
     onSelect: (image: ReviewImage) => void
 }) {
     const selectedIndex = Math.max(0, images.findIndex(image => image.sceneId === selectedSceneId))
@@ -232,25 +233,34 @@ function ReviewFilmstrip({ images, selectedSceneId, onSelect }: {
 
     return (
         <div className="mt-2 flex h-20 shrink-0 items-center justify-center gap-2 overflow-hidden rounded-lg border border-border/50 bg-background/35 px-2">
-            {nearbyImages.map(image => (
-                <button
-                    key={`${image.sceneId}:${image.id}`}
-                    type="button"
-                    className={cn('relative h-16 w-16 shrink-0 overflow-hidden rounded-md border bg-black/30', image.sceneId === selectedSceneId ? 'border-primary ring-1 ring-primary' : 'border-border/50 opacity-60 hover:opacity-100')}
-                    onClick={() => onSelect(image)}
-                    title={image.sceneName}
-                >
-                    <img src={imageSrc(image.url)} alt={image.sceneName} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
-                </button>
-            ))}
+            {nearbyImages.map(image => {
+                const status = decisions[image.sceneId]?.status
+                return (
+                    <button
+                        key={`${image.sceneId}:${image.id}`}
+                        type="button"
+                        className={cn(
+                            'relative h-16 w-16 shrink-0 overflow-hidden rounded-md border-2 border-transparent bg-black/30 transition-opacity',
+                            image.sceneId === selectedSceneId ? 'opacity-100' : 'opacity-60 hover:opacity-100',
+                            status === 'passed' && 'border-sky-400',
+                            status === 'failed' && 'border-red-500'
+                        )}
+                        onClick={() => onSelect(image)}
+                        title={image.sceneName}
+                    >
+                        <img src={imageSrc(image.url)} alt={image.sceneName} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                    </button>
+                )
+            })}
         </div>
     )
 }
 
-function IndividualReviewView({ scene, image, decision, reviewImages, historyImages, onSelectImage, onSelectReviewImage, onDeleteImage, onAddReference, onLoadMetadata, onInpaint, onGenerate, onRegenerate, onDecision, regenerateDisabled, onBack }: {
+function IndividualReviewView({ scene, image, decision, decisions, reviewImages, historyImages, onSelectImage, onSelectReviewImage, onDeleteImage, onAddReference, onLoadMetadata, onInpaint, onGenerate, onRegenerate, onDecision, regenerateDisabled, onBack }: {
     scene?: SceneCard
     image?: SceneImage | null
     decision?: SceneReviewDecision
+    decisions: SceneReviewDecisions
     reviewImages: ReviewImage[]
     historyImages: ReviewImage[]
     onSelectImage: (imageId: string) => void
@@ -303,7 +313,7 @@ function IndividualReviewView({ scene, image, decision, reviewImages, historyIma
                         <img src={imageSrc(image.url)} alt={scene.name} className="h-full w-full object-contain" />
                     </div>
                 </SceneImageContextMenu>
-                <ReviewFilmstrip images={reviewImages} selectedSceneId={scene.id} onSelect={onSelectReviewImage} />
+                <ReviewFilmstrip images={reviewImages} selectedSceneId={scene.id} decisions={decisions} onSelect={onSelectReviewImage} />
             </section>
 
             <aside className="flex min-h-0 flex-col rounded-xl border border-border/50 bg-card/40 p-3">
@@ -362,7 +372,7 @@ function IndividualReviewView({ scene, image, decision, reviewImages, historyIma
 export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDecision }: SceneReviewDialogProps) {
     const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState<ReviewTab>('all')
-    const [allDetailOpen, setAllDetailOpen] = useState(false)
+    const [detailOpen, setDetailOpen] = useState(false)
     const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null)
     const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
     const [temporaryHistory, setTemporaryHistory] = useState<ReviewImage[]>([])
@@ -400,7 +410,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
     useEffect(() => {
         if (open) return
         setActiveTab('all')
-        setAllDetailOpen(false)
+        setDetailOpen(false)
         setSelectedSceneId(null)
         setSelectedImageId(null)
         setTemporaryHistory([])
@@ -441,23 +451,21 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
     }, [isCancelling, isGenerating])
 
     useEffect(() => {
-        const detailVisible = activeTab === 'individual' || (activeTab === 'all' && allDetailOpen)
-        if (!detailVisible || !selectedScene) return
+        if (!detailOpen || !selectedScene) return
         const initialImage = images.find(image => image.sceneId === selectedScene.id)
         if (initialImage) rememberHistoryImage(initialImage)
-    }, [activeTab, allDetailOpen, images, rememberHistoryImage, selectedScene])
+    }, [detailOpen, images, rememberHistoryImage, selectedScene])
 
-    const selectImage = (image: ReviewImage, stayInAll: boolean) => {
+    const selectImage = (image: ReviewImage) => {
         setSelectedSceneId(image.sceneId)
         setSelectedImageId(image.id)
         rememberHistoryImage(image)
-        if (stayInAll) setAllDetailOpen(true)
-        else setActiveTab('individual')
+        setDetailOpen(true)
     }
 
     const selectTab = (tab: ReviewTab) => {
         setActiveTab(tab)
-        if (tab === 'all') setAllDetailOpen(false)
+        setDetailOpen(false)
     }
 
     const startGeneration = () => {
@@ -513,6 +521,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
         scene: selectedScene,
         image: selectedImage,
         decision: selectedScene ? decisions[selectedScene.id] : undefined,
+        decisions,
         reviewImages: images,
         historyImages: selectedHistory,
         onSelectImage: setSelectedImageId,
@@ -533,10 +542,11 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
     }
     const tabs: Array<{ id: ReviewTab; label: string }> = [
         { id: 'all', label: t('scene.reviewAll') },
-        { id: 'individual', label: t('scene.reviewIndividual') },
         { id: 'pending', label: t('scene.reviewPending') },
         { id: 'completed', label: t('scene.reviewCompleted') },
     ]
+    const gridImages = activeTab === 'all' ? images : activeTab === 'pending' ? pendingImages : completedImages
+    const emptyLabel = activeTab === 'completed' ? t('scene.noReviewedImages') : undefined
 
     return (
         <>
@@ -558,25 +568,10 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
                     ))}
                 </div>
                 <div className="min-h-0 flex-1">
-                    {activeTab === 'all' && (
-                        <>
-                            <div className={cn('h-full overflow-y-auto custom-scrollbar', allDetailOpen && 'hidden')}>
-                                <ReviewImageGrid images={images} onSelect={image => selectImage(image, true)} />
-                            </div>
-                            {allDetailOpen && <IndividualReviewView {...individualViewProps} onBack={() => setAllDetailOpen(false)} />}
-                        </>
-                    )}
-                    {activeTab === 'individual' && <IndividualReviewView {...individualViewProps} />}
-                    {activeTab === 'pending' && (
-                        <div className="h-full overflow-y-auto custom-scrollbar">
-                            <ReviewImageGrid images={pendingImages} onSelect={image => selectImage(image, false)} />
-                        </div>
-                    )}
-                    {activeTab === 'completed' && (
-                        <div className="h-full overflow-y-auto custom-scrollbar">
-                            <ReviewImageGrid images={completedImages} onSelect={image => selectImage(image, false)} emptyLabel={t('scene.noReviewedImages')} />
-                        </div>
-                    )}
+                    <div className={cn('h-full overflow-y-auto custom-scrollbar', detailOpen && 'hidden')}>
+                        <ReviewImageGrid images={gridImages} onSelect={selectImage} emptyLabel={emptyLabel} />
+                    </div>
+                    {detailOpen && <IndividualReviewView {...individualViewProps} onBack={() => setDetailOpen(false)} />}
                 </div>
             </DialogContent>
         </Dialog>
