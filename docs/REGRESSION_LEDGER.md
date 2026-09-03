@@ -45,6 +45,7 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Area:** Scene image thumbnails / `SceneMode`
 - **History:** WebView thumbnail 오류를 실제 missing file처럼 처리하던 로직이 수정된 이력이 있다.
 - **Invariant to preserve:** UI/WebView 이미지 load error만으로 Scene image metadata를 삭제하지 않는다.
+- **Review UI:** 검수 격자는 이미지가 없거나 WebView 로드에 실패한 씬도 제거하지 않고 붉은 빈 셀로 표시하며, 이 표시는 저장된 이미지 metadata를 변경하지 않는다.
 - **Evidence required for deletion:** 실제 filesystem missing 확인 또는 명시적 사용자 삭제.
 - **Do not "fix" by:** `onError`가 발생한 image id를 즉시 missing으로 분류.
 

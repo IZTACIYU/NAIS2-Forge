@@ -12,7 +12,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { toast } from '@/components/ui/use-toast'
 import { useSettingsStore } from '@/stores/settings-store'
-import { getSceneExportName } from '@/lib/scene-export-name'
+import { getUniqueSceneOutputFileName } from '@/lib/scene-export-name'
 import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
 
 interface ExportDialogProps {
@@ -57,16 +57,15 @@ export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: E
                 const targetImage = pickSceneRepresentativeImage(scene.images)
                 if (!targetImage) continue
 
-                const exportName = getSceneExportName(scene.name, expertSceneExportNameEnabled, sceneExportNamePart)
-                const safeName = exportName.replace(/[<>:"/\\|?*]/g, '_').trim() || `Scene_${entries.length}`
                 const ext = format === 'jpeg' ? 'jpg' : format
-                let fileName = `${safeName}.${ext}`
-                let duplicateIndex = 2
-                while (usedFileNames.has(fileName.toLocaleLowerCase())) {
-                    fileName = `${safeName}_${duplicateIndex}.${ext}`
-                    duplicateIndex++
-                }
-                usedFileNames.add(fileName.toLocaleLowerCase())
+                const fileName = getUniqueSceneOutputFileName({
+                    sceneName: scene.name,
+                    enabled: expertSceneExportNameEnabled,
+                    part: sceneExportNamePart,
+                    extension: ext,
+                    usedFileNames,
+                    fallback: `Scene_${entries.length}`,
+                })
                 entries.push({ source: targetImage.url, fileName })
             }
 

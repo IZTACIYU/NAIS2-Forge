@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
+import { getUniqueSceneOutputFileName } from '../src/lib/scene-export-name.ts'
 import { addUniqueReviewHistoryImage, findNextReviewItem, isTrackedReviewGeneration } from '../src/lib/scene-review-generation.ts'
 
 const tracked = new Set(['scene-a'])
@@ -21,6 +22,10 @@ assert.deepEqual(findNextReviewItem(reviewItems, reviewItems.filter(item => item
 assert.equal(findNextReviewItem(reviewItems, reviewItems, 'c'), null)
 assert.equal(findNextReviewItem(reviewItems, [], 'a'), null)
 
+const usedFileNames = new Set()
+assert.equal(getUniqueSceneOutputFileName({ sceneName: 'A/B', enabled: false, part: 'prefix', extension: 'png', usedFileNames, fallback: 'Scene' }), 'A_B.png')
+assert.equal(getUniqueSceneOutputFileName({ sceneName: 'A:B', enabled: false, part: 'prefix', extension: 'png', usedFileNames, fallback: 'Scene' }), 'A_B_2.png')
+
 const reviewDialogSource = await readFile(new URL('../src/components/scene/SceneReviewDialog.tsx', import.meta.url), 'utf8')
 assert.doesNotMatch(reviewDialogSource, /\{ id: 'individual'/)
 assert.match(reviewDialogSource, /tab === 'pending'.*status !== 'passed'/s)
@@ -31,5 +36,8 @@ assert.match(reviewDialogSource, /\{ id: 'final'/)
 assert.match(reviewDialogSource, /scenes=\{outputScenes\}/)
 assert.match(reviewDialogSource, /status === 'passed' && 'border-sky-400'/)
 assert.match(reviewDialogSource, /status === 'failed' && 'border-red-500'/)
+assert.match(reviewDialogSource, /missing \? 'border-2 border-red-500\/90/)
+assert.match(reviewDialogSource, /onError=\{\(\) => onImageError\(image\.url\)\}/)
+assert.match(reviewDialogSource, /reviewImageNameExamples/)
 
 console.log('Scene review generation checks passed.')

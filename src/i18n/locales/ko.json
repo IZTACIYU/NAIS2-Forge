@@ -98,6 +98,7 @@
     "reviewFinalCount": "최종 사용 이미지 / 전체 씬",
     "reviewImageNameMode": "이미지 이름 방식",
     "reviewImageNameFull": "전체 씬 이름",
+    "reviewImageNameExamples": "이름 예시",
     "reviewOutputMethod": "내보내기 방식",
     "reviewRunOutput": "진행",
     "addToQueue": "예약 추가",

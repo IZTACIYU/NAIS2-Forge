@@ -20,8 +20,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SHORTCUT_EVENTS } from '@/hooks/useShortcuts'
 import { cn } from '@/lib/utils'
 import { pickSceneRepresentativeImage, type SceneReviewDecision, type SceneReviewDecisions } from '@/lib/scene-image-selection'
+import { exifFormatExtension } from '@/lib/exif-actions'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
-import type { SceneExportNamePart } from '@/lib/scene-export-name'
+import { getSceneImageExtension, getUniqueSceneOutputFileName, type SceneExportNamePart } from '@/lib/scene-export-name'
 import { subscribeScenePromptDraftFlush } from '@/lib/scene-prompt-drafts'
 import {
     addUniqueReviewHistoryImage,
@@ -55,6 +56,12 @@ type ReviewOutputMethod = 'zip' | 'cloudflare'
 interface ReviewImage extends SceneImage {
     sceneId: string
     sceneName: string
+}
+
+interface ReviewGridItem {
+    sceneId: string
+    sceneName: string
+    image: ReviewImage | null
 }
 
 const imageSrc = (url: string) => url.startsWith('data:') ? url : convertFileSrc(url)
@@ -103,34 +110,61 @@ function ReviewScenePromptEditor({ presetId, scene }: { presetId: string; scene:
     )
 }
 
-function ReviewImageGrid({ images, onSelect, emptyLabel }: { images: ReviewImage[]; onSelect: (image: ReviewImage) => void; emptyLabel?: string }) {
+function ReviewImageGrid({ items, brokenImageUrls, onImageError, onSelect, emptyLabel }: {
+    items: ReviewGridItem[]
+    brokenImageUrls: Set<string>
+    onImageError: (url: string) => void
+    onSelect: (image: ReviewImage) => void
+    emptyLabel?: string
+}) {
     const { t } = useTranslation()
 
-    if (images.length === 0) {
+    if (items.length === 0) {
         return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{emptyLabel || t('scene.noGeneratedImages')}</div>
     }
 
     return (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 pr-1">
-            {images.map(image => (
-                <button
-                    key={`${image.sceneId}:${image.id}`}
-                    type="button"
-                    className="aspect-square overflow-hidden rounded-lg border border-border/60 bg-black/30 transition-colors hover:border-primary/60"
-                    onClick={() => onSelect(image)}
-                >
-                    <img src={imageSrc(image.url)} alt={image.sceneName} loading="lazy" decoding="async" className="h-full w-full object-contain" />
-                </button>
-            ))}
+            {items.map(item => {
+                const image = item.image
+                const missing = !image || brokenImageUrls.has(image.url)
+                return (
+                    <button
+                        key={`${item.sceneId}:${image?.id || 'missing'}`}
+                        type="button"
+                        disabled={missing}
+                        aria-label={item.sceneName}
+                        title={item.sceneName}
+                        className={cn(
+                            'aspect-square overflow-hidden rounded-lg border bg-black/30 transition-colors',
+                            missing ? 'border-2 border-red-500/90 bg-red-950/10' : 'border-border/60 hover:border-primary/60',
+                        )}
+                        onClick={() => image && onSelect(image)}
+                    >
+                        {image && !missing && (
+                            <img
+                                src={imageSrc(image.url)}
+                                alt={image.sceneName}
+                                loading="lazy"
+                                decoding="async"
+                                className="h-full w-full object-contain"
+                                onError={() => onImageError(image.url)}
+                            />
+                        )}
+                    </button>
+                )
+            })}
         </div>
     )
 }
 
-function FinalReviewView({ images, sceneCount, outputMethod, cloudflareEnabled, onOutputMethodChange, onOutput, onSelectImage }: {
-    images: ReviewImage[]
+function FinalReviewView({ items, brokenImageUrls, sceneCount, outputMethod, cloudflareEnabled, onImageError, onOutputMethodChange, onOutput, onSelectImage }: {
+    items: ReviewGridItem[]
+    brokenImageUrls: Set<string>
     sceneCount: number
     outputMethod: ReviewOutputMethod
     cloudflareEnabled: boolean
+    onImageError: (url: string) => void
     onOutputMethodChange: (method: ReviewOutputMethod) => void
     onOutput: () => void
     onSelectImage: (image: ReviewImage) => void
@@ -138,9 +172,33 @@ function FinalReviewView({ images, sceneCount, outputMethod, cloudflareEnabled, 
     const { t } = useTranslation()
     const expertSceneExportNameEnabled = useSettingsStore(state => state.expertSceneExportNameEnabled)
     const sceneExportNamePart = useSettingsStore(state => state.sceneExportNamePart)
+    const expertR2ExifRemovalEnabled = useSettingsStore(state => state.expertR2ExifRemovalEnabled)
+    const exifOutputFormat = useSettingsStore(state => state.exifOutputFormat)
     const setExpertSceneExportNameEnabled = useSettingsStore(state => state.setExpertSceneExportNameEnabled)
     const setSceneExportNamePart = useSettingsStore(state => state.setSceneExportNamePart)
     const nameMode = expertSceneExportNameEnabled ? sceneExportNamePart : 'full'
+    const images = useMemo(
+        () => items.flatMap(item => item.image && !brokenImageUrls.has(item.image.url) ? [item.image] : []),
+        [brokenImageUrls, items],
+    )
+    const nameExamples = useMemo(() => {
+        const usedFileNames = new Set<string>()
+        const names = images.map((image, index) => getUniqueSceneOutputFileName({
+            sceneName: image.sceneName,
+            enabled: expertSceneExportNameEnabled,
+            part: sceneExportNamePart,
+            extension: outputMethod === 'zip'
+                ? 'png'
+                : expertR2ExifRemovalEnabled ? exifFormatExtension(exifOutputFormat) : getSceneImageExtension(image.url),
+            usedFileNames,
+            fallback: outputMethod === 'zip' ? `Scene_${index}` : 'Scene',
+        }))
+        for (let index = names.length - 1; index > 0; index--) {
+            const target = Math.floor(Math.random() * (index + 1))
+            ;[names[index], names[target]] = [names[target], names[index]]
+        }
+        return names.slice(0, 3)
+    }, [expertR2ExifRemovalEnabled, expertSceneExportNameEnabled, exifOutputFormat, images, outputMethod, sceneExportNamePart])
 
     const handleNameModeChange = (value: string) => {
         if (value === 'full') {
@@ -154,7 +212,7 @@ function FinalReviewView({ images, sceneCount, outputMethod, cloudflareEnabled, 
     return (
         <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_300px] gap-3">
             <div className="min-h-0 overflow-y-auto rounded-xl border border-border/50 bg-card/40 p-3 custom-scrollbar">
-                <ReviewImageGrid images={images} onSelect={onSelectImage} emptyLabel={t('scene.noReviewedImages')} />
+                <ReviewImageGrid items={items} brokenImageUrls={brokenImageUrls} onImageError={onImageError} onSelect={onSelectImage} emptyLabel={t('scene.noReviewedImages')} />
             </div>
             <aside className="flex flex-col gap-5 rounded-xl border border-border/50 bg-card/40 p-4">
                 <div>
@@ -172,6 +230,12 @@ function FinalReviewView({ images, sceneCount, outputMethod, cloudflareEnabled, 
                             <SelectItem value="suffix">{t('settingsPage.expert.sceneMode.exportNameSuffix')}</SelectItem>
                         </SelectContent>
                     </Select>
+                    {nameExamples.length > 0 && (
+                        <div className="space-y-1 rounded-md border border-border/50 bg-background/40 px-3 py-2">
+                            <div className="text-[11px] text-muted-foreground">{t('scene.reviewImageNameExamples')}</div>
+                            {nameExamples.map(name => <div key={name} className="truncate text-xs" title={name}>{name}</div>)}
+                        </div>
+                    )}
                 </div>
                 <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">{t('scene.reviewOutputMethod')}</label>
@@ -497,6 +561,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
     const [exportDialogOpen, setExportDialogOpen] = useState(false)
     const [r2DialogOpen, setR2DialogOpen] = useState(false)
     const [outputMethod, setOutputMethod] = useState<ReviewOutputMethod>('zip')
+    const [brokenImageUrls, setBrokenImageUrls] = useState<Set<string>>(new Set())
     const [dialogImage, setDialogImage] = useState<string | null>(null)
     const reviewGenerationSceneIds = useRef(new Set<string>())
     const activePresetId = useSceneStore(state => state.activePresetId)
@@ -508,10 +573,18 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
             return image ? [{ ...image, sceneId: scene.id, sceneName: scene.name }] : []
         })
         : [], [open, scenes])
-    const finalImages = outputScenes.flatMap(scene => {
-        const image = pickSceneRepresentativeImage(scene.images)
-        return image ? [{ ...image, sceneId: scene.id, sceneName: scene.name }] : []
-    })
+    const finalItems = useMemo(() => {
+        const outputBySceneId = new Map(outputScenes.map(scene => [scene.id, scene]))
+        return scenes.map(scene => {
+            const outputScene = outputBySceneId.get(scene.id)
+            const image = outputScene && pickSceneRepresentativeImage(outputScene.images)
+            return {
+                sceneId: scene.id,
+                sceneName: scene.name,
+                image: image ? { ...image, sceneId: scene.id, sceneName: scene.name } : null,
+            }
+        })
+    }, [outputScenes, scenes])
     const getGridImages = (tab: ReviewTab, reviewDecisions: SceneReviewDecisions) => {
         if (tab === 'all') return images
         if (tab === 'pending') return images.filter(image => reviewDecisions[image.sceneId]?.status !== 'passed')
@@ -546,6 +619,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
         setInpaintDialogOpen(false)
         setExportDialogOpen(false)
         setR2DialogOpen(false)
+        setBrokenImageUrls(new Set())
         setDialogImage(null)
         reviewGenerationSceneIds.current.clear()
     }, [open])
@@ -647,6 +721,15 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
     }
 
     const gridImages = getGridImages(activeTab, decisions)
+    const gridImageBySceneId = new Map(gridImages.map(image => [image.sceneId, image]))
+    const gridItems: ReviewGridItem[] = activeTab === 'completed'
+        ? gridImages.map(image => ({ sceneId: image.sceneId, sceneName: image.sceneName, image }))
+        : scenes
+            .filter(scene => activeTab === 'all' || decisions[scene.id]?.status !== 'passed')
+            .map(scene => ({ sceneId: scene.id, sceneName: scene.name, image: gridImageBySceneId.get(scene.id) || null }))
+    const handleImageError = useCallback((url: string) => {
+        setBrokenImageUrls(current => current.has(url) ? current : new Set(current).add(url))
+    }, [])
 
     const handleDecision = (decision: SceneReviewDecision) => {
         if (!selectedScene) return
@@ -709,10 +792,12 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
                 <div className="min-h-0 flex-1">
                     {activeTab === 'final' ? (
                         <FinalReviewView
-                            images={finalImages}
+                            items={finalItems}
+                            brokenImageUrls={brokenImageUrls}
                             sceneCount={scenes.length}
                             outputMethod={outputMethod}
                             cloudflareEnabled={cloudflareEnabled}
+                            onImageError={handleImageError}
                             onOutputMethodChange={setOutputMethod}
                             onOutput={() => outputMethod === 'zip' ? setExportDialogOpen(true) : setR2DialogOpen(true)}
                             onSelectImage={image => {
@@ -723,7 +808,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
                     ) : (
                         <>
                             <div className={cn('h-full overflow-y-auto custom-scrollbar', detailOpen && 'hidden')}>
-                                <ReviewImageGrid images={gridImages} onSelect={selectImage} emptyLabel={emptyLabel} />
+                                <ReviewImageGrid items={gridItems} brokenImageUrls={brokenImageUrls} onImageError={handleImageError} onSelect={selectImage} emptyLabel={emptyLabel} />
                             </div>
                             {detailOpen && <IndividualReviewView {...individualViewProps} onBack={() => setDetailOpen(false)} />}
                         </>

@@ -11,7 +11,7 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { SceneCard, SceneImage } from '@/stores/scene-store'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 import { exifFormatExtension, stripExifForUpload } from '@/lib/exif-actions'
-import { getSceneExportName } from '@/lib/scene-export-name'
+import { getSceneImageExtension, getUniqueSceneOutputFileName } from '@/lib/scene-export-name'
 import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
 
 interface SceneR2DirectUploadDialogProps {
@@ -29,14 +29,6 @@ export interface UploadCandidate {
 
 const LIST_CACHE_TTL_MS = 60_000
 const listCache = new Map<string, { time: number; folders: R2ObjectInfo[] }>()
-
-const sanitizeName = (name: string) => name.replace(/[<>:"/\\|?*]/g, '_').trim() || 'Scene'
-
-const getExt = (url: string) => {
-    const match = url.toLowerCase().match(/\.([a-z0-9]+)(?:\?|#)?$/)
-    if (match?.[1] === 'jpeg') return 'jpg'
-    return match?.[1] || 'png'
-}
 
 const getContentType = (ext: string) => {
     if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg'
@@ -92,6 +84,17 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
             return image ? { sceneId: scene.id, sceneName: scene.name, image } : null
         })
         .filter((item): item is UploadCandidate => Boolean(item)), [items, scenes])
+    const candidateFileNames = useMemo(() => {
+        const usedFileNames = new Set<string>()
+        return candidates.map(candidate => getUniqueSceneOutputFileName({
+            sceneName: candidate.sceneName,
+            enabled: expertSceneExportNameEnabled,
+            part: sceneExportNamePart,
+            extension: expertR2ExifRemovalEnabled ? exifFormatExtension(exifOutputFormat) : getSceneImageExtension(candidate.image.url),
+            usedFileNames,
+            fallback: 'Scene',
+        }))
+    }, [candidates, expertR2ExifRemovalEnabled, expertSceneExportNameEnabled, exifOutputFormat, sceneExportNamePart])
 
     const resetRuntime = () => {
         setProgress(0)
@@ -169,8 +172,7 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
             const usedFileNames = new Set<string>()
             for (let index = 0; index < candidates.length; index++) {
                 const candidate = candidates[index]
-                let ext = getExt(candidate.image.url)
-                const baseName = sanitizeName(getSceneExportName(candidate.sceneName, expertSceneExportNameEnabled, sceneExportNamePart))
+                let ext = getSceneImageExtension(candidate.image.url)
                 let contentBase64: string
                 let contentType: string
                 if (expertR2ExifRemovalEnabled) {
@@ -182,13 +184,14 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
                     contentBase64 = await readImageBase64(candidate.image)
                     contentType = getContentType(ext)
                 }
-                let fileName = `${baseName}.${ext}`
-                let duplicateIndex = 2
-                while (usedFileNames.has(fileName.toLocaleLowerCase())) {
-                    fileName = `${baseName}_${duplicateIndex}.${ext}`
-                    duplicateIndex++
-                }
-                usedFileNames.add(fileName.toLocaleLowerCase())
+                const fileName = getUniqueSceneOutputFileName({
+                    sceneName: candidate.sceneName,
+                    enabled: expertSceneExportNameEnabled,
+                    part: sceneExportNamePart,
+                    extension: ext,
+                    usedFileNames,
+                    fallback: 'Scene',
+                })
                 const key = `${prefix}${fileName}`
                 await uploadR2Object(config, key, contentBase64, contentType)
                 setProgress(Math.round(((index + 1) / candidates.length) * 100))
@@ -268,14 +271,11 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
                                     <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
                                         {t('scene.noImagesToExport', 'No images to upload')}
                                     </div>
-                                ) : candidates.map(candidate => {
-                                    const ext = expertR2ExifRemovalEnabled
-                                        ? exifFormatExtension(exifOutputFormat)
-                                        : getExt(candidate.image.url)
+                                ) : candidates.map((candidate, index) => {
                                     return (
                                         <div key={candidate.sceneId} className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-background/40 px-3 py-2 text-sm">
                                             <span className="min-w-0 truncate">{candidate.sceneName}</span>
-                                            <span className="shrink-0 text-xs text-muted-foreground">{prefix}{sanitizeName(candidate.sceneName)}.{ext}</span>
+                                            <span className="shrink-0 text-xs text-muted-foreground">{prefix}{candidateFileNames[index]}</span>
                                         </div>
                                     )
                                 })}

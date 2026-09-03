@@ -98,6 +98,7 @@
     "reviewFinalCount": "Final images / Total scenes",
     "reviewImageNameMode": "Image naming",
     "reviewImageNameFull": "Full scene name",
+    "reviewImageNameExamples": "Name examples",
     "reviewOutputMethod": "Output method",
     "reviewRunOutput": "Continue",
     "addToQueue": "Add to Queue",
