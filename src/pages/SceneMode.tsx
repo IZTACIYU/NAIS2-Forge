@@ -399,6 +399,7 @@ export default function SceneMode() {
     // const [isExporting, setIsExporting] = useState(false) // Removed unused state
     const [activeId, setActiveId] = useState<string | null>(null)
     const [isRenamingPreset, setIsRenamingPreset] = useState(false)
+    const [presetActionsOpen, setPresetActionsOpen] = useState(false)
 
     // Generation Store values - used by export logic or future features?
     // Left empty for now as logic moved to hook
@@ -828,25 +829,41 @@ export default function SceneMode() {
                             />
                         )}
                         {activePreset && (
-                            <div className="flex items-center gap-1">
-                                {!isRenamingPreset && (
-                                    <Tip content={t('actions.rename', '이름 변경')}>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setIsRenamingPreset(true)} disabled={isGenerating}>
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                    </Tip>
-                                )}
-                                <Tip content={t('scene.duplicate', '복제')}>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => activePresetId && duplicatePreset(activePresetId)} disabled={isGenerating}>
-                                        <Copy className="h-4 w-4" />
+                            <div className="relative shrink-0">
+                                <Tip content={t('scene.presetSettings', '프리셋 설정')}>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className={cn('h-8 w-8 shrink-0', presetActionsOpen && 'bg-white/10 text-foreground')}
+                                        onClick={() => setPresetActionsOpen(open => !open)}
+                                        aria-pressed={presetActionsOpen}
+                                        aria-label={t('scene.presetSettings', '프리셋 설정')}
+                                    >
+                                        <SlidersHorizontal className="h-4 w-4" />
                                     </Button>
                                 </Tip>
-                                {presets.length > 1 && (
-                                    <Tip content={t('scene.deletePreset', '프리셋 삭제')}>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setShowDeletePresetDialog(true)} disabled={isGenerating}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </Tip>
+                                {presetActionsOpen && (
+                                    <div className="absolute left-0 top-full z-50 mt-1 flex items-center gap-1 rounded-xl border border-white/10 bg-popover p-1 shadow-md">
+                                        {!isRenamingPreset && (
+                                            <Tip content={t('actions.rename', '이름 변경')}>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setIsRenamingPreset(true)} disabled={isGenerating}>
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                            </Tip>
+                                        )}
+                                        <Tip content={t('scene.duplicate', '복제')}>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => activePresetId && duplicatePreset(activePresetId)} disabled={isGenerating}>
+                                                <Copy className="h-4 w-4" />
+                                            </Button>
+                                        </Tip>
+                                        {presets.length > 1 && (
+                                            <Tip content={t('scene.deletePreset', '프리셋 삭제')}>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setShowDeletePresetDialog(true)} disabled={isGenerating}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </Tip>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         )}
