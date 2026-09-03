@@ -28,13 +28,6 @@ import { CSS } from '@dnd-kit/utilities'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select'
-import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -79,12 +72,12 @@ import {
     Star,
     ImageOff,
     GripVertical,
-    ArrowUpDown,
     Users,
     UserPlus,
     SlidersHorizontal,
     Cloud,
     FolderOpen,
+    ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNearViewport } from '@/hooks/use-near-viewport'
@@ -145,7 +138,7 @@ const SceneQueueControls = memo(function SceneQueueControls({ activePresetId, sc
 })
 
 import { Tip } from '@/components/ui/tooltip'
-import { useSceneStore, type SceneImage } from '@/stores/scene-store'
+import { useSceneStore, type SceneImage, type ScenePreset } from '@/stores/scene-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { toast } from '@/components/ui/use-toast'
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
@@ -155,13 +148,6 @@ import { Command } from '@tauri-apps/plugin-shell'
 import { save } from '@tauri-apps/plugin-dialog'
 import { ExportDialog } from '@/components/scene/ExportDialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from '@/components/ui/dialog'
 import { ResolutionPresetSelector, Resolution } from '@/components/ui/ResolutionSelector'
 import { Switch } from '@/components/ui/switch'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -180,46 +166,74 @@ const dropAnimation = {
     }),
 }
 
-// --- Scene Preset Reorder Dialog ---
-function SortablePresetRow({ preset, isActive, listeners, attributes, setNodeRef, style, isDragging, t }: any) {
+function SortablePresetDropdownRow({ preset, isActive, disabled, onSelect, t }: {
+    preset: ScenePreset
+    isActive: boolean
+    disabled: boolean
+    onSelect: () => void
+    t: any
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: preset.id })
+    const style = { transform: CSS.Transform.toString(transform), transition }
+
     return (
         <div
             ref={setNodeRef}
             style={style}
-            className={cn(
-                "flex items-center gap-2 px-3 py-2.5 rounded-lg transition-colors",
-                isActive ? "bg-primary/10 border border-primary/30" : "bg-muted/30 border border-transparent",
-                isDragging && "shadow-lg opacity-50"
-            )}
+            className={cn('flex items-center rounded-lg', isActive && 'bg-primary/10', isDragging && 'z-10 opacity-50')}
         >
-            <div
+            <button
+                type="button"
                 {...attributes}
                 {...listeners}
-                className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+                className="flex h-8 w-8 shrink-0 touch-none cursor-grab items-center justify-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
+                aria-label={t('scene.reorderPresets', '프리셋 순서 편집')}
+                disabled={disabled}
             >
                 <GripVertical className="h-4 w-4" />
-            </div>
-            <span className="flex-1 text-sm font-medium truncate">
-                {preset.id === 'scene-default' ? t('scene.presetDefault', '기본') : preset.name}
-            </span>
-            <span className="text-xs text-muted-foreground">{preset.scenes.length}</span>
-            {isActive && (
-                <span className="text-[10px] text-primary font-medium px-1.5 py-0.5 bg-primary/10 rounded">
-                    {t('preset.active', '활성')}
+            </button>
+            <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={isActive}
+                className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left text-sm hover:bg-accent"
+                onClick={onSelect}
+                disabled={disabled}
+            >
+                <span className="min-w-0 flex-1 truncate">
+                    {preset.id === 'scene-default' ? t('scene.presetDefault', '기본') : preset.name}
                 </span>
-            )}
+                <span className="text-xs text-muted-foreground">{preset.scenes.length}</span>
+                {isActive && <Check className="h-4 w-4 shrink-0 text-primary" />}
+            </button>
         </div>
     )
 }
 
-function SortablePresetWrapper({ preset, isActive, t }: any) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: preset.id })
-    const style = { transform: CSS.Transform.toString(transform), transition }
-    return <SortablePresetRow preset={preset} isActive={isActive} listeners={listeners} attributes={attributes} setNodeRef={setNodeRef} style={style} isDragging={isDragging} t={t} />
-}
-
-function ScenePresetReorderDialog({ presets, activePresetId, onReorder, t }: {
-    presets: any[], activePresetId: string | null, onReorder: (oldIndex: number, newIndex: number) => void, t: any
+function ScenePresetDropdown({
+    presets,
+    activePresetId,
+    open,
+    onOpenChange,
+    onSelect,
+    onReorder,
+    newPresetName,
+    onNewPresetNameChange,
+    onAddPreset,
+    disabled,
+    t,
+}: {
+    presets: ScenePreset[]
+    activePresetId: string | null
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    onSelect: (id: string) => void
+    onReorder: (oldIndex: number, newIndex: number) => void
+    newPresetName: string
+    onNewPresetNameChange: (name: string) => void
+    onAddPreset: () => void
+    disabled: boolean
+    t: any
 }) {
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -235,30 +249,53 @@ function ScenePresetReorderDialog({ presets, activePresetId, onReorder, t }: {
         }
     }
 
+    const activePreset = presets.find(preset => preset.id === activePresetId)
+
     return (
-        <Dialog>
-            <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="shrink-0 rounded-lg h-8 w-8 hover:bg-white/10 text-muted-foreground">
-                    <Tip content={t('scene.reorderPresets', '프리셋 순서 편집')}>
-                        <ArrowUpDown className="h-4 w-4" />
-                    </Tip>
+        <DropdownMenu open={open} onOpenChange={onOpenChange}>
+            <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-10 w-[260px] justify-between rounded-xl border-white/10 bg-transparent px-3 font-normal" disabled={disabled}>
+                    <span className="truncate">{activePreset?.name || t('scene.preset')}</span>
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-sm">
-                <DialogHeader>
-                    <DialogTitle>{t('scene.reorderPresets', '프리셋 순서 편집')}</DialogTitle>
-                </DialogHeader>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-[420px] w-[260px] overflow-y-auto p-1">
                 <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToParentElement]}>
                     <SortableContext items={presets.map(p => p.id)} strategy={verticalListSortingStrategy}>
-                        <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
+                        <div className="space-y-0.5">
                             {presets.map(preset => (
-                                <SortablePresetWrapper key={preset.id} preset={preset} isActive={activePresetId === preset.id} t={t} />
+                                <SortablePresetDropdownRow
+                                    key={preset.id}
+                                    preset={preset}
+                                    isActive={activePresetId === preset.id}
+                                    disabled={disabled}
+                                    onSelect={() => onSelect(preset.id)}
+                                    t={t}
+                                />
                             ))}
                         </div>
                     </SortableContext>
                 </DndContext>
-            </DialogContent>
-        </Dialog>
+                <DropdownMenuSeparator />
+                <div className="flex items-center gap-2 p-1">
+                    <Input
+                        placeholder={t('scene.newPresetName')}
+                        value={newPresetName}
+                        onChange={(event) => onNewPresetNameChange(event.target.value)}
+                        className="h-9 text-xs"
+                        onKeyDown={(event) => {
+                            event.stopPropagation()
+                            if (event.key === 'Enter') {
+                                onAddPreset()
+                            }
+                        }}
+                    />
+                    <Button size="icon" variant="secondary" className="h-9 w-9 shrink-0" onClick={onAddPreset} disabled={!newPresetName.trim() || disabled}>
+                        <Plus className="h-4 w-4" />
+                    </Button>
+                </div>
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
 
@@ -773,48 +810,22 @@ export default function SceneMode() {
                                 onCancel={() => setIsRenamingPreset(false)}
                             />
                         ) : (
-                            <Select
-                                value={activePresetId || ''}
+                            <ScenePresetDropdown
+                                presets={presets}
+                                activePresetId={activePresetId}
                                 open={presetSelectOpen}
                                 onOpenChange={setPresetSelectOpen}
-                                onValueChange={(value) => {
+                                onSelect={(value) => {
                                     setActivePreset(value)
                                     setPresetSelectOpen(false)
                                 }}
+                                onReorder={reorderPresets}
+                                newPresetName={newPresetName}
+                                onNewPresetNameChange={setNewPresetName}
+                                onAddPreset={handleAddPreset}
                                 disabled={isGenerating}
-                            >
-                                <SelectTrigger className="w-[260px] max-w-[260px] rounded-xl border-white/10 bg-transparent h-10 [&>span]:truncate">
-                                    <SelectValue placeholder={t('scene.preset')} />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-[300px] w-[260px]">
-                                    {presets.map((preset) => (
-                                        <SelectItem key={preset.id} value={preset.id}>
-                                            <span className="block max-w-[200px] truncate">{preset.name} ({preset.scenes.length})</span>
-                                        </SelectItem>
-                                    ))}
-                                    <DropdownMenuSeparator />
-                                    <div className="p-1">
-                                        <div className="flex items-center gap-2">
-                                            <Input
-                                                placeholder={t('scene.newPresetName')}
-                                                value={newPresetName}
-                                                onChange={(e) => setNewPresetName(e.target.value)}
-                                                className="h-8 text-xs"
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        e.stopPropagation()
-                                                        handleAddPreset()
-                                                    }
-                                                }}
-                                                onClick={(e) => e.stopPropagation()}
-                                            />
-                                            <Button size="sm" variant="secondary" className="h-8 px-2" onClick={(e) => { e.stopPropagation(); handleAddPreset() }} disabled={!newPresetName.trim() || isGenerating}>
-                                                <Plus className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </SelectContent>
-                            </Select>
+                                t={t}
+                            />
                         )}
                         {activePreset && (
                             <div className="flex items-center gap-1">
@@ -838,14 +849,6 @@ export default function SceneMode() {
                                     </Tip>
                                 )}
                             </div>
-                        )}
-                        {presets.length > 1 && (
-                            <ScenePresetReorderDialog
-                                presets={presets}
-                                activePresetId={activePresetId}
-                                onReorder={reorderPresets}
-                                t={t}
-                            />
                         )}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
