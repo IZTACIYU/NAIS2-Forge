@@ -15,6 +15,7 @@ import { getModelCapabilities } from '@/lib/model-capabilities'
 import { useCharacterStore } from '@/stores/character-store'
 import { sendSystemNotification } from '@/lib/system-notification'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
+import { SCENE_IMAGE_GENERATED_EVENT } from '@/lib/scene-review-generation'
 import {
     createSceneCustomCharacters,
     getSceneMultiCharacterNegativePromptMap,
@@ -485,8 +486,8 @@ export function useSceneGeneration() {
 
                         // Notify HistoryPanel immediately (file path only — no base64 needed,
                         // HistoryPanel uses convertFileSrc for file-based images)
-                        window.dispatchEvent(new CustomEvent('newImageGenerated', {
-                            detail: { path: fullPath }
+                        window.dispatchEvent(new CustomEvent(SCENE_IMAGE_GENERATED_EVENT, {
+                            detail: { path: fullPath, presetId: activePresetId, sceneId: scene.id }
                         }))
 
                         addImageToScene(activePresetId, scene.id, fullPath, sceneFolderPath)

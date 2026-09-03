@@ -22,6 +22,7 @@
     "check:scene-queue-order": "node --experimental-strip-types scripts/check-scene-queue-order.mjs",
     "check:scene-copy-name": "node --experimental-strip-types scripts/check-scene-copy-name.mjs",
     "check:scene-image-selection": "node --experimental-strip-types scripts/check-scene-image-selection.mjs",
+    "check:scene-review-generation": "node --experimental-strip-types scripts/check-scene-review-generation.mjs",
     "check:scene-multi-character": "node scripts/check-scene-multi-character.mjs",
     "check:tag-index": "node --experimental-strip-types scripts/check-tag-index.mjs",
     "tags:update": "node scripts/sync-danbooru-tags.mjs",
