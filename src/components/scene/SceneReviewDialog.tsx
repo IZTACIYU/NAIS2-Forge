@@ -20,6 +20,7 @@ import { pickSceneRepresentativeImage, type SceneReviewDecision, type SceneRevie
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 import {
     addUniqueReviewHistoryImage,
+    findNextReviewItem,
     isTrackedReviewGeneration,
     SCENE_IMAGE_GENERATED_EVENT,
     type SceneImageGeneratedDetail,
@@ -390,11 +391,16 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
             return image ? [{ ...image, sceneId: scene.id, sceneName: scene.name }] : []
         })
         : [], [open, scenes])
-    const pendingImages = images.filter(image => !decisions[image.sceneId])
-    const completedImages = images.flatMap(image => {
-        const decision = decisions[image.sceneId]
-        return decision ? [{ ...decision.image, sceneId: image.sceneId, sceneName: image.sceneName }] : []
-    })
+    const getGridImages = (tab: ReviewTab, reviewDecisions: SceneReviewDecisions) => {
+        if (tab === 'all') return images
+        if (tab === 'pending') return images.filter(image => reviewDecisions[image.sceneId]?.status !== 'passed')
+        return images.flatMap(image => {
+            const decision = reviewDecisions[image.sceneId]
+            return decision?.status === 'passed'
+                ? [{ ...decision.image, sceneId: image.sceneId, sceneName: image.sceneName }]
+                : []
+        })
+    }
     const selectedScene = scenes.find(scene => scene.id === selectedSceneId)
         || scenes.find(scene => scene.id === images[0]?.sceneId)
     const selectedHistory = temporaryHistory.filter(image => image.sceneId === selectedScene?.id)
@@ -517,12 +523,23 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
         }
     }
 
+    const gridImages = getGridImages(activeTab, decisions)
+
+    const handleDecision = (decision: SceneReviewDecision) => {
+        if (!selectedScene) return
+        const nextDecisions = { ...decisions, [selectedScene.id]: decision }
+        const nextImage = findNextReviewItem(gridImages, getGridImages(activeTab, nextDecisions), selectedScene.id)
+        onDecision(selectedScene.id, decision)
+        if (nextImage) selectImage(nextImage)
+        else setDetailOpen(false)
+    }
+
     const individualViewProps = {
         scene: selectedScene,
         image: selectedImage,
         decision: selectedScene ? decisions[selectedScene.id] : undefined,
         decisions,
-        reviewImages: images,
+        reviewImages: gridImages,
         historyImages: selectedHistory,
         onSelectImage: setSelectedImageId,
         onSelectReviewImage: selectReviewImage,
@@ -535,9 +552,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
         },
         onGenerate: handleGenerate,
         onRegenerate: startGeneration,
-        onDecision: (decision: SceneReviewDecision) => {
-            if (selectedScene) onDecision(selectedScene.id, decision)
-        },
+        onDecision: handleDecision,
         regenerateDisabled: isGenerating || isCancelling,
     }
     const tabs: Array<{ id: ReviewTab; label: string }> = [
@@ -545,7 +560,6 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, decisions, onDec
         { id: 'pending', label: t('scene.reviewPending') },
         { id: 'completed', label: t('scene.reviewCompleted') },
     ]
-    const gridImages = activeTab === 'all' ? images : activeTab === 'pending' ? pendingImages : completedImages
     const emptyLabel = activeTab === 'completed' ? t('scene.noReviewedImages') : undefined
 
     return (

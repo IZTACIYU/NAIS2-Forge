@@ -27,3 +27,14 @@ export function isTrackedReviewGeneration(
         && trackedSceneIds.has(detail.sceneId),
     )
 }
+
+export function findNextReviewItem<T extends { sceneId: string }>(
+    before: readonly T[],
+    after: readonly T[],
+    currentSceneId: string,
+): T | null {
+    const previousIndex = before.findIndex(item => item.sceneId === currentSceneId)
+    const remainingIndex = after.findIndex(item => item.sceneId === currentSceneId)
+    const nextIndex = remainingIndex >= 0 ? remainingIndex + 1 : Math.max(0, previousIndex)
+    return after[nextIndex] || null
+}
