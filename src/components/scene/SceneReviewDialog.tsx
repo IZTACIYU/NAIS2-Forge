@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { ArrowLeft, ChevronDown, ChevronUp, ImagePlus, Play, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CharacterPromptPanel } from '@/components/character/CharacterPromptPanel'
 import { CharacterSettingsDialog } from '@/components/character/CharacterSettingsDialog'
 import { PresetDropdown } from '@/components/preset/PresetDropdown'
+import { SceneImageContextMenu } from '@/components/scene/SceneImageContextMenu'
 import { AutocompleteTextarea } from '@/components/ui/AutocompleteTextarea'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
 import {
+    addUniqueReviewHistoryImage,
     isTrackedReviewGeneration,
     SCENE_IMAGE_GENERATED_EVENT,
     type SceneImageGeneratedDetail,
@@ -212,13 +214,14 @@ function ReviewFilmstrip({ images, selectedSceneId, onSelect }: {
     )
 }
 
-function IndividualReviewView({ scene, image, reviewImages, historyImages, onSelectImage, onSelectReviewImage, onGenerate, onBack }: {
+function IndividualReviewView({ scene, image, reviewImages, historyImages, onSelectImage, onSelectReviewImage, onDeleteImage, onGenerate, onBack }: {
     scene?: SceneCard
     image?: SceneImage | null
     reviewImages: ReviewImage[]
     historyImages: ReviewImage[]
     onSelectImage: (imageId: string) => void
     onSelectReviewImage: (image: ReviewImage) => void
+    onDeleteImage: (image: SceneImage) => void
     onGenerate: () => void
     onBack?: () => void
 }) {
@@ -247,9 +250,11 @@ function IndividualReviewView({ scene, image, reviewImages, historyImages, onSel
                     value={scene.scenePrompt}
                     className="mt-2 h-24 shrink-0 resize-none rounded-lg border border-border/60 bg-background/50 p-2 text-xs outline-none"
                 />
-                <div className="mt-3 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-black/30">
-                    <img src={imageSrc(image.url)} alt={scene.name} className="h-full w-full object-contain" />
-                </div>
+                <SceneImageContextMenu image={image} onDelete={() => onDeleteImage(image)}>
+                    <div className="mt-3 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-black/30">
+                        <img src={imageSrc(image.url)} alt={scene.name} className="h-full w-full object-contain" />
+                    </div>
+                </SceneImageContextMenu>
                 <ReviewFilmstrip images={reviewImages} selectedSceneId={scene.id} onSelect={onSelectReviewImage} />
             </section>
 
@@ -260,14 +265,15 @@ function IndividualReviewView({ scene, image, reviewImages, historyImages, onSel
                 ) : (
                     <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-2 content-start gap-2 overflow-y-auto custom-scrollbar pr-1">
                         {historyImages.map(historyImage => (
-                            <button
-                                key={historyImage.id}
-                                type="button"
-                                className={cn('relative aspect-square min-h-0 overflow-hidden rounded-md border bg-black/30', historyImage.id === image.id ? 'border-primary ring-1 ring-primary' : 'border-border/50 hover:border-primary/50')}
-                                onClick={() => onSelectImage(historyImage.id)}
-                            >
-                                <img src={imageSrc(historyImage.url)} alt={scene.name} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
-                            </button>
+                            <SceneImageContextMenu key={historyImage.id} image={historyImage} onDelete={() => onDeleteImage(historyImage)}>
+                                <button
+                                    type="button"
+                                    className={cn('relative aspect-square min-h-0 overflow-hidden rounded-md border bg-black/30', historyImage.id === image.id ? 'border-primary ring-1 ring-primary' : 'border-border/50 hover:border-primary/50')}
+                                    onClick={() => onSelectImage(historyImage.id)}
+                                >
+                                    <img src={imageSrc(historyImage.url)} alt={scene.name} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                                </button>
+                            </SceneImageContextMenu>
                         ))}
                     </div>
                 )}
@@ -298,7 +304,12 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
     const selectedHistory = temporaryHistory.filter(image => image.sceneId === selectedScene?.id)
     const selectedImage = selectedHistory.find(image => image.id === selectedImageId)
         || selectedScene?.images.find(image => image.id === selectedImageId)
+        || selectedHistory[0]
         || (selectedScene ? pickSceneRepresentativeImage(selectedScene.images) : null)
+
+    const rememberHistoryImage = useCallback((image: ReviewImage) => {
+        setTemporaryHistory(history => addUniqueReviewHistoryImage(history, image, 'end'))
+    }, [])
 
     useEffect(() => {
         if (open) return
@@ -326,7 +337,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
                 sceneId,
                 sceneName: scene.name,
             }
-            setTemporaryHistory(history => [image, ...history])
+            setTemporaryHistory(history => addUniqueReviewHistoryImage(history, image, 'start'))
             setSelectedSceneId(sceneId)
             setSelectedImageId(image.id)
         }
@@ -338,6 +349,13 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
     useEffect(() => {
         if (!isGenerating && !isCancelling) reviewGenerationSceneIds.current.clear()
     }, [isCancelling, isGenerating])
+
+    useEffect(() => {
+        const detailVisible = activeTab === 'individual' || (activeTab === 'all' && allDetailOpen)
+        if (!detailVisible || !selectedScene) return
+        const initialImage = images.find(image => image.sceneId === selectedScene.id)
+        if (initialImage) rememberHistoryImage(initialImage)
+    }, [activeTab, allDetailOpen, images, rememberHistoryImage, selectedScene])
 
     const selectImage = (image: ReviewImage, stayInAll: boolean) => {
         setSelectedSceneId(image.sceneId)
@@ -369,6 +387,19 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
     const selectReviewImage = (image: ReviewImage) => {
         setSelectedSceneId(image.sceneId)
         setSelectedImageId(image.id)
+        rememberHistoryImage(image)
+    }
+
+    const deleteReviewImage = (image: SceneImage) => {
+        if (!activePresetId || !selectedScene) return
+        const state = useSceneStore.getState()
+        const storedImage = state.presets
+            .find(preset => preset.id === activePresetId)?.scenes
+            .find(scene => scene.id === selectedScene.id)?.images
+            .find(candidate => candidate.id === image.id || candidate.url === image.url)
+        if (storedImage) state.deleteImage(activePresetId, selectedScene.id, storedImage.id)
+        setTemporaryHistory(history => history.filter(item => item.url !== image.url))
+        if (selectedImage?.url === image.url) setSelectedImageId(null)
     }
 
     const individualViewProps = {
@@ -378,6 +409,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
         historyImages: selectedHistory,
         onSelectImage: setSelectedImageId,
         onSelectReviewImage: selectReviewImage,
+        onDeleteImage: deleteReviewImage,
         onGenerate: handleGenerate,
     }
     const tabs: Array<{ id: ReviewTab; label: string }> = [

@@ -91,7 +91,7 @@
     "reviewCompleted": "確認済み",
     "reviewBack": "すべて表示に戻る",
     "noReviewedImages": "確認済みの画像はありません",
-    "noReviewHistory": "この画面で生成した画像はありません",
+    "noReviewHistory": "確認履歴がありません",
     "addToQueue": "予約追加",
     "addAllQueue": "全予約 +1",
     "addSelectedQueue": "選択したシーンを予約に追加",

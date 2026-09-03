@@ -92,7 +92,7 @@
     "reviewCompleted": "검수완료",
     "reviewBack": "전체보기로 돌아가기",
     "noReviewedImages": "검수 완료된 이미지가 없습니다",
-    "noReviewHistory": "이 화면에서 생성한 이미지가 없습니다",
+    "noReviewHistory": "검수 히스토리가 없습니다",
     "addToQueue": "예약 추가",
     "addAllQueue": "전체 예약 +1",
     "addSelectedQueue": "선택한 씬 예약 추가",
