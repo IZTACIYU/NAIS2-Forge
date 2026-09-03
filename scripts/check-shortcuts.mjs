@@ -64,10 +64,19 @@ const firstDelete = groupTextEdit(null, describeTextEdit('abc', 'ac'), 1, 1000)
 assert.equal(groupTextEdit(firstDelete.group, describeTextEdit('ac', 'a'), 1, 1100).merge, true)
 assert.equal(groupTextEdit(null, describeTextEdit('a', 'paste'), 5, 1000).group, null)
 
-const [shortcutStoreSource, shortcutHookSource] = await Promise.all([
+const [shortcutStoreSource, shortcutHookSource, promptPanelSource, layoutSource, reviewDialogSource] = await Promise.all([
     readFile(new URL('../src/stores/shortcut-store.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/hooks/useShortcuts.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/layout/PromptPanel.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/layout/ThreeColumnLayout.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/scene/SceneReviewDialog.tsx', import.meta.url), 'utf8'),
 ])
 assert.match(shortcutStoreSource, /'action:copyDanbooruTags': \{ key: 'e', ctrl: true/)
 assert.match(shortcutHookSource, /COPY_DANBOORU_TAGS/)
 assert.match(shortcutHookSource, /location\.pathname !== '\/web' \|\| shouldIgnoreGlobalNavigation\(e\)/)
+assert.match(shortcutHookSource, /isSceneReviewDialogOpen\(\).*GENERATE_SCENE_REVIEW/s)
+assert.match(promptPanelSource, /isSceneReviewDialogOpen\(\)/)
+assert.match(layoutSource, /isSceneReviewDialogOpen\(\)/)
+assert.match(reviewDialogSource, /data-scene-review-dialog="true"/)
+assert.match(reviewDialogSource, /<SourceImagePanel \/>/)
+assert.match(reviewDialogSource, /GENERATE_SCENE_REVIEW/)

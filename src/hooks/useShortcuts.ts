@@ -15,9 +15,13 @@ export const SHORTCUT_EVENTS = {
     OPEN_IMAGE_REFERENCE: 'shortcut:openImageReference',
     OPEN_CHARACTER_PROMPT: 'shortcut:openCharacterPrompt',
     OPEN_PRESET_DIALOG: 'shortcut:openPresetDialog',
+    GENERATE_SCENE_REVIEW: 'shortcut:generateSceneReview',
     RESET_FRAGMENT_COUNTERS: 'shortcut:resetFragmentCounters',
     COPY_DANBOORU_TAGS: 'shortcut:copyDanbooruTags',
 }
+
+export const isSceneReviewDialogOpen = () =>
+    Boolean(document.querySelector('[data-scene-review-dialog="true"]'))
 
 // 메뉴 순서 정의
 const MENU_ROUTES = ['/', '/scenes', '/tools', '/web', '/library', '/settings']
@@ -142,6 +146,12 @@ export function useShortcuts() {
 
                     // 이미지 생성 (메인 모드에서만)
                     if (action === 'action:generate') {
+                        if (isSceneReviewDialogOpen()) {
+                            e.preventDefault()
+                            if (!e.repeat) window.dispatchEvent(new CustomEvent(SHORTCUT_EVENTS.GENERATE_SCENE_REVIEW))
+                            return
+                        }
+
                         if (location.pathname === '/') {
                             e.preventDefault()
                             if (isGenerating) {

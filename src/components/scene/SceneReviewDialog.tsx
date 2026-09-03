@@ -5,6 +5,7 @@ import { ArrowLeft, ChevronDown, ChevronUp, ImagePlus, Play, Users } from 'lucid
 import { useTranslation } from 'react-i18next'
 import { CharacterPromptPanel } from '@/components/character/CharacterPromptPanel'
 import { CharacterSettingsDialog } from '@/components/character/CharacterSettingsDialog'
+import { SourceImagePanel } from '@/components/layout/SourceImagePanel'
 import { ImageReferenceDialog } from '@/components/metadata/ImageReferenceDialog'
 import { MetadataDialog } from '@/components/metadata/MetadataDialog'
 import { PresetDropdown } from '@/components/preset/PresetDropdown'
@@ -13,6 +14,7 @@ import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { AutocompleteTextarea } from '@/components/ui/AutocompleteTextarea'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { SHORTCUT_EVENTS } from '@/hooks/useShortcuts'
 import { cn } from '@/lib/utils'
 import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
@@ -133,12 +135,36 @@ function ReviewPromptStack({ onGenerate }: { onGenerate: () => void }) {
     const setDetailPromptCollapsed = useSettingsStore(state => state.setDetailPromptCollapsed)
     const setNegativePromptCollapsed = useSettingsStore(state => state.setNegativePromptCollapsed)
 
+    useEffect(() => {
+        const handleOpenCharacterPrompt = () => {
+            setReferenceDialogOpen(false)
+            setCharacterPanelOpen(current => !current)
+        }
+        const handleOpenImageReference = () => {
+            setCharacterPanelOpen(false)
+            setReferenceDialogOpen(current => !current)
+        }
+        const handleOpenPreset = () => setPresetDialogOpen(current => !current)
+
+        window.addEventListener(SHORTCUT_EVENTS.OPEN_CHARACTER_PROMPT, handleOpenCharacterPrompt)
+        window.addEventListener(SHORTCUT_EVENTS.OPEN_IMAGE_REFERENCE, handleOpenImageReference)
+        window.addEventListener(SHORTCUT_EVENTS.OPEN_PRESET_DIALOG, handleOpenPreset)
+        window.addEventListener(SHORTCUT_EVENTS.GENERATE_SCENE_REVIEW, onGenerate)
+        return () => {
+            window.removeEventListener(SHORTCUT_EVENTS.OPEN_CHARACTER_PROMPT, handleOpenCharacterPrompt)
+            window.removeEventListener(SHORTCUT_EVENTS.OPEN_IMAGE_REFERENCE, handleOpenImageReference)
+            window.removeEventListener(SHORTCUT_EVENTS.OPEN_PRESET_DIALOG, handleOpenPreset)
+            window.removeEventListener(SHORTCUT_EVENTS.GENERATE_SCENE_REVIEW, onGenerate)
+        }
+    }, [onGenerate])
+
     return (
         <aside className="flex min-h-0 flex-col gap-2 rounded-xl border border-border/50 bg-card/40 p-3">
             <div className="flex h-8 shrink-0 items-center gap-2">
                 <PresetDropdown open={presetDialogOpen} onOpenChange={setPresetDialogOpen} />
                 <span className="truncate text-sm font-medium">{activePresetName || t('preset.default')}</span>
             </div>
+            <SourceImagePanel />
             <div className="relative flex min-h-0 flex-1 flex-col gap-2">
                 <CharacterPromptPanel open={characterPanelOpen} onOpenChange={setCharacterPanelOpen} />
                 <ReviewPromptField label={t('prompt.base')} placeholder={t('prompt.basePlaceholder')} value={basePrompt} collapsed={basePromptCollapsed} onCollapsedChange={setBasePromptCollapsed} onChange={setBasePrompt} />
@@ -481,7 +507,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
     return (
         <>
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="!flex !h-[88vh] !w-[92vw] !max-w-[1600px] flex-col gap-2 overflow-hidden p-4">
+            <DialogContent data-scene-review-dialog="true" className="!flex !h-[88vh] !w-[92vw] !max-w-[1600px] flex-col gap-2 overflow-hidden p-4">
                 <DialogTitle className="sr-only">{t('scene.reviewImages')}</DialogTitle>
                 <div role="tablist" className="flex h-9 shrink-0 items-end gap-1 border-b border-border/60 pr-10">
                     {tabs.map(tab => (

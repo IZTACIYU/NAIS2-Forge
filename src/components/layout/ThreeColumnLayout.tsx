@@ -10,7 +10,7 @@ import { CustomTitleBar } from './CustomTitleBar'
 import { PresetDropdown } from '@/components/preset/PresetDropdown'
 import { FragmentPromptDialog } from '@/components/fragments/FragmentPromptDialog'
 import { useAuthStore } from '@/stores/auth-store'
-import { SHORTCUT_EVENTS } from '@/hooks/useShortcuts'
+import { isSceneReviewDialogOpen, SHORTCUT_EVENTS } from '@/hooks/useShortcuts'
 import GlassSurface from '@/components/ui/GlassSurface'
 import { Tip } from '@/components/ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -191,8 +191,11 @@ export function ThreeColumnLayout({ children }: ThreeColumnLayoutProps) {
 
     // 프리셋 다이얼로그 단축키 이벤트 수신
     useEffect(() => {
-        const handleOpenPreset = () => setPresetDialogOpen(prev => !prev)
+        const handleOpenPreset = () => {
+            if (!isSceneReviewDialogOpen()) setPresetDialogOpen(prev => !prev)
+        }
         const handleOpenFragment = () => {
+            if (isSceneReviewDialogOpen()) return
             setFragmentPanelOpen(prev => {
                 const next = !prev
                 fragmentPanelPathRef.current = next ? location.pathname : null

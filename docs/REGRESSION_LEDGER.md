@@ -488,6 +488,19 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+## R-038 — 검수창이 열린 동안 액션 화면은 검수창이 소유한다
+
+- **Date:** 2026-09-03
+- **Area:** scene review, global shortcuts, I2I/inpaint source panel
+- **Symptom/Risk:** 검수창에서 생성 단축키나 I2I·인페인트 액션을 실행해도 결과와 모드 이미지가 검수창이 아닌 뒤쪽 기본 화면에 표시됐다.
+- **Root cause:** 검수창은 기본 씬 화면 위에 겹쳐지는 모달이지만, 아래 레이아웃의 전역 단축키 수신기와 소스 이미지 패널도 계속 마운트되어 같은 전역 상태와 이벤트를 소유했다.
+- **Invariant to preserve:** 검수창이 열린 동안 생성·프리셋·참조·캐릭터 단축키는 검수 상세 화면이 처리하고, 기본 레이아웃은 검수창 전용 액션을 열지 않는다. I2I·인페인트 소스 상태는 검수창 안에서도 즉시 보여야 한다.
+- **Fix:** 열린 검수창을 명시적으로 식별해 기본 레이아웃의 전역 이벤트 수신을 차단하고, 검수 상세 화면이 관련 단축키와 공통 소스 이미지 패널을 직접 소유하도록 했다.
+- **Regression coverage:** `npm run check:shortcuts`, `npm run check:scene-review-generation`, TypeScript 및 production build.
+- **Do not "fix" by:** 기본 화면의 다이얼로그를 더 높은 z-index로 덮어 보이게 하거나, 검수창용 I2I 상태를 별도 store에 복제하기.
+
+---
+
 ## 새 항목 템플릿
 
 ### R-XXX — 짧은 제목

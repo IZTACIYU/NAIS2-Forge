@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
 import Counter from '@/components/ui/counter'
-import { SHORTCUT_EVENTS } from '@/hooks/useShortcuts'
+import { isSceneReviewDialogOpen, SHORTCUT_EVENTS } from '@/hooks/useShortcuts'
 import {
     Select,
     SelectContent,
@@ -447,13 +447,19 @@ export function PromptPanel() {
 
     // 전역 단축키 이벤트 수신
     useEffect(() => {
-        const handleOpenPromptGen = () => setPromptGenOpen(prev => !prev)
-        const handleOpenParameters = () => setParameterDialogOpen(prev => !prev)
+        const handleOpenPromptGen = () => {
+            if (!isSceneReviewDialogOpen()) setPromptGenOpen(prev => !prev)
+        }
+        const handleOpenParameters = () => {
+            if (!isSceneReviewDialogOpen()) setParameterDialogOpen(prev => !prev)
+        }
         const handleOpenCharacterPrompt = () => {
+            if (isSceneReviewDialogOpen()) return
             setImageRefDialogOpen(false)
             setCharacterPanelOpen(prev => !prev)
         }
         const handleOpenImageReference = () => {
+            if (isSceneReviewDialogOpen()) return
             setCharacterPanelOpen(false)
             setImageRefDialogOpen(prev => !prev)
         }
