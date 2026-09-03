@@ -84,6 +84,7 @@
     "scenePrompt": "Scene Prompt",
     "editPrompt": "Edit scene prompt",
     "generatedImages": "Generated Images",
+    "reviewImages": "Review Generated Images",
     "noGeneratedImages": "No generated images yet",
     "addToQueue": "Add to Queue",
     "addAllQueue": "Add All +1",

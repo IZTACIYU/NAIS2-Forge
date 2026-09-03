@@ -83,6 +83,7 @@
     "scenePrompt": "シーンプロンプト",
     "editPrompt": "シーンプロンプトを編集",
     "generatedImages": "生成された画像",
+    "reviewImages": "生成画像を確認",
     "noGeneratedImages": "まだ生成された画像はありません",
     "addToQueue": "予約追加",
     "addAllQueue": "全予約 +1",

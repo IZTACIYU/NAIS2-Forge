@@ -84,6 +84,7 @@
     "scenePrompt": "씬 프롬프트",
     "editPrompt": "씬 프롬프트를 편집하세요",
     "generatedImages": "생성된 이미지",
+    "reviewImages": "생성 이미지 검수",
     "noGeneratedImages": "아직 생성된 이미지가 없습니다",
     "addToQueue": "예약 추가",
     "addAllQueue": "전체 예약 +1",

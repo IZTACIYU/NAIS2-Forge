@@ -168,6 +168,7 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { SceneCharacterSequenceDialog } from '@/components/scene/SceneCharacterSequenceDialog'
 import { SceneCharacterAdditionDialog } from '@/components/scene/SceneCharacterAdditionDialog'
 import { SceneR2DirectUploadDialog } from '@/components/scene/SceneR2DirectUploadDialog'
+import { SceneReviewDialog } from '@/components/scene/SceneReviewDialog'
 
 const dropAnimation = {
     sideEffects: defaultDropAnimationSideEffects({
@@ -520,6 +521,7 @@ export default function SceneMode() {
     const [showCharacterSequenceDialog, setShowCharacterSequenceDialog] = useState(false)
     const [sceneCharacterAdditionSceneId, setSceneCharacterAdditionSceneId] = useState<string | null>(null)
     const [showR2DirectUploadDialog, setShowR2DirectUploadDialog] = useState(false)
+    const [showReviewDialog, setShowReviewDialog] = useState(false)
 
     // Scenes to export based on filter
     const scenesToExport = exportScenesFilter === 'selected'
@@ -990,6 +992,17 @@ export default function SceneMode() {
 
 
                 <div className="flex items-center gap-2 ml-auto">
+                    <Tip content={t('scene.reviewImages')}>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-white/10"
+                            onClick={() => setShowReviewDialog(true)}
+                            disabled={!scenes.some(scene => scene.images.length > 0)}
+                        >
+                            <ImageIcon className="h-4 w-4" />
+                        </Button>
+                    </Tip>
                     <Tip content={t('scene.thumbnailLayout', '세로/가로 썸네일 전환')}>
                         <Button 
                             variant="ghost" 
@@ -1093,6 +1106,11 @@ export default function SceneMode() {
             <SceneR2DirectUploadDialog
                 open={showR2DirectUploadDialog}
                 onOpenChange={setShowR2DirectUploadDialog}
+                scenes={scenes}
+            />
+            <SceneReviewDialog
+                open={showReviewDialog}
+                onOpenChange={setShowReviewDialog}
                 scenes={scenes}
             />
         </div >
