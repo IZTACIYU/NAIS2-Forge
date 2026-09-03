@@ -1,16 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
+import { readFile } from '@tauri-apps/plugin-fs'
 import { ArrowLeft, ChevronDown, ChevronUp, ImagePlus, Play, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CharacterPromptPanel } from '@/components/character/CharacterPromptPanel'
 import { CharacterSettingsDialog } from '@/components/character/CharacterSettingsDialog'
+import { ImageReferenceDialog } from '@/components/metadata/ImageReferenceDialog'
+import { MetadataDialog } from '@/components/metadata/MetadataDialog'
 import { PresetDropdown } from '@/components/preset/PresetDropdown'
 import { SceneImageContextMenu } from '@/components/scene/SceneImageContextMenu'
+import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { AutocompleteTextarea } from '@/components/ui/AutocompleteTextarea'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
+import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 import {
     addUniqueReviewHistoryImage,
     isTrackedReviewGeneration,
@@ -214,7 +219,7 @@ function ReviewFilmstrip({ images, selectedSceneId, onSelect }: {
     )
 }
 
-function IndividualReviewView({ scene, image, reviewImages, historyImages, onSelectImage, onSelectReviewImage, onDeleteImage, onGenerate, onBack }: {
+function IndividualReviewView({ scene, image, reviewImages, historyImages, onSelectImage, onSelectReviewImage, onDeleteImage, onAddReference, onLoadMetadata, onInpaint, onGenerate, onRegenerate, regenerateDisabled, onBack }: {
     scene?: SceneCard
     image?: SceneImage | null
     reviewImages: ReviewImage[]
@@ -222,7 +227,12 @@ function IndividualReviewView({ scene, image, reviewImages, historyImages, onSel
     onSelectImage: (imageId: string) => void
     onSelectReviewImage: (image: ReviewImage) => void
     onDeleteImage: (image: SceneImage) => void
+    onAddReference: (image: SceneImage) => void
+    onLoadMetadata: (image: SceneImage) => void
+    onInpaint: (base64: string) => void
     onGenerate: () => void
+    onRegenerate: () => void
+    regenerateDisabled: boolean
     onBack?: () => void
 }) {
     const { t } = useTranslation()
@@ -250,7 +260,15 @@ function IndividualReviewView({ scene, image, reviewImages, historyImages, onSel
                     value={scene.scenePrompt}
                     className="mt-2 h-24 shrink-0 resize-none rounded-lg border border-border/60 bg-background/50 p-2 text-xs outline-none"
                 />
-                <SceneImageContextMenu image={image} onDelete={() => onDeleteImage(image)}>
+                <SceneImageContextMenu
+                    image={image}
+                    onDelete={() => onDeleteImage(image)}
+                    onRegenerate={onRegenerate}
+                    regenerateDisabled={regenerateDisabled}
+                    onAddRef={() => onAddReference(image)}
+                    onLoadMetadata={() => onLoadMetadata(image)}
+                    onInpaint={onInpaint}
+                >
                     <div className="mt-3 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-black/30">
                         <img src={imageSrc(image.url)} alt={scene.name} className="h-full w-full object-contain" />
                     </div>
@@ -265,7 +283,16 @@ function IndividualReviewView({ scene, image, reviewImages, historyImages, onSel
                 ) : (
                     <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-2 content-start gap-2 overflow-y-auto custom-scrollbar pr-1">
                         {historyImages.map(historyImage => (
-                            <SceneImageContextMenu key={historyImage.id} image={historyImage} onDelete={() => onDeleteImage(historyImage)}>
+                            <SceneImageContextMenu
+                                key={historyImage.id}
+                                image={historyImage}
+                                onDelete={() => onDeleteImage(historyImage)}
+                                onRegenerate={onRegenerate}
+                                regenerateDisabled={regenerateDisabled}
+                                onAddRef={() => onAddReference(historyImage)}
+                                onLoadMetadata={() => onLoadMetadata(historyImage)}
+                                onInpaint={onInpaint}
+                            >
                                 <button
                                     type="button"
                                     className={cn('relative aspect-square min-h-0 overflow-hidden rounded-md border bg-black/30', historyImage.id === image.id ? 'border-primary ring-1 ring-primary' : 'border-border/50 hover:border-primary/50')}
@@ -289,6 +316,10 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
     const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null)
     const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
     const [temporaryHistory, setTemporaryHistory] = useState<ReviewImage[]>([])
+    const [metadataDialogOpen, setMetadataDialogOpen] = useState(false)
+    const [referenceDialogOpen, setReferenceDialogOpen] = useState(false)
+    const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false)
+    const [dialogImage, setDialogImage] = useState<string | null>(null)
     const reviewGenerationSceneIds = useRef(new Set<string>())
     const activePresetId = useSceneStore(state => state.activePresetId)
     const isGenerating = useSceneStore(state => state.isGenerating)
@@ -318,6 +349,10 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
         setSelectedSceneId(null)
         setSelectedImageId(null)
         setTemporaryHistory([])
+        setMetadataDialogOpen(false)
+        setReferenceDialogOpen(false)
+        setInpaintDialogOpen(false)
+        setDialogImage(null)
         reviewGenerationSceneIds.current.clear()
     }, [open])
 
@@ -369,12 +404,9 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
         if (tab === 'all') setAllDetailOpen(false)
     }
 
-    const handleGenerate = () => {
+    const startGeneration = () => {
         const state = useSceneStore.getState()
-        if (state.isGenerating || state.isCancelling) {
-            state.cancelSceneGeneration()
-            return
-        }
+        if (state.isGenerating || state.isCancelling) return
         if (!activePresetId || !selectedScene) return
 
         const currentScene = state.presets.find(preset => preset.id === activePresetId)?.scenes.find(scene => scene.id === selectedScene.id)
@@ -382,6 +414,12 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
         reviewGenerationSceneIds.current.add(currentScene.id)
         if (currentScene.queueCount === 0) state.incrementQueue(activePresetId, currentScene.id)
         state.startNewGenerationSession()
+    }
+
+    const handleGenerate = () => {
+        const state = useSceneStore.getState()
+        if (state.isGenerating || state.isCancelling) state.cancelSceneGeneration()
+        else startGeneration()
     }
 
     const selectReviewImage = (image: ReviewImage) => {
@@ -402,6 +440,19 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
         if (selectedImage?.url === image.url) setSelectedImageId(null)
     }
 
+    const openImageAction = async (image: SceneImage, action: 'metadata' | 'reference') => {
+        try {
+            const source = image.url.startsWith('data:')
+                ? image.url
+                : await bytesToImageDataUrl(await readFile(image.url), image.url)
+            setDialogImage(source)
+            if (action === 'metadata') setMetadataDialogOpen(true)
+            else setReferenceDialogOpen(true)
+        } catch (error) {
+            console.error(`Failed to load review image for ${action}:`, error)
+        }
+    }
+
     const individualViewProps = {
         scene: selectedScene,
         image: selectedImage,
@@ -410,7 +461,15 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
         onSelectImage: setSelectedImageId,
         onSelectReviewImage: selectReviewImage,
         onDeleteImage: deleteReviewImage,
+        onAddReference: (image: SceneImage) => void openImageAction(image, 'reference'),
+        onLoadMetadata: (image: SceneImage) => void openImageAction(image, 'metadata'),
+        onInpaint: (base64: string) => {
+            setDialogImage(base64)
+            setInpaintDialogOpen(true)
+        },
         onGenerate: handleGenerate,
+        onRegenerate: startGeneration,
+        regenerateDisabled: isGenerating || isCancelling,
     }
     const tabs: Array<{ id: ReviewTab; label: string }> = [
         { id: 'all', label: t('scene.reviewAll') },
@@ -420,6 +479,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
     ]
 
     return (
+        <>
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="!flex !h-[88vh] !w-[92vw] !max-w-[1600px] flex-col gap-2 overflow-hidden p-4">
                 <DialogTitle className="sr-only">{t('scene.reviewImages')}</DialogTitle>
@@ -458,5 +518,30 @@ export function SceneReviewDialog({ open, onOpenChange, scenes }: SceneReviewDia
                 </div>
             </DialogContent>
         </Dialog>
+        <MetadataDialog
+            open={metadataDialogOpen}
+            onOpenChange={nextOpen => {
+                setMetadataDialogOpen(nextOpen)
+                if (!nextOpen) setDialogImage(null)
+            }}
+            initialImage={dialogImage || undefined}
+        />
+        <ImageReferenceDialog
+            open={referenceDialogOpen}
+            onOpenChange={nextOpen => {
+                setReferenceDialogOpen(nextOpen)
+                if (!nextOpen) setDialogImage(null)
+            }}
+            imageBase64={dialogImage}
+        />
+        <InpaintingDialog
+            open={inpaintDialogOpen}
+            onOpenChange={nextOpen => {
+                setInpaintDialogOpen(nextOpen)
+                if (!nextOpen) setDialogImage(null)
+            }}
+            sourceImage={dialogImage}
+        />
+        </>
     )
 }

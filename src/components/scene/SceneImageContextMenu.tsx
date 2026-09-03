@@ -26,12 +26,14 @@ interface SceneContextMenuProps {
     image: SceneImage
     children: React.ReactNode
     onDelete: () => void
+    onRegenerate?: () => void
+    regenerateDisabled?: boolean
     onAddRef?: () => void
     onLoadMetadata?: () => void
     onInpaint?: (base64: string) => void
 }
 
-export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onLoadMetadata, onInpaint }: SceneContextMenuProps) {
+export function SceneImageContextMenu({ image, children, onDelete, onRegenerate, regenerateDisabled, onAddRef, onLoadMetadata, onInpaint }: SceneContextMenuProps) {
     const { t } = useTranslation()
     const navigate = useNavigate()
     const { setActiveImage, setRequestedTool } = useToolsStore()
@@ -222,6 +224,8 @@ export function SceneImageContextMenu({ image, children, onDelete, onAddRef, onL
                 <ImageQuickActionItems
                     onSaveAs={handleSaveAs}
                     onCopy={handleCopy}
+                    onRegenerate={onRegenerate}
+                    regenerateDisabled={regenerateDisabled}
                     onExifDirectAction={handleExifDirectAction}
                     onOpenExifManager={handleExifManager}
                     onOpenSmartTools={handleSmartTools}
