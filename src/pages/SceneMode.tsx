@@ -400,6 +400,7 @@ export default function SceneMode() {
     const [activeId, setActiveId] = useState<string | null>(null)
     const [isRenamingPreset, setIsRenamingPreset] = useState(false)
     const [presetActionsOpen, setPresetActionsOpen] = useState(false)
+    const [fileActionsOpen, setFileActionsOpen] = useState(false)
 
     // Generation Store values - used by export logic or future features?
     // Left empty for now as logic moved to hook
@@ -960,29 +961,46 @@ export default function SceneMode() {
                                 </Button>
                             </Tip>
                         </div>
-                        {/* Import JSON Button */}
-                        <Tip content={t('scene.importJson', 'JSON 불러오기')}>
-                            <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" onClick={handleImportClick} disabled={isGenerating}>
-                                <Upload className="h-4 w-4" />
-                            </Button>
-                        </Tip>
-                        <Tip content={t('scene.exportJson', '씬 데이터를 JSON으로 내보내기')}>
-                            <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" onClick={handleExportJson} disabled={!activePreset || isGenerating}>
-                                <Download className="h-4 w-4" />
-                            </Button>
-                        </Tip>
-                        {expertR2DirectUploadEnabled && (
-                            <Tip content={t('scene.r2DirectUpload.title', 'R2 Direct Upload')}>
-                                <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" onClick={() => setShowR2DirectUploadDialog(true)} disabled={scenes.length === 0 || isGenerating}>
-                                    <Cloud className="h-4 w-4" />
+                        <div className="relative shrink-0">
+                            <Tip content={t('scene.fileActions', '불러오기 및 내보내기')}>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className={cn('h-10 w-10 rounded-xl border-white/10 hover:bg-white/5', fileActionsOpen && 'bg-white/10 text-foreground')}
+                                    onClick={() => setFileActionsOpen(open => !open)}
+                                    aria-pressed={fileActionsOpen}
+                                    aria-label={t('scene.fileActions', '불러오기 및 내보내기')}
+                                >
+                                    <MoreVertical className="h-4 w-4" />
                                 </Button>
                             </Tip>
-                        )}
-                        <Tip content={t('scene.exportZip', '모든 씬 이미지 ZIP 내보내기')}>
-                            <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-white/10 hover:bg-white/5" onClick={handleExportZip} disabled={scenes.length === 0}>
-                                <span className="text-[10px] font-bold leading-none">.zip</span>
-                            </Button>
-                        </Tip>
+                            {fileActionsOpen && (
+                                <div className="absolute right-0 top-full z-50 mt-1 flex flex-col items-center gap-1 rounded-xl border border-white/10 bg-popover p-1 shadow-md">
+                                    <Tip content={t('scene.exportZip', '모든 씬 이미지 ZIP 내보내기')}>
+                                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg" onClick={handleExportZip} disabled={scenes.length === 0}>
+                                            <span className="text-[10px] font-bold leading-none">.zip</span>
+                                        </Button>
+                                    </Tip>
+                                    {expertR2DirectUploadEnabled && (
+                                        <Tip content={t('scene.r2DirectUpload.title', 'R2 Direct Upload')}>
+                                            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg" onClick={() => setShowR2DirectUploadDialog(true)} disabled={scenes.length === 0 || isGenerating}>
+                                                <Cloud className="h-4 w-4" />
+                                            </Button>
+                                        </Tip>
+                                    )}
+                                    <Tip content={t('scene.importJson', 'JSON 불러오기')}>
+                                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg" onClick={handleImportClick} disabled={isGenerating}>
+                                            <Upload className="h-4 w-4" />
+                                        </Button>
+                                    </Tip>
+                                    <Tip content={t('scene.exportJson', '씬 데이터를 JSON으로 내보내기')}>
+                                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg" onClick={handleExportJson} disabled={!activePreset || isGenerating}>
+                                            <Download className="h-4 w-4" />
+                                        </Button>
+                                    </Tip>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
