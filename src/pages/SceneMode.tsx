@@ -749,8 +749,9 @@ export default function SceneMode() {
                 </div>
             ) : (
                 /* Normal Header */
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <h1 className="sr-only">{t('scene.title')}</h1>
                         <Tip content={t('scene.openPresetFolder')}>
                             <Button
                                 variant="ghost"
@@ -762,9 +763,109 @@ export default function SceneMode() {
                                 <FolderOpen className="h-4 w-4" />
                             </Button>
                         </Tip>
-                        <h1 className="text-2xl font-bold">{t('scene.title')}</h1>
+                        {isRenamingPreset ? (
+                            <PresetRenameInput
+                                initialValue={activePreset?.name || ''}
+                                onSave={(val) => {
+                                    if (activePresetId && val) renamePreset(activePresetId, val)
+                                    setIsRenamingPreset(false)
+                                }}
+                                onCancel={() => setIsRenamingPreset(false)}
+                            />
+                        ) : (
+                            <Select
+                                value={activePresetId || ''}
+                                open={presetSelectOpen}
+                                onOpenChange={setPresetSelectOpen}
+                                onValueChange={(value) => {
+                                    setActivePreset(value)
+                                    setPresetSelectOpen(false)
+                                }}
+                                disabled={isGenerating}
+                            >
+                                <SelectTrigger className="w-[260px] max-w-[260px] rounded-xl border-white/10 bg-transparent h-10 [&>span]:truncate">
+                                    <SelectValue placeholder={t('scene.preset')} />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[300px] w-[260px]">
+                                    {presets.map((preset) => (
+                                        <SelectItem key={preset.id} value={preset.id}>
+                                            <span className="block max-w-[200px] truncate">{preset.name} ({preset.scenes.length})</span>
+                                        </SelectItem>
+                                    ))}
+                                    <DropdownMenuSeparator />
+                                    <div className="p-1">
+                                        <div className="flex items-center gap-2">
+                                            <Input
+                                                placeholder={t('scene.newPresetName')}
+                                                value={newPresetName}
+                                                onChange={(e) => setNewPresetName(e.target.value)}
+                                                className="h-8 text-xs"
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.stopPropagation()
+                                                        handleAddPreset()
+                                                    }
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                            <Button size="sm" variant="secondary" className="h-8 px-2" onClick={(e) => { e.stopPropagation(); handleAddPreset() }} disabled={!newPresetName.trim() || isGenerating}>
+                                                <Plus className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </SelectContent>
+                            </Select>
+                        )}
+                        {activePreset && (
+                            <div className="flex items-center gap-1">
+                                {!isRenamingPreset && (
+                                    <Tip content={t('actions.rename', '이름 변경')}>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setIsRenamingPreset(true)} disabled={isGenerating}>
+                                            <Pencil className="h-4 w-4" />
+                                        </Button>
+                                    </Tip>
+                                )}
+                                <Tip content={t('scene.duplicate', '복제')}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => activePresetId && duplicatePreset(activePresetId)} disabled={isGenerating}>
+                                        <Copy className="h-4 w-4" />
+                                    </Button>
+                                </Tip>
+                                {presets.length > 1 && (
+                                    <Tip content={t('scene.deletePreset', '프리셋 삭제')}>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setShowDeletePresetDialog(true)} disabled={isGenerating}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </Tip>
+                                )}
+                            </div>
+                        )}
+                        {presets.length > 1 && (
+                            <ScenePresetReorderDialog
+                                presets={presets}
+                                activePresetId={activePresetId}
+                                onReorder={reorderPresets}
+                                t={t}
+                            />
+                        )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
+                        <Tip content={t('scene.reviewImages')}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-white/10" onClick={() => setShowReviewDialog(true)} disabled={!scenes.some(scene => scene.images.length > 0)}>
+                                <ImageIcon className="h-4 w-4" />
+                            </Button>
+                        </Tip>
+                        <Tip content={t('scene.thumbnailLayout', '세로/가로 썸네일 전환')}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-white/10" onClick={() => setThumbnailLayout(getNextThumbnailLayout(thumbnailLayout))}>
+                                {thumbnailLayout === 'vertical' ? <LayoutGrid className="h-4 w-4" /> : thumbnailLayout === 'horizontal' ? <LayoutList className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                            </Button>
+                        </Tip>
+                        <Tip content={t('scene.gridColumnsDesc', '그리드 열 개수 변경')}>
+                            <Button variant="ghost" size="sm" className="h-9 text-muted-foreground hover:text-foreground hover:bg-white/10" onClick={handleToggleGrid}>
+                                <Grid3x3 className="h-4 w-4 mr-1.5" />
+                                <span className="font-medium text-sm">{gridColumns}</span>
+                            </Button>
+                        </Tip>
+                        <div className="h-6 w-px bg-border" />
                         {/* Hidden file input for JSON import */}
                         <input
                             ref={fileInputRef}
@@ -897,130 +998,6 @@ export default function SceneMode() {
                     </div>
                 </div>
             )}
-
-            {/* Preset Bar */}
-            <div className="flex items-center gap-3 p-3 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl shadow-sm">
-                <div className="flex items-center gap-2 w-[260px] shrink-0">
-                    {isRenamingPreset ? (
-                        <PresetRenameInput
-                            initialValue={activePreset?.name || ''}
-                            onSave={(val) => {
-                                if (activePresetId && val) {
-                                    renamePreset(activePresetId, val)
-                                }
-                                setIsRenamingPreset(false)
-                            }}
-                            onCancel={() => setIsRenamingPreset(false)}
-                        />
-                    ) : (
-                        <Select
-                            value={activePresetId || ''}
-                            open={presetSelectOpen}
-                            onOpenChange={setPresetSelectOpen}
-                            onValueChange={(value) => {
-                                setActivePreset(value)
-                                setPresetSelectOpen(false)
-                            }}
-                            disabled={isGenerating}
-                        >
-                            <SelectTrigger className="w-[260px] max-w-[260px] rounded-xl bg-transparent border-white/10 hover:bg-white/5 transition-colors h-10 [&>span]:truncate">
-                                <SelectValue placeholder={t('scene.preset')} />
-                            </SelectTrigger>
-                            <SelectContent className="max-h-[300px] w-[260px]">
-                                {presets.map((preset) => (
-                                    <SelectItem key={preset.id} value={preset.id}>
-                                        <span className="block max-w-[200px] truncate">{preset.name} ({preset.scenes.length})</span>
-                                    </SelectItem>
-                                ))}
-                                <DropdownMenuSeparator />
-                                <div className="p-1">
-                                    <div className="flex items-center gap-2">
-                                        <Input
-                                            placeholder={t('scene.newPresetName')}
-                                            value={newPresetName}
-                                            onChange={(e) => setNewPresetName(e.target.value)}
-                                            className="h-8 text-xs"
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    e.stopPropagation()
-                                                    handleAddPreset()
-                                                }
-                                            }}
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                        <Button size="sm" variant="secondary" className="h-8 px-2" onClick={(e) => { e.stopPropagation(); handleAddPreset() }} disabled={!newPresetName.trim() || isGenerating}>
-                                            <Plus className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </div>
-                            </SelectContent>
-                        </Select>
-                    )}
-                    {activePreset && (
-                        <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10">
-                            {!isRenamingPreset && (
-                                <Tip content={t('actions.rename', '이름 변경')}>
-                                    <Button variant="ghost" size="icon" className="shrink-0 rounded-lg h-8 w-8 hover:bg-white/10" onClick={() => setIsRenamingPreset(true)} disabled={isGenerating}>
-                                        <Pencil className="h-4 w-4" />
-                                    </Button>
-                                </Tip>
-                            )}
-                            <Tip content={t('scene.duplicate', '복제')}>
-                                <Button variant="ghost" size="icon" className="shrink-0 rounded-lg h-8 w-8 hover:bg-white/10" onClick={() => activePresetId && duplicatePreset(activePresetId)} disabled={isGenerating}>
-                                    <Copy className="h-4 w-4" />
-                                </Button>
-                            </Tip>
-                            {presets.length > 1 && (
-                                <Tip content={t('scene.deletePreset', '??? ??')}>
-                                    <Button variant="ghost" size="icon" className="shrink-0 rounded-lg h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setShowDeletePresetDialog(true)} disabled={isGenerating}>
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </Tip>
-                            )}
-                        </div>
-                    )}
-                    {presets.length > 1 && (
-                        <ScenePresetReorderDialog
-                            presets={presets}
-                            activePresetId={activePresetId}
-                            onReorder={reorderPresets}
-                            t={t}
-                        />
-                    )}
-                </div>
-
-
-
-                <div className="flex items-center gap-2 ml-auto">
-                    <Tip content={t('scene.reviewImages')}>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-white/10"
-                            onClick={() => setShowReviewDialog(true)}
-                            disabled={!scenes.some(scene => scene.images.length > 0)}
-                        >
-                            <ImageIcon className="h-4 w-4" />
-                        </Button>
-                    </Tip>
-                    <Tip content={t('scene.thumbnailLayout', '세로/가로 썸네일 전환')}>
-                        <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-white/10" 
-                            onClick={() => setThumbnailLayout(getNextThumbnailLayout(thumbnailLayout))}
-                        >
-                            {thumbnailLayout === 'vertical' ? <LayoutGrid className="h-4 w-4" /> : thumbnailLayout === 'horizontal' ? <LayoutList className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-                        </Button>
-                    </Tip>
-                    <Tip content={t('scene.gridColumnsDesc', '그리드 열 개수 변경')}>
-                        <Button variant="ghost" size="sm" className="h-9 text-muted-foreground hover:text-foreground hover:bg-white/10" onClick={handleToggleGrid}>
-                            <Grid3x3 className="h-4 w-4 mr-1.5" />
-                            <span className="font-medium text-sm">{gridColumns}</span>
-                        </Button>
-                    </Tip>
-                </div>
-            </div>
 
             {/* Scene Grid */}
             <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar p-1">
