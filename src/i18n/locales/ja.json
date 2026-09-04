@@ -100,6 +100,8 @@
     "reviewImageNameExamples": "名前の例",
     "reviewOutputMethod": "出力方法",
     "reviewRunOutput": "続行",
+    "reviewExcludeImage": "出力から除外",
+    "reviewIncludeImage": "出力に含める",
     "addToQueue": "予約追加",
     "addAllQueue": "全予約 +1",
     "addSelectedQueue": "選択したシーンを予約に追加",

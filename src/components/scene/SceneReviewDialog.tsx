@@ -66,6 +66,7 @@ interface ReviewGridItem {
 }
 
 const imageSrc = (url: string) => url.startsWith('data:') ? url : convertFileSrc(url)
+const reviewImageKey = (sceneId: string, imageId: string) => `${sceneId}:${imageId}`
 
 function ReviewScenePromptEditor({ presetId, scene }: { presetId: string; scene: SceneCard }) {
     const { t } = useTranslation()
@@ -111,10 +112,12 @@ function ReviewScenePromptEditor({ presetId, scene }: { presetId: string; scene:
     )
 }
 
-function ReviewImageGrid({ items, brokenImageUrls, onImageError, onSelect, emptyLabel }: {
+function ReviewImageGrid({ items, brokenImageUrls, excludedImageKeys, onImageError, onToggleExcluded, onSelect, emptyLabel }: {
     items: ReviewGridItem[]
     brokenImageUrls: Set<string>
+    excludedImageKeys?: Set<string>
     onImageError: (url: string) => void
+    onToggleExcluded?: (image: ReviewImage) => void
     onSelect: (image: ReviewImage) => void
     emptyLabel?: string
 }) {
@@ -129,19 +132,23 @@ function ReviewImageGrid({ items, brokenImageUrls, onImageError, onSelect, empty
             {items.map(item => {
                 const image = item.image
                 const missing = !image || brokenImageUrls.has(image.url)
+                const excluded = !!image && excludedImageKeys?.has(reviewImageKey(item.sceneId, image.id))
                 return (
-                    <button
+                    <div
                         key={`${item.sceneId}:${image?.id || 'missing'}`}
-                        type="button"
-                        disabled={missing}
-                        aria-label={item.sceneName}
-                        title={item.sceneName}
                         className={cn(
-                            'aspect-square overflow-hidden rounded-lg border bg-black/30 transition-colors',
-                            missing ? 'border-2 border-red-500/90 bg-red-950/10' : 'border-border/60 hover:border-primary/60',
+                            'relative aspect-square overflow-hidden rounded-lg border bg-black/30 transition-colors',
+                            missing ? 'border-2 border-red-500/90 bg-red-950/10' : excluded ? 'border-2 border-red-500/90' : 'border-border/60 hover:border-primary/60',
                         )}
-                        onClick={() => image && onSelect(image)}
                     >
+                        <button
+                            type="button"
+                            disabled={missing}
+                            aria-label={item.sceneName}
+                            title={item.sceneName}
+                            className={cn('h-full w-full', excluded && 'opacity-45')}
+                            onClick={() => image && onSelect(image)}
+                        >
                         {image && !missing && (
                             <img
                                 src={imageSrc(image.url)}
@@ -152,20 +159,38 @@ function ReviewImageGrid({ items, brokenImageUrls, onImageError, onSelect, empty
                                 onError={() => onImageError(image.url)}
                             />
                         )}
-                    </button>
+                        </button>
+                        {image && !missing && onToggleExcluded && (
+                            <button
+                                type="button"
+                                aria-label={t(excluded ? 'scene.reviewIncludeImage' : 'scene.reviewExcludeImage')}
+                                title={t(excluded ? 'scene.reviewIncludeImage' : 'scene.reviewExcludeImage')}
+                                aria-pressed={excluded}
+                                className={cn(
+                                    'absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border text-white shadow-sm transition-colors',
+                                    excluded ? 'border-red-400 bg-red-600 hover:bg-red-500' : 'border-white/40 bg-black/65 hover:bg-red-600',
+                                )}
+                                onClick={() => onToggleExcluded(image)}
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        )}
+                    </div>
                 )
             })}
         </div>
     )
 }
 
-function FinalReviewView({ items, brokenImageUrls, sceneCount, outputMethod, cloudflareEnabled, onImageError, onOutputMethodChange, onOutput, onSelectImage }: {
+function FinalReviewView({ items, brokenImageUrls, excludedImageKeys, sceneCount, outputMethod, cloudflareEnabled, onImageError, onToggleExcluded, onOutputMethodChange, onOutput, onSelectImage }: {
     items: ReviewGridItem[]
     brokenImageUrls: Set<string>
+    excludedImageKeys: Set<string>
     sceneCount: number
     outputMethod: ReviewOutputMethod
     cloudflareEnabled: boolean
     onImageError: (url: string) => void
+    onToggleExcluded: (image: ReviewImage) => void
     onOutputMethodChange: (method: ReviewOutputMethod) => void
     onOutput: () => void
     onSelectImage: (image: ReviewImage) => void
@@ -179,8 +204,10 @@ function FinalReviewView({ items, brokenImageUrls, sceneCount, outputMethod, clo
     const setSceneExportNamePart = useSettingsStore(state => state.setSceneExportNamePart)
     const nameMode = expertSceneExportNameEnabled ? sceneExportNamePart : 'full'
     const images = useMemo(
-        () => items.flatMap(item => item.image && !brokenImageUrls.has(item.image.url) ? [item.image] : []),
-        [brokenImageUrls, items],
+        () => items.flatMap(item => item.image
+            && !brokenImageUrls.has(item.image.url)
+            && !excludedImageKeys.has(reviewImageKey(item.sceneId, item.image.id)) ? [item.image] : []),
+        [brokenImageUrls, excludedImageKeys, items],
     )
     const nameExamples = useMemo(() => {
         const usedFileNames = new Set<string>()
@@ -213,7 +240,7 @@ function FinalReviewView({ items, brokenImageUrls, sceneCount, outputMethod, clo
     return (
         <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_300px] gap-3">
             <div className="min-h-0 overflow-y-auto rounded-xl border border-border/50 bg-card/40 p-3 custom-scrollbar">
-                <ReviewImageGrid items={items} brokenImageUrls={brokenImageUrls} onImageError={onImageError} onSelect={onSelectImage} emptyLabel={t('scene.noReviewedImages')} />
+                <ReviewImageGrid items={items} brokenImageUrls={brokenImageUrls} excludedImageKeys={excludedImageKeys} onImageError={onImageError} onToggleExcluded={onToggleExcluded} onSelect={onSelectImage} emptyLabel={t('scene.noReviewedImages')} />
             </div>
             <aside className="flex flex-col gap-5 rounded-xl border border-border/50 bg-card/40 p-4">
                 <div>
@@ -567,6 +594,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
     const [r2DialogOpen, setR2DialogOpen] = useState(false)
     const [outputMethod, setOutputMethod] = useState<ReviewOutputMethod>('zip')
     const [brokenImageUrls, setBrokenImageUrls] = useState<Set<string>>(new Set())
+    const [excludedImageKeys, setExcludedImageKeys] = useState<Set<string>>(new Set())
     const [dialogImage, setDialogImage] = useState<string | null>(null)
     const reviewGenerationSceneIds = useRef(new Set<string>())
     const activePresetId = useSceneStore(state => state.activePresetId)
@@ -580,10 +608,12 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
         : [], [open, scenes])
     const usableOutputScenes = useMemo(() => outputScenes.flatMap(scene => {
         const image = pickSceneRepresentativeImage(scene.images)
-        return image && !brokenImageUrls.has(image.url) ? [{ ...scene, images: [image] }] : []
-    }), [brokenImageUrls, outputScenes])
+        return image
+            && !brokenImageUrls.has(image.url)
+            && !excludedImageKeys.has(reviewImageKey(scene.id, image.id)) ? [{ ...scene, images: [image] }] : []
+    }), [brokenImageUrls, excludedImageKeys, outputScenes])
     const finalItems = useMemo(() => {
-        const outputBySceneId = new Map(usableOutputScenes.map(scene => [scene.id, scene]))
+        const outputBySceneId = new Map(outputScenes.map(scene => [scene.id, scene]))
         return scenes.map(scene => {
             const outputScene = outputBySceneId.get(scene.id)
             const image = outputScene && pickSceneRepresentativeImage(outputScene.images)
@@ -593,7 +623,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
                 image: image ? { ...image, sceneId: scene.id, sceneName: scene.name } : null,
             }
         })
-    }, [scenes, usableOutputScenes])
+    }, [outputScenes, scenes])
     const getGridImages = (tab: ReviewTab, reviewDecisions: SceneReviewDecisions) => {
         if (tab === 'all') return images
         if (tab === 'pending') return images.filter(image => reviewDecisions[image.sceneId]?.status !== 'passed')
@@ -630,6 +660,7 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
         setExportDialogOpen(false)
         setR2DialogOpen(false)
         setBrokenImageUrls(new Set())
+        setExcludedImageKeys(new Set())
         setDialogImage(null)
         reviewGenerationSceneIds.current.clear()
     }, [open])
@@ -679,6 +710,16 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
     const selectTab = (tab: ReviewTab) => {
         setActiveTab(tab)
         setDetailOpen(false)
+    }
+
+    const toggleExcludedImage = (image: ReviewImage) => {
+        const key = reviewImageKey(image.sceneId, image.id)
+        setExcludedImageKeys(current => {
+            const next = new Set(current)
+            if (next.has(key)) next.delete(key)
+            else next.add(key)
+            return next
+        })
     }
 
     const startGeneration = () => {
@@ -808,10 +849,12 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
                         <FinalReviewView
                             items={finalItems}
                             brokenImageUrls={brokenImageUrls}
+                            excludedImageKeys={excludedImageKeys}
                             sceneCount={scenes.length}
                             outputMethod={outputMethod}
                             cloudflareEnabled={cloudflareEnabled}
                             onImageError={handleImageError}
+                            onToggleExcluded={toggleExcludedImage}
                             onOutputMethodChange={setOutputMethod}
                             onOutput={() => outputMethod === 'zip' ? setExportDialogOpen(true) : setR2DialogOpen(true)}
                             onSelectImage={image => {

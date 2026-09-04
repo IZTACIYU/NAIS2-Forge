@@ -101,6 +101,8 @@
     "reviewImageNameExamples": "Name examples",
     "reviewOutputMethod": "Output method",
     "reviewRunOutput": "Continue",
+    "reviewExcludeImage": "Exclude from output",
+    "reviewIncludeImage": "Include in output",
     "addToQueue": "Add to Queue",
     "addAllQueue": "Add All +1",
     "addSelectedQueue": "Add selected scenes to queue",

@@ -101,6 +101,8 @@
     "reviewImageNameExamples": "이름 예시",
     "reviewOutputMethod": "내보내기 방식",
     "reviewRunOutput": "진행",
+    "reviewExcludeImage": "출력에서 제외",
+    "reviewIncludeImage": "출력에 포함",
     "addToQueue": "예약 추가",
     "addAllQueue": "전체 예약 +1",
     "addSelectedQueue": "선택한 씬 예약 추가",
