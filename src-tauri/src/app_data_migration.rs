@@ -74,12 +74,16 @@ fn move_directory(
                 source.display()
             ));
         }
-        if destination.exists() {
+        if destination.exists() && !destination.is_dir() {
             return Err(format!(
-                "Unverified migration destination already exists: {}",
+                "Migration destination is not a directory: {}",
                 destination.display()
             ));
         }
+        fs::create_dir_all(destination)
+            .map_err(|error| format!("Failed to create app data directory: {error}"))?;
+        fs::write(marker, b"complete\n")
+            .map_err(|error| format!("Failed to record completed migration: {error}"))?;
         return Ok(());
     }
 
@@ -292,6 +296,33 @@ mod tests {
             fs::read(destination.join(HTTP_COOKIES_FILENAME)).unwrap(),
             b"cookie"
         );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn marks_missing_legacy_source_without_rejecting_current_data() {
+        let root = test_root("app-data-no-legacy-source");
+        let source = root.join(LEGACY_IDENTIFIER);
+        let destination = root.join(CURRENT_IDENTIFIER);
+
+        move_directory(&source, &destination, false).unwrap();
+        assert!(destination.join(MIGRATION_MARKER).is_file());
+
+        fs::write(destination.join("current-state"), b"current").unwrap();
+        move_directory(&source, &destination, false).unwrap();
+        assert_eq!(
+            fs::read(destination.join("current-state")).unwrap(),
+            b"current"
+        );
+
+        fs::remove_file(destination.join(MIGRATION_MARKER)).unwrap();
+        move_directory(&source, &destination, false).unwrap();
+        assert_eq!(
+            fs::read(destination.join("current-state")).unwrap(),
+            b"current"
+        );
+        assert!(destination.join(MIGRATION_MARKER).is_file());
 
         fs::remove_dir_all(root).unwrap();
     }
