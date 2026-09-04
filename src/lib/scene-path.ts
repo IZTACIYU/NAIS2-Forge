@@ -2,6 +2,11 @@ interface SceneImagePathLike {
     url: string
 }
 
+export interface SceneFolderPathMapping {
+    oldFolder: string
+    newFolder: string
+}
+
 interface ScenePresetPathLike {
     id: string
     scenes: Array<{ id: string; images: SceneImagePathLike[] }>
@@ -42,4 +47,11 @@ export function replaceSceneFolderPrefix(path: string, oldFolder: string, newFol
     }
 
     return newFolder + path.slice(oldFolder.length)
+}
+
+export function replaceSceneFolderPrefixes(path: string, mappings: SceneFolderPathMapping[]): string {
+    return mappings.reduce(
+        (current, mapping) => replaceSceneFolderPrefix(current, mapping.oldFolder, mapping.newFolder),
+        path,
+    )
 }

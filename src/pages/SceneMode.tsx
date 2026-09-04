@@ -427,6 +427,32 @@ export default function SceneMode() {
     const presetActionsRef = useRef<HTMLDivElement>(null)
     const fileActionsRef = useRef<HTMLDivElement>(null)
 
+    const handleRenamePreset = (name: string) => {
+        const presetId = activePresetId
+        setIsRenamingPreset(false)
+        if (!presetId) return
+
+        void renamePreset(presetId, name)
+            .then(cleanupFailures => {
+                if (cleanupFailures > 0) {
+                    toast({
+                        title: t('common.saved', '저장됨'),
+                        description: t('scene.presetRenameCleanupWarning', '이름은 변경했지만 일부 이전 폴더를 정리하지 못했습니다.'),
+                    })
+                }
+            })
+            .catch(error => {
+                console.error('Failed to rename scene preset:', error)
+                toast({
+                    title: t('common.error', '오류'),
+                    description: error instanceof Error
+                        ? error.message
+                        : t('scene.presetRenameFailed', '씬 프리셋 이름을 변경하지 못했습니다.'),
+                    variant: 'destructive',
+                })
+            })
+    }
+
     // Generation Store values - used by export logic or future features?
     // Left empty for now as logic moved to hook
 
@@ -852,10 +878,7 @@ export default function SceneMode() {
                         {isRenamingPreset ? (
                             <PresetRenameInput
                                 initialValue={activePreset?.name || ''}
-                                onSave={(val) => {
-                                    if (activePresetId && val) renamePreset(activePresetId, val)
-                                    setIsRenamingPreset(false)
-                                }}
+                                onSave={handleRenamePreset}
                                 onCancel={() => setIsRenamingPreset(false)}
                             />
                         ) : (
@@ -1557,10 +1580,19 @@ const PresetRenameInput = memo(({
     onCancel: () => void
 }) => {
     const [value, setValue] = useState(initialValue)
+    const submittedRef = useRef(false)
 
     const handleSave = () => {
+        if (submittedRef.current) return
+        submittedRef.current = true
         if (value.trim()) onSave(value.trim())
         else onCancel()
+    }
+
+    const handleCancel = () => {
+        if (submittedRef.current) return
+        submittedRef.current = true
+        onCancel()
     }
 
     return (
@@ -1573,7 +1605,7 @@ const PresetRenameInput = memo(({
                 onBlur={handleSave}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSave()
-                    if (e.key === 'Escape') onCancel()
+                    if (e.key === 'Escape') handleCancel()
                 }}
             />
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleSave}>

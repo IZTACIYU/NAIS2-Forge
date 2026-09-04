@@ -528,6 +528,19 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+## R-041 — 씬 프리셋 이름 변경은 물리 폴더와 저장 경로를 함께 이전한다
+
+- **Date:** 2026-09-04
+- **Area:** scene preset rename, scene filesystem, persisted paths
+- **Symptom/Risk:** 씬 프리셋 제목만 바뀌고 기존 이름의 폴더와 이미지가 그대로 남아, 이후 생성 파일이 새 이름 폴더로 갈라질 수 있었다.
+- **Root cause:** `renamePreset`이 persisted 표시명만 갱신하고 실제 폴더와 `folderPath`·이미지·히스토리 경로를 처리하지 않았다.
+- **Invariant to preserve:** 프리셋 이름 변경은 각 씬의 저장된 실제 경로를 우선해 물리 프리셋 폴더를 이전하고, 복사·크기 검증이 완료된 경우에만 상태 경로를 새 위치로 바꾼다. 다른 프리셋의 폴더나 충돌하는 대상에는 쓰지 않는다.
+- **Fix:** 실제 씬 폴더들의 부모와 현재 설정상 프리셋 폴더를 수집해 기존 native migration으로 일괄 이전하고, 씬·이미지·히스토리 경로를 같은 mapping으로 갱신한다.
+- **Regression coverage:** `npm run check:scene-preset-rename`, native folder migration tests, TypeScript 및 production build.
+- **Do not "fix" by:** 표시명만 바꾸거나, `folderPath`를 무시하고 현재 설정 경로 하나만 추정하거나, 충돌하는 대상 폴더에 덮어쓰기.
+
+---
+
 ## 새 항목 템플릿
 
 ### R-XXX — 짧은 제목

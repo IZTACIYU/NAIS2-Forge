@@ -21,6 +21,7 @@
     "check:shortcuts": "node --experimental-strip-types scripts/check-shortcuts.mjs",
     "check:scene-queue-order": "node --experimental-strip-types scripts/check-scene-queue-order.mjs",
     "check:scene-copy-name": "node --experimental-strip-types scripts/check-scene-copy-name.mjs",
+    "check:scene-preset-rename": "node --experimental-strip-types scripts/check-scene-preset-rename.mjs",
     "check:scene-image-selection": "node --experimental-strip-types scripts/check-scene-image-selection.mjs",
     "check:scene-review-generation": "node --experimental-strip-types scripts/check-scene-review-generation.mjs",
     "check:scene-multi-character": "node scripts/check-scene-multi-character.mjs",

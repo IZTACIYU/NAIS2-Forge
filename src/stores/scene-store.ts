@@ -1,16 +1,17 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { createDeferredJSONStorage } from '@/lib/indexed-db'
+import { createDeferredJSONStorage, flushAllPendingWrites } from '@/lib/indexed-db'
 import { mkdir, rename, exists } from '@tauri-apps/plugin-fs'
-import { pictureDir, join, dirname } from '@tauri-apps/api/path'
+import { pictureDir, join, dirname, basename } from '@tauri-apps/api/path'
 import { useSettingsStore } from './settings-store'
 import { notifySceneQueueChanged } from '@/lib/scene-queue-events'
 import { flushScenePromptDrafts } from '@/lib/scene-prompt-drafts'
-import { getSceneFolderFromImages, replaceSceneFolderPrefix, sanitizeSceneFolderName } from '@/lib/scene-path'
+import { getSceneFolderFromImages, replaceSceneFolderPrefix, replaceSceneFolderPrefixes, sanitizeSceneFolderName } from '@/lib/scene-path'
 import { getUniqueDuplicateName } from '@/lib/scene-copy-name'
 import { createHistoryIndexScope, moveHistoryIndexPathPrefix } from '@/lib/history-index'
 import { normalizeCostumePromptMarkersForExport } from '@/lib/costume-prompt'
 import { buildSceneQueueOrder, findNextQueuedSceneIndex } from '@/lib/scene-queue-order'
+import { migrateFolders } from '@/lib/storage-migration'
 
 export interface SceneImage {
     id: string
@@ -190,7 +191,7 @@ interface SceneState {
     addPreset: (name: string) => void
     duplicatePreset: (id: string) => void
     deletePreset: (id: string) => void
-    renamePreset: (id: string, name: string) => void
+    renamePreset: (id: string, name: string) => Promise<number>
     reorderPresets: (oldIndex: number, newIndex: number) => void
     setActivePreset: (id: string) => void
     getActivePreset: () => ScenePreset | undefined
@@ -490,12 +491,113 @@ export const useSceneStore = create<SceneState>()(
                 }))
             },
 
-            renamePreset: (id, name) => {
+            renamePreset: async (id, name) => {
+                const snapshot = get()
+                const preset = snapshot.presets.find(candidate => candidate.id === id)
+                if (!preset || preset.name === name) return 0
+
+                const safeOldName = sanitizeSceneFolderName(preset.name, 'Default')
+                const safeNewName = sanitizeSceneFolderName(name, 'Default')
+                if (snapshot.presets.some(candidate =>
+                    candidate.id !== id
+                    && sanitizeSceneFolderName(candidate.name, 'Default').toLocaleLowerCase() === safeNewName.toLocaleLowerCase()
+                )) {
+                    throw new Error('같은 저장 폴더명을 사용하는 씬 프리셋이 이미 있습니다.')
+                }
+
+                const normalizePath = (path: string) => path
+                    .replace(/\//g, '\\')
+                    .replace(/\\+$/, '')
+                    .toLocaleLowerCase()
+                const sourceRoots = new Map<string, string>()
+                const otherPresetRoots = new Set<string>()
+
+                for (const candidate of snapshot.presets) {
+                    for (const scene of candidate.scenes) {
+                        const linkedFolder = scene.folderPath || getSceneFolderFromImages(scene.images)
+                        if (!linkedFolder) continue
+                        const presetRoot = await dirname(linkedFolder)
+                        if (candidate.id === id) {
+                            if (await exists(linkedFolder)) {
+                                const sceneRootName = await basename(await dirname(presetRoot))
+                                if (sceneRootName.toLocaleLowerCase() !== 'nais_scene') {
+                                    throw new Error('표준 씬 저장 폴더 밖의 경로는 자동으로 이동할 수 없습니다.')
+                                }
+                            }
+                            sourceRoots.set(normalizePath(presetRoot), presetRoot)
+                        } else {
+                            otherPresetRoots.add(normalizePath(presetRoot))
+                        }
+                    }
+                }
+
+                const { savePath, useAbsolutePath } = useSettingsStore.getState()
+                const rootDirectory = useAbsolutePath && savePath ? savePath : await pictureDir()
+                const configuredOldRoot = await join(rootDirectory, 'NAIS_Scene', safeOldName)
+                if (await exists(configuredOldRoot)) {
+                    sourceRoots.set(normalizePath(configuredOldRoot), configuredOldRoot)
+                }
+
+                const mappings = [] as Array<{ oldFolder: string; newFolder: string }>
+                for (const oldFolder of sourceRoots.values()) {
+                    if (!(await exists(oldFolder))) continue
+                    const oldKey = normalizePath(oldFolder)
+                    if (otherPresetRoots.has(oldKey)) {
+                        throw new Error('다른 씬 프리셋과 공유 중인 저장 폴더는 이동할 수 없습니다.')
+                    }
+
+                    const newFolder = await join(await dirname(oldFolder), safeNewName)
+                    const newKey = normalizePath(newFolder)
+                    if (oldKey === newKey) continue
+                    if (otherPresetRoots.has(newKey)) {
+                        throw new Error('다른 씬 프리셋이 대상 저장 폴더를 사용 중입니다.')
+                    }
+                    if (await exists(newFolder) && !sourceRoots.has(newKey)) {
+                        throw new Error('대상 씬 프리셋 폴더가 이미 존재합니다.')
+                    }
+                    mappings.push({ oldFolder, newFolder })
+                }
+
+                const result = await migrateFolders(mappings.map(mapping => ({
+                    sourcePath: mapping.oldFolder,
+                    destinationPath: mapping.newFolder,
+                })))
+
                 set(state => ({
-                    presets: state.presets.map(p =>
-                        p.id === id ? { ...p, name } : p
-                    ),
+                    presets: state.presets.map(candidate => {
+                        if (candidate.id !== id) return candidate
+                        return {
+                            ...candidate,
+                            name,
+                            scenes: candidate.scenes.map(scene => {
+                                const linkedFolder = scene.folderPath || getSceneFolderFromImages(scene.images)
+                                const folderPath = linkedFolder
+                                    ? replaceSceneFolderPrefixes(linkedFolder, mappings)
+                                    : scene.folderPath
+                                return {
+                                    ...scene,
+                                    folderPath,
+                                    images: scene.images.map(image => ({
+                                        ...image,
+                                        url: replaceSceneFolderPrefixes(image.url, mappings),
+                                    })),
+                                }
+                            }),
+                        }
+                    }),
                 }))
+                await flushAllPendingWrites()
+
+                const historyScope = createHistoryIndexScope(useAbsolutePath, savePath)
+                for (const mapping of mappings) {
+                    void moveHistoryIndexPathPrefix(historyScope, mapping.oldFolder, mapping.newFolder)
+                        .catch(error => console.warn('Failed to update history paths after preset rename:', error))
+                    window.dispatchEvent(new CustomEvent('historyPathsMoved', {
+                        detail: mapping,
+                    }))
+                }
+
+                return result.cleanupFailures
             },
 
             reorderPresets: (oldIndex, newIndex) => {
