@@ -7,6 +7,7 @@ import { useSceneGeneration } from '@/hooks/useSceneGeneration'
 import { useUpdateChecker } from '@/hooks/useUpdateChecker'
 import { useShortcuts } from '@/hooks/useShortcuts'
 import MainMode from '@/pages/MainMode'
+import { DrawOverHost } from '@/components/tools/DrawOverHost'
 
 const SceneMode = lazy(() => import('@/pages/SceneMode'))
 const SceneDetail = lazy(() => import('@/pages/SceneDetail'))
@@ -43,21 +44,24 @@ function AppContent() {
     }, [])
 
     return (
-        <ThreeColumnLayout>
-            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading...</div>}>
-                <Routes>
-                    <Route path="/" element={<MainMode />} />
-                    <Route path="/scenes" element={<SceneMode />} />
-                    <Route path="/scenes/:id" element={<SceneDetail />} />
-                    <Route path="/tools" element={<ToolsMode />} />
-                    <Route path="/exif" element={<ExifManager />} />
-                    <Route path="/web" element={<WebView />} />
-                    <Route path="/library" element={<Library />} />
-                    <Route path="/cloud-r2" element={<CloudR2 />} />
-                    <Route path="/settings" element={<Settings />} />
-                </Routes>
-            </Suspense>
-        </ThreeColumnLayout>
+        <>
+            <ThreeColumnLayout>
+                <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading...</div>}>
+                    <Routes>
+                        <Route path="/" element={<MainMode />} />
+                        <Route path="/scenes" element={<SceneMode />} />
+                        <Route path="/scenes/:id" element={<SceneDetail />} />
+                        <Route path="/tools" element={<ToolsMode />} />
+                        <Route path="/exif" element={<ExifManager />} />
+                        <Route path="/web" element={<WebView />} />
+                        <Route path="/library" element={<Library />} />
+                        <Route path="/cloud-r2" element={<CloudR2 />} />
+                        <Route path="/settings" element={<Settings />} />
+                    </Routes>
+                </Suspense>
+            </ThreeColumnLayout>
+            <DrawOverHost />
+        </>
     )
 }
 

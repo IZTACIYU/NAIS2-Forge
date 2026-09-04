@@ -78,7 +78,7 @@ export default function MainMode() {
 
     const navigate = useNavigate()
     const setActiveImage = useToolsStore(state => state.setActiveImage)
-    const setRequestedTool = useToolsStore(state => state.setRequestedTool)
+    const openDrawOver = useToolsStore(state => state.openDrawOver)
 
     const [metadataDialogOpen, setMetadataDialogOpen] = useState(false)
     const [metadataImage, setMetadataImage] = useState<string | undefined>(undefined)
@@ -348,9 +348,7 @@ export default function MainMode() {
 
     const handleDrawOver = () => {
         if (!previewImage) return
-        setActiveImage(previewImage)
-        setRequestedTool('draw-over')
-        navigate('/tools')
+        openDrawOver(previewImage)
     }
 
     // Image Reference popup

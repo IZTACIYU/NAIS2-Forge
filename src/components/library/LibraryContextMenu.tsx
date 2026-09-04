@@ -33,7 +33,7 @@ export function LibraryContextMenu({ item, children, onRename, onAddRef, onLoadM
     const { t } = useTranslation()
     const { removeItem } = useLibraryStore()
     const navigate = useNavigate()
-    const { setActiveImage, setRequestedTool } = useToolsStore()
+    const { setActiveImage, openDrawOver } = useToolsStore()
     const { setSourceImage, setI2IMode } = useGenerationStore()
     const [inpaintImage, setInpaintImage] = useState<string | null>(null)
     const [inpaintOpen, setInpaintOpen] = useState(false)
@@ -91,9 +91,7 @@ export function LibraryContextMenu({ item, children, onRename, onAddRef, onLoadM
 
     const handleDrawOver = async () => {
         try {
-            setActiveImage(await getImageData())
-            setRequestedTool('draw-over')
-            navigate('/tools')
+            openDrawOver(await getImageData(), item.path)
         } catch (e) {
             console.error('Failed to load for draw over:', e)
             toast({ title: t('smartTools.error', '이미지 로드 실패'), variant: 'destructive' })

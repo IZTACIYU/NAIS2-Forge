@@ -31,13 +31,12 @@ interface SceneContextMenuProps {
     onAddRef?: () => void
     onLoadMetadata?: () => void
     onInpaint?: (base64: string) => void
-    onDrawOver?: (base64: string) => void
 }
 
-export function SceneImageContextMenu({ image, children, onDelete, onRegenerate, regenerateDisabled, onAddRef, onLoadMetadata, onInpaint, onDrawOver }: SceneContextMenuProps) {
+export function SceneImageContextMenu({ image, children, onDelete, onRegenerate, regenerateDisabled, onAddRef, onLoadMetadata, onInpaint }: SceneContextMenuProps) {
     const { t } = useTranslation()
     const navigate = useNavigate()
-    const { setActiveImage, setRequestedTool } = useToolsStore()
+    const { setActiveImage, openDrawOver } = useToolsStore()
     const { setSourceImage, setI2IMode } = useGenerationStore()
     const [r2DirectUploadOpen, setR2DirectUploadOpen] = useState(false)
 
@@ -197,13 +196,7 @@ export function SceneImageContextMenu({ image, children, onDelete, onRegenerate,
         const base64 = await getImageBase64()
         if (!base64) return
 
-        if (onDrawOver) {
-            onDrawOver(base64)
-            return
-        }
-        setActiveImage(base64)
-        setRequestedTool('draw-over')
-        navigate('/tools')
+        openDrawOver(base64, isFile ? image.url : undefined)
     }
 
     const handleDelete = async () => {

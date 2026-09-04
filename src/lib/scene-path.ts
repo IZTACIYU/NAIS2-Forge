@@ -2,6 +2,11 @@ interface SceneImagePathLike {
     url: string
 }
 
+interface ScenePresetPathLike {
+    id: string
+    scenes: Array<{ id: string; images: SceneImagePathLike[] }>
+}
+
 export function sanitizeSceneFolderName(name: string, fallback = 'Untitled_Scene'): string {
     return name.replace(/[<>:"/\\|?*]/g, '_').trim() || fallback
 }
@@ -15,6 +20,15 @@ export function getSceneFolderFromImages(images: SceneImagePathLike[]): string |
         if (separatorIndex > 0) return path.slice(0, separatorIndex)
     }
 
+    return undefined
+}
+
+export function findSceneImageOwner(presets: ScenePresetPathLike[], sourcePath?: string) {
+    if (!sourcePath) return undefined
+    for (const preset of presets) {
+        const scene = preset.scenes.find(candidate => candidate.images.some(image => image.url === sourcePath))
+        if (scene) return { presetId: preset.id, sceneId: scene.id }
+    }
     return undefined
 }
 

@@ -239,9 +239,9 @@ export function HistoryPanel() {
     const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false)
     const [selectedImageForInpaint, setSelectedImageForInpaint] = useState<string | null>(null)
     const navigate = useNavigate()
-    const { setActiveImage, setRequestedTool } = useToolsStore(useShallow(state => ({
+    const { setActiveImage, openDrawOver } = useToolsStore(useShallow(state => ({
         setActiveImage: state.setActiveImage,
-        setRequestedTool: state.setRequestedTool,
+        openDrawOver: state.openDrawOver,
     })))
 
     const historyScanIdRef = useRef(0)
@@ -1122,9 +1122,7 @@ export function HistoryPanel() {
         let imageData: string
         try { imageData = await getFullImageData(image) } catch { return }
 
-        setActiveImage(imageData)
-        setRequestedTool('draw-over')
-        navigate('/tools')
+        openDrawOver(imageData, image.isTemporary ? undefined : image.path)
     }
 
     return (

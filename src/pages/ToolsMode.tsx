@@ -16,18 +16,16 @@ import { pictureDir, join } from '@tauri-apps/api/path'
 import { BackgroundRemovalDialog } from '@/components/tools/BackgroundRemovalDialog'
 import { MosaicDialog } from '@/components/tools/MosaicDialog'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
-import { DrawOverDialog } from '@/components/tools/DrawOverDialog'
 import { OutpaintDialog } from '@/components/tools/OutpaintDialog'
 
 
 export default function ToolsMode() {
     const { t } = useTranslation()
     const navigate = useNavigate()
-    const { activeImage, setActiveImage, requestedTool, setRequestedTool } = useToolsStore(useShallow(state => ({
+    const { activeImage, setActiveImage, openDrawOver } = useToolsStore(useShallow(state => ({
         activeImage: state.activeImage,
         setActiveImage: state.setActiveImage,
-        requestedTool: state.requestedTool,
-        setRequestedTool: state.setRequestedTool,
+        openDrawOver: state.openDrawOver,
     })))
     const { token, tier } = useAuthStore(useShallow(state => ({
         token: state.token,
@@ -56,7 +54,6 @@ export default function ToolsMode() {
 
     // Mosaic State
     const [isMosaicOpen, setIsMosaicOpen] = useState(false)
-    const [isDrawOverOpen, setIsDrawOverOpen] = useState(false)
     const [isInpaintingOpen, setIsInpaintingOpen] = useState(false)  // For mask editing only
     const [isOutpaintOpen, setIsOutpaintOpen] = useState(false)
     const [colorizeOptions, setColorizeOptions] = useState({ defry: 0, prompt: '' })
@@ -70,12 +67,6 @@ export default function ToolsMode() {
         setProcessedImage(activeImage)
         setImageDimensions(null)
     }, [activeImage])
-
-    useEffect(() => {
-        if (requestedTool !== 'draw-over' || !activeImage) return
-        setIsDrawOverOpen(true)
-        setRequestedTool(null)
-    }, [activeImage, requestedTool, setRequestedTool])
 
     // Handle File Upload
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,19 +121,6 @@ export default function ToolsMode() {
             }
             reader.readAsDataURL(file)
         }
-    }
-
-    const handleDrawTransfer = (image: string, target: 'i2i' | 'inpaint') => {
-        setProcessedImage(image)
-        setActiveImage(image)
-        setIsDrawOverOpen(false)
-
-        const generation = useGenerationStore.getState()
-        generation.setMask(null)
-        generation.setSourceImage(image)
-        generation.setI2IMode(target === 'i2i' ? 'i2i' : null)
-        if (target === 'i2i') navigate('/')
-        else window.setTimeout(() => setIsInpaintingOpen(true), 0)
     }
 
     const handleOpenI2I = () => {
@@ -447,7 +425,7 @@ export default function ToolsMode() {
                     <ToolCard icon={Paintbrush} color="text-pink-400" title={t('tools.inpainting.title', '인페인트')} description={t('tools.inpainting.open', '마스크 칠해 부분 재생성')} disabled={!processedImage || isLoading} onRun={() => setIsInpaintingOpen(true)} />
                     <ToolCard icon={Expand} color="text-orange-400" title={t('smartTools.outpaint', '이미지 확장')} description={t('smartTools.outpaintDesc', '가장자리를 늘려 인페인트로 연결')} disabled={!processedImage || isLoading} onRun={() => setIsOutpaintOpen(true)} />
 
-                    <ToolCard icon={Brush} color="text-lime-400" title={t('smartTools.drawOver')} description={t('smartTools.drawOverDesc')} disabled={!processedImage || isLoading} onRun={() => setIsDrawOverOpen(true)} />
+                    <ToolCard icon={Brush} color="text-lime-400" title={t('smartTools.drawOver')} description={t('smartTools.drawOverDesc')} disabled={!processedImage || isLoading} onRun={() => processedImage && openDrawOver(processedImage)} />
 
                     <div className="my-0.5 h-px shrink-0 bg-border" />
 
@@ -486,13 +464,6 @@ export default function ToolsMode() {
                 sourceImage={processedImage}
                 isOpen={isMosaicOpen}
                 onClose={() => setIsMosaicOpen(false)}
-            />
-
-            <DrawOverDialog
-                open={isDrawOverOpen}
-                sourceImage={processedImage}
-                onOpenChange={setIsDrawOverOpen}
-                onTransfer={handleDrawTransfer}
             />
 
             <InpaintingDialog

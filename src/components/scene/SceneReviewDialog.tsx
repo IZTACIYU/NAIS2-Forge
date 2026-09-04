@@ -12,7 +12,6 @@ import { PresetDropdown } from '@/components/preset/PresetDropdown'
 import { ExportDialog } from '@/components/scene/ExportDialog'
 import { SceneImageContextMenu } from '@/components/scene/SceneImageContextMenu'
 import { SceneR2DirectUploadDialog } from '@/components/scene/SceneR2DirectUploadDialog'
-import { DrawOverDialog } from '@/components/tools/DrawOverDialog'
 import { InpaintingDialog } from '@/components/tools/InpaintingDialog'
 import { AutocompleteTextarea } from '@/components/ui/AutocompleteTextarea'
 import { Button } from '@/components/ui/button'
@@ -467,7 +466,7 @@ function ReviewFilmstrip({ images, selectedSceneId, decisions, onSelect }: {
     )
 }
 
-function IndividualReviewView({ presetId, scene, image, decision, decisions, reviewImages, historyImages, onSelectImage, onSelectReviewImage, onDeleteImage, onAddReference, onLoadMetadata, onInpaint, onDrawOver, onGenerate, onRegenerate, onDecision, regenerateDisabled, onBack }: {
+function IndividualReviewView({ presetId, scene, image, decision, decisions, reviewImages, historyImages, onSelectImage, onSelectReviewImage, onDeleteImage, onAddReference, onLoadMetadata, onInpaint, onGenerate, onRegenerate, onDecision, regenerateDisabled, onBack }: {
     presetId?: string | null
     scene?: SceneCard
     image?: SceneImage | null
@@ -481,7 +480,6 @@ function IndividualReviewView({ presetId, scene, image, decision, decisions, rev
     onAddReference: (image: SceneImage) => void
     onLoadMetadata: (image: SceneImage) => void
     onInpaint: (base64: string) => void
-    onDrawOver: (base64: string) => void
     onGenerate: () => void
     onRegenerate: () => void
     onDecision: (decision: SceneReviewDecision) => void
@@ -516,7 +514,6 @@ function IndividualReviewView({ presetId, scene, image, decision, decisions, rev
                     onAddRef={() => onAddReference(image)}
                     onLoadMetadata={() => onLoadMetadata(image)}
                     onInpaint={onInpaint}
-                    onDrawOver={onDrawOver}
                 >
                     <div className="mt-3 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-black/30">
                         <img src={imageSrc(image.url)} alt={scene.name} className="h-full w-full object-contain" />
@@ -541,7 +538,6 @@ function IndividualReviewView({ presetId, scene, image, decision, decisions, rev
                                 onAddRef={() => onAddReference(historyImage)}
                                 onLoadMetadata={() => onLoadMetadata(historyImage)}
                                 onInpaint={onInpaint}
-                                onDrawOver={onDrawOver}
                             >
                                 <button
                                     type="button"
@@ -589,7 +585,6 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
     const [metadataDialogOpen, setMetadataDialogOpen] = useState(false)
     const [referenceDialogOpen, setReferenceDialogOpen] = useState(false)
     const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false)
-    const [drawOverDialogOpen, setDrawOverDialogOpen] = useState(false)
     const [exportDialogOpen, setExportDialogOpen] = useState(false)
     const [r2DialogOpen, setR2DialogOpen] = useState(false)
     const [outputMethod, setOutputMethod] = useState<ReviewOutputMethod>('zip')
@@ -656,7 +651,6 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
         setMetadataDialogOpen(false)
         setReferenceDialogOpen(false)
         setInpaintDialogOpen(false)
-        setDrawOverDialogOpen(false)
         setExportDialogOpen(false)
         setR2DialogOpen(false)
         setBrokenImageUrls(new Set())
@@ -808,10 +802,6 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
             setDialogImage(base64)
             setInpaintDialogOpen(true)
         },
-        onDrawOver: (base64: string) => {
-            setDialogImage(base64)
-            setDrawOverDialogOpen(true)
-        },
         onGenerate: handleGenerate,
         onRegenerate: startGeneration,
         onDecision: handleDecision,
@@ -903,27 +893,6 @@ export function SceneReviewDialog({ open, onOpenChange, scenes, outputScenes, ac
                 if (!nextOpen) setDialogImage(null)
             }}
             sourceImage={dialogImage}
-        />
-        <DrawOverDialog
-            open={drawOverDialogOpen}
-            onOpenChange={nextOpen => {
-                setDrawOverDialogOpen(nextOpen)
-                if (!nextOpen) setDialogImage(null)
-            }}
-            sourceImage={dialogImage}
-            onTransfer={(image, target) => {
-                setDrawOverDialogOpen(false)
-                const generation = useGenerationStore.getState()
-                generation.setMask(null)
-                generation.setSourceImage(image)
-                generation.setI2IMode(target === 'i2i' ? 'i2i' : null)
-                if (target === 'inpaint') {
-                    setDialogImage(image)
-                    setInpaintDialogOpen(true)
-                } else {
-                    setDialogImage(null)
-                }
-            }}
         />
         </>
     )

@@ -21,8 +21,11 @@ const MAX_UNDO_STEPS = 12
 interface DrawOverDialogProps {
     open: boolean
     sourceImage: string | null
+    outputDirectory?: string
+    fileNamePrefix?: string
     onOpenChange: (open: boolean) => void
     onTransfer: (image: string, mode: TransferMode) => void
+    onSaved?: (path: string) => void
 }
 
 function dataUrlToBytes(dataUrl: string) {
@@ -30,7 +33,7 @@ function dataUrlToBytes(dataUrl: string) {
     return Uint8Array.from(binary, char => char.charCodeAt(0))
 }
 
-export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: DrawOverDialogProps) {
+export function DrawOverDialog({ open, sourceImage, outputDirectory, fileNamePrefix = 'NAIS_DRAW', onOpenChange, onTransfer, onSaved }: DrawOverDialogProps) {
     const { t } = useTranslation()
     const baseCanvasRef = useRef<HTMLCanvasElement>(null)
     const editCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -543,11 +546,11 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
         if (!dataUrl) return
         try {
             const { savePath, useAbsolutePath } = useSettingsStore.getState()
-            const outputDir = savePath || 'NAIS_Output'
-            const fileName = `NAIS_DRAW_${Date.now()}.png`
+            const outputDir = outputDirectory || savePath || 'NAIS_Output'
+            const fileName = `${fileNamePrefix}_${Date.now()}.png`
             let fullPath: string
 
-            if (useAbsolutePath) {
+            if (outputDirectory || useAbsolutePath) {
                 if (!(await exists(outputDir))) await mkdir(outputDir, { recursive: true })
                 fullPath = await join(outputDir, fileName)
                 await writeFile(fullPath, dataUrlToBytes(dataUrl))
@@ -559,7 +562,7 @@ export function DrawOverDialog({ open, sourceImage, onOpenChange, onTransfer }: 
                 fullPath = await join(await pictureDir(), outputDir, fileName)
             }
 
-            window.dispatchEvent(new CustomEvent('newImageGenerated', { detail: { path: fullPath } }))
+            onSaved?.(fullPath)
             toast({ title: t('common.saved'), description: fileName, variant: 'success' })
         } catch (error) {
             console.error('Failed to save drawn image:', error)
