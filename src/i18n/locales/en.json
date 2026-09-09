@@ -1170,6 +1170,8 @@
   },
   "cloudR2": {
     "title": "R2 Cloud",
+    "itemCounts": "Loaded: {{total}} items · {{folders}} folders · {{files}} files",
+    "itemCountsHelp": "Counts the listing loaded for the current path. Excludes items inside subfolders and items not yet retrieved.",
     "disabled": "Enable Cloudflare R2 Manager in Extensions.",
     "missingConfig": "Enter R2 credentials in Settings > API.",
     "upload": "Upload",

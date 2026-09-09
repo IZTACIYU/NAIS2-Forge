@@ -1169,6 +1169,8 @@
   },
   "cloudR2": {
     "title": "R2クラウド",
+    "itemCounts": "取得済み {{total}}件 · フォルダー {{folders}}件 · ファイル {{files}}件",
+    "itemCountsHelp": "現在のパスで取得した一覧の件数です。サブフォルダー内と未取得の項目は含みません。",
     "disabled": "拡張機能でCloudflare R2管理を有効にしてください。",
     "missingConfig": "設定 > APIでR2情報を入力してください。",
     "upload": "アップロード",

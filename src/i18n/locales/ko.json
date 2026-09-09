@@ -1171,6 +1171,8 @@
   },
   "cloudR2": {
     "title": "R2 클라우드",
+    "itemCounts": "조회된 항목 {{total}}개 · 폴더 {{folders}}개 · 파일 {{files}}개",
+    "itemCountsHelp": "현재 경로에서 조회된 목록 기준입니다. 하위 폴더 내부와 아직 조회되지 않은 항목은 포함하지 않습니다.",
     "disabled": "확장 기능에서 Cloudflare R2 관리자를 켜주세요.",
     "missingConfig": "설정 > API에서 R2 정보를 입력해주세요.",
     "upload": "업로드",
