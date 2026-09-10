@@ -541,6 +541,18 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+## R-042 — AppData 이전 후 레퍼런스의 기존 절대경로는 읽기 호환이 필요하다
+
+- **Date:** 2026-09-10
+- **Area:** reference images, encoded Vibe files, native generation, thumbnail/export
+- **Evidence:** identifier migration moves the whole references directory without rewriting persisted `filePath` or `encodedVibePath`. The original readers use the saved absolute path directly. An existing local file was readable at the current root while the legacy path returned null/ENOENT.
+- **Invariant to preserve:** Resolve only missing paths under the current production app's exact legacy references root to existing files at the same relative path in the current references root. Existing paths win; permission errors must propagate; development apps, unrelated roots and parent traversal must not be remapped.
+- **Fix:** One native read-path resolver is shared by standard/streaming reference preparation, thumbnails and frontend original/Vibe/export readers. Saved paths, IDs, cache values and files remain unchanged; no startup migration or cleanup is added.
+- **Regression coverage:** Rust `reference_paths::tests` and `node scripts/check-reference-read-paths.mjs` cover old/current/missing paths, original precedence, nested Unicode files, unrelated/development roots, traversal rejection, unchanged file bytes and caller routing.
+- **Do not "fix" by:** blindly replacing identifier strings throughout persisted JSON, falling back by filename across arbitrary folders, moving references back, deleting failed registrations or clearing server caches without evidence.
+
+---
+
 ## 새 항목 템플릿
 
 ### R-XXX — 짧은 제목

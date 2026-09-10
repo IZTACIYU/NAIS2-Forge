@@ -2,6 +2,7 @@ import JSZip from 'jszip'
 import { save } from '@tauri-apps/plugin-dialog'
 import { readFile, writeFile } from '@tauri-apps/plugin-fs'
 import type { ReferenceImage } from '@/stores/character-store'
+import { resolveReferenceReadPath } from '@/lib/image-utils'
 
 interface ReferenceFile {
     bytes: Uint8Array
@@ -27,7 +28,7 @@ const detectExtension = (bytes: Uint8Array) => {
 }
 
 async function readReferenceFile(image: ReferenceImage): Promise<ReferenceFile> {
-    const bytes = image.filePath ? await readFile(image.filePath) : decodeBase64(image.base64)
+    const bytes = image.filePath ? await readFile(await resolveReferenceReadPath(image.filePath)) : decodeBase64(image.base64)
     if (bytes.length === 0) throw new Error('Reference image data is empty')
     return { bytes, extension: detectExtension(bytes) }
 }

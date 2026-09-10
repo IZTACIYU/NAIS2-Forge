@@ -4,6 +4,11 @@
 
 import { writeFile, readFile, remove, mkdir, exists } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
+import { invoke } from '@tauri-apps/api/core'
+
+/** Resolve legacy AppData paths for reads only; keep persisted paths unchanged. */
+export const resolveReferenceReadPath = (filePath: string): Promise<string> =>
+    invoke<string>('resolve_reference_path', { filePath })
 
 // ============================================
 // Reference Image File Storage
@@ -37,6 +42,7 @@ export async function saveReferenceImage(id: string, base64: string): Promise<st
 /** Load a base64 image from file. Returns data URI string or null if not found. */
 export async function loadReferenceImage(filePath: string): Promise<string | null> {
     try {
+        filePath = await resolveReferenceReadPath(filePath)
         if (!(await exists(filePath))) return null
         const data = await readFile(filePath)
         // Convert to base64
@@ -76,6 +82,7 @@ export async function saveEncodedVibe(id: string, encodedVibe: string): Promise<
 /** Load encoded vibe data from file. Returns raw base64 string or null. */
 export async function loadEncodedVibe(filePath: string): Promise<string | null> {
     try {
+        filePath = await resolveReferenceReadPath(filePath)
         if (!(await exists(filePath))) return null
         const data = await readFile(filePath)
         const bytes = new Uint8Array(data)

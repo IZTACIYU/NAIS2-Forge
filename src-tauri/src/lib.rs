@@ -1,5 +1,6 @@
 #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
 mod app_data_migration;
+mod reference_paths;
 
 use serde::{Deserialize, Serialize};
 
@@ -977,7 +978,16 @@ async fn r2_create_folder(config: R2Config, key: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn resolve_reference_path(app: AppHandle, file_path: String) -> Result<String, String> {
+    let app_data = app.path().app_data_dir().map_err(|error| error.to_string())?;
+    reference_paths::resolve(std::path::Path::new(&file_path), &app_data)
+        .map(|path| path.to_string_lossy().into_owned())
+        .map_err(|error| format!("Failed to resolve reference path: {error}"))
+}
+
+#[tauri::command]
 async fn create_reference_thumbnail(
+    app: AppHandle,
     source_base64: Option<String>,
     file_path: Option<String>,
     width: u32,
@@ -994,7 +1004,7 @@ async fn create_reference_thumbnail(
         }
 
         let bytes = if let Some(path) = file_path.filter(|path| !path.is_empty()) {
-            std::fs::read(path)
+            std::fs::read(resolve_reference_path(app, path)?)
                 .map_err(|error| format!("Failed to read reference image: {error}"))?
         } else if let Some(encoded) = source_base64.filter(|value| !value.is_empty()) {
             let raw = encoded
@@ -1528,6 +1538,7 @@ async fn prepare_character_reference(
 }
 
 async fn prepare_generation_references(
+    app: &AppHandle,
     client: &reqwest::Client,
     token: &str,
     mut payload: serde_json::Value,
@@ -1538,17 +1549,20 @@ async fn prepare_generation_references(
 
     let mut processed_characters = Vec::new();
     let mut cached_characters = Vec::new();
-    for reference in character_references {
+    for mut reference in character_references {
         if let Some(cache_key) = reference.cache_key.as_ref().filter(|key| !key.is_empty()) {
             cached_characters.push(serde_json::json!({ "cache_secret_key": cache_key }));
         } else {
+            if let Some(path) = reference.file_path.take().filter(|path| !path.is_empty()) {
+                reference.file_path = Some(resolve_reference_path(app.clone(), path)?);
+            }
             processed_characters.push(prepare_character_reference(reference).await?);
         }
     }
 
     let mut processed_vibes = Vec::new();
     let mut newly_encoded_vibes = Vec::new();
-    for reference in vibe_references {
+    for mut reference in vibe_references {
         if let Some(encoded) = reference.encoded_vibe.filter(|value| !value.is_empty()) {
             processed_vibes.push(encoded);
             continue;
@@ -1558,13 +1572,16 @@ async fn prepare_generation_references(
             .as_deref()
             .filter(|path| !path.is_empty())
         {
-            let encoded_bytes = tokio::fs::read(path)
+            let encoded_bytes = tokio::fs::read(resolve_reference_path(app.clone(), path.to_string())?)
                 .await
                 .map_err(|error| format!("Failed to read encoded vibe cache: {error}"))?;
             processed_vibes.push(STANDARD.encode(encoded_bytes));
             continue;
         }
 
+        if let Some(path) = reference.file_path.take().filter(|path| !path.is_empty()) {
+            reference.file_path = Some(resolve_reference_path(app.clone(), path)?);
+        }
         let bytes = tokio::task::spawn_blocking({
             let file_path = reference.file_path.clone();
             let source_base64 = reference.source_base64.clone();
@@ -1645,6 +1662,7 @@ async fn prepare_generation_references(
 
 #[tauri::command]
 async fn generate_image_with_references(
+    app: AppHandle,
     token: String,
     payload: serde_json::Value,
     character_references: Vec<NativeCharacterReference>,
@@ -1655,6 +1673,7 @@ async fn generate_image_with_references(
     let client = reqwest::Client::new();
     let token = token.trim().to_string();
     let prepared = prepare_generation_references(
+        &app,
         &client,
         &token,
         payload,
@@ -1725,6 +1744,7 @@ async fn generate_image_with_references(
 
 #[tauri::command]
 async fn generate_image_stream_with_references(
+    app: AppHandle,
     token: String,
     payload: serde_json::Value,
     character_references: Vec<NativeCharacterReference>,
@@ -1734,6 +1754,7 @@ async fn generate_image_stream_with_references(
     let client = reqwest::Client::new();
     let token = token.trim().to_string();
     let prepared = prepare_generation_references(
+        &app,
         &client,
         &token,
         payload,
@@ -2200,6 +2221,7 @@ pub fn run() {
             r2_delete_prefix,
             r2_create_folder,
             create_reference_thumbnail,
+            resolve_reference_path,
             create_library_thumbnail,
             find_missing_files,
             migrate_folders,
