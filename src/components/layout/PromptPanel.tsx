@@ -260,7 +260,6 @@ export function PromptPanel() {
             imageCount: batchCount,
             characterReferenceCount: activeCharacterReferenceCount,
             uncachedVibeCount: activeUncachedVibeCount,
-            usesSourceImage: Boolean(sourceImage),
             entitlement: imageGenerationEntitlement,
         })
     }, [

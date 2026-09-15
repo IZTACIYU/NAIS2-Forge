@@ -553,7 +553,21 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+### R043 — Source images do not independently disable free generation
+
+- **Date:** 2026-09-15
+- **Area:** generation button / Anlas calculator
+- **Root cause:** The caller passed `Boolean(sourceImage)` and the calculator rejected free generation for all such requests, including inpainting. The regression check reproduced 20 instead of 0 at 832x1216, 28 steps with free entitlement.
+- **Evidence:** Official public image app module 63509 (`t1`, checked 2026-09-15) does not exclude `image` or `mask` from the free predicate. Its cost caller handles subscription eligibility separately.
+- **Invariant to preserve:** Source presence alone must not add cost. Preserve entitlement-unknown handling, paid size/step checks, sequential batch semantics and reference surcharges.
+- **Fix:** Remove the source-presence exclusion and unused calculator input; keep actual source dimensions for estimation. Request payloads and persistence are unchanged.
+- **Regression coverage:** `node scripts/check-anlas-cost.mjs`; free source/non-source, paid settings, missing/non-free entitlement, batches and surcharges.
+- **Do not "fix" by:** hiding all inpaint costs in the button or changing the actual request to match a display estimate.
+
+---
+
 ## 새 항목 템플릿
+
 
 ### R-XXX — 짧은 제목
 

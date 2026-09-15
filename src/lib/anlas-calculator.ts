@@ -20,7 +20,6 @@ interface GenerationCostInput {
     imageCount: number
     characterReferenceCount: number
     uncachedVibeCount: number
-    usesSourceImage: boolean
     entitlement: ImageGenerationEntitlement | null
 }
 
@@ -30,7 +29,8 @@ function calculateBaseImageGenerationCost(width: number, height: number, steps: 
 }
 
 function isUnlimitedBaseGeneration(input: GenerationCostInput, baseCost: number): boolean {
-    if (!input.entitlement?.unlimitedImageGeneration || input.usesSourceImage || input.steps > FREE_STEPS_LIMIT) {
+    // I2I/inpainting source images do not disqualify the free allowance.
+    if (!input.entitlement?.unlimitedImageGeneration || input.steps > FREE_STEPS_LIMIT) {
         return false
     }
 
