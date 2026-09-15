@@ -566,7 +566,19 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+### R044 — Automatic delay and announcement persistence
+
+- **Date:** 2026-09-15
+- **Area:** main batch / scene queue / settings hydration
+- **Invariant to preserve:** Draw a new fractional jitter once per existing inter-generation wait, not once per batch. Zero disables jitter. Keep scene processing ownership until its delay ends and preserve cancellation/session checks. Never show or acknowledge a notice before settings hydration finishes.
+- **Fix:** Both wait sites share `calculateGenerationDelay`; the notice waits for persisted hydration and compares its ID with the acknowledged ID. Only the two user-approved settings fields are added, with old fields and storage keys preserved.
+- **Regression coverage:** `node scripts/check-generation-delay.mjs` uses isolated real Zustand persistence to verify old fields (including unknown fields), defaults, saved jitter and acknowledged ID across restart, plus fractional bounds and both caller routes.
+- **Do not "fix" by:** sampling once for the whole queue, rounding the sampled offset, applying jitter to API retry/backoff, overwriting existing delay defaults or acknowledging a notice in an effect before hydration.
+
+---
+
 ## 새 항목 템플릿
+
 
 
 ### R-XXX — 짧은 제목

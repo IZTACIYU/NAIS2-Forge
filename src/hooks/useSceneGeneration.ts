@@ -6,6 +6,7 @@ import { useSceneStore } from '@/stores/scene-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { useSettingsStore } from '@/stores/settings-store'
+import { calculateGenerationDelay } from '@/lib/generation-delay'
 import { useAuthStore } from '@/stores/auth-store'
 import { generateImage, generateImageStream } from '@/services/novelai-api'
 import { BaseDirectory, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs'
@@ -524,10 +525,9 @@ export function useSceneGeneration() {
 
                 // Apply generation delay only if there are more scenes
                 if (hasMoreScenes) {
-                    const { generationDelay } = useSettingsStore.getState()
-                    if (generationDelay > 0) {
-                        await new Promise(resolve => setTimeout(resolve, generationDelay))
-                    }
+                    const { generationDelay, generationDelayJitter } = useSettingsStore.getState()
+                    const delay = calculateGenerationDelay(generationDelay, generationDelayJitter)
+                    if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay))
                 }
 
                 // CRITICAL: Release processing lock AFTER delay

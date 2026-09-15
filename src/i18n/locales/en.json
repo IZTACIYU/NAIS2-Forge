@@ -1,4 +1,9 @@
 {
+  "announcement": {
+    "title": "Notice",
+    "body": "NovelAI account restrictions have been reported, but the exact criteria and causes have not been confirmed.\n\nAn option to add random offsets to automatic generation delays is now available below Generation Delay in Settings. Please avoid setting very short intervals.\n\nWe suggest a base delay of at least 900ms, but this is not an official safety threshold. Neither a particular interval nor random delays can guarantee protection from account restrictions. Follow NovelAI's terms and official guidance.",
+    "confirm": "I understand"
+  },
   "app": {
     "name": "NAIS2",
     "description": "NovelAI Integrated Studio"
@@ -801,6 +806,11 @@
     "streaming": {
       "title": "Streaming Generation",
       "description": "Show real-time progress during image generation"
+    },
+    "generationDelayJitter": {
+      "title": "Random Delay Offset",
+      "off": "0ms (Off)",
+      "description": "For each main batch or scene queue interval, add a fresh fractional random offset from −50ms to the selected value. Set 0ms to disable. Actual timing depends on system timers; this does not guarantee protection from account restrictions."
     },
     "generationDelay": {
       "title": "Generation Delay",

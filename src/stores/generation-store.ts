@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { indexedDBStorage } from '@/lib/indexed-db'
 import { useAuthStore } from './auth-store'
 import { useSettingsStore } from './settings-store'
+import { calculateGenerationDelay } from '@/lib/generation-delay'
 import { generateImage, generateImageStream } from '@/services/novelai-api'
 import { writeFile, mkdir, exists, BaseDirectory } from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
@@ -716,9 +717,10 @@ export const useGenerationStore = create<GenerationState>()(
                             // Seed already advanced at generation start
 
                             // Apply generation delay between batches (not after the last one)
-                            const { generationDelay } = useSettingsStore.getState()
-                            if (i < batchCount - 1 && generationDelay > 0) {
-                                await new Promise(resolve => setTimeout(resolve, generationDelay))
+                            if (i < batchCount - 1) {
+                                const { generationDelay, generationDelayJitter } = useSettingsStore.getState()
+                                const delay = calculateGenerationDelay(generationDelay, generationDelayJitter)
+                                if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay))
                             }
                         } else {
                             toast({

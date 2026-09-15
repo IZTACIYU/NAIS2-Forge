@@ -100,6 +100,8 @@ export default function Settings() {
     const { token, tokens, isVerified, anlas, isLoading, verifyAndSave, removeToken } = useAuthStore()
     const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, promptWhitespaceMode, setPromptWhitespaceMode, removeEmptyPromptSeparators, setRemoveEmptyPromptSeparators, insertBlankLinesBetweenPromptParts, setInsertBlankLinesBetweenPromptParts, expertCharacterPromptFolderBrowserEnabled, setExpertCharacterPromptFolderBrowserEnabled, expertLibraryFolderBrowserEnabled, setExpertLibraryFolderBrowserEnabled, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertCharacterPromptGenderIndicatorEnabled, setExpertCharacterPromptGenderIndicatorEnabled, expertMetadataAlwaysAddCharacters, setExpertMetadataAlwaysAddCharacters, characterPromptGenderIndicatorMode, setCharacterPromptGenderIndicatorMode, expertSceneCharacterVariantOverrideEnabled, setExpertSceneCharacterVariantOverrideEnabled, expertSceneCharacterCostumeOverrideEnabled, setExpertSceneCharacterCostumeOverrideEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, sceneCharacterAdditionMode, setSceneCharacterAdditionMode, expertSceneMultiCharacterEnabled, setExpertSceneMultiCharacterEnabled, sceneMultiCharacterGenderSelectionMode, setSceneMultiCharacterGenderSelectionMode, expertSceneExportNameEnabled, setExpertSceneExportNameEnabled, sceneExportNamePart, setSceneExportNamePart, expertSceneRandomCharactersEnabled, setExpertSceneRandomCharactersEnabled, expertExifDirectActionEnabled, setExpertExifDirectActionEnabled, expertExifManagerEnabled, setExpertExifManagerEnabled, expertExifQuickActionEnabled, setExpertExifQuickActionEnabled, expertExifAutoSaveEnabled, setExpertExifAutoSaveEnabled, exifAutoSaveName, setExifAutoSaveName, exifAutoSavePath, setExifAutoSavePath, exifOutputFormat, setExifOutputFormat, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertR2ExifRemovalEnabled, setExpertR2ExifRemovalEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
     const expertSceneRoundRobinEnabled = useSettingsStore(state => state.expertSceneRoundRobinEnabled)
+    const generationDelayJitter = useSettingsStore(state => state.generationDelayJitter)
+    const setGenerationDelayJitter = useSettingsStore(state => state.setGenerationDelayJitter)
     const { bindings, enabled: shortcutsEnabled, setBinding, resetBinding, resetAllBindings, setEnabled: setShortcutsEnabled } = useShortcutStore()
     const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey)
 
@@ -577,6 +579,29 @@ export default function Settings() {
                                     />
                                     <p className="text-xs text-muted-foreground">
                                         {t('settingsPage.generationDelay.description', 'Delay between batch image generations to avoid API rate limits.')}
+                                    </p>
+                                </div>
+
+                                <div className="space-y-3 pt-4 border-t border-border/30">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <label id="generation-jitter-label" className="text-sm font-medium">
+                                            {t('settingsPage.generationDelayJitter.title')}
+                                        </label>
+                                        <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                            {generationDelayJitter === 0 ? t('settingsPage.generationDelayJitter.off') : `−50 ~ +${generationDelayJitter}ms`}
+                                        </span>
+                                    </div>
+                                    <Slider
+                                        aria-labelledby="generation-jitter-label"
+                                        value={[generationDelayJitter]}
+                                        onValueChange={([v]) => setGenerationDelayJitter(v)}
+                                        min={0}
+                                        max={5000}
+                                        step={100}
+                                        className="w-full"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        {t('settingsPage.generationDelayJitter.description')}
                                     </p>
                                 </div>
 
