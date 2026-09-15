@@ -810,7 +810,7 @@
     "generationDelayJitter": {
       "title": "Random Delay Offset",
       "off": "0ms (Off)",
-      "description": "For each main batch or scene queue interval, add a fresh fractional random offset from −50ms to the selected value. Set 0ms to disable. Actual timing depends on system timers; this does not guarantee protection from account restrictions."
+      "description": "Adds a random offset to the base delay between consecutive generations."
     },
     "generationDelay": {
       "title": "Generation Delay",
