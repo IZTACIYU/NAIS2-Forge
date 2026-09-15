@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } f
 import { Button } from '@/components/ui/button'
 
 // Replace the ID and translated body together when publishing a new notice.
-const ANNOUNCEMENT_ID = '1.10.3-generation-delay'
+const ANNOUNCEMENT_ID = import.meta.env.DEV ? '1.10.3-generation-delay-dev-capture-1' : '1.10.3-generation-delay'
 function subscribeHydration(onChange: () => void) {
     const start = useSettingsStore.persist.onHydrate(onChange)
     const finish = useSettingsStore.persist.onFinishHydration(onChange)
