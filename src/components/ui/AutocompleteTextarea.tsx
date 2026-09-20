@@ -22,6 +22,7 @@ const DIRECTIVE_SUGGESTIONS: SuggestionItem[] = [
     { label: '#if base:', value: '#if base:', type: 'directive' },
     { label: '#if-condition:', value: '#if-condition:', type: 'directive' },
     { label: '#if+condition:', value: '#if+condition:', type: 'directive' },
+    { label: '#del-condition', value: '#del-', type: 'directive' },
     { label: '#if b:', value: '#if b:', type: 'directive' },
     { label: '#if g:', value: '#if g:', type: 'directive' },
     { label: '#if o:', value: '#if o:', type: 'directive' },
@@ -766,6 +767,12 @@ export function AutocompleteTextarea({
 
                     // ?쇰컲 以? 湲곗〈 援щЦ ?섏씠?쇱씠???곸슜
                     // Highlight prompt syntax without changing the submitted text.
+                    if (/^\s*#del-/i.test(line)) {
+                        return <Fragment key={lineIndex}>
+                            <span className="bg-amber-500/15 text-amber-700/85 dark:text-amber-200/85 rounded-[2px]">{line}</span>
+                            {!isLastLine && '\n'}
+                        </Fragment>
+                    }
                     const isConditionalDirective = /^\s*#if(?:\s+[a-z][a-z0-9_-]*|[+-][^:\r\n]+)\s*:/i.test(line)
                     const regex = /(^\s*#if(?:\s+[a-z][a-z0-9_-]*|[+-][^:\r\n]+)\s*:)|((?:-?[\d.]+)?::.*?::)|(<[^>]+>)|(#(?:source|target)\b)/gi
                     const parts = line.split(regex)

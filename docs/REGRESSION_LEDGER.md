@@ -577,6 +577,18 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+### R045 — Delete directives share polarity-wide request ownership
+
+- **Date:** 2026-09-20
+- **Area:** prompt assembly, main/scene/character requests, token preview
+- **Invariant to preserve:** Collect `#del-tag` before whitespace formatting and joining input boxes, only from active inputs. Apply exact-tag deletion across the same polarity after conditional/wildcard expansion and preset merging, before quoted-text extraction. Preserve original input/provenance and unrelated whitespace. Existing condition checks see pre-deletion tags.
+- **Evidence:** Joining a trailing directive with the next box can consume its text; deleting before preset merge can reintroduce a removed tag. Regression tests cover both, weighted groups, negative isolation, disabled inputs, source preservation and byte-identical no-directive request output against the previous builder.
+- **Fix:** The shared request builder owns collection and final deletion; token preview reuses the same helpers. No transport-layer interpretation, persisted fields or migration added.
+- **Regression coverage:** `node scripts/check-delete-prompts.mjs`, `node scripts/check-prompt-formatting.mjs`.
+- **Do not "fix" by:** rewriting saved prompts, deleting substrings, merging positive/negative targets, rerunning comma normalization or patching only scene/main callers.
+
+---
+
 ## 새 항목 템플릿
 
 

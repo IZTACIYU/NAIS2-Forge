@@ -50,6 +50,7 @@ import { useSceneStore } from '@/stores/scene-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { removePromptComments } from '@/lib/prompt-comments'
+import { stripDeleteDirectives, deletePromptTags } from '@/lib/delete-prompts'
 import { resolveConditionalNegativePrompt, resolveConditionalPositivePrompt } from '@/lib/conditional-prompts'
 import { getCharacterGender } from '@/lib/character-gender'
 import {
@@ -339,14 +340,16 @@ export function PromptPanel() {
                     : character.prompt,
                 ...(multiCharacterPrompts.get(character.id) || []),
             ].filter(Boolean).join('\n')
-            : character.prompt
+            : expertCharacterPromptLayoutEnabled ? buildSceneCharacterPrompt(character) : character.prompt
         )
         const characterNegativePrompts = charactersForTokens.map(character => [
-            isActiveScene && expertCharacterPromptLayoutEnabled && character.negativeEnabled === false
+            expertCharacterPromptLayoutEnabled && character.negativeEnabled === false
                 ? ''
                 : character.negative,
             ...(multiCharacterNegativePrompts.get(character.id) || []),
         ].filter(Boolean).join('\n'))
+        const positiveDeletes = new Set<string>()
+        const negativeDeletes = new Set<string>()
         const positive = [
             modelCapabilities.modes.find(mode => mode.value === modelMode)?.promptPrefix || '',
             basePrompt,
@@ -355,15 +358,15 @@ export function PromptPanel() {
             activeScenePrompt,
             detailPrompt,
             ...characterPositivePrompts,
-        ].map(removePromptComments).filter(text => text.trim()).join(', ')
+        ].map(text => removePromptComments(stripDeleteDirectives(text, positiveDeletes))).filter(text => text.trim()).join(', ')
         const rawMainNegative = [
             negativePrompt,
             isActiveScene ? activeSceneNegativePrompt : '',
-        ].map(removePromptComments).filter(text => text.trim()).join(', ')
+        ].map(text => removePromptComments(stripDeleteDirectives(text, negativeDeletes))).filter(text => text.trim()).join(', ')
         const negative = [
             mergeUcPreset(rawMainNegative, model, ucPreset),
             ...characterNegativePrompts,
-        ].map(removePromptComments).filter(text => text.trim()).join(', ')
+        ].map(text => removePromptComments(stripDeleteDirectives(text, negativeDeletes))).filter(text => text.trim()).join(', ')
         if (!positive && !negative) {
             setTokenTotals({ positive: 0, negative: 0 })
             return
@@ -388,18 +391,19 @@ export function PromptPanel() {
                 if (!cancelled) {
                     const [positiveTokens, negativeTokens] = await Promise.all([
                         countTokens(normalizePromptCommas(appendQuotedTextPrompt(
-                            mergeQualityTags(
+                            deletePromptTags(mergeQualityTags(
                                 appendTransparentBackgroundPrompt(
-                                    resolvedPositive,
+                                    stripDeleteDirectives(resolvedPositive, positiveDeletes),
                                     modelCapabilities.supportsTransparentBackground && transparentBackground,
                                 ),
                                 model,
                                 qualityToggle,
                                 qualityTagPreset,
-                            ),
+                            ), positiveDeletes),
                             modelCapabilities.supportsQuotedTextPrompt,
                         )), model),
-                        countTokens(normalizePromptCommas(resolvedNegative), model),
+                        countTokens(normalizePromptCommas(deletePromptTags(
+                            stripDeleteDirectives(resolvedNegative, negativeDeletes), negativeDeletes)), model),
                     ])
                     if (cancelled) return
                     setTokenTotals({

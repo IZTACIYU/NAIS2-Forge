@@ -10,6 +10,7 @@ import {
 } from '@/lib/model-capabilities'
 import { mergeQualityTags, mergeUcPreset } from '@/lib/nai-presets'
 import { removePromptComments } from '@/lib/prompt-comments'
+import { stripDeleteDirectives, deletePromptTags } from '@/lib/delete-prompts'
 import { splitCostumePrompt } from '@/lib/costume-prompt'
 import { resolveConditionalNegativePrompt, resolveConditionalPositivePrompt } from '@/lib/conditional-prompts'
 import { getCharacterGender } from '@/lib/character-gender'
@@ -76,15 +77,20 @@ const joinPromptParts = (
     parts: GenerationPromptPart[],
     whitespaceMode: PromptWhitespaceMode,
     insertBlankLines: boolean,
+    targets: Set<string>,
 ) =>
     parts
         .map(({ value }) =>
-            removePromptComments(formatPromptWhitespace(value || '', whitespaceMode))
+            removePromptComments(formatPromptWhitespace(stripDeleteDirectives(value || '', targets), whitespaceMode))
         )
         .filter(part => part.trim())
         .join(insertBlankLines ? '\n\n' : ', ')
 
 export const buildGenerationRequest = async (input: GenerationRequestInput): Promise<GenerationParams> => {
+    const positiveDeletes = new Set<string>()
+    const negativeDeletes = new Set<string>()
+    const format = (prompt: string, targets: Set<string>) =>
+        formatPromptWhitespace(stripDeleteDirectives(prompt, targets), input.promptWhitespaceMode)
     const cleanup = (prompt: string) => {
         const normalized = normalizePromptCommas(prompt)
         return input.removeEmptyPromptSeparators
@@ -95,6 +101,7 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         input.positiveParts,
         input.promptWhitespaceMode,
         input.insertBlankLinesBetweenPromptParts,
+        positiveDeletes,
     )
     const capabilities = getModelCapabilities(input.model)
     const modePromptPrefix = capabilities.modes.find(mode => mode.value === input.modelMode)?.promptPrefix
@@ -117,25 +124,25 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         const characterParts = input.characterPromptLayoutEnabled
             ? [
                 character.promptEnabled !== false
-                    ? formatPromptWhitespace(characterPrompt, input.promptWhitespaceMode)
+                    ? format(characterPrompt, positiveDeletes)
                     : '',
                 (costumeEnabled ?? character.costumeEnabled) !== false
-                    ? formatPromptWhitespace(costumePrompt, input.promptWhitespaceMode)
+                    ? format(costumePrompt, positiveDeletes)
                     : '',
             ]
             : [
-                formatPromptWhitespace(characterPrompt, input.promptWhitespaceMode),
-                formatPromptWhitespace(costumePrompt, input.promptWhitespaceMode),
+                format(characterPrompt, positiveDeletes),
+                format(costumePrompt, positiveDeletes),
             ]
         const rawPrompt = [
             ...characterParts,
-            ...appendedPrompts.map(prompt => formatPromptWhitespace(prompt, input.promptWhitespaceMode)),
+            ...appendedPrompts.map(prompt => format(prompt, positiveDeletes)),
         ].filter(part => part?.trim()).join(input.insertBlankLinesBetweenPromptParts ? '\n\n' : '\n')
         const rawNegative = [
             input.characterPromptLayoutEnabled && character.negativeEnabled === false
                 ? ''
-                : formatPromptWhitespace(character.negative, input.promptWhitespaceMode),
-            ...appendedNegativePrompts.map(prompt => formatPromptWhitespace(prompt, input.promptWhitespaceMode)),
+                : format(character.negative, negativeDeletes),
+            ...appendedNegativePrompts.map(prompt => format(prompt, negativeDeletes)),
         ].filter(part => part?.trim()).join(input.insertBlankLinesBetweenPromptParts ? '\n\n' : '\n')
 
         return {
@@ -150,6 +157,7 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         input.negativeParts,
         input.promptWhitespaceMode,
         input.insertBlankLinesBetweenPromptParts,
+        negativeDeletes,
     )
     const conditionalContext = {
         basePrompt: [rawMainPrompt, ...characterPrompts.map(character => character.rawPrompt)]
@@ -165,28 +173,37 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         characterGenders: activeCharacterInputs.map(({ character }) => getCharacterGender(character.prompt)),
         mainCharacterGenders: activeMainCharacterInputs.map(({ character }) => getCharacterGender(character.prompt)),
     }
+    const expandedMain = stripDeleteDirectives(
+        await processWildcards(resolveConditionalPositivePrompt(rawMainPrompt, conditionalContext)), positiveDeletes)
+    const expandedCharacters = await Promise.all(characterPrompts.map(async ({ rawPrompt, rawNegative, ...character }) => ({
+        ...character,
+        prompt: stripDeleteDirectives(await processWildcards(resolveConditionalPositivePrompt(rawPrompt, conditionalContext)), positiveDeletes),
+        negative: stripDeleteDirectives(await processWildcards(resolveConditionalNegativePrompt(rawNegative, conditionalContext)), negativeDeletes),
+    })))
+    const expandedNegative = stripDeleteDirectives(
+        await processWildcards(resolveConditionalNegativePrompt(rawMainNegative, conditionalContext)), negativeDeletes)
     const prompt = appendQuotedTextPrompt(
-        mergeQualityTags(
+        deletePromptTags(mergeQualityTags(
             appendTransparentBackgroundPrompt(
-                cleanup(await processWildcards(resolveConditionalPositivePrompt(rawMainPrompt, conditionalContext))),
+                cleanup(expandedMain),
                 capabilities.supportsTransparentBackground && input.transparentBackground,
             ),
             input.model,
             input.qualityToggle,
             input.qualityTagPreset,
-        ),
+        ), positiveDeletes),
         capabilities.supportsQuotedTextPrompt,
     )
-    const resolvedCharacterPrompts = await Promise.all(characterPrompts.map(async ({ rawPrompt, rawNegative, ...character }) => ({
+    const resolvedCharacterPrompts = expandedCharacters.map(({ prompt, negative, ...character }) => ({
         ...character,
-        prompt: cleanup(await processWildcards(resolveConditionalPositivePrompt(rawPrompt, conditionalContext))),
-        negative: cleanup(await processWildcards(resolveConditionalNegativePrompt(rawNegative, conditionalContext))),
-    })))
-    const negativePrompt = mergeUcPreset(
-        cleanup(await processWildcards(resolveConditionalNegativePrompt(rawMainNegative, conditionalContext))),
+        prompt: deletePromptTags(cleanup(prompt), positiveDeletes),
+        negative: deletePromptTags(cleanup(negative), negativeDeletes),
+    }))
+    const negativePrompt = deletePromptTags(mergeUcPreset(
+        cleanup(expandedNegative),
         input.model,
         input.ucPreset,
-    )
+    ), negativeDeletes)
     const generationSources = input.generationSources ?? {
         characterPrompts: input.characterInputs
             .slice(0, getModelCapabilities(input.model).maxCharacterPrompts)
