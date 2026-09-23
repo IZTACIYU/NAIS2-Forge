@@ -951,6 +951,14 @@ export default function SceneMode() {
                                 </Button>
                             </Tip>
                         )}
+                        <div className="flex min-w-0 items-center gap-1">
+                            <Input value={sceneSearch} onChange={event => setSceneSearch(event.target.value)}
+                                placeholder={t('scene.searchByName')} aria-label={t('scene.searchByName')}
+                                className="h-8 w-44 min-w-0" />
+                            {sceneSearch && <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0"
+                                aria-label={t('scene.clearSearch')} onClick={() => setSceneSearch('')}><X className="h-4 w-4" /></Button>}
+                            {searchTerm && <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">{visibleScenes.length} / {scenes.length}</span>}
+                        </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                         <Tip content={t('scene.reviewImages')}>
@@ -1126,14 +1134,6 @@ export default function SceneMode() {
             )}
 
             {/* Scene Grid */}
-            <div className="flex items-center gap-2">
-                <Input value={sceneSearch} onChange={event => setSceneSearch(event.target.value)}
-                    placeholder={t('scene.searchByName')} aria-label={t('scene.searchByName')}
-                    className="h-8 w-60 min-w-0" />
-                {sceneSearch && <Button variant="ghost" size="icon" className="h-8 w-8"
-                    aria-label={t('scene.clearSearch')} onClick={() => setSceneSearch('')}><X className="h-4 w-4" /></Button>}
-                {searchTerm && <span className="text-xs text-muted-foreground">{visibleScenes.length} / {scenes.length}</span>}
-            </div>
             <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar p-1">
                 {scenes.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-white/5 rounded-3xl border border-white/10 border-dashed">
