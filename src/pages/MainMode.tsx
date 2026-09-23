@@ -511,8 +511,8 @@ export default function MainMode() {
                                         className="rounded-full h-10 w-10 shadow-lg bg-amber-600/85 border border-amber-200 hover:bg-amber-500 text-white"
                                         onClick={() => setShareCardOpen(true)}
                                         disabled={isGenerating}
-                                        title="이 이미지로 공유"
-                                        aria-label="이 이미지로 공유"
+                                        title={t('shareCard.action')}
+                                        aria-label={t('shareCard.action')}
                                     >
                                         <Clipboard className="h-5 w-5" />
                                     </Button>

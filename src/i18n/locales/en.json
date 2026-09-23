@@ -8,6 +8,16 @@
     "name": "NAIS2",
     "description": "NovelAI Integrated Studio"
   },
+  "shareCard": {
+    "action": "Share this image's prompt",
+    "title": "Prompt share card",
+    "preview": "Prompt share card preview",
+    "preparing": "Creating card...",
+    "createFailed": "Could not create the card. Check the image metadata.",
+    "savePng": "Save PNG",
+    "saved": "Share card saved",
+    "saveFailed": "Failed to save share card"
+  },
   "update": {
     "available": "Update Available",
     "version": "Version {{version}} is available",

@@ -8,6 +8,16 @@
     "name": "NAIS2",
     "description": "NovelAI 통합 스튜디오"
   },
+  "shareCard": {
+    "action": "이 이미지의 프롬프트 공유",
+    "title": "프롬프트 공유 카드",
+    "preview": "프롬프트 공유 카드 미리보기",
+    "preparing": "카드를 만드는 중...",
+    "createFailed": "공유 카드를 만들 수 없습니다. 이미지 메타데이터를 확인하세요.",
+    "savePng": "PNG 저장",
+    "saved": "공유 카드 저장 완료",
+    "saveFailed": "공유 카드 저장 실패"
+  },
   "update": {
     "available": "업데이트 사용 가능",
     "version": "v{{version}}으로 업데이트할 수 있습니다",
