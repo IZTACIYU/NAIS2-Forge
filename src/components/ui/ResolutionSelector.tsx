@@ -14,10 +14,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tip } from '@/components/ui/tooltip'
-import { Check, ChevronDown, Lock, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useState, type WheelEvent } from 'react'
+import { Check, ChevronDown, GripVertical, Lock, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useState, type WheelEvent, type ReactNode } from 'react'
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers'
+import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
-import { useSettingsStore } from '@/stores/settings-store'
+import { useSettingsStore, type CustomResolution } from '@/stores/settings-store'
 import { cn } from '@/lib/utils'
 
 export const RESOLUTION_PRESETS = [
@@ -29,6 +33,34 @@ export const RESOLUTION_PRESETS = [
 ]
 
 export const roundTo64 = (value: number): number => Math.round(value / 64) * 64
+
+function SortableResolutionRow({ id, children }: { id: string; children: ReactNode }) {
+    const { t } = useTranslation()
+    const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id })
+    return <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}
+        className={cn('relative flex min-w-0 items-center', isDragging && 'z-10 bg-popover')}>
+        <button type="button" ref={setActivatorNodeRef} {...attributes} {...listeners}
+            aria-label={t('resolutions.reorder')} title={t('resolutions.reorder')}
+            className="shrink-0 touch-none cursor-grab p-1 text-muted-foreground active:cursor-grabbing">
+            <GripVertical className="h-3.5 w-3.5" />
+        </button>
+        <div className="min-w-0 flex-1">{children}</div>
+    </div>
+}
+
+function SortableResolutionList({ children }: { children: (preset: CustomResolution) => ReactNode }) {
+    const presets = useSettingsStore(state => state.customResolutions)
+    const reorder = useSettingsStore(state => state.reorderCustomResolution)
+    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
+    return <DndContext sensors={sensors} collisionDetection={closestCenter}
+        modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+        onDragEnd={({ active, over }) => { if (over) reorder(String(active.id), String(over.id)) }}>
+        <SortableContext items={presets.map(preset => preset.id)} strategy={verticalListSortingStrategy}>
+            {presets.map(preset => <SortableResolutionRow key={preset.id} id={preset.id}>{children(preset)}</SortableResolutionRow>)}
+        </SortableContext>
+    </DndContext>
+}
 
 export interface Resolution {
     label: string
@@ -190,7 +222,7 @@ export function ResolutionSelector({ value, onChange, disabled, presetOnly = fal
                                             {t('resolutions.custom')}
                                         </div>
                                         <div className="p-1 pt-0">
-                                            {customResolutions.map(preset => (
+                                            <SortableResolutionList>{preset => (
                                                 <div
                                                     key={preset.id}
                                                     className={cn(
@@ -229,7 +261,7 @@ export function ResolutionSelector({ value, onChange, disabled, presetOnly = fal
                                                         )}
                                                     </span>
                                                 </div>
-                                            ))}
+                                            )}</SortableResolutionList>
                                         </div>
                                     </>
                                 )}
@@ -378,7 +410,7 @@ export function ResolutionPresetSelector({ value, onChange, disabled }: Resoluti
                                 {t('resolutions.custom')}
                             </div>
                             <div className="p-1 pt-0">
-                                {customResolutions.map(preset => (
+                                <SortableResolutionList>{preset => (
                                     <button
                                         key={preset.id}
                                         onClick={() => selectResolution(preset)}
@@ -393,7 +425,7 @@ export function ResolutionPresetSelector({ value, onChange, disabled }: Resoluti
                                         </span>
                                         <span className="ml-2 shrink-0 text-xs text-muted-foreground">{preset.width} × {preset.height}</span>
                                     </button>
-                                ))}
+                                )}</SortableResolutionList>
                             </div>
                         </>
                     )}

@@ -101,6 +101,7 @@ interface SettingsState {
     setAutoSave: (autoSave: boolean) => void
     addCustomResolution: (resolution: Omit<CustomResolution, 'id'>) => void
     removeCustomResolution: (id: string) => void
+    reorderCustomResolution: (fromId: string, toId: string) => void
     setPromptFontSize: (size: number) => void
     setBasePromptCollapsed: (collapsed: boolean) => void
     setAdditionalPromptCollapsed: (collapsed: boolean) => void
@@ -233,6 +234,14 @@ export const useSettingsStore = create<SettingsState>()(
             removeCustomResolution: (id) => set((state) => ({
                 customResolutions: state.customResolutions.filter(r => r.id !== id)
             })),
+            reorderCustomResolution: (fromId, toId) => set(state => {
+                const from = state.customResolutions.findIndex(item => item.id === fromId)
+                const to = state.customResolutions.findIndex(item => item.id === toId)
+                if (from < 0 || to < 0 || from === to) return state
+                const customResolutions = [...state.customResolutions]
+                customResolutions.splice(to, 0, customResolutions.splice(from, 1)[0])
+                return { customResolutions }
+            }),
             setPromptFontSize: (size) => set({ promptFontSize: size }),
             setBasePromptCollapsed: (collapsed) => set({ basePromptCollapsed: collapsed }),
             setAdditionalPromptCollapsed: (collapsed) => set({ additionalPromptCollapsed: collapsed }),

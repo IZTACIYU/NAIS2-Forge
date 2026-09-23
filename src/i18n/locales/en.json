@@ -71,6 +71,9 @@
     "noMetadataDesc": "No metadata found in this image"
   },
   "scene": {
+    "searchByName": "Search scenes by name",
+    "clearSearch": "Clear search",
+    "noSearchResults": "No scenes match this name.",
     "title": "Scene Mode",
     "description": "Save prompts as cards and batch generate",
     "openPresetFolder": "Open current scene preset folder",
@@ -653,6 +656,7 @@
     "v5Quota": "Quota"
   },
   "resolutions": {
+    "reorder": "Drag to reorder",
     "title": "Resolution",
     "portrait": "Portrait",
     "landscape": "Landscape",

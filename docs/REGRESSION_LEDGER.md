@@ -599,6 +599,15 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+### R047 — Resolution reorder preserves records; scene search is display-only
+
+- **Date:** 2026-09-23
+- **Approval:** User approved saving only existing custom resolution array order, without changing records or storage format.
+- **Invariant:** Reorder by stable IDs against the current store, validate both IDs, retain entire records, and persist only on drop. Both resolution selectors use the same order. Scene search must not replace the authoritative scene list used for queue, selection or output; sorting is disabled while filtered.
+- **Regression coverage:** `node scripts/check-resolution-order-scene-search.mjs` hydrates isolated real Zustand persistence, verifies reorder/restart/invalid IDs/rollback and unknown-field preservation, executes the scene name filter, and checks display-only wiring and translations.
+
+---
+
 ## 새 항목 템플릿
 
 

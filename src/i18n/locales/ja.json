@@ -70,6 +70,9 @@
     "noMetadataDesc": "この画像にはメタデータが見つかりません"
   },
   "scene": {
+    "searchByName": "シーン名で検索",
+    "clearSearch": "検索をクリア",
+    "noSearchResults": "名前が一致するシーンはありません。",
     "title": "シーンモード",
     "description": "プロンプトをカードとして保存し、一括生成",
     "openPresetFolder": "現在のシーンプリセットフォルダーを開く",
@@ -652,6 +655,7 @@
     "v5Quota": "割り当て"
   },
   "resolutions": {
+    "reorder": "ドラッグして並べ替え",
     "title": "解像度",
     "portrait": "縦長",
     "landscape": "横長",

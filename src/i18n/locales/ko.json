@@ -71,6 +71,9 @@
     "noMetadataDesc": "이 이미지에서 메타데이터를 찾을 수 없습니다"
   },
   "scene": {
+    "searchByName": "씬 이름 검색",
+    "clearSearch": "검색 지우기",
+    "noSearchResults": "이름이 일치하는 씬이 없습니다.",
     "title": "씬 모드",
     "description": "프롬프트를 카드로 저장하고 대량 생성하세요",
     "openPresetFolder": "현재 씬 프리셋 폴더 열기",
@@ -684,6 +687,7 @@
     "v5Quota": "할당량"
   },
   "resolutions": {
+    "reorder": "드래그하여 순서 변경",
     "title": "해상도",
     "portrait": "세로",
     "landscape": "가로",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, memo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -335,6 +335,12 @@ export default function SceneMode() {
     const deletePreset = useSceneStore(s => s.deletePreset)
     const activePreset = useSceneStore(s => s.presets.find(p => p.id === s.activePresetId))
     const scenes = activePreset?.scenes || []
+    const [sceneSearch, setSceneSearch] = useState('')
+    const searchTerm = sceneSearch.trim().toLocaleLowerCase()
+    const visibleScenes = useMemo(() => searchTerm
+        ? scenes.filter(scene => scene.name.toLocaleLowerCase().includes(searchTerm))
+        : scenes, [scenes, searchTerm])
+    useEffect(() => { setSceneSearch('') }, [activePresetId])
     const scrollPosition = useSceneStore(s => s.scrollPosition)
     
     // Scroll container ref
@@ -493,7 +499,7 @@ export default function SceneMode() {
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event
-        if (over && active.id !== over.id && activePresetId) {
+        if (!searchTerm && over && active.id !== over.id && activePresetId) {
             const oldIndex = scenes.findIndex((item) => item.id === active.id)
             const newIndex = scenes.findIndex((item) => item.id === over.id)
             reorderScenes(activePresetId, arrayMove(scenes, oldIndex, newIndex))
@@ -1120,6 +1126,14 @@ export default function SceneMode() {
             )}
 
             {/* Scene Grid */}
+            <div className="flex items-center gap-2">
+                <Input value={sceneSearch} onChange={event => setSceneSearch(event.target.value)}
+                    placeholder={t('scene.searchByName')} aria-label={t('scene.searchByName')}
+                    className="h-8 w-60 min-w-0" />
+                {sceneSearch && <Button variant="ghost" size="icon" className="h-8 w-8"
+                    aria-label={t('scene.clearSearch')} onClick={() => setSceneSearch('')}><X className="h-4 w-4" /></Button>}
+                {searchTerm && <span className="text-xs text-muted-foreground">{visibleScenes.length} / {scenes.length}</span>}
+            </div>
             <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar p-1">
                 {scenes.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-white/5 rounded-3xl border border-white/10 border-dashed">
@@ -1128,6 +1142,8 @@ export default function SceneMode() {
                         <p className="text-sm mb-6 max-w-sm text-center leading-relaxed opacity-70">{t('scene.noScenesDesc')}</p>
                         <Button className="rounded-xl h-11 px-8" variant="outline" onClick={handleAddScene} disabled={isGenerating}> <Plus className="mr-2 h-5 w-5" /> {t('scene.addScene')} </Button>
                     </div>
+                ) : visibleScenes.length === 0 ? (
+                    <div className="p-8 text-center text-sm text-muted-foreground">{t('scene.noSearchResults')}</div>
                 ) : (
                     <DndContext
                         sensors={sensors}
@@ -1140,14 +1156,15 @@ export default function SceneMode() {
                         onDragStart={handleDragStart}
                         onDragEnd={handleDragEnd}
                     >
-                        <SortableContext items={scenes.map(s => s.id)} strategy={rectSortingStrategy}>
+                        <SortableContext items={visibleScenes.map(s => s.id)} strategy={rectSortingStrategy}>
                             <div className="grid gap-6 pb-20" style={{ gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))` }}>
-                                {scenes.map((scene) => (
+                                {visibleScenes.map((scene) => (
                                     <SortableSceneCard
                                         key={scene.id}
                                         scene={scene}
                                         showResolutionBadge={showResolutionBadges}
                                         disabled={isGenerating}
+                                        sortingDisabled={Boolean(searchTerm)}
                                         onOpenSceneCharacterAddition={setSceneCharacterAdditionSceneId}
                                     />
                                 ))}
@@ -1620,7 +1637,7 @@ const SortableSceneCard = memo(function SortableSceneCard(props: any) {
     const [viewportRef, isNearViewport] = useNearViewport<HTMLDivElement>('240px 0px')
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: props.scene.id,
-        disabled: props.disabled || !isNearViewport,
+        disabled: props.disabled || props.sortingDisabled || !isNearViewport,
         animateLayoutChanges: () => isNearViewport,
         strategy: isNearViewport ? rectSortingStrategy : skipSceneSortingTransform,
     })
@@ -1642,5 +1659,6 @@ const SortableSceneCard = memo(function SortableSceneCard(props: any) {
         prevProps.scene.width === nextProps.scene.width &&
         prevProps.scene.height === nextProps.scene.height &&
         prevProps.showResolutionBadge === nextProps.showResolutionBadge &&
+        prevProps.sortingDisabled === nextProps.sortingDisabled &&
         prevProps.disabled === nextProps.disabled
 })
