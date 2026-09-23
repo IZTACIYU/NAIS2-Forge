@@ -1,3 +1,5 @@
+import type { RandomTagQuery } from '@/lib/random-tag-prompts'
+
 export interface TagSearchResult {
     label: string
     value: string
@@ -14,7 +16,7 @@ export interface TagMatchResult {
 
 interface SearchResponse {
     id: number
-    kind: 'search' | 'match'
+    kind: 'search' | 'match' | 'random'
     matches?: TagSearchResult[]
     results?: TagMatchResult[]
     error?: string
@@ -63,5 +65,15 @@ export function matchTags(tags: string[]): Promise<TagMatchResult[]> {
     return new Promise((resolve, reject) => {
         pending.set(id, { resolve: value => resolve(value as TagMatchResult[]), reject })
         getWorker().postMessage({ kind: 'match', id, tags })
+    })
+}
+
+export function pickRandomTag(query: RandomTagQuery): Promise<string | null> {
+    const id = ++nextRequestId
+    return new Promise((resolve, reject) => {
+        pending.set(id, {
+            resolve: value => resolve((value as TagSearchResult[])[0]?.value ?? null), reject,
+        })
+        getWorker().postMessage({ kind: 'random', id, query })
     })
 }

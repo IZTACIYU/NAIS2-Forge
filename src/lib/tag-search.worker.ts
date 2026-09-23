@@ -3,6 +3,7 @@
 import tagsBinaryUrl from '@/assets/tags.bin?url'
 import aliasesBinaryUrl from '@/assets/tag-aliases.bin?url'
 import { searchTagIndexes } from '@/lib/tag-search-ranking'
+import { pickRandomTagIndex, type RandomTagQuery } from '@/lib/random-tag-prompts'
 
 interface Tag {
     label: string
@@ -22,6 +23,12 @@ interface MatchRequest {
     kind: 'match'
     id: number
     tags: string[]
+}
+
+interface RandomRequest {
+    kind: 'random'
+    id: number
+    query: RandomTagQuery
 }
 
 interface TagMatchResult {
@@ -248,8 +255,14 @@ function matchSingleTag(index: TagIndex, aliases: Map<string, number>, tag: stri
 
 const scope = self as unknown as DedicatedWorkerGlobalScope
 
-async function handleMessage(data: SearchRequest | MatchRequest): Promise<void> {
+async function handleMessage(data: SearchRequest | MatchRequest | RandomRequest): Promise<void> {
     const index = await getTagIndex()
+
+    if (data.kind === 'random') {
+        const selected = pickRandomTagIndex(index, data.query)
+        scope.postMessage({ id: data.id, kind: 'random', matches: selected < 0 ? [] : [toTag(index, selected)] })
+        return
+    }
 
     if (data.kind === 'match') {
         const aliases = await getAliasIndex(index)
@@ -273,7 +286,7 @@ async function handleMessage(data: SearchRequest | MatchRequest): Promise<void> 
     scope.postMessage({ id: data.id, kind: 'search', matches })
 }
 
-scope.onmessage = (event: MessageEvent<SearchRequest | MatchRequest>) => {
+scope.onmessage = (event: MessageEvent<SearchRequest | MatchRequest | RandomRequest>) => {
     handleMessage(event.data).catch(error => {
         scope.postMessage({
             id: event.data.id,

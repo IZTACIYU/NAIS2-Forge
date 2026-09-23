@@ -23,6 +23,9 @@ const DIRECTIVE_SUGGESTIONS: SuggestionItem[] = [
     { label: '#if-condition:', value: '#if-condition:', type: 'directive' },
     { label: '#if+condition:', value: '#if+condition:', type: 'directive' },
     { label: '#del-condition', value: '#del-', type: 'directive' },
+    { label: '#rChara', value: '#rChara', type: 'directive' },
+    { label: '#rArtist', value: '#rArtist', type: 'directive' },
+    { label: '#rCopy', value: '#rCopy', type: 'directive' },
     { label: '#if b:', value: '#if b:', type: 'directive' },
     { label: '#if g:', value: '#if g:', type: 'directive' },
     { label: '#if o:', value: '#if o:', type: 'directive' },
@@ -774,7 +777,7 @@ export function AutocompleteTextarea({
                         </Fragment>
                     }
                     const isConditionalDirective = /^\s*#if(?:\s+[a-z][a-z0-9_-]*|[+-][^:\r\n]+)\s*:/i.test(line)
-                    const regex = /(^\s*#if(?:\s+[a-z][a-z0-9_-]*|[+-][^:\r\n]+)\s*:)|((?:-?[\d.]+)?::.*?::)|(<[^>]+>)|(#(?:source|target)\b)/gi
+                    const regex = /(^\s*#if(?:\s+[a-z][a-z0-9_-]*|[+-][^:\r\n]+)\s*:)|((?:-?[\d.]+)?::.*?::)|(#r(?:Chara|Artist|Copy)\b(?:[ \t]*(?:[<>]=?|=[<>]?)[ \t]*\d+)?)|(<[^>]+>)|(#(?:source|target)\b)/gi
                     const parts = line.split(regex)
 
                     return (
@@ -786,6 +789,8 @@ export function AutocompleteTextarea({
                                     styleClass = part.startsWith('-')
                                         ? "bg-sky-500/30 rounded-[2px]"
                                         : "bg-pink-500/30 rounded-[2px]"
+                                } else if (/^#r(?:Chara|Artist|Copy)\b/i.test(part)) {
+                                    styleClass = "bg-green-500/30 rounded-[2px]"
                                 } else if (/^<[^>]+>$/.test(part)) {
                                     styleClass = "bg-green-500/30 rounded-[2px]"
                                 } else if (/^\s*#if(?:\s+[a-z][a-z0-9_-]*|[+-][^:\r\n]+)\s*:$/i.test(part)) {

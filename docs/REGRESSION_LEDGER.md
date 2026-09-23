@@ -589,6 +589,16 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ---
 
+### R046 — Random tag count filters must precede fragment angle parsing
+
+- **Date:** 2026-09-23
+- **Area:** bundled tag worker, prompt expansion and token estimates
+- **Invariant to preserve:** `#rChara<100, #rArtist>100` must not be interpreted as a `<file>` wildcard. Resolve random tag directives at each file-expansion level before angle parsing. Use existing binary category codes, uniform sampling of matching DB entries and no alias duplication. Preview selects a deterministic candidate without drawing random numbers.
+- **Fix:** Reuse the existing worker/index with a read-only random query, shared by generation expansion and deterministic token preview. Empty candidate sets and invalid filters fail generation before transport; original inputs remain intact.
+- **Regression coverage:** `node scripts/check-random-tag-prompts.mjs` checks comparison boundaries, reversed equality operators, real bundled DB/worker, adjacent opposite inequalities, nested fragments, request outputs and unchanged input/provenance. Existing tag-index, deletion and formatting checks cover neighboring paths.
+
+---
+
 ## 새 항목 템플릿
 
 

@@ -1,4 +1,6 @@
 import { useFragmentStore, normalizeFragmentPath } from '@/stores/fragment-store'
+import { resolveRandomTagPrompts } from '@/lib/random-tag-prompts'
+import { pickRandomTag } from '@/lib/tag-search-client'
 
 /**
  * Fragment Processor (조각 프롬프트 처리기)
@@ -23,6 +25,8 @@ import { useFragmentStore, normalizeFragmentPath } from '@/stores/fragment-store
  * "<red|blue|green>" → 인라인 옵션에서 랜덤 선택
  */
 async function processFileWildcards(prompt: string): Promise<string> {
+    // Resolve count comparisons before <...> can mistake them for file syntax.
+    prompt = await resolveRandomTagPrompts(prompt, pickRandomTag)
     // <...> 패턴 찾기 (중첩 불가)
     const filePattern = /<([^<>]+)>/g
     const matches: { match: string; content: string; index: number }[] = []
@@ -95,6 +99,7 @@ async function resolveFragmentFirstLinesInternal(
     depth: number,
     visitedFileIds: Set<string>,
 ): Promise<string> {
+    prompt = await resolveRandomTagPrompts(prompt, pickRandomTag, true)
     if (depth >= 6 || !prompt.includes('<')) return prompt
 
     const matches = Array.from(prompt.matchAll(/<([^<>]+)>/g))
@@ -245,6 +250,7 @@ export async function processWildcards(prompt: string): Promise<string> {
  */
 export function hasWildcards(prompt: string): boolean {
     if (!prompt) return false
+    if (/#r(?:Chara|Artist|Copy)\b/i.test(prompt)) return true
 
     // 파일 기반 조각 프롬프트 체크 <...>
     if (/<[^<>]+>/.test(prompt)) return true
