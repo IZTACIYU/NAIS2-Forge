@@ -9,12 +9,18 @@
     "description": "NovelAI 통합 스튜디오"
   },
   "shareCard": {
-    "action": "이 이미지의 프롬프트 공유",
+    "action": "이 프리셋의 프롬프트 공유",
     "title": "프롬프트 공유 카드",
     "preview": "프롬프트 공유 카드 미리보기",
     "preparing": "카드를 만드는 중...",
     "createFailed": "공유 카드를 만들 수 없습니다. 이미지 메타데이터를 확인하세요.",
-    "savePng": "PNG 저장",
+    "savePng": "다운로드",
+    "copyPng": "클립보드 복사",
+    "copyHtml": "HTML로 복사",
+    "copyField": "{{label}} 복사",
+    "copied": "클립보드에 복사했습니다",
+    "htmlCopied": "HTML을 클립보드에 복사했습니다",
+    "copyFailed": "클립보드 복사 실패",
     "saved": "공유 카드 저장 완료",
     "saveFailed": "공유 카드 저장 실패"
   },

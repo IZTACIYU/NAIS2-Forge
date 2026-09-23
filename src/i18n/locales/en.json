@@ -9,12 +9,18 @@
     "description": "NovelAI Integrated Studio"
   },
   "shareCard": {
-    "action": "Share this image's prompt",
+    "action": "Share this preset's prompt",
     "title": "Prompt share card",
     "preview": "Prompt share card preview",
     "preparing": "Creating card...",
     "createFailed": "Could not create the card. Check the image metadata.",
-    "savePng": "Save PNG",
+    "savePng": "Download",
+    "copyPng": "Copy to clipboard",
+    "copyHtml": "Copy as HTML",
+    "copyField": "Copy {{label}}",
+    "copied": "Copied to clipboard",
+    "htmlCopied": "HTML copied to clipboard",
+    "copyFailed": "Clipboard copy failed",
     "saved": "Share card saved",
     "saveFailed": "Failed to save share card"
   },

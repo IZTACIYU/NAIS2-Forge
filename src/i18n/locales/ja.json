@@ -9,12 +9,18 @@
     "description": "NovelAI 統合スタジオ"
   },
   "shareCard": {
-    "action": "この画像のプロンプトを共有",
+    "action": "このプリセットのプロンプトを共有",
     "title": "プロンプト共有カード",
     "preview": "プロンプト共有カードのプレビュー",
     "preparing": "カードを作成中...",
     "createFailed": "カードを作成できません。画像のメタデータを確認してください。",
-    "savePng": "PNGを保存",
+    "savePng": "ダウンロード",
+    "copyPng": "クリップボードにコピー",
+    "copyHtml": "HTMLとしてコピー",
+    "copyField": "{{label}}をコピー",
+    "copied": "クリップボードにコピーしました",
+    "htmlCopied": "HTMLをクリップボードにコピーしました",
+    "copyFailed": "クリップボードへのコピーに失敗しました",
     "saved": "共有カードを保存しました",
     "saveFailed": "共有カードの保存に失敗しました"
   },

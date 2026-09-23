@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readPngTextMetadata, writePngTextMetadata } from '../src/lib/png-metadata-editor.ts'
 import { embedNais2Params, readNais2Params } from '../src/lib/nais2-png-meta.ts'
+import { cardHtml } from '../src/components/image/share-card-html.ts'
 
 const blankPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/7p8AAAAASUVORK5CYII='
 const official = {
@@ -24,4 +25,12 @@ assert.ok(appChunk)
 assert.deepEqual(officialRoundTrip, official)
 assert.deepEqual(readNais2Params(Uint8Array.from(atob(withApp), c => c.charCodeAt(0))), { version: 1, ...app })
 assert.equal(JSON.parse(readPngTextMetadata(dataUrl).Comment).tag_hint_qt, 1)
-console.log('Share card metadata round-trip passed')
+const html = cardHtml({
+    model: 'V5 Full', positive: 'a <img src=x onerror="alert(1)"> & b\nsecond line </script>', negative: "artist:'name'",
+    steps: '28', cfgScale: '5', cfgRescale: '0', sampler: 'k_euler', scheduler: 'native', quality: 'Standard', uc: 'Heavy',
+})
+assert.ok(html.includes('data-copy="a &lt;img src=x onerror=&quot;alert(1)&quot;&gt; &amp; b\nsecond line &lt;/script&gt;"'))
+assert.ok(html.includes('data-copy="artist:&#39;name&#39;"'))
+assert.ok(!html.includes('<img src=x onerror='))
+assert.ok(html.includes("navigator.clipboard.writeText(v)"))
+console.log('Share card metadata and HTML checks passed')

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
-import { Download } from 'lucide-react'
+import { ClipboardCopy, Code2, Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -10,6 +10,7 @@ import { parseMetadataFromBase64, type NAIMetadata } from '@/lib/metadata-parser
 import { getModelCapabilities } from '@/lib/model-capabilities'
 import { embedNais2Params, readNais2Params } from '@/lib/nais2-png-meta'
 import { readPngTextMetadata, writePngTextMetadata } from '@/lib/png-metadata-editor'
+import { cardGroups, cardHtml, type ShareCardFields } from './share-card-html'
 
 const WIDTH = 720
 const PADDING = 32
@@ -36,7 +37,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
     return lines.length ? lines : ['-']
 }
 
-function cardFields(metadata: NAIMetadata) {
+function cardFields(metadata: NAIMetadata): ShareCardFields {
     const capabilities = getModelCapabilities(metadata.modelId ?? '')
     const mode = capabilities.modes.length
         ? /^fur dataset(?:,|\s|$)/i.test(metadata.prompt ?? '') ? 'Furry' : 'Anime'
@@ -58,7 +59,7 @@ function cardFields(metadata: NAIMetadata) {
     }
 }
 
-async function createCard(imageUrl: string): Promise<string> {
+async function createCard(imageUrl: string): Promise<{ png: string; fields: ShareCardFields }> {
     const metadata = await parseMetadataFromBase64(imageUrl)
     if (!metadata?.raw || !metadata.prompt || !metadata.model) throw new Error('NovelAI image metadata is required')
     const fields = cardFields(metadata)
@@ -135,7 +136,7 @@ async function createCard(imageUrl: string): Promise<string> {
         qualityToggle: metadata.qualityToggle,
         ucPreset: metadata.ucPreset,
     }
-    return `data:image/png;base64,${embedNais2Params(btoa(binary), appParams)}`
+    return { png: `data:image/png;base64,${embedNais2Params(btoa(binary), appParams)}`, fields }
 }
 
 interface ShareCardDialogProps {
@@ -146,7 +147,7 @@ interface ShareCardDialogProps {
 
 export function ShareCardDialog({ open, onOpenChange, image }: ShareCardDialogProps) {
     const { t } = useTranslation()
-    const [card, setCard] = useState<string | null>(null)
+    const [card, setCard] = useState<{ png: string; fields: ShareCardFields } | null>(null)
     const [error, setError] = useState<string | null>(null)
     useEffect(() => {
         if (!open || !image) return
@@ -168,7 +169,7 @@ export function ShareCardDialog({ open, onOpenChange, image }: ShareCardDialogPr
                 filters: [{ name: 'PNG Image', extensions: ['png'] }],
             })
             if (!path) return
-            await writeFile(path, Uint8Array.from(atob(card.split(',')[1]), char => char.charCodeAt(0)))
+            await writeFile(path, Uint8Array.from(atob(card.png.split(',')[1]), char => char.charCodeAt(0)))
             toast({ title: t('shareCard.saved'), variant: 'success' })
         } catch (reason) {
             console.error('Share card save failed:', reason)
@@ -176,14 +177,79 @@ export function ShareCardDialog({ open, onOpenChange, image }: ShareCardDialogPr
         }
     }
 
+    const copyImage = async () => {
+        if (!card) return
+        try {
+            const blob = await (await fetch(card.png)).blob()
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+            toast({ title: t('shareCard.copied'), variant: 'success' })
+        } catch (reason) {
+            console.error('Share card image copy failed:', reason)
+            toast({ title: t('shareCard.copyFailed'), variant: 'destructive' })
+        }
+    }
+
+    const copyHtml = async () => {
+        if (!card) return
+        const html = cardHtml(card.fields)
+        try {
+            try {
+                await navigator.clipboard.write([new ClipboardItem({
+                    'text/html': new Blob([html], { type: 'text/html' }),
+                    'text/plain': new Blob([html], { type: 'text/plain' }),
+                })])
+            } catch {
+                await navigator.clipboard.writeText(html)
+            }
+            toast({ title: t('shareCard.htmlCopied'), variant: 'success' })
+        } catch (reason) {
+            console.error('Share card HTML copy failed:', reason)
+            toast({ title: t('shareCard.copyFailed'), variant: 'destructive' })
+        }
+    }
+
+    const copyField = async (value: string) => {
+        try {
+            await navigator.clipboard.writeText(value)
+            toast({ title: t('shareCard.copied'), variant: 'success' })
+        } catch (reason) {
+            console.error('Share card field copy failed:', reason)
+            toast({ title: t('shareCard.copyFailed'), variant: 'destructive' })
+        }
+    }
+
     return <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="!max-w-[760px] max-h-[92vh] overflow-y-auto p-5 [&>button]:hidden">
+        <DialogContent className="!max-w-[760px] max-h-[92vh] flex flex-col p-5 [&>button]:hidden">
             <DialogTitle className="sr-only">{t('shareCard.title')}</DialogTitle>
-            {card ? <img src={card} alt={t('shareCard.preview')} className="max-w-full h-auto mx-auto rounded-xl" />
-                : <div className="min-h-40 flex items-center justify-center text-muted-foreground">{error ?? t('shareCard.preparing')}</div>}
-            <Button onClick={handleSave} disabled={!card} className="justify-self-end gap-2">
-                <Download className="h-4 w-4" /> {t('shareCard.savePng')}
-            </Button>
+            <div className="flex flex-wrap justify-end gap-2 shrink-0">
+                <Button onClick={handleSave} disabled={!card} variant="outline" className="gap-2">
+                    <Download className="h-4 w-4" /> {t('shareCard.savePng')}
+                </Button>
+                <Button onClick={copyImage} disabled={!card} variant="outline" className="gap-2">
+                    <ClipboardCopy className="h-4 w-4" /> {t('shareCard.copyPng')}
+                </Button>
+                <Button onClick={copyHtml} disabled={!card} variant="outline" className="gap-2">
+                    <Code2 className="h-4 w-4" /> {t('shareCard.copyHtml')}
+                </Button>
+            </div>
+            {card ? <div className="min-h-0 overflow-y-auto rounded-xl bg-[#1b1b1b] p-8 text-[#f4f1ed]">
+                {cardGroups(card.fields).map((group, groupIndex) => <div key={groupIndex} className="mb-6 flex gap-3 last:mb-0">
+                    {group.map(({ label, value }) => <section key={label} className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2 text-[15px] font-bold text-[#e3c884]">
+                            <span>{label}</span>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0 text-[#e3c884] hover:bg-amber-500/15 hover:text-[#f4d994]"
+                                onClick={() => copyField(value)}
+                                aria-label={t('shareCard.copyField', { label })}
+                                title={t('shareCard.copyField', { label })}
+                            ><ClipboardCopy className="h-3.5 w-3.5" /></Button>
+                        </div>
+                        <div className="mt-2 whitespace-pre-wrap break-words text-base">{value || '-'}</div>
+                    </section>)}
+                </div>)}
+            </div> : <div className="min-h-40 flex items-center justify-center text-muted-foreground">{error ?? t('shareCard.preparing')}</div>}
         </DialogContent>
     </Dialog>
 }
