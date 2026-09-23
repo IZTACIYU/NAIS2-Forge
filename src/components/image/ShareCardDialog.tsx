@@ -6,10 +6,14 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { toast } from '@/components/ui/use-toast'
-import { parseMetadataFromBase64, type NAIMetadata } from '@/lib/metadata-parser'
-import { getModelCapabilities } from '@/lib/model-capabilities'
-import { embedNais2Params, readNais2Params } from '@/lib/nais2-png-meta'
-import { readPngTextMetadata, writePngTextMetadata } from '@/lib/png-metadata-editor'
+import { buildGenerationRequest } from '@/lib/generation-request'
+import { AVAILABLE_MODELS, getModelCapabilities, type ModelMode, type QualityTagPresetId } from '@/lib/model-capabilities'
+import { embedNais2Params } from '@/lib/nais2-png-meta'
+import { writePngTextMetadata } from '@/lib/png-metadata-editor'
+import type { GenerationParams } from '@/services/novelai-api'
+import { useCharacterPromptStore } from '@/stores/character-prompt-store'
+import { useGenerationStore } from '@/stores/generation-store'
+import { useSettingsStore } from '@/stores/settings-store'
 import { cardGroups, cardHtml, type ShareCardFields } from './share-card-html'
 
 const WIDTH = 720
@@ -37,32 +41,75 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
     return lines.length ? lines : ['-']
 }
 
-function cardFields(metadata: NAIMetadata): ShareCardFields {
-    const capabilities = getModelCapabilities(metadata.modelId ?? '')
-    const mode = capabilities.modes.length
-        ? /^fur dataset(?:,|\s|$)/i.test(metadata.prompt ?? '') ? 'Furry' : 'Anime'
-        : null
-    const quality = capabilities.qualityTagPresets.find(option => option.value === metadata.qualityTagPreset)
-    const uc = capabilities.ucPresets.find(option => option.value === metadata.ucPreset)
-    const negative = metadata.v4_negative_prompt?.caption?.base_caption ?? metadata.negativePrompt ?? ''
+function cardFields(params: GenerationParams, modelMode: ModelMode, qualityTagPreset: QualityTagPresetId): ShareCardFields {
+    const capabilities = getModelCapabilities(params.model)
+    const mode = capabilities.modes.find(option => option.value === modelMode)?.label
+    const quality = capabilities.qualityTagPresets.find(option => option.value === qualityTagPreset)
+    const uc = capabilities.ucPresets.find(option => option.value === params.ucPreset)
     return {
-        model: `${metadata.model ?? 'Unknown model'}${mode ? ` · ${mode}` : ''}`,
-        positive: metadata.prompt ?? '',
-        negative,
-        steps: metadata.steps?.toString() ?? '-',
-        cfgScale: metadata.cfgScale?.toString() ?? '-',
-        cfgRescale: metadata.cfgRescale?.toString() ?? '-',
-        sampler: metadata.sampler ?? '-',
-        scheduler: metadata.scheduler ?? '-',
-        quality: quality?.label ?? (metadata.qualityToggle === true ? 'Standard' : metadata.qualityToggle === false ? 'None' : '-'),
+        model: `${AVAILABLE_MODELS.find(model => model.id === params.model)?.name ?? params.model}${mode ? ` · ${mode}` : ''}`,
+        positive: params.prompt,
+        negative: params.negative_prompt,
+        steps: params.steps.toString(),
+        cfgScale: params.cfg_scale.toString(),
+        cfgRescale: params.cfg_rescale.toString(),
+        sampler: params.sampler,
+        scheduler: params.scheduler,
+        quality: quality?.label ?? '-',
         uc: uc ? uc.label.replace(/([A-Z])/g, ' $1').replace(/^./, char => char.toUpperCase()) : '-',
     }
 }
 
-async function createCard(imageUrl: string): Promise<{ png: string; fields: ShareCardFields }> {
-    const metadata = await parseMetadataFromBase64(imageUrl)
-    if (!metadata?.raw || !metadata.prompt || !metadata.model) throw new Error('NovelAI image metadata is required')
-    const fields = cardFields(metadata)
+async function createCard(): Promise<{ png: string; fields: ShareCardFields }> {
+    const state = useGenerationStore.getState()
+    const settings = useSettingsStore.getState()
+    const characterState = useCharacterPromptStore.getState()
+    const capabilities = getModelCapabilities(state.model)
+    const qualityTagPreset = capabilities.qualityTagPresets.length > 2
+        ? state.qualityTagPreset : state.qualityToggle ? 'standard' : 'none'
+    const promptParts = {
+        base: state.basePrompt,
+        additional: state.additionalPrompt,
+        detail: state.detailPrompt,
+        negative: state.negativePrompt,
+        inpainting: state.inpaintingPrompt,
+    }
+    const params = await buildGenerationRequest({
+        positiveParts: [state.basePrompt, state.i2iMode === 'inpaint' ? state.inpaintingPrompt : '', state.additionalPrompt, state.detailPrompt]
+            .map(value => ({ value })),
+        negativeParts: [{ value: state.negativePrompt }],
+        characterInputs: characterState.characters.filter(character => character.enabled)
+            .slice(0, capabilities.maxCharacterPrompts).map(character => ({ character })),
+        characterPromptLayoutEnabled: settings.expertCharacterPromptLayoutEnabled,
+        characterPositionEnabled: characterState.positionEnabled,
+        characterImages: [],
+        vibeImages: [],
+        model: state.model,
+        width: Math.round(state.selectedResolution.width / 64) * 64,
+        height: Math.round(state.selectedResolution.height / 64) * 64,
+        steps: state.steps,
+        cfgScale: state.cfgScale,
+        cfgRescale: state.cfgRescale,
+        sampler: state.sampler,
+        scheduler: state.scheduler,
+        smea: state.smea,
+        smeaDyn: state.smeaDyn,
+        variety: state.variety,
+        modelMode: state.modelMode,
+        seed: state.seed,
+        strength: state.strength,
+        noise: state.noise,
+        imageFormat: settings.imageFormat,
+        qualityToggle: state.qualityToggle,
+        qualityTagPreset,
+        ucPreset: state.ucPreset,
+        transparentBackground: state.transparentBackground,
+        promptWhitespaceMode: settings.promptWhitespaceMode,
+        removeEmptyPromptSeparators: settings.removeEmptyPromptSeparators,
+        insertBlankLinesBetweenPromptParts: settings.insertBlankLinesBetweenPromptParts,
+        promptParts,
+    })
+    const fields = cardFields(params, state.modelMode, qualityTagPreset)
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('Canvas is unavailable')
@@ -118,48 +165,67 @@ async function createCard(imageUrl: string): Promise<{ png: string; fields: Shar
     paired('QUALITY TAGS', fields.quality, 'UC PRESET', fields.uc)
 
     const cardDataUrl = canvas.toDataURL('image/png')
-    const originalText = imageUrl.startsWith('data:image/png') ? readPngTextMetadata(imageUrl) : {}
     const officialText = {
-        Title: originalText.Title ?? 'NAIS2 prompt share card',
-        Description: originalText.Description ?? metadata.prompt,
-        Software: originalText.Software ?? 'NovelAI',
-        Source: originalText.Source ?? metadata.model ?? '',
-        Comment: originalText.Comment ?? JSON.stringify(metadata.raw),
+        Title: 'NAIS2 prompt share card',
+        Description: params.prompt,
+        Software: 'NAIS2 Forge',
+        Source: (AVAILABLE_MODELS.find(model => model.id === params.model)?.name ?? params.model).replace(/^NAI /, 'NovelAI '),
+        Comment: JSON.stringify({
+            prompt: params.prompt,
+            uc: params.negative_prompt,
+            width: params.width,
+            height: params.height,
+            steps: params.steps,
+            scale: params.cfg_scale,
+            cfg_rescale: params.cfg_rescale,
+            sampler: params.sampler,
+            noise_schedule: params.scheduler,
+            tag_hint_qt: params.tag_hint_qt,
+            tag_hint_uc_preset: params.tag_hint_uc_preset,
+            tag_hint_transparent_background: params.tag_hint_transparent_background,
+            v4_prompt: { caption: { base_caption: params.prompt, char_captions: params.characterPrompts?.filter(character => character.enabled && character.prompt.trim()).map(character => ({
+                char_caption: character.prompt,
+                centers: [params.characterPositionEnabled ? character.position : { x: 0.5, y: 0.5 }],
+            })) ?? [] }, use_coords: params.characterPositionEnabled ?? false, use_order: true },
+            v4_negative_prompt: { caption: { base_caption: params.negative_prompt, char_captions: params.characterPrompts?.filter(character => character.enabled && character.prompt.trim()).map(character => ({
+                char_caption: character.negative,
+                centers: [params.characterPositionEnabled ? character.position : { x: 0.5, y: 0.5 }],
+            })) ?? [] }, legacy_uc: false },
+        }),
     }
     const officialBytes = writePngTextMetadata(cardDataUrl, officialText)
     let binary = ''
     for (let index = 0; index < officialBytes.length; index += 32768) {
         binary += String.fromCharCode(...officialBytes.subarray(index, index + 32768))
     }
-    const originalBytes = Uint8Array.from(atob(imageUrl.split(',')[1]), char => char.charCodeAt(0))
-    const appParams = readNais2Params(originalBytes) ?? {
-        qualityToggle: metadata.qualityToggle,
-        ucPreset: metadata.ucPreset,
-    }
-    return { png: `data:image/png;base64,${embedNais2Params(btoa(binary), appParams)}`, fields }
+    return { png: `data:image/png;base64,${embedNais2Params(btoa(binary), {
+        qualityToggle: params.qualityToggle,
+        ucPreset: params.ucPreset,
+        promptParts,
+        generationSources: params.generationSources,
+    })}`, fields }
 }
 
 interface ShareCardDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
-    image: string | null
 }
 
-export function ShareCardDialog({ open, onOpenChange, image }: ShareCardDialogProps) {
+export function ShareCardDialog({ open, onOpenChange }: ShareCardDialogProps) {
     const { t } = useTranslation()
     const [card, setCard] = useState<{ png: string; fields: ShareCardFields } | null>(null)
     const [error, setError] = useState<string | null>(null)
     useEffect(() => {
-        if (!open || !image) return
+        if (!open) return
         let active = true
-        createCard(image).then(result => {
+        createCard().then(result => {
             if (active) setCard(result)
         }).catch(reason => {
             console.error('Share card creation failed:', reason)
             if (active) setError(t('shareCard.createFailed'))
         })
         return () => { active = false; setCard(null); setError(null) }
-    }, [open, image, t])
+    }, [open, t])
 
     const handleSave = async () => {
         if (!card) return

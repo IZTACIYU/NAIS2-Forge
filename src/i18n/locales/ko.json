@@ -13,7 +13,7 @@
     "title": "프롬프트 공유 카드",
     "preview": "프롬프트 공유 카드 미리보기",
     "preparing": "카드를 만드는 중...",
-    "createFailed": "공유 카드를 만들 수 없습니다. 이미지 메타데이터를 확인하세요.",
+    "createFailed": "현재 프롬프트로 공유 카드를 만들 수 없습니다.",
     "savePng": "다운로드",
     "copyPng": "클립보드 복사",
     "copyHtml": "HTML로 복사",

@@ -141,7 +141,6 @@ export function PromptPanel() {
     const seedLocked = useGenerationStore(state => state.seedLocked)
     const selectedResolution = useGenerationStore(state => state.selectedResolution)
     const isGenerating = useGenerationStore(state => state.isGenerating)
-    const hasPreviewImage = useGenerationStore(state => Boolean(state.previewImage))
     const isCancelled = useGenerationStore(state => state.isCancelled)
     const model = useGenerationStore(state => state.model)
     const modelCapabilities = getModelCapabilities(model)
@@ -228,9 +227,9 @@ export function PromptPanel() {
     )
     const imageGenerationEntitlement = useAuthStore(state => state.imageGenerationEntitlement)
     const [sourceImageDimensions, setSourceImageDimensions] = useState<{ width: number; height: number } | null>(null)
-    const [shareImage, setShareImage] = useState<string | null>(null)
+    const [shareCardOpen, setShareCardOpen] = useState(false)
     useEffect(() => {
-        if (location.pathname !== '/') setShareImage(null)
+        if (location.pathname !== '/') setShareCardOpen(false)
     }, [location.pathname])
     useEffect(() => {
         if (!sourceImage) {
@@ -741,8 +740,7 @@ export function PromptPanel() {
                             variant="outline"
                             size="icon"
                             className="h-9 w-9 rounded-xl shrink-0 border-amber-400/70 text-amber-200 hover:bg-amber-500/15 hover:text-amber-100"
-                            onClick={() => setShareImage(useGenerationStore.getState().previewImage)}
-                            disabled={!hasPreviewImage || isGenerating}
+                            onClick={() => setShareCardOpen(true)}
                             aria-label={t('shareCard.action')}
                         >
                             <Clipboard className="h-4 w-4" />
@@ -1032,9 +1030,8 @@ export function PromptPanel() {
             </div>
 
             <ShareCardDialog
-                open={shareImage !== null}
-                onOpenChange={(open) => { if (!open) setShareImage(null) }}
-                image={shareImage}
+                open={shareCardOpen}
+                onOpenChange={setShareCardOpen}
             />
 
             {/* AI Prompt Generator Dialog */}

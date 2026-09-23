@@ -13,7 +13,7 @@
     "title": "Prompt share card",
     "preview": "Prompt share card preview",
     "preparing": "Creating card...",
-    "createFailed": "Could not create the card. Check the image metadata.",
+    "createFailed": "Could not create a card from the current prompt.",
     "savePng": "Download",
     "copyPng": "Copy to clipboard",
     "copyHtml": "Copy as HTML",

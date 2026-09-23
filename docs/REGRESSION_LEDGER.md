@@ -611,13 +611,13 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ## 새 항목 템플릿
 
-### R048 — 공유 카드는 원본 이미지의 생성 메타데이터를 보존한다
+### R048 — 공유 카드는 현재 프롬프트를 독립적으로 내보낸다
 
 - **Date:** 2026-09-23
 - **Area:** main image share card, NovelAI PNG metadata, Forge prompt import
-- **Invariant:** 카드에 보이는 생성 값과 PNG의 공식 `Comment`/`Source`는 선택한 원본 이미지에서 읽는다. 기존 Forge `nais2-params`는 원형을 새 카드에 복사한다. 현재 생성 설정을 원본 이미지 값으로 대체하거나 원본 이미지 파일을 수정하지 않는다.
-- **Regression coverage:** `node --experimental-strip-types scripts/check-share-card-metadata.mjs`에서 공식/Forge PNG 메타데이터의 동시 왕복과 HTML의 원문 보존·이스케이프를 검사한다. 카드에는 원본 이미지를 다시 그리지 않고 프롬프트와 파라미터만 세로로 표시하며, 원본에 생성 메타데이터가 없으면 저장을 막는다.
-- **Do not "fix" by:** 현행 화면의 prompt store 값으로 카드 메타데이터를 채우거나, 공식 최종 prompt를 Forge 원본 `promptParts`로 위조하기.
+- **Invariant:** 이미지 선택 여부와 무관하게 현재 메인 프롬프트·설정의 스냅샷을 공유한다. 카드에 보이는 최종 프롬프트와 PNG의 공식 `Comment`는 같은 생성 요청 빌더 결과를 사용하고, Forge `nais2-params.promptParts`에는 변환 전 원문을 보존한다. 실제 저장된 프롬프트나 기존 이미지는 수정하지 않는다.
+- **Regression coverage:** `node --experimental-strip-types scripts/check-share-card-metadata.mjs`에서 공식/Forge PNG 메타데이터의 동시 왕복과 HTML의 원문 보존·이스케이프를 검사한다. 메인 화면에서 이미지가 없거나 생성 중이어도 버튼을 열 수 있어야 한다.
+- **Do not "fix" by:** 카드를 다시 `previewImage`에 종속시키거나, 공식 최종 프롬프트와 Forge 원본 `promptParts`를 같은 값으로 덮어쓰기.
 
 
 
