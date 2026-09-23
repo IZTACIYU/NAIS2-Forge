@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
-import { ImageIcon, ImagePlus, Download, Copy, RotateCcw } from 'lucide-react'
+import { ImageIcon, ImagePlus, Download, Copy, RotateCcw, Clipboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useAuthStore } from '@/stores/auth-store'
@@ -28,6 +28,7 @@ import { useExifStore } from '@/stores/exif-store'
 import { processAndSaveExifImage } from '@/lib/exif-actions'
 import { ImageQuickActionItems } from '@/components/image/ImageQuickActionItems'
 import { InpaintComparisonControl } from '@/components/image/InpaintComparisonControl'
+import { ShareCardDialog } from '@/components/image/ShareCardDialog'
 
 export default function MainMode() {
     const { t } = useTranslation()
@@ -81,6 +82,7 @@ export default function MainMode() {
     const openDrawOver = useToolsStore(state => state.openDrawOver)
 
     const [metadataDialogOpen, setMetadataDialogOpen] = useState(false)
+    const [shareCardOpen, setShareCardOpen] = useState(false)
     const [metadataImage, setMetadataImage] = useState<string | undefined>(undefined)
     const [isDragOver, setIsDragOver] = useState(false)
     const [imageRefDialogOpen, setImageRefDialogOpen] = useState(false)
@@ -502,6 +504,19 @@ export default function MainMode() {
                                     />
                                 )}
                                 {/* Image Actions Overlay (Visible on hover) */}
+                                <div data-character-position-chrome data-character-position-actions className="absolute top-4 left-4 z-20 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                                    <Button
+                                        size="icon"
+                                        variant="secondary"
+                                        className="rounded-full h-10 w-10 shadow-lg bg-amber-600/85 border border-amber-200 hover:bg-amber-500 text-white"
+                                        onClick={() => setShareCardOpen(true)}
+                                        disabled={isGenerating}
+                                        title="이 이미지로 공유"
+                                        aria-label="이 이미지로 공유"
+                                    >
+                                        <Clipboard className="h-5 w-5" />
+                                    </Button>
+                                </div>
                                 <div data-character-position-chrome data-character-position-actions className="absolute top-4 right-4 z-20 flex gap-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                                     <Button
                                         size="icon"
@@ -644,6 +659,7 @@ export default function MainMode() {
             </div>
 
             {/* Metadata Dialog */}
+            <ShareCardDialog open={shareCardOpen} onOpenChange={setShareCardOpen} image={previewImage} />
             <MetadataDialog
                 open={metadataDialogOpen}
                 onOpenChange={(open) => {
