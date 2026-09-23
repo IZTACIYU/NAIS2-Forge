@@ -11,7 +11,7 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { SceneCard, SceneImage } from '@/stores/scene-store'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
 import { exifFormatExtension, stripExifForUpload } from '@/lib/exif-actions'
-import { getSceneImageExtension, getUniqueSceneOutputFileName } from '@/lib/scene-export-name'
+import { applySceneOutputNameOverrides, getSceneImageExtension, getUniqueSceneOutputFileName } from '@/lib/scene-export-name'
 import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
 
 interface SceneR2DirectUploadDialogProps {
@@ -74,6 +74,7 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
     const [loading, setLoading] = useState(false)
     const [uploading, setUploading] = useState(false)
     const [progress, setProgress] = useState(0)
+    const [customNames, setCustomNames] = useState<Record<string, string>>({})
 
     const ready = hasR2Config(config)
     const breadcrumbs = prefix ? prefix.split('/').filter(Boolean) : []
@@ -95,10 +96,16 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
             fallback: 'Scene',
         }))
     }, [candidates, expertR2ExifRemovalEnabled, expertSceneExportNameEnabled, exifOutputFormat, sceneExportNamePart])
+    const uploadFileNames = useMemo(() => applySceneOutputNameOverrides(candidateFileNames,
+        candidates.map(candidate => customNames[`${candidate.sceneId}:${candidate.image.id}`])),
+    [candidates, candidateFileNames, customNames])
+    const hasEmptyName = candidates.some((candidate, index) => !(customNames[`${candidate.sceneId}:${candidate.image.id}`]
+        ?? candidateFileNames[index].replace(/\.[^.]+$/, '')).trim())
 
     const resetRuntime = () => {
         setProgress(0)
         setUploading(false)
+        setCustomNames({})
     }
 
     const handleOpenChange = (nextOpen: boolean) => {
@@ -165,11 +172,14 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
     }
 
     const handleUpload = async () => {
-        if (!ready || candidates.length === 0) return
+        if (!ready || candidates.length === 0 || hasEmptyName) return
         setUploading(true)
         setProgress(0)
         try {
-            const usedFileNames = new Set<string>()
+            const current = await listR2Objects(config, prefix)
+            const existingKeys = new Set(current.files.map(file => file.key))
+            const conflict = uploadFileNames.find(fileName => existingKeys.has(`${prefix}${fileName}`))
+            if (conflict) throw new Error(t('scene.r2DirectUpload.nameConflict', { name: conflict }))
             for (let index = 0; index < candidates.length; index++) {
                 const candidate = candidates[index]
                 let ext = getSceneImageExtension(candidate.image.url)
@@ -184,15 +194,8 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
                     contentBase64 = await readImageBase64(candidate.image)
                     contentType = getContentType(ext)
                 }
-                const fileName = getUniqueSceneOutputFileName({
-                    sceneName: candidate.sceneName,
-                    enabled: expertSceneExportNameEnabled,
-                    part: sceneExportNamePart,
-                    extension: ext,
-                    usedFileNames,
-                    fallback: 'Scene',
-                })
-                const key = `${prefix}${fileName}`
+                if (!uploadFileNames[index].endsWith(`.${ext}`)) throw new Error(t('cloudR2.error'))
+                const key = `${prefix}${uploadFileNames[index]}`
                 await uploadR2Object(config, key, contentBase64, contentType)
                 setProgress(Math.round(((index + 1) / candidates.length) * 100))
             }
@@ -273,9 +276,19 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
                                     </div>
                                 ) : candidates.map((candidate, index) => {
                                     return (
-                                        <div key={candidate.sceneId} className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-background/40 px-3 py-2 text-sm">
-                                            <span className="min-w-0 truncate">{candidate.sceneName}</span>
-                                            <span className="shrink-0 text-xs text-muted-foreground">{prefix}{candidateFileNames[index]}</span>
+                                        <div key={`${candidate.sceneId}:${candidate.image.id}`} className="min-w-0 rounded-lg border border-border/40 bg-background/40 px-3 py-2 text-sm">
+                                            <div className="truncate text-xs text-muted-foreground">{candidate.sceneName}</div>
+                                            <div className="mt-1 flex min-w-0 items-center gap-1">
+                                                <Input
+                                                    value={customNames[`${candidate.sceneId}:${candidate.image.id}`] ?? candidateFileNames[index].replace(/\.[^.]+$/, '')}
+                                                    onChange={event => setCustomNames(names => ({ ...names, [`${candidate.sceneId}:${candidate.image.id}`]: event.target.value.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_') }))}
+                                                    aria-label={t('scene.r2DirectUpload.fileName')}
+                                                    className="h-8 min-w-0 flex-1"
+                                                    disabled={uploading}
+                                                />
+                                                <span className="shrink-0 text-xs text-muted-foreground">.{candidateFileNames[index].split('.').pop()}</span>
+                                            </div>
+                                            <div className="mt-1 truncate text-xs text-muted-foreground" title={`${prefix}${uploadFileNames[index]}`}>{prefix}{uploadFileNames[index]}</div>
                                         </div>
                                     )
                                 })}
@@ -285,7 +298,7 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
                                 <div className="text-xs text-muted-foreground">
                                     {uploading ? `${progress}%` : t('scene.r2DirectUpload.count', '{{count}} images', { count: candidates.length })}
                                 </div>
-                                <Button onClick={handleUpload} disabled={uploading || loading || candidates.length === 0}>
+                                <Button onClick={handleUpload} disabled={uploading || loading || candidates.length === 0 || hasEmptyName}>
                                     {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
                                     {t('scene.r2DirectUpload.upload', 'Upload Selected')}
                                 </Button>

@@ -46,3 +46,15 @@ export function getUniqueSceneOutputFileName({
     usedFileNames.add(fileName.toLocaleLowerCase())
     return fileName
 }
+
+export function applySceneOutputNameOverrides(defaultFileNames: string[], names: (string | undefined)[]) {
+    const usedFileNames = new Set<string>()
+    return defaultFileNames.map((fileName, index) => getUniqueSceneOutputFileName({
+        sceneName: names[index] ?? fileName.replace(/\.[^.]+$/, ''),
+        enabled: false,
+        part: 'prefix',
+        extension: fileName.split('.').pop() || 'png',
+        usedFileNames,
+        fallback: 'Scene',
+    }))
+}

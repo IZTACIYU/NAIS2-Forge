@@ -167,7 +167,9 @@
       "title": "R2 \ub2e4\uc774\ub809\ud2b8 \uc5c5\ub85c\ub4dc",
       "description": "\uc52c\ub9c8\ub2e4 \uc120\ud0dd\ub41c \ub300\ud45c \uc774\ubbf8\uc9c0 1\uc7a5\uc744 \ud604\uc7ac R2 \ud3f4\ub354\ub85c \uc5c5\ub85c\ub4dc\ud569\ub2c8\ub2e4.",
       "upload": "\uc120\ud0dd \uc774\ubbf8\uc9c0 \uc5c5\ub85c\ub4dc",
-      "count": "{{count}}\uc7a5"
+      "count": "{{count}}\uc7a5",
+      "fileName": "업로드 파일 이름",
+      "nameConflict": "R2에 {{name}} 파일이 이미 있습니다. 다른 이름으로 변경해 주세요."
     },
     "thumbnailLayout": "\uc138\ub85c/\uac00\ub85c/\uc815\uc0ac\uac01\ud615 \uc378\ub124\uc77c \uc804\ud658",
     "deleteNonFavorites": "즐겨찾기 제외 삭제",

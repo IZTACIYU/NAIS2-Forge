@@ -166,7 +166,9 @@
       "title": "R2\u30c0\u30a4\u30ec\u30af\u30c8\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9",
       "description": "\u30b7\u30fc\u30f3\u3054\u3068\u306b\u9078\u629e\u3055\u308c\u305f\u4ee3\u8868\u753b\u50cf1\u679a\u3092\u73fe\u5728\u306eR2\u30d5\u30a9\u30eb\u30c0\u30fc\u306b\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9\u3057\u307e\u3059\u3002",
       "upload": "\u9078\u629e\u753b\u50cf\u3092\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9",
-      "count": "{{count}}\u679a"
+      "count": "{{count}}\u679a",
+      "fileName": "アップロードするファイル名",
+      "nameConflict": "R2に{{name}}が既に存在します。別の名前を指定してください。"
     },
     "thumbnailLayout": "\u7e26/\u6a2a/\u6b63\u65b9\u5f62\u30b5\u30e0\u30cd\u30a4\u30eb\u5207\u66ff",
     "deleteNonFavorites": "お気に入り以外を削除",

@@ -167,7 +167,9 @@
       "title": "R2 Direct Upload",
       "description": "Upload one selected scene image per scene to the current R2 folder.",
       "upload": "Upload Selected",
-      "count": "{{count}} images"
+      "count": "{{count}} images",
+      "fileName": "Upload file name",
+      "nameConflict": "{{name}} already exists in R2. Choose another name."
     },
     "thumbnailLayout": "Toggle vertical/horizontal/square thumbnails",
     "deleteNonFavorites": "Delete Non-Favorites",
