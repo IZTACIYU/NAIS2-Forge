@@ -616,7 +616,7 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Date:** 2026-09-23
 - **Area:** main image share card, NovelAI PNG metadata, Forge prompt import
 - **Invariant:** 카드에 보이는 생성 값과 PNG의 공식 `Comment`/`Source`는 선택한 원본 이미지에서 읽는다. 기존 Forge `nais2-params`는 원형을 새 카드에 복사한다. 현재 생성 설정을 원본 이미지 값으로 대체하거나 원본 이미지 파일을 수정하지 않는다.
-- **Regression coverage:** `node --experimental-strip-types scripts/check-share-card-metadata.mjs`에서 공식/Forge PNG 메타데이터의 동시 왕복을 검사한다. 원본에 생성 메타데이터가 없으면 카드 저장을 막는다.
+- **Regression coverage:** `node --experimental-strip-types scripts/check-share-card-metadata.mjs`에서 공식/Forge PNG 메타데이터의 동시 왕복과 가로 이미지의 위아래 배치, 정사각형·세로 이미지의 이미지·베이스·네거티브·파라미터 열 순서를 검사한다. 원본에 생성 메타데이터가 없으면 카드 저장을 막는다.
 - **Do not "fix" by:** 현행 화면의 prompt store 값으로 카드 메타데이터를 채우거나, 공식 최종 prompt를 Forge 원본 `promptParts`로 위조하기.
 
 
