@@ -2600,7 +2600,7 @@ dependencies = [
 
 [[package]]
 name = "nais2"
-version = "1.10.3"
+version = "1.11.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
