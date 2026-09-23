@@ -296,6 +296,8 @@ export function AutocompleteTextarea({
         const left = text.slice(0, position)
         // `<` ?댄썑???띿뒪??李얘린 (?꾩쭅 ?ロ엳吏 ?딆? 寃쎌슦)
         const match = left.match(/<([^<>]*)$/)
+        // A random-tag count comparison is not an unclosed <fragment>.
+        if (match && /#r(?:Chara|Artist|Copy)\b[ \t]*=?$/i.test(left.slice(0, match.index))) return null
         return match ? match[1] : null
     }
 
@@ -306,6 +308,8 @@ export function AutocompleteTextarea({
         if (hashIndex === -1 || !/^\s*$/.test(line.slice(0, hashIndex))) return null
 
         const directive = line.slice(hashIndex)
+        // Random tags end at the next tag/weight separator, unlike line directives.
+        if (/^#r(?:Chara|Artist|Copy)\b[^,\r\n]*(?:,|::)/i.test(directive)) return null
         // Once a conditional header is complete, continue with normal tag search
         // for its content instead of treating the rest as a directive query.
         if (/^#if(?:\s+[a-z][a-z0-9_-]*|[+-][^:\r\n]+)\s*:/i.test(directive)) return null
