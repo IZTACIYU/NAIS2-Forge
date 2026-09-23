@@ -40,11 +40,13 @@ import {
     Cpu,
     Film,
     Puzzle,
+    Clipboard,
     Users,
     ChevronDown,
     ChevronUp,
 } from 'lucide-react'
 import GeminiIcon from '@/assets/gemini-color.svg'
+import { ShareCardDialog } from '@/components/image/ShareCardDialog'
 import { useGenerationStore, AVAILABLE_MODELS } from '@/stores/generation-store'
 import { useSceneStore } from '@/stores/scene-store'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -139,6 +141,7 @@ export function PromptPanel() {
     const seedLocked = useGenerationStore(state => state.seedLocked)
     const selectedResolution = useGenerationStore(state => state.selectedResolution)
     const isGenerating = useGenerationStore(state => state.isGenerating)
+    const hasPreviewImage = useGenerationStore(state => Boolean(state.previewImage))
     const isCancelled = useGenerationStore(state => state.isCancelled)
     const model = useGenerationStore(state => state.model)
     const modelCapabilities = getModelCapabilities(model)
@@ -225,6 +228,10 @@ export function PromptPanel() {
     )
     const imageGenerationEntitlement = useAuthStore(state => state.imageGenerationEntitlement)
     const [sourceImageDimensions, setSourceImageDimensions] = useState<{ width: number; height: number } | null>(null)
+    const [shareImage, setShareImage] = useState<string | null>(null)
+    useEffect(() => {
+        if (location.pathname !== '/') setShareImage(null)
+    }, [location.pathname])
     useEffect(() => {
         if (!sourceImage) {
             setSourceImageDimensions(null)
@@ -728,6 +735,20 @@ export function PromptPanel() {
                     <Puzzle className="h-3.5 w-3.5 mr-1.5 shrink-0" />
                     <span className="min-w-0 truncate">{t('prompt.fragment')}</span>
                 </Button>
+                {location.pathname === '/' && (
+                    <Tip content={t('shareCard.action')}>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 rounded-xl shrink-0 border-amber-400/70 text-amber-200 hover:bg-amber-500/15 hover:text-amber-100"
+                            onClick={() => setShareImage(useGenerationStore.getState().previewImage)}
+                            disabled={!hasPreviewImage || isGenerating}
+                            aria-label={t('shareCard.action')}
+                        >
+                            <Clipboard className="h-4 w-4" />
+                        </Button>
+                    </Tip>
+                )}
                 {/* AI Prompt Generator Button */}
                 <Tip content={t('promptGenerator.desc', 'Gemini AI로 프롬프트 생성')}>
                     <Button
@@ -1009,6 +1030,12 @@ export function PromptPanel() {
                     </DialogContent>
                 </Dialog>
             </div>
+
+            <ShareCardDialog
+                open={shareImage !== null}
+                onOpenChange={(open) => { if (!open) setShareImage(null) }}
+                image={shareImage}
+            />
 
             {/* AI Prompt Generator Dialog */}
             {promptGenOpen && <Suspense fallback={null}><PromptGeneratorDialog
