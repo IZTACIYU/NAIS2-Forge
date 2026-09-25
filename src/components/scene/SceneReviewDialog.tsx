@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils'
 import { pickSceneRepresentativeImage, type SceneReviewDecision, type SceneReviewDecisions } from '@/lib/scene-image-selection'
 import { exifFormatExtension } from '@/lib/exif-actions'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
-import { getSceneImageExtension, getUniqueSceneOutputFileName, type SceneExportNamePart } from '@/lib/scene-export-name'
+import { getUniqueSceneOutputFileName, type SceneExportNamePart } from '@/lib/scene-export-name'
 import { subscribeScenePromptDraftFlush } from '@/lib/scene-prompt-drafts'
 import {
     addUniqueReviewHistoryImage,
@@ -197,8 +197,7 @@ function FinalReviewView({ items, brokenImageUrls, excludedImageKeys, sceneCount
     const { t } = useTranslation()
     const expertSceneExportNameEnabled = useSettingsStore(state => state.expertSceneExportNameEnabled)
     const sceneExportNamePart = useSettingsStore(state => state.sceneExportNamePart)
-    const expertR2ExifRemovalEnabled = useSettingsStore(state => state.expertR2ExifRemovalEnabled)
-    const exifOutputFormat = useSettingsStore(state => state.exifOutputFormat)
+    const exportImageFormat = useSettingsStore(state => state.exportImageFormat)
     const setExpertSceneExportNameEnabled = useSettingsStore(state => state.setExpertSceneExportNameEnabled)
     const setSceneExportNamePart = useSettingsStore(state => state.setSceneExportNamePart)
     const nameMode = expertSceneExportNameEnabled ? sceneExportNamePart : 'full'
@@ -214,9 +213,7 @@ function FinalReviewView({ items, brokenImageUrls, excludedImageKeys, sceneCount
             sceneName: image.sceneName,
             enabled: expertSceneExportNameEnabled,
             part: sceneExportNamePart,
-            extension: outputMethod === 'zip'
-                ? 'png'
-                : expertR2ExifRemovalEnabled ? exifFormatExtension(exifOutputFormat) : getSceneImageExtension(image.url),
+            extension: exifFormatExtension(exportImageFormat),
             usedFileNames,
             fallback: outputMethod === 'zip' ? `Scene_${index}` : 'Scene',
         }))
@@ -225,7 +222,7 @@ function FinalReviewView({ items, brokenImageUrls, excludedImageKeys, sceneCount
             ;[names[index], names[target]] = [names[target], names[index]]
         }
         return names.slice(0, 3)
-    }, [expertR2ExifRemovalEnabled, expertSceneExportNameEnabled, exifOutputFormat, images, outputMethod, sceneExportNamePart])
+    }, [expertSceneExportNameEnabled, exportImageFormat, images, outputMethod, sceneExportNamePart])
 
     const handleNameModeChange = (value: string) => {
         if (value === 'full') {

@@ -133,7 +133,6 @@
     "clearSelectedQueue": "Clear selected scenes from queue",
     "clearAllQueue": "Clear Queue",
     "exportZip": "Export ZIP",
-    "pngOptimized": "PNG Optimized (Lossless)",
     "promptHint": "Prompts are combined: Base + Additional + Scene + Detail",
     "favoritesOnly": "Favorites",
     "noFavorites": "No favorite images",
@@ -807,6 +806,11 @@
         "title": "Image Format",
         "description": "Choose the format for generated images.",
         "help": "WebP offers smaller file sizes with similar quality. PNG provides lossless quality."
+      },
+      "exportDefaults": {
+        "title": "Default export settings",
+        "description": "Initial format and quality for ZIP exports and R2 image uploads.",
+        "webpQuality": "WebP quality"
       }
     },
     "library": {
@@ -972,7 +976,7 @@
         "nameLabel": "Output name",
         "pathLabel": "Output path",
         "formatTitle": "Encoding format",
-        "formatDesc": "Choose the format used by EXIF processing, direct actions, and R2 preprocessing.",
+        "formatDesc": "Choose the format used by EXIF processing and direct actions.",
         "directActionTitle": "EXIF Direct Action",
         "directActionDesc": "Removes EXIF and saves immediately without opening the manager page.",
         "namePlaceholder": "Output file name",
@@ -982,7 +986,7 @@
       "header": "Cloudflare",
       "description": "Experimental options for Cloudflare R2 and public image routing.",
       "exifRemovalTitle": "Remove EXIF before R2 upload",
-      "exifRemovalDesc": "Re-encodes images with the configured EXIF format before R2 manager and direct uploads."
+      "exifRemovalDesc": "Removes image metadata before R2 uploads. Choose the output format in the upload dialog."
     },
     "r2DirectUpload": {
         "title": "R2 Direct Upload",
@@ -1211,6 +1215,7 @@
     "newFolder": "New folder",
     "selectFile": "Select a file to view details.",
     "uploaded": "Upload complete",
+    "duplicateUploadName": "Some files would have the same name after conversion. Rename them and try again.",
     "error": "R2 operation failed",
     "confirmDelete": "Delete {{name}}?"
   }

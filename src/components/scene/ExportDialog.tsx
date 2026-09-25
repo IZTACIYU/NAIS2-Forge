@@ -1,9 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
-import { Slider } from '@/components/ui/slider'
+import { ImageOutputOptions, type ImageOutputFormat } from '@/components/ui/image-output-options'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SceneCard } from '@/stores/scene-store'
@@ -22,8 +20,6 @@ interface ExportDialogProps {
     scenes: SceneCard[]
 }
 
-type ExportFormat = 'png' | 'png-optimized' | 'jpeg' | 'webp'
-
 interface SceneZipExportResult {
     exportedCount: number
     skippedCount: number
@@ -39,10 +35,19 @@ export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: E
     const { t } = useTranslation()
     const expertSceneExportNameEnabled = useSettingsStore(state => state.expertSceneExportNameEnabled)
     const sceneExportNamePart = useSettingsStore(state => state.sceneExportNamePart)
-    const [format, setFormat] = useState<ExportFormat>('png')
-    const [quality, setQuality] = useState(90)
+    const exportImageFormat = useSettingsStore(state => state.exportImageFormat)
+    const exportWebpQuality = useSettingsStore(state => state.exportWebpQuality)
+    const [format, setFormat] = useState<ImageOutputFormat>(exportImageFormat)
+    const [quality, setQuality] = useState(exportWebpQuality)
     const [isExporting, setIsExporting] = useState(false)
     const [progress, setProgress] = useState(0)
+
+    useEffect(() => {
+        if (open) {
+            setFormat(exportImageFormat)
+            setQuality(exportWebpQuality)
+        }
+    }, [open, exportImageFormat, exportWebpQuality])
 
     const handleExport = async () => {
         if (scenes.length === 0) return
@@ -57,7 +62,7 @@ export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: E
                 const targetImage = pickSceneRepresentativeImage(scene.images)
                 if (!targetImage) continue
 
-                const ext = format === 'jpeg' ? 'jpg' : format === 'png-optimized' ? 'png' : format
+                const ext = format === 'jpeg' ? 'jpg' : format
                 const fileName = getUniqueSceneOutputFileName({
                     sceneName: scene.name,
                     enabled: expertSceneExportNameEnabled,
@@ -89,7 +94,7 @@ export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: E
                     outputPath: filePath,
                     entries,
                     format,
-                    quality,
+                    quality: format === 'webp' ? quality : 90,
                     exportId,
                 })
                 if (result.exportedCount > 0) {
@@ -121,35 +126,8 @@ export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: E
                     <DialogDescription>{t('scene.exportZipDesc', '이미지 형식과 품질을 선택하세요.')}</DialogDescription>
                 </DialogHeader>
 
-                <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                        <Label>{t('scene.format', '이미지 형식')}</Label>
-                        <Select value={format} onValueChange={(v: ExportFormat) => setFormat(v)} disabled={isExporting}>
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="png">PNG (Lossless)</SelectItem>
-                                <SelectItem value="png-optimized">{t('scene.pngOptimized')}</SelectItem>
-                                <SelectItem value="webp">WEBP (High Efficiency)</SelectItem>
-                                <SelectItem value="jpeg">JPG (Standard)</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    {(format === 'webp' || format === 'jpeg') && (
-                        <div className="grid gap-2">
-                            <Label>{t('scene.quality', '품질')} ({quality}%)</Label>
-                            <Slider
-                                value={[quality]}
-                                onValueChange={(v) => setQuality(v[0])}
-                                min={10}
-                                max={100}
-                                step={1}
-                                disabled={isExporting}
-                            />
-                        </div>
-                    )}
+                <div className="py-4">
+                    <ImageOutputOptions format={format} quality={quality} onFormatChange={setFormat} onQualityChange={setQuality} disabled={isExporting} />
                 </div>
 
                 <DialogFooter className="sm:justify-between items-center">

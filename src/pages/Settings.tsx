@@ -45,6 +45,7 @@ import {
     Trash2,
 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
+import { ImageOutputOptions } from '@/components/ui/image-output-options'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/theme-store'
 import { useAuthStore } from '@/stores/auth-store'
@@ -99,6 +100,10 @@ export default function Settings() {
     const { theme, setTheme } = useThemeStore()
     const { token, tokens, isVerified, anlas, isLoading, verifyAndSave, removeToken } = useAuthStore()
     const { savePath, autoSave, setSavePath, setAutoSave, promptFontSize, setPromptFontSize, useStreaming, setUseStreaming, generationDelay, setGenerationDelay, geminiApiKey, setGeminiApiKey, useAbsolutePath, libraryPath, useAbsoluteLibraryPath, setLibraryPath, imageFormat, setImageFormat, promptWhitespaceMode, setPromptWhitespaceMode, removeEmptyPromptSeparators, setRemoveEmptyPromptSeparators, insertBlankLinesBetweenPromptParts, setInsertBlankLinesBetweenPromptParts, expertCharacterPromptFolderBrowserEnabled, setExpertCharacterPromptFolderBrowserEnabled, expertLibraryFolderBrowserEnabled, setExpertLibraryFolderBrowserEnabled, expertCharacterPromptLayoutEnabled, setExpertCharacterPromptLayoutEnabled, expertCharacterPromptVariantsEnabled, setExpertCharacterPromptVariantsEnabled, expertCharacterPromptGenderIndicatorEnabled, setExpertCharacterPromptGenderIndicatorEnabled, expertMetadataAlwaysAddCharacters, setExpertMetadataAlwaysAddCharacters, characterPromptGenderIndicatorMode, setCharacterPromptGenderIndicatorMode, expertSceneCharacterVariantOverrideEnabled, setExpertSceneCharacterVariantOverrideEnabled, expertSceneCharacterCostumeOverrideEnabled, setExpertSceneCharacterCostumeOverrideEnabled, expertSceneCharacterRepeatEnabled, setExpertSceneCharacterRepeatEnabled, expertSceneCharacterAdditionsEnabled, setExpertSceneCharacterAdditionsEnabled, sceneCharacterAdditionMode, setSceneCharacterAdditionMode, expertSceneMultiCharacterEnabled, setExpertSceneMultiCharacterEnabled, sceneMultiCharacterGenderSelectionMode, setSceneMultiCharacterGenderSelectionMode, expertSceneExportNameEnabled, setExpertSceneExportNameEnabled, sceneExportNamePart, setSceneExportNamePart, expertSceneRandomCharactersEnabled, setExpertSceneRandomCharactersEnabled, expertExifDirectActionEnabled, setExpertExifDirectActionEnabled, expertExifManagerEnabled, setExpertExifManagerEnabled, expertExifQuickActionEnabled, setExpertExifQuickActionEnabled, expertExifAutoSaveEnabled, setExpertExifAutoSaveEnabled, exifAutoSaveName, setExifAutoSaveName, exifAutoSavePath, setExifAutoSavePath, exifOutputFormat, setExifOutputFormat, expertR2DirectUploadEnabled, setExpertR2DirectUploadEnabled, expertR2ExifRemovalEnabled, setExpertR2ExifRemovalEnabled, expertCloudR2Enabled, setExpertCloudR2Enabled, r2ViewMode, setR2ViewMode, r2AccountId, r2AccessKeyId, r2SecretAccessKey, r2Bucket, r2PublicBaseUrl, setR2Config } = useSettingsStore()
+    const exportImageFormat = useSettingsStore(state => state.exportImageFormat)
+    const exportWebpQuality = useSettingsStore(state => state.exportWebpQuality)
+    const setExportImageFormat = useSettingsStore(state => state.setExportImageFormat)
+    const setExportWebpQuality = useSettingsStore(state => state.setExportWebpQuality)
     const expertSceneRoundRobinEnabled = useSettingsStore(state => state.expertSceneRoundRobinEnabled)
     const generationDelayJitter = useSettingsStore(state => state.generationDelayJitter)
     const setGenerationDelayJitter = useSettingsStore(state => state.setGenerationDelayJitter)
@@ -1186,6 +1191,18 @@ export default function Settings() {
                                 <p className="text-xs text-muted-foreground">
                                     {t('settingsPage.save.imageFormat.help', 'WebP offers smaller file sizes with similar quality. PNG provides lossless quality.')}
                                 </p>
+                            </div>
+                            <div className="border border-border/50 rounded-xl p-6 space-y-4 bg-card/30">
+                                <div>
+                                    <label className="text-sm font-medium">{t('settingsPage.save.exportDefaults.title')}</label>
+                                    <p className="text-xs text-muted-foreground">{t('settingsPage.save.exportDefaults.description')}</p>
+                                </div>
+                                <ImageOutputOptions
+                                    format={exportImageFormat}
+                                    quality={exportWebpQuality}
+                                    onFormatChange={setExportImageFormat}
+                                    onQualityChange={setExportWebpQuality}
+                                />
                             </div>
                         </section>
                     )}

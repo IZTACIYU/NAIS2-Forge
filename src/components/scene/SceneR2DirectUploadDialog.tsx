@@ -5,13 +5,14 @@ import { ChevronRight, Cloud, Folder, FolderPlus, Home, Loader2, RefreshCw, Uplo
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ImageOutputOptions, type ImageOutputFormat } from '@/components/ui/image-output-options'
 import { toast } from '@/components/ui/use-toast'
 import { createR2Folder, hasR2Config, listR2Objects, R2Config, R2ObjectInfo, uploadR2Object } from '@/services/r2-api'
 import { useSettingsStore } from '@/stores/settings-store'
 import { SceneCard, SceneImage } from '@/stores/scene-store'
 import { bytesToImageDataUrl } from '@/lib/exif-stripper'
-import { exifFormatExtension, stripExifForUpload } from '@/lib/exif-actions'
-import { applySceneOutputNameOverrides, getSceneImageExtension, getUniqueSceneOutputFileName } from '@/lib/scene-export-name'
+import { exifFormatExtension, prepareImageForR2Upload } from '@/lib/exif-actions'
+import { applySceneOutputNameOverrides, getUniqueSceneOutputFileName } from '@/lib/scene-export-name'
 import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
 
 interface SceneR2DirectUploadDialogProps {
@@ -30,25 +31,6 @@ export interface UploadCandidate {
 const LIST_CACHE_TTL_MS = 60_000
 const listCache = new Map<string, { time: number; folders: R2ObjectInfo[] }>()
 
-const getContentType = (ext: string) => {
-    if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg'
-    if (ext === 'webp') return 'image/webp'
-    if (ext === 'gif') return 'image/gif'
-    if (ext === 'avif') return 'image/avif'
-    return 'image/png'
-}
-
-const bytesToBase64 = (bytes: Uint8Array) => {
-    let binary = ''
-    const chunkSize = 0x8000
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
-    }
-    return btoa(binary)
-}
-
-const dataUrlToBase64 = (url: string) => url.split(',')[1] || ''
-
 export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], items }: SceneR2DirectUploadDialogProps) {
     const { t } = useTranslation()
     const {
@@ -57,10 +39,11 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
         r2SecretAccessKey,
         r2Bucket,
         expertR2ExifRemovalEnabled,
-        exifOutputFormat,
         expertSceneExportNameEnabled,
         sceneExportNamePart,
     } = useSettingsStore()
+    const exportImageFormat = useSettingsStore(state => state.exportImageFormat)
+    const exportWebpQuality = useSettingsStore(state => state.exportWebpQuality)
     const config: R2Config = useMemo(() => ({
         accountId: r2AccountId,
         accessKeyId: r2AccessKeyId,
@@ -75,6 +58,15 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
     const [uploading, setUploading] = useState(false)
     const [progress, setProgress] = useState(0)
     const [customNames, setCustomNames] = useState<Record<string, string>>({})
+    const [format, setFormat] = useState<ImageOutputFormat>(exportImageFormat)
+    const [quality, setQuality] = useState(exportWebpQuality)
+
+    useEffect(() => {
+        if (open) {
+            setFormat(exportImageFormat)
+            setQuality(exportWebpQuality)
+        }
+    }, [open, exportImageFormat, exportWebpQuality])
 
     const ready = hasR2Config(config)
     const breadcrumbs = prefix ? prefix.split('/').filter(Boolean) : []
@@ -91,11 +83,11 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
             sceneName: candidate.sceneName,
             enabled: expertSceneExportNameEnabled,
             part: sceneExportNamePart,
-            extension: expertR2ExifRemovalEnabled ? exifFormatExtension(exifOutputFormat) : getSceneImageExtension(candidate.image.url),
+            extension: exifFormatExtension(format),
             usedFileNames,
             fallback: 'Scene',
         }))
-    }, [candidates, expertR2ExifRemovalEnabled, expertSceneExportNameEnabled, exifOutputFormat, sceneExportNamePart])
+    }, [candidates, expertSceneExportNameEnabled, format, sceneExportNamePart])
     const uploadFileNames = useMemo(() => applySceneOutputNameOverrides(candidateFileNames,
         candidates.map(candidate => customNames[`${candidate.sceneId}:${candidate.image.id}`])),
     [candidates, candidateFileNames, customNames])
@@ -161,11 +153,6 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
         }
     }
 
-    const readImageBase64 = async (image: SceneImage) => {
-        if (image.url.startsWith('data:')) return dataUrlToBase64(image.url)
-        return bytesToBase64(await readFile(image.url))
-    }
-
     const readImageDataUrl = async (image: SceneImage) => {
         if (image.url.startsWith('data:')) return image.url
         return bytesToImageDataUrl(await readFile(image.url), image.url)
@@ -182,21 +169,12 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
             if (conflict) throw new Error(t('scene.r2DirectUpload.nameConflict', { name: conflict }))
             for (let index = 0; index < candidates.length; index++) {
                 const candidate = candidates[index]
-                let ext = getSceneImageExtension(candidate.image.url)
-                let contentBase64: string
-                let contentType: string
-                if (expertR2ExifRemovalEnabled) {
-                    const processed = await stripExifForUpload(await readImageDataUrl(candidate.image))
-                    ext = processed.extension
-                    contentBase64 = processed.contentBase64
-                    contentType = processed.contentType
-                } else {
-                    contentBase64 = await readImageBase64(candidate.image)
-                    contentType = getContentType(ext)
-                }
-                if (!uploadFileNames[index].endsWith(`.${ext}`)) throw new Error(t('cloudR2.error'))
+                const processed = await prepareImageForR2Upload(
+                    await readImageDataUrl(candidate.image), format, quality, expertR2ExifRemovalEnabled,
+                )
+                if (!uploadFileNames[index].endsWith(`.${processed.extension}`)) throw new Error(t('cloudR2.error'))
                 const key = `${prefix}${uploadFileNames[index]}`
-                await uploadR2Object(config, key, contentBase64, contentType)
+                await uploadR2Object(config, key, processed.contentBase64, processed.contentType)
                 setProgress(Math.round(((index + 1) / candidates.length) * 100))
             }
             listCache.clear()
@@ -221,6 +199,7 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
                     <DialogDescription>
                         {t('scene.r2DirectUpload.description', 'Upload one selected scene image per scene to the current R2 folder.')}
                     </DialogDescription>
+                    <ImageOutputOptions format={format} quality={quality} onFormatChange={setFormat} onQualityChange={setQuality} disabled={uploading} />
                 </DialogHeader>
 
                 {!ready ? (

@@ -47,6 +47,8 @@ interface SettingsState {
 
     // Image format setting
     imageFormat: 'png' | 'webp'
+    exportImageFormat: 'png' | 'webp' | 'jpeg'
+    exportWebpQuality: number
 
     // Expert options
     expertOptionsEnabled: boolean
@@ -115,6 +117,8 @@ interface SettingsState {
     setGeminiApiKey: (key: string) => void
     setLibraryPath: (path: string, useAbsolute?: boolean) => void
     setImageFormat: (format: 'png' | 'webp') => void
+    setExportImageFormat: (format: 'png' | 'webp' | 'jpeg') => void
+    setExportWebpQuality: (quality: number) => void
     setExpertOptionsEnabled: (enabled: boolean) => void
     setPromptWhitespaceMode: (mode: PromptWhitespaceMode) => void
     setRemoveEmptyPromptSeparators: (enabled: boolean) => void
@@ -173,6 +177,8 @@ export const useSettingsStore = create<SettingsState>()(
             libraryPath: 'NAIS_Library', // Default: relative to Pictures folder
             useAbsoluteLibraryPath: false, // Default: relative to Pictures folder
             imageFormat: 'png', // Default: PNG format
+            exportImageFormat: 'png',
+            exportWebpQuality: 90,
             expertOptionsEnabled: false,
             promptWhitespaceMode: 'preserve',
             removeEmptyPromptSeparators: false,
@@ -258,6 +264,8 @@ export const useSettingsStore = create<SettingsState>()(
                 useAbsoluteLibraryPath: useAbsolute ?? false
             }),
             setImageFormat: (format) => set({ imageFormat: format }),
+            setExportImageFormat: (exportImageFormat) => set({ exportImageFormat }),
+            setExportWebpQuality: (quality) => set({ exportWebpQuality: Math.max(10, Math.min(100, Math.round(quality))) }),
             setExpertOptionsEnabled: (expertOptionsEnabled) => set({ expertOptionsEnabled }),
             setPromptWhitespaceMode: (promptWhitespaceMode) => set({ promptWhitespaceMode }),
             setRemoveEmptyPromptSeparators: (removeEmptyPromptSeparators) => set({ removeEmptyPromptSeparators }),

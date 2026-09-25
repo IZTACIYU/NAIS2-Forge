@@ -346,13 +346,13 @@ const loadDimensions = (source: string) => new Promise<{ width: number, height: 
     image.src = source
 })
 
-export const stripImageMetadata = async (source: string, outputFormat: ExifOutputFormat): Promise<StrippedImage> => {
+export const stripImageMetadata = async (source: string, outputFormat: ExifOutputFormat, quality = 1, reencode = false): Promise<StrippedImage> => {
     const format = outputType(outputFormat)
     const sourceMime = sourceMimeType(source)
     const { width, height } = await loadDimensions(source)
 
     // Keeping the source format lets us remove only metadata chunks, preserving every pixel and color profile.
-    if (sourceMime === format.mimeType) {
+    if (sourceMime === format.mimeType && !reencode) {
         const cleanBytes = await stripLosslessly(dataUrlBytes(source), sourceMime)
         return {
             blob: new Blob([Uint8Array.from(cleanBytes).buffer], { type: format.mimeType }),
@@ -383,9 +383,10 @@ export const stripImageMetadata = async (source: string, outputFormat: ExifOutpu
         canvas.toBlob(
             result => result ? resolve(result) : reject(new Error('Failed to encode image')),
             format.mimeType,
-            1
+            quality
         )
     })
+    if (blob.type !== format.mimeType) throw new Error('Requested image format is not supported')
     canvas.width = 0
     canvas.height = 0
 

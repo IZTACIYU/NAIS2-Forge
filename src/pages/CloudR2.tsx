@@ -5,11 +5,13 @@ import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ImageOutputOptions, type ImageOutputFormat } from '@/components/ui/image-output-options'
 import { useSettingsStore } from '@/stores/settings-store'
 import { toast } from '@/components/ui/use-toast'
 import { cn } from '@/lib/utils'
 import { createR2Folder, deleteR2Object, deleteR2Prefix, hasR2Config, listR2Objects, R2ObjectInfo, uploadR2Object } from '@/services/r2-api'
-import { replaceImageExtension, stripExifForUpload } from '@/lib/exif-actions'
+import { prepareImageForR2Upload, replaceImageExtension } from '@/lib/exif-actions'
 
 const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif']
 const LIST_CACHE_TTL_MS = 60_000
@@ -71,6 +73,11 @@ export default function CloudR2() {
     const [newFolderName, setNewFolderName] = useState('')
     const [loading, setLoading] = useState(false)
     const [deleteTarget, setDeleteTarget] = useState<R2ObjectInfo | null>(null)
+    const [pendingFiles, setPendingFiles] = useState<File[]>([])
+    const exportImageFormat = useSettingsStore(state => state.exportImageFormat)
+    const exportWebpQuality = useSettingsStore(state => state.exportWebpQuality)
+    const [uploadFormat, setUploadFormat] = useState<ImageOutputFormat>(exportImageFormat)
+    const [uploadQuality, setUploadQuality] = useState(exportWebpQuality)
 
     const ready = expertCloudR2Enabled && hasR2Config(config)
     const breadcrumbs = prefix ? prefix.split('/').filter(Boolean) : []
@@ -128,21 +135,37 @@ export default function CloudR2() {
         }
     }
 
-    const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const uploadFiles = Array.from(event.target.files || [])
-        if (!uploadFiles.length || !ready) {
-            event.target.value = ''
-            return
-        }
+    const handleFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(event.target.files || [])
+        event.target.value = ''
+        if (!files.length || !ready) return
+        setUploadFormat(exportImageFormat)
+        setUploadQuality(exportWebpQuality)
+        setPendingFiles(files)
+    }
+
+    const handleUpload = async () => {
+        if (!pendingFiles.length || !ready) return
         setLoading(true)
         try {
-            for (const file of uploadFiles) {
-                let safeName = file.name.replace(/^\/+/, '')
+            const uploadNames = pendingFiles.map(file => {
+                const name = file.name.replace(/^\/+/, '')
+                return imageExtensions.some(extension => name.toLowerCase().endsWith(extension))
+                    ? replaceImageExtension(name, uploadFormat === 'jpeg' ? 'jpg' : uploadFormat)
+                    : name
+            })
+            if (new Set(uploadNames.map(name => name.toLowerCase())).size !== uploadNames.length) {
+                throw new Error(t('cloudR2.duplicateUploadName'))
+            }
+            for (const [index, file] of pendingFiles.entries()) {
+                const safeName = uploadNames[index]
                 let contentBase64: string
                 let contentType = file.type || 'application/octet-stream'
-                if (expertR2ExifRemovalEnabled && file.type.startsWith('image/')) {
-                    const processed = await stripExifForUpload(await fileToDataUrl(file))
-                    safeName = replaceImageExtension(safeName, processed.extension)
+                if (imageExtensions.some(extension => file.name.toLowerCase().endsWith(extension))) {
+                    const processed = await prepareImageForR2Upload(
+                        await fileToDataUrl(file), uploadFormat, uploadQuality, expertR2ExifRemovalEnabled,
+                    )
+                    if (!safeName.endsWith(`.${processed.extension}`)) throw new Error(t('cloudR2.error'))
                     contentBase64 = processed.contentBase64
                     contentType = processed.contentType
                 } else {
@@ -151,13 +174,13 @@ export default function CloudR2() {
                 await uploadR2Object(config, `${prefix}${safeName}`, contentBase64, contentType)
             }
             toast({ title: t('cloudR2.uploaded'), variant: 'success' })
+            setPendingFiles([])
             listCache.clear()
             refresh(prefix, true)
         } catch (error) {
             toast({ title: t('cloudR2.error'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
         } finally {
             setLoading(false)
-            event.target.value = ''
         }
     }
 
@@ -225,7 +248,7 @@ export default function CloudR2() {
                     <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={loading}>
                         <Upload className="h-4 w-4 mr-2" />{t('cloudR2.upload')}
                     </Button>
-                    <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleUpload} />
+                    <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelected} />
                 </div>
             </div>
 
@@ -317,6 +340,20 @@ export default function CloudR2() {
                     )}
                 </aside>
             </div>
+            <Dialog open={pendingFiles.length > 0} onOpenChange={open => !open && !loading && setPendingFiles([])}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader><DialogTitle>{t('cloudR2.upload')}</DialogTitle></DialogHeader>
+                    {pendingFiles.some(file => imageExtensions.some(extension => file.name.toLowerCase().endsWith(extension))) && (
+                        <ImageOutputOptions format={uploadFormat} quality={uploadQuality} onFormatChange={setUploadFormat} onQualityChange={setUploadQuality} disabled={loading} />
+                    )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setPendingFiles([])} disabled={loading}>{t('common.cancel')}</Button>
+                        <Button onClick={handleUpload} disabled={loading}>
+                            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{t('cloudR2.upload')} ({pendingFiles.length})
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
             <ConfirmDialog
                 open={!!deleteTarget}
                 onOpenChange={(open) => !open && setDeleteTarget(null)}

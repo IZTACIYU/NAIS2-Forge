@@ -65,9 +65,11 @@ const blobToBase64 = (blob: Blob): Promise<string> => new Promise((resolve, reje
     reader.readAsDataURL(blob)
 })
 
-export const stripExifForUpload = async (source: string) => {
-    const format = useSettingsStore.getState().exifOutputFormat
-    const image = await stripImageMetadata(source, format)
+export const prepareImageForR2Upload = async (source: string, format: ExifOutputFormat, quality: number, removeMetadata: boolean) => {
+    if (format === 'png' && !removeMetadata && source.startsWith('data:image/png;base64,')) {
+        return { contentBase64: source.split(',')[1], contentType: 'image/png', extension: 'png' as const }
+    }
+    const image = await stripImageMetadata(source, format, format === 'webp' ? quality / 100 : 0.9, format !== 'png')
     return {
         contentBase64: await blobToBase64(image.blob),
         contentType: image.mimeType,
