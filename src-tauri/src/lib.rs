@@ -423,6 +423,129 @@ async fn export_scene_images_zip(
     .map_err(|error| format!("ZIP export task failed: {error}"))?
 }
 
+// Recompress only the PNG IDAT stream. All other chunks (including NovelAI
+// metadata and color profiles) and the decoded pixel bytes stay unchanged.
+fn optimize_png_idat(source: &[u8]) -> Result<Vec<u8>, String> {
+    use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
+    use std::io::{Read, Write};
+
+    const SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
+    if !source.starts_with(SIGNATURE) {
+        return Err("Invalid PNG signature".into());
+    }
+
+    let mut chunks = Vec::new();
+    let mut compressed = Vec::new();
+    let mut offset = SIGNATURE.len();
+    let mut seen_idat = false;
+    let mut idat_ended = false;
+    let mut seen_iend = false;
+    while offset < source.len() {
+        if source.len() - offset < 12 {
+            return Err("Truncated PNG chunk".into());
+        }
+        let length = u32::from_be_bytes(source[offset..offset + 4].try_into().unwrap()) as usize;
+        let end = offset.checked_add(12).and_then(|n| n.checked_add(length))
+            .ok_or("PNG chunk length overflow")?;
+        if end > source.len() {
+            return Err("Truncated PNG chunk data".into());
+        }
+        let kind = &source[offset + 4..offset + 8];
+        if kind == b"IDAT" {
+            if idat_ended {
+                return Err("Nonconsecutive PNG IDAT chunks".into());
+            }
+            seen_idat = true;
+            compressed.extend_from_slice(&source[offset + 8..offset + 8 + length]);
+        } else if seen_idat {
+            idat_ended = true;
+        }
+        chunks.push((offset, end, kind == b"IDAT"));
+        offset = end;
+        if kind == b"IEND" {
+            seen_iend = true;
+            break;
+        }
+    }
+    if !seen_idat || !seen_iend || offset != source.len() {
+        return Err("Incomplete PNG structure".into());
+    }
+
+    // Imported images may be untrusted; do not inflate an unbounded stream.
+    let mut raw = Vec::new();
+    ZlibDecoder::new(compressed.as_slice())
+        .take(128 * 1024 * 1024 + 1)
+        .read_to_end(&mut raw)
+        .map_err(|error| error.to_string())?;
+    if raw.len() > 128 * 1024 * 1024 {
+        return Err("PNG image exceeds optimization limit".into());
+    }
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
+    encoder.write_all(&raw).map_err(|error| error.to_string())?;
+    let optimized = encoder.finish().map_err(|error| error.to_string())?;
+    if optimized.len() >= compressed.len() {
+        return Ok(source.to_vec());
+    }
+
+    let mut result = Vec::with_capacity(source.len());
+    result.extend_from_slice(SIGNATURE);
+    let mut wrote_idat = false;
+    for (start, end, is_idat) in chunks {
+        if is_idat {
+            if wrote_idat {
+                continue;
+            }
+            wrote_idat = true;
+            result.extend_from_slice(&(optimized.len() as u32).to_be_bytes());
+            result.extend_from_slice(b"IDAT");
+            result.extend_from_slice(&optimized);
+            let mut checksum = crc32fast::Hasher::new();
+            checksum.update(b"IDAT");
+            checksum.update(&optimized);
+            result.extend_from_slice(&checksum.finalize().to_be_bytes());
+        } else {
+            result.extend_from_slice(&source[start..end]);
+        }
+    }
+    Ok(if result.len() < source.len() { result } else { source.to_vec() })
+}
+
+#[cfg(test)]
+mod png_optimization_tests {
+    use super::optimize_png_idat;
+    use flate2::{write::ZlibEncoder, Compression};
+    use std::io::Write;
+
+    fn chunk(png: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+        png.extend_from_slice(&(data.len() as u32).to_be_bytes());
+        png.extend_from_slice(kind);
+        png.extend_from_slice(data);
+        let mut checksum = crc32fast::Hasher::new();
+        checksum.update(kind);
+        checksum.update(data);
+        png.extend_from_slice(&checksum.finalize().to_be_bytes());
+    }
+
+    #[test]
+    fn preserves_pixels_and_metadata_while_shrinking_png() {
+        let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+        chunk(&mut png, b"IHDR", &[0, 0, 0, 32, 0, 0, 0, 32, 8, 2, 0, 0, 0]);
+        chunk(&mut png, b"tEXt", b"Comment\0prompt metadata");
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::none());
+        encoder.write_all(&vec![0u8; 32 * (1 + 32 * 3)]).unwrap();
+        chunk(&mut png, b"IDAT", &encoder.finish().unwrap());
+        chunk(&mut png, b"IEND", &[]);
+
+        let optimized = optimize_png_idat(&png).unwrap();
+        assert!(optimized.len() < png.len());
+        assert!(optimized.windows(23).any(|window| window == b"Comment\0prompt metadata"));
+        assert_eq!(
+            image::load_from_memory(&optimized).unwrap().to_rgba8(),
+            image::load_from_memory(&png).unwrap().to_rgba8()
+        );
+    }
+}
+
 fn export_scene_images_zip_to_file(
     app: tauri::AppHandle,
     output_path: String,
@@ -492,6 +615,16 @@ fn export_scene_images_zip_to_file(
                 } else {
                     fs::read(&entry.source).map_err(|error| error.to_string())?
                 };
+                if format == "png-optimized" && is_png_source {
+                    let bytes = optimize_png_idat(&source_bytes).unwrap_or_else(|error| {
+                        log::warn!("PNG optimization skipped for '{}': {error}", entry.file_name);
+                        source_bytes
+                    });
+                    zip.start_file(&entry.file_name, options)
+                        .map_err(|error| error.to_string())?;
+                    zip.write_all(&bytes).map_err(|error| error.to_string())?;
+                    return Ok(());
+                }
                 let decoded = image::load_from_memory(&source_bytes).map_err(|error| error.to_string())?;
                 zip.start_file(&entry.file_name, options)
                     .map_err(|error| error.to_string())?;
@@ -510,7 +643,7 @@ fn export_scene_images_zip_to_file(
                         .encode(quality as f32);
                         zip.write_all(&encoded).map_err(|error| error.to_string())
                     }
-                    "png" => {
+                    "png" | "png-optimized" => {
                         let rgba = decoded.to_rgba8();
                         image::codecs::png::PngEncoder::new(&mut zip)
                             .write_image(

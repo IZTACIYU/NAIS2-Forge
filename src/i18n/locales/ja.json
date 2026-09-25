@@ -132,6 +132,7 @@
     "clearSelectedQueue": "選択したシーンの予約を解除",
     "clearAllQueue": "予約クリア",
     "exportZip": "ZIP出力",
+    "pngOptimized": "PNG最適化（可逆圧縮）",
     "promptHint": "プロンプト結合順: 基本 + 追加 + シーン + 詳細",
     "favoritesOnly": "お気に入り",
     "noFavorites": "お気に入り画像がありません",

@@ -22,7 +22,7 @@ interface ExportDialogProps {
     scenes: SceneCard[]
 }
 
-type ExportFormat = 'png' | 'jpeg' | 'webp'
+type ExportFormat = 'png' | 'png-optimized' | 'jpeg' | 'webp'
 
 interface SceneZipExportResult {
     exportedCount: number
@@ -57,7 +57,7 @@ export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: E
                 const targetImage = pickSceneRepresentativeImage(scene.images)
                 if (!targetImage) continue
 
-                const ext = format === 'jpeg' ? 'jpg' : format
+                const ext = format === 'jpeg' ? 'jpg' : format === 'png-optimized' ? 'png' : format
                 const fileName = getUniqueSceneOutputFileName({
                     sceneName: scene.name,
                     enabled: expertSceneExportNameEnabled,
@@ -130,13 +130,14 @@ export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: E
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="png">PNG (Lossless)</SelectItem>
+                                <SelectItem value="png-optimized">{t('scene.pngOptimized')}</SelectItem>
                                 <SelectItem value="webp">WEBP (High Efficiency)</SelectItem>
                                 <SelectItem value="jpeg">JPG (Standard)</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
 
-                    {format !== 'png' && (
+                    {(format === 'webp' || format === 'jpeg') && (
                         <div className="grid gap-2">
                             <Label>{t('scene.quality', '품질')} ({quality}%)</Label>
                             <Slider

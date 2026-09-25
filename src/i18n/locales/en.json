@@ -133,6 +133,7 @@
     "clearSelectedQueue": "Clear selected scenes from queue",
     "clearAllQueue": "Clear Queue",
     "exportZip": "Export ZIP",
+    "pngOptimized": "PNG Optimized (Lossless)",
     "promptHint": "Prompts are combined: Base + Additional + Scene + Detail",
     "favoritesOnly": "Favorites",
     "noFavorites": "No favorite images",

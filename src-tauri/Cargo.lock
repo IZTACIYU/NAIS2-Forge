@@ -2604,6 +2604,8 @@ version = "1.11.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
+ "crc32fast",
+ "flate2",
  "hex",
  "hmac",
  "image",
