@@ -641,6 +641,7 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Area:** mobile QR pairing, remote Worker, main generation store
 - **Invariant:** Worker는 무작위 방 ID와 역할만 라우팅하고 암호문을 그대로 전달한다. QR 비밀값은 URL fragment에만 싣고, 5분 등록 기한과 기기 권한 만료는 PC 앱이 최종 판정한다. PC는 비추출 키를 기존 사용자 store와 분리해 저장하고 복호화·인증·재전송 순서 검사 후에만 단일 이미지 생성 action을 호출한다. 임의 Tauri 명령, 파일 경로, 프롬프트 수정 명령을 원격 입력으로 받아 실행하지 않는다.
 - **Regression coverage:** 앱 저장소에서 `npm run check:remote-protocol`, `npm run check:remote-relay`, `npm run build`; 별도 `Forge Web` 폴더에서 `npm run build`. 실제 Cloudflare–설치판 통합은 배포 전 별도 검증 필요.
+- **Relay abuse invariant:** 최초 WebSocket 연결은 Cloudflare의 실제 접속 IP 기준으로 제한하고, 연결 후 각 소켓의 암호문 메시지 수·바이트 수도 제한한다. 중계는 여전히 암호문 내용을 해석하거나 저장하지 않으며, 잘못된 Origin·경로·역할은 방 객체 생성 전에 거절한다.
 - **Do not "fix" by:** 서버에 세션 키/프롬프트/이미지를 보관하거나, 암호화 실패 시 평문으로 재시도하거나, 임의 명령 실행 경로를 열기.
 
 
