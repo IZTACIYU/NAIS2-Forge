@@ -1,4 +1,25 @@
 {
+  "remote": {
+    "title": "모바일 원격 테스트",
+    "description": "QR을 스캔한 휴대폰 한 대만 연결합니다. 생성과 저장은 이 PC에서 실행됩니다.",
+    "validHours": "연결 유효시간(시간, 최대 72)",
+    "createQr": "QR 생성",
+    "qrAlt": "모바일 연결용 QR 코드",
+    "qrExpires": "QR 등록 만료: {{time}}",
+    "accessExpires": "연결 권한 만료: {{time}}",
+    "confirmCode": "휴대폰의 확인 코드와 일치할 때만 승인하세요: {{code}}",
+    "approve": "이 휴대폰 승인",
+    "revoke": "연결 해제",
+    "scanPrompt": "휴대폰으로 QR을 스캔하세요.",
+    "relayConnected": "중계 서버 연결됨",
+    "relayDisconnected": "중계 서버 연결 끊김 · 재연결 중",
+    "relayError": "중계 서버 연결 실패",
+    "configurationError": "모바일 웹 및 중계 서버 주소를 먼저 설정하세요.",
+    "storageError": "연결 정보를 불러오지 못했습니다.",
+    "pairFailed": "연결 승인 실패",
+    "paired": "휴대폰 연결 승인됨",
+    "revoked": "휴대폰 연결 해제됨"
+  },
   "announcement": {
     "title": "공지",
     "body": "• 클라우드플레어 이미지 업로드 시 파일명을 변경할 수 있습니다.\n\n• 내보내기와 업로드의 기본 이미지 포맷 및 WebP 품질을 설정할 수 있습니다.\n  설정 → 저장 → 내보내기 기본 설정에서 변경하세요.\n\n• WebP 권장 품질은 85~90입니다. 품질 85에서 PNG 원본 대비 90% 이상의 용량 절감을 관측했습니다.",

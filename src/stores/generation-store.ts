@@ -169,7 +169,7 @@ interface GenerationState {
         selectedResolution: Resolution
     }) => void
 
-    generate: () => Promise<void>
+    generate: (options?: { batchCount?: 1 }) => Promise<void>
     cancelGeneration: () => void
     setPreviewImage: (url: string | null) => void
     setIsGenerating: (v: boolean) => void // Only for Main Mode use ideally
@@ -370,13 +370,14 @@ export const useGenerationStore = create<GenerationState>()(
                 })
             },
 
-            generate: async () => {
+            generate: async (options) => {
                 const {
                     basePrompt, additionalPrompt, detailPrompt, negativePrompt, inpaintingPrompt,
                     model, steps, cfgScale, cfgRescale, sampler, scheduler, smea, smeaDyn, variety,
-                    selectedResolution, batchCount, lastGenerationTime,
+                    selectedResolution, batchCount: savedBatchCount, lastGenerationTime,
                     sourceImage, strength, noise, mask, i2iMode
                 } = get()
+                const batchCount = options?.batchCount ?? savedBatchCount
 
                 const token = useAuthStore.getState().token
                 const isVerified = useAuthStore.getState().isVerified

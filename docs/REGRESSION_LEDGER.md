@@ -635,6 +635,14 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Invariant:** `nais2-forge-settings`의 내보내기 기본값만 영속화하고, ZIP·R2 창에서 바꾼 값은 닫은 뒤 다음 진입에 남기지 않는다. 생성 이미지 저장용 `imageFormat`은 별도다. 선택 포맷, 업로드 파일명 확장자, MIME, 실제 인코딩 결과가 일치해야 한다. PNG→PNG에서 EXIF 제거가 꺼져 있으면 원본 바이트를 유지한다.
 - **Regression coverage:** 기존 설정 hydration 뒤 새 기본값, WebP 품질의 포맷 전환 후 보존, ZIP·R2 재진입 초기화, 원본 PNG 통과 및 JPEG/WebP 변환을 확인한다.
 
+### R051 — 원격 중계는 생성 명령을 해석하지 않는다
+
+- **Date:** 2026-09-26
+- **Area:** mobile QR pairing, remote Worker, main generation store
+- **Invariant:** Worker는 무작위 방 ID와 역할만 라우팅하고 암호문을 그대로 전달한다. QR 비밀값은 URL fragment에만 싣고, 5분 등록 기한과 기기 권한 만료는 PC 앱이 최종 판정한다. PC는 비추출 키를 기존 사용자 store와 분리해 저장하고 복호화·인증·재전송 순서 검사 후에만 단일 이미지 생성 action을 호출한다. 임의 Tauri 명령, 파일 경로, 프롬프트 수정 명령을 원격 입력으로 받아 실행하지 않는다.
+- **Regression coverage:** 앱 저장소에서 `npm run check:remote-protocol`, `npm run check:remote-relay`, `npm run build`; 별도 `Forge Web` 폴더에서 `npm run build`. 실제 Cloudflare–설치판 통합은 배포 전 별도 검증 필요.
+- **Do not "fix" by:** 서버에 세션 키/프롬프트/이미지를 보관하거나, 암호화 실패 시 평문으로 재시도하거나, 임의 명령 실행 경로를 열기.
+
 
 
 

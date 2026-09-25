@@ -1,0 +1,23 @@
+name = "nais2-forge-remote-web"
+main = "src/index.js"
+compatibility_date = "2026-09-25"
+workers_dev = false
+preview_urls = false
+
+[[routes]]
+pattern = "relay.ciyu.us"
+custom_domain = true
+
+[vars]
+WEB_ORIGIN = "https://ciyu.us"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "RelayRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RelayRoom"]
+
+[observability]
+enabled = false

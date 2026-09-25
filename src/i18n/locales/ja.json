@@ -1,4 +1,25 @@
 {
+  "remote": {
+    "title": "モバイル遠隔テスト",
+    "description": "QRでスマートフォン1台を接続します。生成と保存はこのPCで行います。",
+    "validHours": "接続の有効時間（時間、最大72）",
+    "createQr": "QRを生成",
+    "qrAlt": "モバイル接続用QRコード",
+    "qrExpires": "QR登録期限: {{time}}",
+    "accessExpires": "接続権限の期限: {{time}}",
+    "confirmCode": "スマートフォンの確認コードと一致する場合のみ承認: {{code}}",
+    "approve": "この端末を承認",
+    "revoke": "接続を解除",
+    "scanPrompt": "スマートフォンでQRを読み取ってください。",
+    "relayConnected": "中継サーバーに接続しました",
+    "relayDisconnected": "中継サーバーが切断されました · 再接続中",
+    "relayError": "中継サーバーへの接続に失敗しました",
+    "configurationError": "モバイルWebと中継サーバーのURLを設定してください。",
+    "storageError": "接続情報を読み込めませんでした。",
+    "pairFailed": "接続の承認に失敗しました",
+    "paired": "スマートフォンを承認しました",
+    "revoked": "接続を解除しました"
+  },
   "announcement": {
     "title": "お知らせ",
     "body": "• Cloudflareへの画像アップロード時にファイル名を変更できるようになりました。\n\n• エクスポートとアップロードに使う画像形式とWebP品質の初期値を設定できます。\n  設定 → 保存 → エクスポートの初期設定で変更できます。\n\n• WebPの推奨品質は85～90です。品質85では、元のPNGと比べて90%以上の容量削減を確認しました。",
