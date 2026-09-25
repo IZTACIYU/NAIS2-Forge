@@ -255,19 +255,15 @@ export function SceneR2DirectUploadDialog({ open, onOpenChange, scenes = [], ite
                                     </div>
                                 ) : candidates.map((candidate, index) => {
                                     return (
-                                        <div key={`${candidate.sceneId}:${candidate.image.id}`} className="min-w-0 rounded-lg border border-border/40 bg-background/40 px-3 py-2 text-sm">
-                                            <div className="truncate text-xs text-muted-foreground">{candidate.sceneName}</div>
-                                            <div className="mt-1 flex min-w-0 items-center gap-1">
-                                                <Input
-                                                    value={customNames[`${candidate.sceneId}:${candidate.image.id}`] ?? candidateFileNames[index].replace(/\.[^.]+$/, '')}
-                                                    onChange={event => setCustomNames(names => ({ ...names, [`${candidate.sceneId}:${candidate.image.id}`]: event.target.value.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_') }))}
-                                                    aria-label={t('scene.r2DirectUpload.fileName')}
-                                                    className="h-8 min-w-0 flex-1"
-                                                    disabled={uploading}
-                                                />
-                                                <span className="shrink-0 text-xs text-muted-foreground">.{candidateFileNames[index].split('.').pop()}</span>
-                                            </div>
-                                            <div className="mt-1 truncate text-xs text-muted-foreground" title={`${prefix}${uploadFileNames[index]}`}>{prefix}{uploadFileNames[index]}</div>
+                                        <div key={`${candidate.sceneId}:${candidate.image.id}`} className="flex min-w-0 items-center gap-1 rounded-lg border border-border/40 bg-background/40 px-3 py-2 text-sm">
+                                            <Input
+                                                value={customNames[`${candidate.sceneId}:${candidate.image.id}`] ?? candidateFileNames[index].replace(/\.[^.]+$/, '')}
+                                                onChange={event => setCustomNames(names => ({ ...names, [`${candidate.sceneId}:${candidate.image.id}`]: event.target.value.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_') }))}
+                                                aria-label={t('scene.r2DirectUpload.fileName')}
+                                                className="h-8 min-w-0 flex-1"
+                                                disabled={uploading}
+                                            />
+                                            <span className="shrink-0 text-xs text-muted-foreground">.{candidateFileNames[index].split('.').pop()}</span>
                                         </div>
                                     )
                                 })}
