@@ -12,7 +12,7 @@ import {
     pairingCode, relaySocketUrl, validateInvitation, isFreshSequence,
     type EncryptedFrame, type PairingInvitation,
 } from '@/lib/remote-protocol'
-import { clearRemoteSession, loadRemoteSession, saveRemoteSession, type RemoteSession } from '@/lib/remote-pairing-storage'
+import { clearRemoteSession, loadRemoteSession, saveRemoteSession, updateRemoteSession, type RemoteSession } from '@/lib/remote-pairing-storage'
 
 const WEB_URL = import.meta.env.VITE_REMOTE_WEB_URL || 'https://ciyu.us/forge.web'
 const RELAY_URL = import.meta.env.VITE_REMOTE_RELAY_URL || 'wss://relay.ciyu.us'
@@ -53,35 +53,50 @@ export function RemoteControl() {
     const invitationRef = useRef<PairingInvitation | null>(null)
     const pendingRef = useRef<PairRequest | null>(null)
     const processingRef = useRef<Promise<void>>(Promise.resolve())
-
-    sessionRef.current = session
-    invitationRef.current = invitation
-    pendingRef.current = pending
+    const outboundRef = useRef<Promise<void>>(Promise.resolve())
+    const epochRef = useRef(0)
+    const remoteBusyRef = useRef(false)
 
     useEffect(() => {
         let cancelled = false
+        const epoch = epochRef.current
+        const isCurrent = () => !cancelled && epochRef.current === epoch
         loadRemoteSession().then(async saved => {
-            if (cancelled) return
-            if (saved && Date.now() >= saved.expiresAt) await clearRemoteSession()
-            else if (saved) setSession(saved)
+            if (!isCurrent()) return
+            if (saved && Date.now() >= saved.expiresAt) await clearRemoteSession(isCurrent, saved)
+            else if (saved) { sessionRef.current = saved; setSession(saved) }
+            if (!isCurrent()) return
             setLoaded(true)
-        }).catch(() => { if (!cancelled) setStatus(t('remote.storageError')) })
+        }).catch(() => { if (isCurrent()) setStatus(t('remote.storageError')) })
         return () => { cancelled = true }
     }, [t])
 
-    const sendSession = async (message: unknown) => {
-        const active = sessionRef.current
-        const socket = socketRef.current
-        if (!active || socket?.readyState !== WebSocket.OPEN || Date.now() >= active.expiresAt) return
-        const next = { ...active, nextOutboundSeq: active.nextOutboundSeq + 1 }
-        await saveRemoteSession(next) // consume sequence before sending; a crash cannot reuse it
-        sessionRef.current = next
-        setSession(next)
-        const frame = await encryptFrame(active.outboundKey, active.room, 'app-to-phone', active.nextOutboundSeq, message)
-        socket.send(JSON.stringify({ kind: 'data', frame }))
+    useEffect(() => () => { epochRef.current++; socketRef.current?.close() }, [])
+
+    const contextIsCurrent = (active: RemoteSession, epoch: number, socket: WebSocket) =>
+        epochRef.current === epoch && sessionRef.current?.room === active.room &&
+        sessionRef.current?.deviceId === active.deviceId && socketRef.current === socket &&
+        socket.readyState === WebSocket.OPEN && Date.now() < active.expiresAt
+
+    const isBusy = () => remoteBusyRef.current || !!useGenerationStore.getState().generatingMode || useGenerationStore.getState().isGenerating
+
+    const sendSession = (message: unknown, active: RemoteSession, epoch: number, socket: WebSocket): Promise<void> => {
+        const send = outboundRef.current.then(async () => {
+            const isCurrent = () => contextIsCurrent(active, epoch, socket)
+            if (!isCurrent()) return
+            const next = await updateRemoteSession(active, current => ({ ...current, nextOutboundSeq: current.nextOutboundSeq + 1 }), isCurrent)
+            if (!next || !isCurrent()) return
+            sessionRef.current = next
+            setSession(next)
+            const frame = await encryptFrame(active.outboundKey, active.room, 'app-to-phone', next.nextOutboundSeq - 1, message)
+            if (isCurrent()) socket.send(JSON.stringify({ kind: 'data', frame }))
+        })
+        outboundRef.current = send.catch(() => {})
+        return send
     }
 
-    const handleMessage = async (raw: string) => {
+    const handleMessage = async (raw: string, socket: WebSocket, epoch: number, busyAtArrival: boolean) => {
+        if (epochRef.current !== epoch || socketRef.current !== socket || socket.readyState !== WebSocket.OPEN) return
         if (raw.length > 3_000_000) return
         let packet: { kind?: string; frame?: EncryptedFrame }
         try { packet = JSON.parse(raw) } catch { return }
@@ -98,6 +113,7 @@ export function RemoteControl() {
                 if (packet.frame.seq !== 1 || body.type !== 'pair' || !/^[A-Za-z0-9_-]{22}$/.test(body.deviceId) ||
                     body.createdAt !== current.createdAt || body.accessExpiresAt !== current.accessExpiresAt) return
                 const request = { deviceId: body.deviceId, code: await pairingCode(current.secret, body.deviceId), key }
+                if (epochRef.current !== epoch || invitationRef.current !== current || socketRef.current !== socket) return
                 pendingRef.current = request
                 setPending(request)
             } catch { /* malformed or expired requests cannot reach the approval UI */ }
@@ -109,51 +125,73 @@ export function RemoteControl() {
         try {
             body = await decryptFrame(active.inboundKey, active.room, 'phone-to-app', packet.frame)
         } catch { return }
-        if (body.type !== 'generate' || typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(body.requestId)) return
-        const next = { ...active, lastInboundSeq: packet.frame.seq }
-        await saveRemoteSession(next) // reject replay even after app restart
+        if (!['generate', 'ping'].includes(body.type ?? '') || typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(body.requestId)) return
+        const isCurrent = () => contextIsCurrent(active, epoch, socket)
+        const next = await updateRemoteSession(active, current => isFreshSequence(current.lastInboundSeq, packet.frame!.seq)
+            ? { ...current, lastInboundSeq: packet.frame!.seq } : undefined, isCurrent)
+        if (!next || !isCurrent()) return
         sessionRef.current = next
         setSession(next)
-        const generation = useGenerationStore.getState()
-        if (generation.isGenerating || generation.generatingMode || !useAuthStore.getState().isVerified) {
-            await sendSession({ type: 'error', requestId: body.requestId, reason: 'busy-or-not-ready' })
+        const respond = (message: unknown) => sendSession(message, active, epoch, socket)
+        if (body.type === 'ping') {
+            await respond({ type: 'pong', requestId: body.requestId, busy: isBusy(), ready: useAuthStore.getState().isVerified })
             return
         }
-        await sendSession({ type: 'started', requestId: body.requestId })
-        try {
-            await generation.generate({ batchCount: 1 })
-            const result = useGenerationStore.getState().previewImage
-            if (!result) throw new Error('Generation did not return an image')
-            await sendSession({ type: 'complete', requestId: body.requestId, preview: await makePreview(result) })
-        } catch {
-            await sendSession({ type: 'error', requestId: body.requestId, reason: 'generation-failed' })
+        if (busyAtArrival || isBusy() || !useAuthStore.getState().isVerified) {
+            await respond({ type: 'error', requestId: body.requestId, reason: 'busy-or-not-ready' })
+            return
         }
+        remoteBusyRef.current = true // Reserve before any awaited acknowledgement.
+        void (async () => {
+            try {
+                await respond({ type: 'started', requestId: body.requestId })
+                if (!isCurrent()) return
+                const generation = useGenerationStore.getState()
+                // Local generation may have started while the acknowledgement was saved.
+                if (generation.isGenerating || generation.generatingMode || !useAuthStore.getState().isVerified) {
+                    await respond({ type: 'error', requestId: body.requestId, reason: 'busy-or-not-ready' })
+                    return
+                }
+                await generation.generate({ batchCount: 1 })
+                if (!isCurrent()) return
+                const result = useGenerationStore.getState().previewImage
+                if (!result) throw new Error('Generation did not return an image')
+                await respond({ type: 'complete', requestId: body.requestId, preview: await makePreview(result) })
+            } catch {
+                await respond({ type: 'error', requestId: body.requestId, reason: 'generation-failed' }).catch(() => {})
+            } finally { remoteBusyRef.current = false }
+        })() // Do not block authenticated ping/busy handling until generation completes.
     }
 
     const room = session?.room ?? invitation?.room
     useEffect(() => {
         if (!room || !RELAY_URL) return
         let stopped = false
+        const epoch = epochRef.current
         let retryTimer: ReturnType<typeof setTimeout> | undefined
+        let ownedSocket: WebSocket | null = null
         const connect = () => {
             if (stopped) return
             setRelayConnected(false)
             let socket: WebSocket
             try { socket = new WebSocket(relaySocketUrl(RELAY_URL, room, 'app')) } catch { setStatus(t('remote.relayError')); return }
             socketRef.current = socket
+            ownedSocket = socket
             socket.onopen = () => {
+                if (stopped || epochRef.current !== epoch) { socket.close(); return }
                 setRelayConnected(true)
                 setStatus(t('remote.relayConnected'))
             }
             socket.onmessage = event => {
                 if (typeof event.data !== 'string') return
-                processingRef.current = processingRef.current.then(() => handleMessage(event.data as string)).catch(() => {
-                    setStatus(t('remote.relayError'))
+                const busyAtArrival = isBusy()
+                processingRef.current = processingRef.current.then(() => handleMessage(event.data as string, socket, epoch, busyAtArrival)).catch(() => {
+                    if (!stopped && epochRef.current === epoch) setStatus(t('remote.relayError'))
                 })
             }
             socket.onclose = () => {
                 if (socketRef.current === socket) socketRef.current = null
-                if (!stopped) {
+                if (!stopped && epochRef.current === epoch) {
                     setRelayConnected(false)
                     setStatus(t('remote.relayDisconnected'))
                     retryTimer = setTimeout(connect, 5000)
@@ -164,28 +202,29 @@ export function RemoteControl() {
         return () => {
             stopped = true
             if (retryTimer) clearTimeout(retryTimer)
-            socketRef.current?.close()
-            socketRef.current = null
+            ownedSocket?.close()
+            if (socketRef.current === ownedSocket) socketRef.current = null
         }
     }, [room, t])
 
     const generateQr = async () => {
+        let epoch = epochRef.current
         try {
             if (!WEB_URL || !RELAY_URL) throw new Error('Remote endpoint not configured')
             const created = createInvitation(Number(hours))
+            epoch = invalidateSession()
+            const isCurrent = () => epochRef.current === epoch
+            await clearRemoteSession(isCurrent)
+            if (!isCurrent()) return
             const url = invitationUrl(WEB_URL, created)
             const image = await QRCode.toDataURL(url, { width: 260, margin: 2, errorCorrectionLevel: 'M' })
-            await clearRemoteSession()
-            sessionRef.current = null
-            setSession(null)
-            pendingRef.current = null
-            setPending(null)
+            if (!isCurrent()) return
             invitationRef.current = created
             setInvitation(created)
             setQrImage(image)
             setStatus(t('remote.scanPrompt'))
         } catch {
-            setStatus(t('remote.configurationError'))
+            if (epochRef.current === epoch) setStatus(t('remote.configurationError'))
         }
     }
 
@@ -193,7 +232,10 @@ export function RemoteControl() {
         const current = invitationRef.current
         const request = pendingRef.current
         const socket = socketRef.current
+        const epoch = epochRef.current
         if (!current || !request || socket?.readyState !== WebSocket.OPEN) return
+        const isCurrent = () => epochRef.current === epoch && invitationRef.current === current &&
+            pendingRef.current === request && socketRef.current === socket && socket.readyState === WebSocket.OPEN && Date.now() < current.qrExpiresAt
         try {
             validateInvitation(current)
             const active: RemoteSession = {
@@ -206,7 +248,7 @@ export function RemoteControl() {
             const frame = await encryptFrame(request.key, current.room, 'pair', 2, {
                 type: 'approved', deviceId: request.deviceId, expiresAt: current.accessExpiresAt,
             })
-            await saveRemoteSession(active)
+            if (!await saveRemoteSession(active, isCurrent) || !isCurrent()) return
             socket.send(JSON.stringify({ kind: 'pair-accepted', frame }))
             sessionRef.current = active
             setSession(active)
@@ -216,11 +258,11 @@ export function RemoteControl() {
             setPending(null)
             setQrImage('')
             setStatus(t('remote.paired'))
-        } catch { setStatus(t('remote.pairFailed')) }
+        } catch { if (epochRef.current === epoch) setStatus(t('remote.pairFailed')) }
     }
 
-    const revoke = async () => {
-        await clearRemoteSession()
+    const invalidateSession = () => {
+        const epoch = ++epochRef.current
         sessionRef.current = null
         setSession(null)
         invitationRef.current = null
@@ -228,7 +270,18 @@ export function RemoteControl() {
         pendingRef.current = null
         setPending(null)
         setQrImage('')
-        setStatus(t('remote.revoked'))
+        socketRef.current?.close()
+        socketRef.current = null
+        setRelayConnected(false)
+        return epoch
+    }
+
+    const revoke = async () => {
+        const epoch = invalidateSession()
+        try {
+            await clearRemoteSession(() => epochRef.current === epoch)
+            if (epochRef.current === epoch) setStatus(t('remote.revoked'))
+        } catch { if (epochRef.current === epoch) setStatus(t('remote.storageError')) }
     }
 
     return (
