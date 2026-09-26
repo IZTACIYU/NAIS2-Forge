@@ -9,7 +9,7 @@ import { RESOLUTION_PRESETS } from '@/components/ui/ResolutionSelector'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useSceneStore } from '@/stores/scene-store'
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
-import { convertFileSrc } from '@tauri-apps/api/core'
+import { readFile } from '@tauri-apps/plugin-fs'
 import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
 import { runRemoteSceneQueue, resolveRemoteScene, remoteSceneCostContext } from '@/services/remote-scene-queue'
 import { useAuthStore } from '@/stores/auth-store'
@@ -36,17 +36,21 @@ interface PairRequest {
 }
 
 async function makePreview(dataUrl: string, maxSize = 512): Promise<string> {
-    const image = new Image()
-    image.src = dataUrl
-    await image.decode()
-    const scale = Math.min(1, maxSize / Math.max(image.width, image.height))
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(image.width * scale))
-    canvas.height = Math.max(1, Math.round(image.height * scale))
-    canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height)
-    const preview = canvas.toDataURL('image/webp', 0.7)
-    if (preview.length > 1_000_000) throw new Error('Preview too large')
-    return preview
+    // Asset URLs can display normally but taint canvas export. Read only the PC-owned file.
+    const objectUrl = dataUrl.startsWith('data:') ? undefined : URL.createObjectURL(new Blob([await readFile(dataUrl)]))
+    try {
+        const image = new Image()
+        image.src = objectUrl ?? dataUrl
+        await image.decode()
+        const scale = Math.min(1, maxSize / Math.max(image.width, image.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(image.width * scale))
+        canvas.height = Math.max(1, Math.round(image.height * scale))
+        canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height)
+        const preview = canvas.toDataURL('image/webp', 0.7)
+        if (preview.length > 1_000_000) throw new Error('Preview too large')
+        return preview
+    } finally { if (objectUrl) URL.revokeObjectURL(objectUrl) }
 }
 
 export function RemoteControl() {
@@ -215,7 +219,7 @@ export function RemoteControl() {
                     let thumbnail: string | undefined
                     const image = pickSceneRepresentativeImage(scene.images)?.url
                     if (image) {
-                        try { thumbnail = await makePreview(image.startsWith('data:') ? image : convertFileSrc(image), 192); if (thumbnail.length > 80_000) thumbnail = undefined }
+                        try { thumbnail = await makePreview(image, 192); if (thumbnail.length > 80_000) thumbnail = undefined }
                         catch { /* A missing thumbnail never removes the PC scene or image. */ }
                     }
                     const draft = { presetId: preset.id, sceneId: scene.id, scenePrompt: scene.scenePrompt, sceneNegativePrompt: scene.sceneNegativePrompt || '',
@@ -237,7 +241,7 @@ export function RemoteControl() {
                 const result: RemoteSceneImagesPage = { presetId: body.presetId, sceneId: body.sceneId, page, totalPages, totalImages: scene.images.length, images: [] }
                 for (const image of scene.images.slice(page * 12, page * 12 + 12)) {
                     let thumbnail: string | undefined
-                    try { thumbnail = await makePreview(image.url.startsWith('data:') ? image.url : convertFileSrc(image.url)); if (thumbnail.length > 160_000) thumbnail = undefined }
+                    try { thumbnail = await makePreview(image.url); if (thumbnail.length > 160_000) thumbnail = undefined }
                     catch { /* Broken previews remain visible as missing images; source files are never removed. */ }
                     result.images.push({ id: image.id, thumbnail, isFavorite: image.isFavorite })
                 }

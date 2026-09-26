@@ -651,6 +651,7 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Scene queue invariant (approval 2026-09-26):** 웹 큐는 요청 내부에만 존재한다. PC 큐에 삽입하거나 `startNewGenerationSession`/`setIsGenerating(false)`로 native sequence를 초기화하지 않는다. 기존 runtime 생성 잠금만 공유하고 PC hook은 원격 owner가 동작하는 동안 큐를 소비하지 않는다. 실제 한 장 조립·전송·저장은 공통 경로를 사용하고 기존 `folderPath`를 우선한다. 웹 prompt/NPC/선택 캐릭터는 요청 전용 값이며 PC 프롬프트·캐릭터 활성화·활성 프리셋을 수정하지 않는다. 원격 명령은 PC에 존재하는 씬·캐릭터 ID를 검증하고 파일 경로·임의 action을 허용하지 않는다.
 - **Scene checks:** `node scripts/check-remote-scenes.mjs`와 `node scripts/check-remote-runtime.mjs`; 별도 웹의 `node check-scenes.mjs`, `node check-requests.mjs`. 요청 적용·기존 PC 생성·PC serialization 보존·파일 경로·예약 보존·중복 실행 및 취소를 검사한다.
 - **Scene detail invariant:** 웹 다인 씬 슬롯은 기존 대상 연결 helper를 사용하며 긍정·네거티브·위치는 동일 캐릭터에 적용한다. 슬롯 추가 프롬프트를 메인 프롬프트로 합치거나 PC 캐릭터 활성화를 변경하지 않는다. 기존 PC expert 설정은 유지하고 웹 명령의 명시적 슬롯만 요청에 적용한다. 씬 이미지 조회는 실제 PC 씬 ID를 검증한 뒤 12개 미리보기로 제한하고 파일 경로를 응답하지 않는다. 수신 원본은 해당 씬에만 표시하며 임시 Blob URL 수명은 메인 웹 히스토리 owner가 관리한다. 누락된 미리보기가 source 삭제 근거가 되어서는 안 된다.
+- **File preview invariant:** asset protocol로 표시할 수 있다는 사실은 canvas 추출이 가능하다는 증거가 아니다. 원격 씬 파일 미리보기는 PC가 가진 실제 파일만 readFile로 읽고 임시 Blob으로 decode한 뒤 finally에서 revoke한다. 목록 대표 이미지와 상세 조회가 같은 미리보기 owner를 사용하며 반복 재진입과 data URL 원본 경로를 함께 검사한다.
 
 
 
