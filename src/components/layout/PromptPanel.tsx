@@ -76,17 +76,7 @@ import {
 import { calculateGenerationAnlasCost } from '@/lib/anlas-calculator'
 import { useAuthStore } from '@/stores/auth-store'
 
-const SAMPLERS = [
-    'k_euler',
-    'k_euler_ancestral',
-    'k_dpmpp_2s_ancestral',
-    'k_dpmpp_2m',
-    'k_dpmpp_2m_sde',
-    'k_dpmpp_sde',
-    'ddim',
-]
-
-const SCHEDULERS = ['native', 'karras', 'exponential', 'polyexponential']
+import { REMOTE_SAMPLERS as SAMPLERS, REMOTE_SCHEDULERS as SCHEDULERS } from '@/lib/remote-generation'
 
 function SceneQueueCountLabel() {
     const activePresetId = useSceneStore(state => state.activePresetId)

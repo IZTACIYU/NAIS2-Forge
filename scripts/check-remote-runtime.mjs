@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import * as protocol from '../src/lib/remote-protocol.ts'
+import * as remote from '../src/lib/remote-generation.ts'
 
 // Exercise real storage callbacks with serialized transactions, without a browser dependency.
 let record = null, queue = Promise.resolve(), releaseOpen
@@ -59,9 +60,13 @@ await storage.saveRemoteSession({ ...active, room: 'replacement' })
 await storage.clearRemoteSession(() => true, active)
 assert.equal(record.room, 'replacement', 'expired old tab must not delete a new pairing')
 
+const settings = { basePrompt: 'base', additionalPrompt: '', detailPrompt: '', negativePrompt: '', inpaintingPrompt: '', model: 'nai-diffusion-5-full',
+  steps: 28, cfgScale: 5, cfgRescale: 0, sampler: 'k_euler_ancestral', scheduler: 'karras', smea: false, smeaDyn: false, variety: false,
+  modelMode: 'anime', qualityToggle: true, qualityTagPreset: 'standard', ucPreset: 0, transparentBackground: false,
+  seed: 123, seedLocked: true, selectedResolution: { label: 'Portrait', width: 832, height: 1216 }, strength: .5, noise: 0 }
 let generationCount = 0, finishGeneration
-const generation = { isGenerating: false, generatingMode: null, previewImage: 'data:image/png;base64,eA==',
-  generate: () => { generationCount++; return new Promise(resolve => { finishGeneration = resolve }) } }
+const generation = { ...settings, batchCount: 1, isGenerating: false, generatingMode: null, previewImage: 'data:image/png;base64,eA==',
+  generate: options => { generationCount++; return new Promise(resolve => { finishGeneration = async () => { await options.onImage(generation.previewImage, 1); resolve() } }) } }
 const generationStore = { getState: () => generation }
 const messages = []
 class Socket { static OPEN = 1; readyState = 1; send(value) { messages.push(JSON.parse(value)) } close() { this.readyState = 3 } }
@@ -77,8 +82,12 @@ const { RemoteControl } = compile(source, { WebSocket: Socket,
     if (name === 'qrcode') return { toDataURL: async () => 'QR' }
     if (name.endsWith('/remote-protocol')) return protocol
     if (name.endsWith('/remote-pairing-storage')) return storage
+    if (name.endsWith('/remote-generation')) return remote
+    if (name.endsWith('/ResolutionSelector')) return { RESOLUTION_PRESETS: [] }
+    if (name.endsWith('/character-store')) return { useCharacterStore: { getState: () => ({ characterImages: [], vibeImages: [] }) } }
+    if (name.endsWith('/settings-store')) return { useSettingsStore: { getState: () => ({ customResolutions: [] }) } }
     if (name.endsWith('/generation-store')) return { useGenerationStore: generationStore }
-    if (name.endsWith('/auth-store')) return { useAuthStore: { getState: () => ({ isVerified: true }) } }
+    if (name.endsWith('/auth-store')) return { useAuthStore: { getState: () => ({ isVerified: true, imageGenerationEntitlement: { unlimitedImageGeneration: true } }) } }
     return {}
   } })
 const control = RemoteControl(), socket = new Socket()
@@ -86,8 +95,8 @@ await storage.saveRemoteSession(active)
 control.sessionRef.current = active; control.socketRef.current = socket
 let seq = 0
 const requestId = protocol.randomDeviceId()
-async function request(type, busy = false) {
-  const frame = await protocol.encryptFrame(active.inboundKey, active.room, 'phone-to-app', ++seq, { type, requestId })
+async function request(type, busy = false, payload = {}) {
+  const frame = await protocol.encryptFrame(active.inboundKey, active.room, 'phone-to-app', ++seq, { ...payload, type, requestId })
   await control.handleMessage(JSON.stringify({ kind: 'data', frame }), socket, 0, busy)
 }
 async function drain(predicate) {
@@ -99,10 +108,18 @@ await request('ping'); assert.equal((await response(0)).busy, false)
 await request('generate'); await drain(() => generationCount === 1)
 await request('ping'); assert.equal((await response(2)).busy, true, 'ping must not wait for generation')
 await request('generate'); assert.equal((await response(3)).type, 'error'); assert.equal(generationCount, 1)
-finishGeneration(); await drain(() => !control.remoteBusyRef.current)
-await request('generate', true); assert.equal((await response(5)).type, 'error', 'busy arrival must not become a queued generation')
+await finishGeneration(); await drain(() => !control.remoteBusyRef.current)
+assert.equal((await response(4)).type, 'image'); assert.equal((await response(5)).type, 'complete')
+await request('generate', true); assert.equal((await response(6)).type, 'error', 'busy arrival must not become a queued generation')
+await request('snapshot'); assert.equal((await response(7)).snapshot.settings.basePrompt, 'base')
+await request('generate', false, { settings, batchCount: 3, expectedCost: 99 })
+await drain(() => !control.remoteBusyRef.current)
+assert.equal((await response(8)).reason, 'cost-changed'); assert.equal(generationCount, 1)
+await request('generate', false, { settings: { ...settings, token: 'arbitrary' }, batchCount: 1, expectedCost: 0 })
+await drain(() => !control.remoteBusyRef.current)
+assert.equal((await response(9)).type, 'error'); assert.equal(generationCount, 1)
 await control.generateQr()
 assert.equal(record, null); assert.equal(socket.readyState, 3); assert.equal(control.sessionRef.current, null)
 await request('generate'); assert.equal(generationCount, 1, 'revoked session must not generate')
-assert.equal(messages.length, 6)
+assert.equal(messages.length, 10)
 console.log('Remote runtime checks passed: atomic counters, late-save revocation, ping, duplicate rejection, QR invalidation.')

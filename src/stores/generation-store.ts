@@ -12,6 +12,7 @@ import { useCharacterPromptStore } from './character-prompt-store'
 import { buildGenerationRequest } from '@/lib/generation-request'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 import i18n from '@/i18n'
+import type { RemoteGenerationSettings } from '@/lib/remote-generation'
 import { toast } from '@/components/ui/use-toast'
 import {
     AVAILABLE_MODELS,
@@ -169,7 +170,7 @@ interface GenerationState {
         selectedResolution: Resolution
     }) => void
 
-    generate: (options?: { batchCount?: 1 }) => Promise<void>
+    generate: (options?: { batchCount?: number; settings?: RemoteGenerationSettings; onImage?: (image: string, index: number) => Promise<void>; shouldContinue?: () => boolean }) => Promise<void>
     cancelGeneration: () => void
     setPreviewImage: (url: string | null) => void
     setIsGenerating: (v: boolean) => void // Only for Main Mode use ideally
@@ -371,12 +372,14 @@ export const useGenerationStore = create<GenerationState>()(
             },
 
             generate: async (options) => {
+                // A request-local snapshot, never applied to the persisted settings.
+                const requestState = options?.settings ? { ...get(), ...options.settings } : get()
                 const {
                     basePrompt, additionalPrompt, detailPrompt, negativePrompt, inpaintingPrompt,
                     model, steps, cfgScale, cfgRescale, sampler, scheduler, smea, smeaDyn, variety,
                     selectedResolution, batchCount: savedBatchCount, lastGenerationTime,
                     sourceImage, strength, noise, mask, i2iMode
-                } = get()
+                } = requestState
                 const batchCount = options?.batchCount ?? savedBatchCount
 
                 const token = useAuthStore.getState().token
@@ -423,7 +426,7 @@ export const useGenerationStore = create<GenerationState>()(
                 try {
                     for (let i = 0; i < batchCount; i++) {
                         // Check if cancelled or session changed (race condition protection)
-                        if (get().isCancelled || get().generationSessionId !== sessionId) {
+                        if (get().isCancelled || get().generationSessionId !== sessionId || options?.shouldContinue?.() === false) {
                             console.log('[Generate] Session invalidated, stopping batch loop')
                             break
                         }
@@ -434,11 +437,11 @@ export const useGenerationStore = create<GenerationState>()(
 
                         // Fix the seed before any asynchronous preparation so the streaming image,
                         // seed display, and API request always refer to the same value.
-                        const lockedSeed = get().seed
-                        const currentSeed = get().seedLocked && lockedSeed !== 0
+                        const lockedSeed = options?.settings ? requestState.seed : get().seed
+                        const currentSeed = (options?.settings ? requestState.seedLocked : get().seedLocked) && lockedSeed !== 0
                             ? lockedSeed
                             : Math.floor(Math.random() * 4294967295)
-                        set({ seed: currentSeed, activeImageSeed: currentSeed })
+                        set({ ...(options?.settings ? {} : { seed: currentSeed }), activeImageSeed: currentSeed })
                         
                         const { characterImages: allCharImages, vibeImages: allVibeImages } = useCharacterStore.getState()
                         const characterImages = allCharImages.filter(img => img.enabled !== false && (img.filePath || img.base64 || img.cacheKey))
@@ -535,17 +538,17 @@ export const useGenerationStore = create<GenerationState>()(
                             smea,
                             smeaDyn,
                             variety,
-                            modelMode: get().modelMode,
+                            modelMode: options?.settings ? requestState.modelMode : get().modelMode,
                             seed: currentSeed,
                             sourceImage: sourceImage || undefined,
                             strength,
                             noise,
                             mask: mask || undefined,
                             imageFormat,
-                            qualityToggle: get().qualityToggle,
-                            qualityTagPreset: get().qualityTagPreset,
-                            ucPreset: get().ucPreset,
-                            transparentBackground: get().transparentBackground,
+                            qualityToggle: options?.settings ? requestState.qualityToggle : get().qualityToggle,
+                            qualityTagPreset: options?.settings ? requestState.qualityTagPreset : get().qualityTagPreset,
+                            ucPreset: options?.settings ? requestState.ucPreset : get().ucPreset,
+                            transparentBackground: options?.settings ? requestState.transparentBackground : get().transparentBackground,
                             promptWhitespaceMode,
                             removeEmptyPromptSeparators,
                             insertBlankLinesBetweenPromptParts,
@@ -714,6 +717,9 @@ export const useGenerationStore = create<GenerationState>()(
 
                             // Refresh Anlas balance
                             useAuthStore.getState().refreshAnlas()
+
+                            // Publish each completed image, not streaming partials or only the last batch image.
+                            await options?.onImage?.(imageUrl, i + 1)
 
                             // Seed already advanced at generation start
 

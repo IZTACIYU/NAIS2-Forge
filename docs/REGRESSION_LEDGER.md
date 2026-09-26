@@ -644,6 +644,8 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Relay abuse invariant:** 최초 WebSocket 연결은 Cloudflare의 실제 접속 IP 기준으로 제한하고, 연결 후 각 소켓의 암호문 메시지 수·바이트 수도 제한한다. 중계는 여전히 암호문 내용을 해석하거나 저장하지 않으며, 잘못된 Origin·경로·역할은 방 객체 생성 전에 거절한다.
 - **Session lifecycle invariant:** 생성 완료를 기다리는 동안 인증 메시지 접수를 막지 않는다. 생성 중 접수된 추가 명령은 나중에 실행하지 않는다. 웹은 동일 origin의 비대기 Web Lock 안에서 최신 세션을 읽고 인증된 PC pong 뒤에만 생성한다. QR 재생성/해제는 epoch와 소켓을 즉시 무효화하며, DB open 이후 transaction 내부에서도 유효성을 검사한다. 세션 카운터는 readwrite transaction의 최신 레코드로 갱신하고 이전 기기의 지연 작업이 새 연결을 덮어쓰거나 삭제하지 않게 한다. 제한시간 뒤 생성 자동 재전송은 금지한다.
 - **Lifecycle checks:** 앱에서 `node --experimental-strip-types scripts/check-remote-runtime.mjs`; 별도 웹에서 `node --experimental-strip-types check-requests.mjs`. 기존 원격 세션 DB schema는 변경하지 않는다. 실제 기기 통합은 수정된 PC 앱 재시작 후 검증한다.
+- **Remote generation invariant (approval 2026-09-26):** 웹 초안은 원격 명령의 허용된 입력 필드로만 받아 생성 호출에 임시 적용한다. persisted PC 설정을 덮었다가 복원하는 방식은 금지한다. 시드 잠금과 Quality/UC/Mode도 매 회차 같은 요청 snapshot을 사용하고 PC의 활성 모델 기억값을 수정하지 않는다. 한 다중 생성 명령에서 완성 이미지마다 알림을 제공하며 스트리밍 중간 이미지나 마지막 preview 하나로 히스토리를 대신하지 않는다. 접수 응답이 실제 설정 검증·생성 owner 확보를 확인하고 핑만으로 적용 성공을 추정하지 않는다. 비용 조건이 변경됐으면 시작 전에 거절한다.
+- **Isolation checks:** `node --experimental-strip-types scripts/check-remote-generation.mjs`는 실제 store 생성 함수에 임시 값/3장 요청을 넣고 최종 조립 입력, 매회 알림, PC serialization 및 다음 일반 생성의 보존을 확인한다. 이 변경에 persisted field/key/schema 변경은 없다.
 - **Do not "fix" by:** 서버에 세션 키/프롬프트/이미지를 보관하거나, 암호화 실패 시 평문으로 재시도하거나, 임의 명령 실행 경로를 열기.
 
 

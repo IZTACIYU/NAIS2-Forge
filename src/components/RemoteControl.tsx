@@ -5,8 +5,15 @@ import { QrCode } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { RESOLUTION_PRESETS } from '@/components/ui/ResolutionSelector'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useAuthStore } from '@/stores/auth-store'
+import { useCharacterStore } from '@/stores/character-store'
+import { useSettingsStore } from '@/stores/settings-store'
+import {
+    pickRemoteSettings, validateRemoteSettings, validateRemoteBatch, remoteGenerationCost, remoteModelOptions,
+    REMOTE_SAMPLERS, REMOTE_SCHEDULERS, REMOTE_MAX_BATCH, type RemoteCostContext,
+} from '@/lib/remote-generation'
 import {
     createInvitation, decryptFrame, deriveKey, encryptFrame, invitationUrl,
     pairingCode, relaySocketUrl, validateInvitation, isFreshSequence,
@@ -80,6 +87,23 @@ export function RemoteControl() {
 
     const isBusy = () => remoteBusyRef.current || !!useGenerationStore.getState().generatingMode || useGenerationStore.getState().isGenerating
 
+    const costContext = async (): Promise<RemoteCostContext> => {
+        const state = useGenerationStore.getState()
+        let sourceDimensions: RemoteCostContext['sourceDimensions'] = null
+        if (state.sourceImage) {
+            const image = new Image()
+            image.src = state.sourceImage
+            await image.decode()
+            sourceDimensions = { width: Math.round(image.width / 64) * 64, height: Math.round(image.height / 64) * 64 }
+        }
+        const references = useCharacterStore.getState()
+        return {
+            sourceDimensions, entitlement: useAuthStore.getState().imageGenerationEntitlement,
+            characterReferenceCount: references.characterImages.filter(image => image.enabled !== false).length,
+            uncachedVibeCount: references.vibeImages.filter(image => image.enabled !== false && !image.encodedVibe && !image.encodedVibePath).length,
+        }
+    }
+
     const sendSession = (message: unknown, active: RemoteSession, epoch: number, socket: WebSocket): Promise<void> => {
         const send = outboundRef.current.then(async () => {
             const isCurrent = () => contextIsCurrent(active, epoch, socket)
@@ -121,11 +145,11 @@ export function RemoteControl() {
         }
         if (packet.kind !== 'data' || !packet.frame || !active) return
         if (Date.now() >= active.expiresAt || !isFreshSequence(active.lastInboundSeq, packet.frame.seq)) return
-        let body: { type?: string; requestId?: string }
+        let body: { type?: string; requestId?: string; settings?: unknown; batchCount?: unknown; expectedCost?: unknown }
         try {
             body = await decryptFrame(active.inboundKey, active.room, 'phone-to-app', packet.frame)
         } catch { return }
-        if (!['generate', 'ping'].includes(body.type ?? '') || typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(body.requestId)) return
+        if (!['generate', 'ping', 'snapshot'].includes(body.type ?? '') || typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(body.requestId)) return
         const isCurrent = () => contextIsCurrent(active, epoch, socket)
         const next = await updateRemoteSession(active, current => isFreshSequence(current.lastInboundSeq, packet.frame!.seq)
             ? { ...current, lastInboundSeq: packet.frame!.seq } : undefined, isCurrent)
@@ -137,6 +161,21 @@ export function RemoteControl() {
             await respond({ type: 'pong', requestId: body.requestId, busy: isBusy(), ready: useAuthStore.getState().isVerified })
             return
         }
+        if (body.type === 'snapshot') {
+            try {
+                const context = await costContext()
+                const state = useGenerationStore.getState()
+                await respond({ type: 'snapshot', requestId: body.requestId, snapshot: {
+                    settings: pickRemoteSettings(state), costContext: context, models: remoteModelOptions(),
+                    samplers: REMOTE_SAMPLERS, schedulers: REMOTE_SCHEDULERS,
+                    resolutions: [...RESOLUTION_PRESETS.map(preset => ({ label: t(`resolutions.${preset.key}`), width: preset.width, height: preset.height })),
+                        ...useSettingsStore.getState().customResolutions.map(({ label, width, height }) => ({ label, width, height }))],
+                    batchCount: Math.min(REMOTE_MAX_BATCH, Math.max(1, state.batchCount)), maxBatch: REMOTE_MAX_BATCH,
+                    i2iMode: state.i2iMode,
+                } })
+            } catch { await respond({ type: 'error', requestId: body.requestId, reason: 'snapshot-failed' }) }
+            return
+        }
         if (busyAtArrival || isBusy() || !useAuthStore.getState().isVerified) {
             await respond({ type: 'error', requestId: body.requestId, reason: 'busy-or-not-ready' })
             return
@@ -144,7 +183,14 @@ export function RemoteControl() {
         remoteBusyRef.current = true // Reserve before any awaited acknowledgement.
         void (async () => {
             try {
-                await respond({ type: 'started', requestId: body.requestId })
+                const settings = body.settings === undefined ? undefined : validateRemoteSettings(body.settings)
+                const batchCount = body.batchCount === undefined ? 1 : validateRemoteBatch(body.batchCount)
+                const cost = remoteGenerationCost(settings ?? pickRemoteSettings(useGenerationStore.getState()), batchCount, await costContext())
+                if (settings && (body.expectedCost !== null && (typeof body.expectedCost !== 'number' || !Number.isFinite(body.expectedCost) || body.expectedCost < 0) ||
+                    cost !== body.expectedCost)) {
+                    await respond({ type: 'error', requestId: body.requestId, reason: 'cost-changed', costContext: await costContext() })
+                    return
+                }
                 if (!isCurrent()) return
                 const generation = useGenerationStore.getState()
                 // Local generation may have started while the acknowledgement was saved.
@@ -152,11 +198,22 @@ export function RemoteControl() {
                     await respond({ type: 'error', requestId: body.requestId, reason: 'busy-or-not-ready' })
                     return
                 }
-                await generation.generate({ batchCount: 1 })
+                let completed = 0
+                let legacyPreview: string | undefined
+                const work = generation.generate({ batchCount, settings, shouldContinue: isCurrent, onImage: async (image, index) => {
+                    completed = index
+                    if (isCurrent()) {
+                        const preview = await makePreview(image)
+                        if (!settings) legacyPreview = preview // Already-open prototype tabs expect the old complete.preview field.
+                        await respond({ type: 'image', requestId: body.requestId, index, total: batchCount, preview })
+                    }
+                } })
+                // generate() claims the PC owner synchronously; this acknowledges validated request settings.
+                await respond({ type: 'started', requestId: body.requestId, applied: true, batchCount, cost })
+                await work
                 if (!isCurrent()) return
-                const result = useGenerationStore.getState().previewImage
-                if (!result) throw new Error('Generation did not return an image')
-                await respond({ type: 'complete', requestId: body.requestId, preview: await makePreview(result) })
+                await respond({ type: completed === batchCount ? 'complete' : 'error', requestId: body.requestId,
+                    completed, total: batchCount, preview: legacyPreview, reason: completed === batchCount ? undefined : 'generation-failed' })
             } catch {
                 await respond({ type: 'error', requestId: body.requestId, reason: 'generation-failed' }).catch(() => {})
             } finally { remoteBusyRef.current = false }
