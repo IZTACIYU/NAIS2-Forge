@@ -4,6 +4,46 @@ import { calculateGenerationAnlasCost, type ImageGenerationEntitlement } from '.
 export const REMOTE_SAMPLERS = ['k_euler', 'k_euler_ancestral', 'k_dpmpp_2s_ancestral', 'k_dpmpp_2m', 'k_dpmpp_2m_sde', 'k_dpmpp_sde', 'ddim']
 export const REMOTE_SCHEDULERS = ['native', 'karras', 'exponential', 'polyexponential']
 export const REMOTE_MAX_BATCH = 100
+export interface RemoteNpc {
+    id: string; name: string; prompt: string; negative: string;
+    enabled?: boolean; promptEnabled?: boolean; negativeEnabled?: boolean; costumeEnabled?: boolean;
+}
+export interface RemoteSceneDraft {
+    presetId: string; sceneId: string; scenePrompt: string; sceneNegativePrompt: string;
+    characterPromptIds: string[]; npcs: RemoteNpc[]; count: number;
+}
+export interface RemoteScenePage {
+    presets: { id: string; name: string }[]; presetId: string; page: number; totalPages: number;
+    characters: { id: string; name: string }[];
+    scenes: (RemoteSceneDraft & { name: string; width: number; height: number; thumbnail?: string; costContext: RemoteCostContext })[];
+}
+
+export function validateRemoteSceneQueue(value: unknown): RemoteSceneDraft[] {
+    if (!Array.isArray(value) || !value.length || value.length > REMOTE_MAX_BATCH) throw new Error('Invalid scene queue')
+    const text = (value: unknown, max: number) => typeof value === 'string' && value.length <= max
+    const ids = new Set<string>()
+    const result = value.map(item => {
+        if (!item || typeof item !== 'object' || Object.keys(item).some(key => !['presetId', 'sceneId', 'scenePrompt', 'sceneNegativePrompt', 'characterPromptIds', 'npcs', 'count'].includes(key)) ||
+            !text(item.presetId, 100) || !item.presetId || !text(item.sceneId, 100) || !item.sceneId ||
+            !text(item.scenePrompt, 100_000) || !text(item.sceneNegativePrompt, 100_000) ||
+            !Array.isArray(item.characterPromptIds) || item.characterPromptIds.length > 32 || !item.characterPromptIds.every((id: unknown) => text(id, 100)) ||
+            new Set(item.characterPromptIds).size !== item.characterPromptIds.length || !Array.isArray(item.npcs) || item.npcs.length > 32) throw new Error('Invalid scene input')
+        const identity = JSON.stringify([item.presetId, item.sceneId])
+        if (ids.has(identity)) throw new Error('Duplicate scene')
+        ids.add(identity)
+        const npcIds = new Set<string>()
+        for (const npc of item.npcs) {
+            if (!npc || typeof npc !== 'object' || Object.keys(npc).some(key => !['id', 'name', 'prompt', 'negative', 'enabled', 'promptEnabled', 'negativeEnabled', 'costumeEnabled'].includes(key)) ||
+                !text(npc.id, 100) || !npc.id || npcIds.has(npc.id) || !text(npc.name, 200) || !text(npc.prompt, 100_000) || !text(npc.negative, 100_000) ||
+                ['enabled', 'promptEnabled', 'negativeEnabled', 'costumeEnabled'].some(key => npc[key] !== undefined && typeof npc[key] !== 'boolean')) throw new Error('Invalid NPC')
+            npcIds.add(npc.id)
+        }
+        validateRemoteBatch(item.count)
+        return structuredClone(item) as RemoteSceneDraft
+    })
+    if (result.reduce((sum, item) => sum + item.count, 0) > REMOTE_MAX_BATCH) throw new Error('Scene queue exceeds 100 images')
+    return result
+}
 export interface RemoteGenerationSettings {
     basePrompt: string
     additionalPrompt: string

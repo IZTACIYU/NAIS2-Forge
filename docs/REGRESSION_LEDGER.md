@@ -648,6 +648,8 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Isolation checks:** `node --experimental-strip-types scripts/check-remote-generation.mjs`는 실제 store 생성 함수에 임시 값/3장 요청을 넣고 최종 조립 입력, 매회 알림, PC serialization 및 다음 일반 생성의 보존을 확인한다. 이 변경에 persisted field/key/schema 변경은 없다.
 - **Original image invariant:** 원본 파일 10,000,000바이트와 암호화된 프레임 크기를 구분한다. PNG/WebP 원본을 재인코딩하지 않고 앱→웹 프레임만 20MB까지 허용한다. 웹→앱 명령 제한, 인증·방향·sequence 검증은 유지하며 이전 웹의 thumbnail 응답과 호환된다. 원본 웹 히스토리는 임시 Blob URL로 200장/100MB에 한정하며 제거 시 revoke한다. 실제 source/mask가 없는 기억된 인페인트 mode는 활성 입력이 아니며 persisted 값을 강제 초기화하지 않는다. 프로토콜 검사에서 정확히 10MB 원본 왕복과 1바이트 초과 거절을 확인한다.
 - **Do not "fix" by:** 서버에 세션 키/프롬프트/이미지를 보관하거나, 암호화 실패 시 평문으로 재시도하거나, 임의 명령 실행 경로를 열기.
+- **Scene queue invariant (approval 2026-09-26):** 웹 큐는 요청 내부에만 존재한다. PC 큐에 삽입하거나 `startNewGenerationSession`/`setIsGenerating(false)`로 native sequence를 초기화하지 않는다. 기존 runtime 생성 잠금만 공유하고 PC hook은 원격 owner가 동작하는 동안 큐를 소비하지 않는다. 실제 한 장 조립·전송·저장은 공통 경로를 사용하고 기존 `folderPath`를 우선한다. 웹 prompt/NPC/선택 캐릭터는 요청 전용 값이며 PC 프롬프트·캐릭터 활성화·활성 프리셋을 수정하지 않는다. 원격 명령은 PC에 존재하는 씬·캐릭터 ID를 검증하고 파일 경로·임의 action을 허용하지 않는다.
+- **Scene checks:** `node scripts/check-remote-scenes.mjs`와 `node scripts/check-remote-runtime.mjs`; 별도 웹의 `node check-scenes.mjs`, `node check-requests.mjs`. 요청 적용·기존 PC 생성·PC serialization 보존·파일 경로·예약 보존·중복 실행 및 취소를 검사한다.
 
 
 

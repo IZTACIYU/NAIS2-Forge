@@ -35,7 +35,7 @@ const indexedDB = { open(name, version) {
 function compile(source, globals = {}) {
   const module = { exports: {} }
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
-    { module, exports: module.exports, console, setTimeout, clearTimeout, ...globals })
+    { module, exports: module.exports, console, setTimeout, clearTimeout, structuredClone, ...globals })
   return module.exports
 }
 const storage = compile(readFileSync(new URL('../src/lib/remote-pairing-storage.ts', import.meta.url), 'utf8'), { indexedDB })
@@ -65,6 +65,9 @@ const settings = { basePrompt: 'base', additionalPrompt: '', detailPrompt: '', n
   modelMode: 'anime', qualityToggle: true, qualityTagPreset: 'standard', ucPreset: 0, transparentBackground: false,
   seed: 123, seedLocked: true, selectedResolution: { label: 'Portrait', width: 832, height: 1216 }, strength: .5, noise: 0 }
 let generationCount = 0, finishGeneration
+let finishSceneGeneration, sceneGenerationCount = 0
+const scene = { id: 'scene', name: 'Scene', scenePrompt: 'PC scene', width: 832, height: 1216, folderPath: '/private/path', images: [] }
+const sceneState = { isGenerating: false, activePresetId: 'preset', presets: [{ id: 'preset', name: 'Preset', scenes: [scene] }], sceneCharacterAdditions: {} }
 const generation = { ...settings, batchCount: 1, isGenerating: false, generatingMode: null, previewImage: 'data:image/png;base64,eA==',
   generate: options => { generationCount++; return new Promise(resolve => { finishGeneration = async () => { await options.onImage(generation.previewImage, 1); resolve() } }) } }
 const generationStore = { getState: () => generation }
@@ -87,6 +90,14 @@ const { RemoteControl } = compile(source, { WebSocket: Socket, TextEncoder,
     if (name.endsWith('/character-store')) return { useCharacterStore: { getState: () => ({ characterImages: [], vibeImages: [] }) } }
     if (name.endsWith('/settings-store')) return { useSettingsStore: { getState: () => ({ customResolutions: [] }) } }
     if (name.endsWith('/generation-store')) return { useGenerationStore: generationStore }
+    if (name.endsWith('/scene-store')) return { useSceneStore: { getState: () => sceneState } }
+    if (name.endsWith('/character-prompt-store')) return { useCharacterPromptStore: { getState: () => ({ characters: [{ id: 'macro', name: 'Macro', prompt: 'private character content' }] }) } }
+    if (name.endsWith('/scene-image-selection')) return { pickSceneRepresentativeImage: () => undefined }
+    if (name.endsWith('/remote-scene-queue')) return {
+      resolveRemoteScene: item => { if (item.sceneId !== scene.id || item.presetId !== 'preset') throw new Error('Missing scene'); return scene },
+      remoteSceneCostContext: (_, context) => context,
+      runRemoteSceneQueue: options => { sceneGenerationCount++; return new Promise(resolve => { finishSceneGeneration = async () => { await options.onImage('data:image/png;base64,eA==', 1, options.queue[0]); resolve(1) } }) },
+    }
     if (name.endsWith('/auth-store')) return { useAuthStore: { getState: () => ({ isVerified: true, imageGenerationEntitlement: { unlimitedImageGeneration: true } }) } }
     return {}
   } })
@@ -129,8 +140,23 @@ control.outboundUsageRef.current = { socket, startedAt: Date.now() - 10990, coun
 await control.sendSession({ type: 'pong', requestId }, active, 0, socket)
 assert.equal(control.outboundUsageRef.current.count, 1, 'sender must reset a full relay window before another frame')
 assert.equal((await response(13)).type, 'pong')
+await request('scene-list')
+const page = (await response(14)).scenePage
+assert.equal(page.scenes[0].scenePrompt, 'PC scene'); assert.equal(page.scenes[0].count, 0)
+assert.equal(page.characters[0].id, 'macro'); assert.ok(!JSON.stringify(page).includes('/private/path')); assert.ok(!JSON.stringify(page).includes('private character content'))
+await request('scene-list', false, { presetId: 'missing' }); assert.equal((await response(15)).reason, 'scene-list-failed')
+await request('scene-list', false, { page: -1 }); assert.equal((await response(16)).reason, 'scene-list-failed')
+const sceneDraft = { presetId: 'preset', sceneId: 'scene', scenePrompt: 'WEB scene', sceneNegativePrompt: '', characterPromptIds: [], npcs: [], count: 1 }
+await request('scene-generate', false, { settings, queue: [{ ...sceneDraft, folderPath: '/evil' }], expectedCost: 0 })
+await drain(() => !control.remoteBusyRef.current); assert.equal((await response(17)).type, 'error'); assert.equal(sceneGenerationCount, 0)
+await request('scene-generate', false, { settings, queue: [sceneDraft], expectedCost: 0, originalImages: true })
+await drain(() => sceneGenerationCount === 1 && messages.length >= 19); assert.equal((await response(18)).type, 'started')
+await request('scene-generate', false, { settings, queue: [sceneDraft], expectedCost: 0 }); assert.equal((await response(19)).reason, 'busy-or-not-ready'); assert.equal(sceneGenerationCount, 1)
+await finishSceneGeneration(); await drain(() => !control.remoteBusyRef.current)
+assert.equal((await response(20)).sceneId, 'scene'); assert.equal((await response(20)).presetId, 'preset'); assert.equal((await response(21)).type, 'complete')
+assert.equal(scene.scenePrompt, 'PC scene'); assert.equal(sceneState.activePresetId, 'preset')
 await control.generateQr()
 assert.equal(record, null); assert.equal(socket.readyState, 3); assert.equal(control.sessionRef.current, null)
 await request('generate'); assert.equal(generationCount, 2, 'revoked session must not generate')
-assert.equal(messages.length, 14)
+assert.equal(messages.length, 22)
 console.log('Remote runtime checks passed: atomic counters, late-save revocation, ping, duplicate rejection, QR invalidation.')
