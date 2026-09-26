@@ -24,7 +24,8 @@ import { pickRandomTag } from '@/lib/tag-search-client'
  * "<*hair>" → 조각 프롬프트 파일에서 순차적으로 줄 선택
  * "<red|blue|green>" → 인라인 옵션에서 랜덤 선택
  */
-async function processFileWildcards(prompt: string): Promise<string> {
+async function processFileWildcards(prompt: string, resolver?: (path: string, sequential: boolean) => Promise<string | null>, depth = 0, budget = { remaining: 2048 }): Promise<string> {
+    if (resolver && depth >= 32) throw new Error('Remote fragment nesting limit exceeded')
     // Resolve count comparisons before <...> can mistake them for file syntax.
     prompt = await resolveRandomTagPrompts(prompt, pickRandomTag)
     // <...> 패턴 찾기 (중첩 불가)
@@ -43,6 +44,7 @@ async function processFileWildcards(prompt: string): Promise<string> {
     if (matches.length === 0) return prompt
 
     // 모든 매치를 비동기로 처리
+    if (resolver && (budget.remaining -= matches.length) < 0) throw new Error('Remote fragment expansion limit exceeded')
     const replacements = await Promise.all(
         matches.map(async ({ match, content }) => {
             const trimmed = content.trim()
@@ -65,7 +67,7 @@ async function processFileWildcards(prompt: string): Promise<string> {
 
             // 조각 프롬프트 스토어에서 라인 가져오기 (비동기)
             const store = useFragmentStore.getState()
-            const line = isSequential
+            const line = resolver ? await resolver(path, isSequential) : isSequential
                 ? await store.getSequentialLine(path)
                 : await store.getRandomLine(path)
 
@@ -76,7 +78,7 @@ async function processFileWildcards(prompt: string): Promise<string> {
             }
 
             // 재귀적으로 중첩된 조각 프롬프트 처리
-            const processedLine = await processFileWildcards(line)
+            const processedLine = await processFileWildcards(line, resolver, depth + 1, budget)
             return { match, replacement: processedLine }
         })
     )
@@ -225,14 +227,14 @@ function processSimpleWildcards(prompt: string): string {
  * - <*hair> → 조각 프롬프트 파일에서 순차 선택
  * - <red|blue|green> → 인라인 옵션에서 랜덤 선택
  */
-export async function processWildcards(prompt: string): Promise<string> {
+export async function processWildcards(prompt: string, resolver?: (path: string, sequential: boolean) => Promise<string | null>): Promise<string> {
     if (!prompt) return prompt
 
     let result = prompt
 
     // 1단계: 파일 기반 조각 프롬프트 처리 (최우선, 비동기)
     // <filename>, <*filename>, <option1|option2>
-    result = await processFileWildcards(result)
+    result = await processFileWildcards(result, resolver)
 
     // 2단계: 괄호 형식 와일드카드 처리 (쉼표 포함 옵션 지원)
     // (white hair, blue eyes/red hair, purple eyes) → 선택된 세트

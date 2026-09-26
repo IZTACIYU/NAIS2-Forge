@@ -27,14 +27,16 @@ function getContentDb(): Promise<IDBDatabase> {
 }
 
 // Content 저장/조회 함수
-async function saveContent(id: string, content: string[]): Promise<void> {
+async function saveContent(id: string, content: string[], guard?: () => boolean): Promise<void> {
     const db = await getContentDb()
+    if (guard && !guard()) throw new Error('Fragment changed before save')
     return new Promise((resolve, reject) => {
         const transaction = db.transaction(CONTENT_STORE_NAME, 'readwrite')
         const store = transaction.objectStore(CONTENT_STORE_NAME)
         const request = store.put(content, id)
-        request.onsuccess = () => resolve()
+        request.onsuccess = () => { if (guard) { if (!guard()) transaction.abort() } else resolve() }
         request.onerror = () => reject(request.error)
+        if (guard) { transaction.oncomplete = () => resolve(); transaction.onabort = () => reject(new Error('Fragment changed during save')) }
     })
 }
 
@@ -116,8 +118,8 @@ interface FragmentState {
     _migrated: boolean
 
     // Actions - CRUD
-    addFile: (name: string, folder?: string, content?: string[]) => Promise<FragmentFile>
-    updateFile: (id: string, updates: Partial<Pick<FragmentFile, 'name' | 'folder' | 'content'>>) => Promise<void>
+    addFile: (name: string, folder?: string, content?: string[], id?: string) => Promise<FragmentFile>
+    updateFile: (id: string, updates: Partial<Pick<FragmentFile, 'name' | 'folder' | 'content'>>, guard?: () => boolean) => Promise<void>
     deleteFile: (id: string) => Promise<void>
     duplicateFile: (id: string) => Promise<FragmentFile | null>
 
@@ -161,8 +163,8 @@ export const useFragmentStore = create<FragmentState>()(
             _initialized: false,
             _migrated: false,
 
-            addFile: async (name, folder = '', content = []) => {
-                const id = Date.now().toString()
+            addFile: async (name, folder = '', content = [], id = Date.now().toString()) => {
+                if (get().files.some(file => file.id === id)) throw new Error('Duplicate fragment ID')
                 const newFileMeta: FragmentFileMeta = {
                     id,
                     name: name.trim(),
@@ -186,14 +188,15 @@ export const useFragmentStore = create<FragmentState>()(
                 return { ...newFileMeta, content }
             },
 
-            updateFile: async (id, updates) => {
+            updateFile: async (id, updates, guard) => {
                 const file = get().files.find(f => f.id === id)
                 if (!file) return
+                if (guard && !guard()) throw new Error('Fragment changed before save')
 
                 let lineCount = file.lineCount
 
                 if (updates.content !== undefined) {
-                    await saveContent(id, updates.content)
+                    await saveContent(id, updates.content, guard ? () => get().files.find(item => item.id === id) === file && guard() : undefined)
                     addToCache(id, updates.content)
                     lineCount = updates.content.length
                 }

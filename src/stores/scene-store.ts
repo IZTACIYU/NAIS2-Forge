@@ -197,7 +197,7 @@ interface SceneState {
     getActivePreset: () => ScenePreset | undefined
 
     // Actions - Scenes
-    addScene: (presetId: string, name?: string) => void
+    addScene: (presetId: string, name?: string, id?: string) => void
     deleteScene: (presetId: string, sceneId: string) => void
     duplicateScene: (presetId: string, sceneId: string) => void
     renameScene: (presetId: string, sceneId: string, name: string) => Promise<void>
@@ -616,12 +616,12 @@ export const useSceneStore = create<SceneState>()(
             },
 
             // Scene Actions
-            addScene: (presetId, name) => {
+            addScene: (presetId, name, id) => {
                 set(state => ({
                     presets: state.presets.map(p => {
                         if (p.id !== presetId) return p
                         const newScene: SceneCard = {
-                            id: Date.now().toString(),
+                            id: id ?? Date.now().toString(),
                             name: name || `씬 ${p.scenes.length + 1}`,
                             scenePrompt: '',
                             sceneNegativePrompt: '',

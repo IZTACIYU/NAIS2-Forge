@@ -4,6 +4,7 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import * as protocol from '../src/lib/remote-protocol.ts'
 import * as remote from '../src/lib/remote-generation.ts'
+import * as workspace from '../src/lib/remote-workspace.ts'
 
 // Exercise real storage callbacks with serialized transactions, without a browser dependency.
 let record = null, queue = Promise.resolve(), releaseOpen
@@ -64,13 +65,14 @@ const settings = { basePrompt: 'base', additionalPrompt: '', detailPrompt: '', n
   steps: 28, cfgScale: 5, cfgRescale: 0, sampler: 'k_euler_ancestral', scheduler: 'karras', smea: false, smeaDyn: false, variety: false,
   modelMode: 'anime', qualityToggle: true, qualityTagPreset: 'standard', ucPreset: 0, transparentBackground: false,
   seed: 123, seedLocked: true, selectedResolution: { label: 'Portrait', width: 832, height: 1216 }, strength: .5, noise: 0 }
-let generationCount = 0, finishGeneration
+let generationCount = 0, finishGeneration, finishApply
 let finishSceneGeneration, sceneGenerationCount = 0
 const scene = { id: 'scene', name: 'Scene', scenePrompt: 'PC scene', width: 832, height: 1216, folderPath: '/private/path', images: [{ id: 'image', url: '/private/path/image.png', isFavorite: true }] }
 const sceneState = { isGenerating: false, activePresetId: 'preset', presets: [{ id: 'preset', name: 'Preset', scenes: [scene] }], sceneCharacterAdditions: {}, getScene(presetId, sceneId) { return presetId === 'preset' && sceneId === 'scene' ? scene : undefined } }
 const generation = { ...settings, batchCount: 1, isGenerating: false, generatingMode: null, previewImage: 'data:image/png;base64,eA==',
   generate: options => { generationCount++; return new Promise(resolve => { finishGeneration = async () => { await options.onImage(generation.previewImage, 1); resolve() } }) } }
 const generationStore = { getState: () => generation }
+generation.setIsGenerating = value => { generation.isGenerating = value; generation.generatingMode = value ? 'main' : null }
 const messages = []
 class Socket { static OPEN = 1; readyState = 1; send(value) { messages.push(JSON.parse(value)) } close() { this.readyState = 3 } }
 let source = readFileSync(new URL('../src/components/RemoteControl.tsx', import.meta.url), 'utf8')
@@ -89,6 +91,11 @@ const { RemoteControl } = compile(source, { WebSocket: Socket, TextEncoder, Blob
     if (name.endsWith('/remote-protocol')) return protocol
     if (name.endsWith('/remote-pairing-storage')) return storage
     if (name.endsWith('/remote-generation')) return remote
+    if (name === '@/lib/remote-workspace') return workspace
+    if (name === '@/services/remote-workspace') return { remoteSceneDocument: () => ({ scenePrompt: scene.scenePrompt, sceneNegativePrompt: '', multiCharacterSlots: [], characterPromptIds: [], npcs: [] }),
+      resolveRemoteAssets: async () => ({ characters: [], characterImages: [], vibeImages: [], fragments: {} }),
+      applyRemoteWorkspace: (_, __, ___, ____, current) => new Promise(resolve => { finishApply = () => { assert.equal(current(), true); resolve({ assets: [], revision: 'a'.repeat(64), sceneRevisions: [] }) } }),
+    }
     if (name.endsWith('/ResolutionSelector')) return { RESOLUTION_PRESETS: [] }
     if (name.endsWith('/character-store')) return { useCharacterStore: { getState: () => ({ characterImages: [], vibeImages: [] }) } }
     if (name.endsWith('/settings-store')) return { useSettingsStore: { getState: () => ({ customResolutions: [] }) } }
@@ -162,11 +169,17 @@ await request('scene-images', false, { presetId: 'preset', sceneId: 'scene', pag
 const gallery = (await response(22)).sceneImages
 assert.equal(gallery.images.length, 1); assert.equal(gallery.images[0].isFavorite, true); assert.equal(gallery.totalImages, 1)
 assert.ok(gallery.images[0].thumbnail.startsWith('data:image/webp')); assert.ok(!JSON.stringify(gallery).includes('url'))
-assert.ok(previewReads.length >= 2); assert.ok(previewReads.every(path => path === scene.images[0].url)); assert.equal(previewUrls.size, 0, 'temporary file preview URL must be revoked')
+assert.ok(previewReads.length >= 1); assert.ok(previewReads.every(path => path === scene.images[0].url)); assert.equal(previewUrls.size, 0, 'temporary file preview URL must be revoked')
 await request('scene-images', false, { presetId: 'preset', sceneId: 'scene', page: 0 }); assert.ok((await response(23)).sceneImages.images[0].thumbnail, 're-entering scene reloads stored file preview'); assert.equal(previewUrls.size, 0)
 await request('scene-images', false, { presetId: 'preset', sceneId: 'missing' }); assert.equal((await response(24)).reason, 'scene-images-failed')
+const beforeApply = messages.length
+await request('apply', false, { settings, assets: [], applyToApp: true, revision: 'a'.repeat(64) })
+await drain(() => !!finishApply); assert.equal(generation.isGenerating, true); assert.equal(generation.generatingMode, 'main', 'existing native lock must reserve app apply')
+await request('generate'); assert.equal((await response(beforeApply)).reason, 'busy-or-not-ready')
+finishApply(); await drain(() => !control.remoteBusyRef.current)
+assert.equal((await response(beforeApply + 1)).type, 'applied'); assert.equal(generation.isGenerating, false); assert.equal(generation.generatingMode, null)
 await control.generateQr()
 assert.equal(record, null); assert.equal(socket.readyState, 3); assert.equal(control.sessionRef.current, null)
 await request('generate'); assert.equal(generationCount, 2, 'revoked session must not generate')
-assert.equal(messages.length, 25)
+assert.equal(messages.length, 27)
 console.log('Remote runtime checks passed: atomic counters, late-save revocation, ping, duplicate rejection, QR invalidation.')

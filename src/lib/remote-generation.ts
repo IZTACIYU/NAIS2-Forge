@@ -12,6 +12,8 @@ export interface RemoteSceneDraft {
     presetId: string; sceneId: string; scenePrompt: string; sceneNegativePrompt: string;
     characterPromptIds: string[]; npcs: RemoteNpc[]; count: number;
     multiCharacterSlots?: RemoteSceneSlot[];
+    newScene?: { name: string; width: number; height: number };
+    revision?: string;
 }
 export interface RemoteSceneSlot {
     id: string; target: 'manual' | 'gender'; characterId?: string; gender?: 'male' | 'female' | 'unknown';
@@ -31,8 +33,9 @@ export function validateRemoteSceneQueue(value: unknown): RemoteSceneDraft[] {
     if (!Array.isArray(value) || !value.length || value.length > REMOTE_MAX_BATCH) throw new Error('Invalid scene queue')
     const text = (value: unknown, max: number) => typeof value === 'string' && value.length <= max
     const ids = new Set<string>()
+    const names = new Set<string>()
     const result = value.map(item => {
-        if (!item || typeof item !== 'object' || Object.keys(item).some(key => !['presetId', 'sceneId', 'scenePrompt', 'sceneNegativePrompt', 'characterPromptIds', 'npcs', 'count', 'multiCharacterSlots'].includes(key)) ||
+        if (!item || typeof item !== 'object' || Object.keys(item).some(key => !['presetId', 'sceneId', 'scenePrompt', 'sceneNegativePrompt', 'characterPromptIds', 'npcs', 'count', 'multiCharacterSlots', 'newScene', 'revision'].includes(key)) ||
             !text(item.presetId, 100) || !item.presetId || !text(item.sceneId, 100) || !item.sceneId ||
             !text(item.scenePrompt, 100_000) || !text(item.sceneNegativePrompt, 100_000) ||
             !Array.isArray(item.characterPromptIds) || item.characterPromptIds.length > 32 || !item.characterPromptIds.every((id: unknown) => text(id, 100)) ||
@@ -40,6 +43,10 @@ export function validateRemoteSceneQueue(value: unknown): RemoteSceneDraft[] {
         const identity = JSON.stringify([item.presetId, item.sceneId])
         if (ids.has(identity)) throw new Error('Duplicate scene')
         ids.add(identity)
+        if (item.revision !== undefined && (typeof item.revision !== 'string' || !/^[a-f0-9]{64}$/.test(item.revision))) throw new Error('Invalid scene revision')
+        if (item.newScene !== undefined && (!item.sceneId.startsWith('web-') || !item.newScene || typeof item.newScene !== 'object' || Object.keys(item.newScene).some(key => !['name', 'width', 'height'].includes(key)) ||
+            !text(item.newScene.name, 120) || !item.newScene.name.trim() || /[<>:"/\\|?*]|[. ]$/.test(item.newScene.name) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(item.newScene.name) || ![item.newScene.width, item.newScene.height].every(number => typeof number === 'number' && Number.isInteger(number) && number >= 64 && number <= 4096 && number % 64 === 0))) throw new Error('Invalid new scene')
+        if (item.newScene) { const name = JSON.stringify([item.presetId, item.newScene.name.trim().toLowerCase()]); if (names.has(name)) throw new Error('Duplicate scene name'); names.add(name) }
         if (item.multiCharacterSlots !== undefined) {
             if (!Array.isArray(item.multiCharacterSlots) || item.multiCharacterSlots.length > 64) throw new Error('Invalid multi-character slots')
             const slotIds = new Set<string>()
@@ -108,6 +115,7 @@ export const remoteModelOptions = () => AVAILABLE_MODELS.map(model => ({
     supportsTransparentBackground: model.supportsTransparentBackground,
 }))
 export interface RemoteSnapshot {
+    revision?: string
     settings: RemoteGenerationSettings
     costContext: RemoteCostContext
     models: ReturnType<typeof remoteModelOptions>

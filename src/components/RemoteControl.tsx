@@ -10,11 +10,12 @@ import { useGenerationStore } from '@/stores/generation-store'
 import { useSceneStore } from '@/stores/scene-store'
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { readFile } from '@tauri-apps/plugin-fs'
-import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
 import { runRemoteSceneQueue, resolveRemoteScene, remoteSceneCostContext } from '@/services/remote-scene-queue'
 import { useAuthStore } from '@/stores/auth-store'
 import { useCharacterStore } from '@/stores/character-store'
 import { useSettingsStore } from '@/stores/settings-store'
+import { validateRemoteAssets, remoteRevision } from '@/lib/remote-workspace'
+import { remoteAssetPage, resolveRemoteAssets, applyRemoteWorkspace, remoteSceneDocument, type RemoteResolvedWorkspace } from '@/services/remote-workspace'
 import {
     pickRemoteSettings, validateRemoteSettings, validateRemoteBatch, remoteGenerationCost, remoteModelOptions,
     REMOTE_SAMPLERS, REMOTE_SCHEDULERS, REMOTE_MAX_BATCH, validateRemoteSceneQueue, type RemoteScenePage, type RemoteSceneImagesPage, type RemoteCostContext,
@@ -97,7 +98,7 @@ export function RemoteControl() {
 
     const isBusy = () => remoteBusyRef.current || !!useGenerationStore.getState().generatingMode || useGenerationStore.getState().isGenerating || useSceneStore.getState().isGenerating
 
-    const costContext = async (): Promise<RemoteCostContext> => {
+    const costContext = async (workspace?: RemoteResolvedWorkspace): Promise<RemoteCostContext> => {
         const state = useGenerationStore.getState()
         let sourceDimensions: RemoteCostContext['sourceDimensions'] = null
         if (state.sourceImage) {
@@ -106,7 +107,7 @@ export function RemoteControl() {
             await image.decode()
             sourceDimensions = { width: Math.round(image.width / 64) * 64, height: Math.round(image.height / 64) * 64 }
         }
-        const references = useCharacterStore.getState()
+        const references = workspace ?? useCharacterStore.getState()
         return {
             sourceDimensions, entitlement: useAuthStore.getState().imageGenerationEntitlement,
             characterReferenceCount: references.characterImages.filter(image => image.enabled !== false).length,
@@ -168,11 +169,11 @@ export function RemoteControl() {
         }
         if (packet.kind !== 'data' || !packet.frame || !active) return
         if (Date.now() >= active.expiresAt || !isFreshSequence(active.lastInboundSeq, packet.frame.seq)) return
-        let body: { type?: string; requestId?: string; settings?: unknown; batchCount?: unknown; expectedCost?: unknown; originalImages?: unknown; queue?: unknown; presetId?: unknown; sceneId?: unknown; page?: unknown }
+        let body: { type?: string; requestId?: string; settings?: unknown; batchCount?: unknown; expectedCost?: unknown; originalImages?: unknown; queue?: unknown; presetId?: unknown; sceneId?: unknown; page?: unknown; assets?: unknown; applyToApp?: unknown; revision?: unknown; assetKind?: unknown; assetId?: unknown }
         try {
             body = await decryptFrame(active.inboundKey, active.room, 'phone-to-app', packet.frame)
         } catch { return }
-        if (!['generate', 'scene-generate', 'scene-list', 'scene-images', 'ping', 'snapshot'].includes(body.type ?? '') || typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(body.requestId)) return
+        if (!['generate', 'scene-generate', 'scene-list', 'scene-images', 'assets', 'apply', 'ping', 'snapshot'].includes(body.type ?? '') || typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(body.requestId)) return
         const isCurrent = () => contextIsCurrent(active, epoch, socket)
         const next = await updateRemoteSession(active, current => isFreshSequence(current.lastInboundSeq, packet.frame!.seq)
             ? { ...current, lastInboundSeq: packet.frame!.seq } : undefined, isCurrent)
@@ -189,6 +190,7 @@ export function RemoteControl() {
                 const context = await costContext()
                 const state = useGenerationStore.getState()
                 await respond({ type: 'snapshot', requestId: body.requestId, snapshot: {
+                    revision: await remoteRevision(pickRemoteSettings(state)),
                     settings: pickRemoteSettings(state), costContext: context, models: remoteModelOptions(),
                     samplers: REMOTE_SAMPLERS, schedulers: REMOTE_SCHEDULERS,
                     resolutions: [...RESOLUTION_PRESETS.map(preset => ({ label: t(`resolutions.${preset.key}`), width: preset.width, height: preset.height })),
@@ -216,19 +218,18 @@ export function RemoteControl() {
                 }
                 for (const scene of preset.scenes.slice(page * 12, page * 12 + 12)) {
                     const addition = state.sceneCharacterAdditions[preset.id]?.[scene.id]
-                    let thumbnail: string | undefined
-                    const image = pickSceneRepresentativeImage(scene.images)?.url
-                    if (image) {
-                        try { thumbnail = await makePreview(image, 192); if (thumbnail.length > 80_000) thumbnail = undefined }
-                        catch { /* A missing thumbnail never removes the PC scene or image. */ }
-                    }
                     const draft = { presetId: preset.id, sceneId: scene.id, scenePrompt: scene.scenePrompt, sceneNegativePrompt: scene.sceneNegativePrompt || '',
                         characterPromptIds: addition?.characterPromptIds || [], npcs: addition?.customCharacters || [], multiCharacterSlots: scene.multiCharacterSlots || [], count: 0 }
-                    result.scenes.push({ ...structuredClone(draft), name: scene.name, width: scene.width || 832, height: scene.height || 1216, thumbnail,
+                    result.scenes.push({ ...structuredClone(draft), revision: await remoteRevision(remoteSceneDocument(preset.id, scene.id)), name: scene.name, width: scene.width || 832, height: scene.height || 1216,
                         costContext: remoteSceneCostContext(draft, context) })
                 }
                 await respond({ type: 'scene-list', requestId: body.requestId, scenePage: result })
             } catch { await respond({ type: 'error', requestId: body.requestId, reason: 'scene-list-failed' }) }
+            return
+        }
+        if (body.type === 'assets') {
+            try { await respond({ type: 'assets', requestId: body.requestId, assets: await remoteAssetPage(body.assetKind, body.page ?? 0, body.assetId) }) }
+            catch { await respond({ type: 'error', requestId: body.requestId, reason: 'assets-failed' }) }
             return
         }
         if (body.type === 'scene-images') {
@@ -257,14 +258,17 @@ export function RemoteControl() {
         void (async () => {
             try {
                 const settings = body.settings === undefined ? undefined : validateRemoteSettings(body.settings)
+                if (body.applyToApp !== undefined && typeof body.applyToApp !== 'boolean') throw new Error('Invalid apply option')
+                const assets = body.assets === undefined ? undefined : validateRemoteAssets(body.assets)
+                const workspace = assets ? await resolveRemoteAssets(assets, settings?.model || useGenerationStore.getState().model) : undefined
                 if (body.originalImages !== undefined && typeof body.originalImages !== 'boolean') throw new Error('Invalid original image option')
-                const sceneQueue = body.type === 'scene-generate' ? validateRemoteSceneQueue(body.queue) : undefined
+                const sceneQueue = body.type === 'scene-generate' || body.type === 'apply' && body.queue !== undefined ? validateRemoteSceneQueue(body.queue) : undefined
                 if (sceneQueue && !settings) throw new Error('Missing settings')
                 const batchCount = sceneQueue ? sceneQueue.reduce((sum, item) => sum + item.count, 0) : body.batchCount === undefined ? 1 : validateRemoteBatch(body.batchCount)
-                const context = await costContext()
+                const context = await costContext(workspace)
                 const sceneCosts = sceneQueue?.map(item => {
-                    const scene = resolveRemoteScene(item, settings!.model)
-                    const itemContext = remoteSceneCostContext(item, context)
+                    const scene = resolveRemoteScene(item, settings!.model, workspace)
+                    const itemContext = remoteSceneCostContext(item, context, workspace)
                     return { presetId: item.presetId, sceneId: item.sceneId, width: scene.width || 832, height: scene.height || 1216, costContext: itemContext }
                 })
                 const cost = sceneQueue ? sceneQueue.reduce<number | null>((sum, item, index) => {
@@ -272,7 +276,7 @@ export function RemoteControl() {
                     const value = remoteGenerationCost({ ...settings!, selectedResolution: { label: 'Scene', width: info.width, height: info.height } }, item.count, info.costContext)
                     return sum === null || value === null ? null : sum + value
                 }, 0) : remoteGenerationCost(settings ?? pickRemoteSettings(useGenerationStore.getState()), batchCount, context)
-                if (settings && (body.expectedCost !== null && (typeof body.expectedCost !== 'number' || !Number.isFinite(body.expectedCost) || body.expectedCost < 0) ||
+                if (body.type !== 'apply' && settings && (body.expectedCost !== null && (typeof body.expectedCost !== 'number' || !Number.isFinite(body.expectedCost) || body.expectedCost < 0) ||
                     cost !== body.expectedCost)) {
                     await respond({ type: 'error', requestId: body.requestId, reason: 'cost-changed', costContext: await costContext(), sceneCosts })
                     return
@@ -285,6 +289,22 @@ export function RemoteControl() {
                     return
                 }
                 let completed = 0
+                if (body.applyToApp === true || body.type === 'apply') {
+                    if (!settings || body.applyToApp !== true) throw new Error('App apply not enabled')
+                    const ownerSession = generation.generationSessionId
+                    generation.setIsGenerating(true)
+                    let applied
+                    try {
+                        applied = await applyRemoteWorkspace(settings, body.revision, assets || [], sceneQueue, () => isCurrent()
+                            && useGenerationStore.getState().generationSessionId === ownerSession
+                            && useGenerationStore.getState().isGenerating && useGenerationStore.getState().generatingMode === 'main')
+                    } finally {
+                        const state = useGenerationStore.getState()
+                        if (state.generationSessionId === ownerSession && state.generatingMode === 'main') state.setIsGenerating(false)
+                    }
+                    await respond({ type: 'applied', requestId: body.requestId, workspace: { ...applied, costContext: await costContext() } })
+                    if (body.type === 'apply' || !isCurrent()) return
+                }
                 let legacyPreview: string | undefined
                 let imageTooLarge = false
                 const publishImage = async (image: string, index: number, item?: { presetId: string; sceneId: string }) => {
@@ -301,8 +321,8 @@ export function RemoteControl() {
                         completed = index
                     }
                 }
-                const work = sceneQueue ? runRemoteSceneQueue({ settings: settings!, queue: sceneQueue, shouldContinue: isCurrent, onImage: publishImage })
-                    : generation.generate({ batchCount, settings, shouldContinue: isCurrent, onImage: publishImage })
+                const work = sceneQueue ? runRemoteSceneQueue({ settings: settings!, queue: sceneQueue, workspace, shouldContinue: isCurrent, onImage: publishImage })
+                    : generation.generate({ batchCount, settings, workspace, shouldContinue: isCurrent, onImage: publishImage })
                 // generate() claims the PC owner synchronously; this acknowledges validated request settings.
                 await respond({ type: 'started', requestId: body.requestId, applied: true, batchCount, cost })
                 await work
@@ -310,7 +330,7 @@ export function RemoteControl() {
                 await respond({ type: completed === batchCount ? 'complete' : 'error', requestId: body.requestId,
                     completed, total: batchCount, preview: legacyPreview, reason: imageTooLarge ? 'image-too-large' : completed === batchCount ? undefined : 'generation-failed' })
             } catch (error) {
-                await respond({ type: 'error', requestId: body.requestId, reason: error instanceof Error && error.message === 'Image too large' ? 'image-too-large' : 'generation-failed' }).catch(() => {})
+                await respond({ type: 'error', requestId: body.requestId, reason: error instanceof Error && /^(PC .*changed|Fragment changed)/.test(error.message) ? 'edit-conflict' : error instanceof Error && error.message === 'Image too large' ? 'image-too-large' : body.applyToApp ? 'apply-or-generation-failed' : 'generation-failed' }).catch(() => {})
             } finally { remoteBusyRef.current = false }
         })() // Do not block authenticated ping/busy handling until generation completes.
     }

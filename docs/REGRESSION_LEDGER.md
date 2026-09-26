@@ -656,6 +656,16 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 
 
+### 원격 workspace 확장 — R-051 추가 invariant (2026-09-26)
+
+- 사용자 승인 후에도 기본은 request-only다. 앱 반영 체크를 명시적으로 보낸 경우에만 기존 항목별 저장 action을 실행한다. 전체 store snapshot 교체·storage key/schema 변경·기존 이미지 교체/삭제를 금지한다.
+- 저장 중 PC 생성과의 경쟁은 기존 main 생성 잠금과 generation session identity로 막는다. 잠금 해제는 같은 session에만 수행해 다른 생성의 잠금을 지우지 않는다.
+- PC item/main/scene revision 충돌은 오류다. 실패 복원은 현재 값이 이 작업의 write와 일치할 때만 실행해 이후 PC 편집을 덮어쓰지 않는다. 조각 content의 조건부 write는 metadata identity와 연결 유효성을 IndexedDB transaction 내부에서 확인하고 stale write를 abort한다. 새 파일 실패 정리는 원본 삭제 대신 metadata 복원만 수행한다.
+- 새 씬은 기존 preset ID와 고유 `web-` scene ID, 안전하고 중복되지 않는 이름·해상도만 허용한다. 새 조각은 고유 ID를 owner에 전달한다. 웹 참조는 새 이미지에만 data URL을 허용하고 기존 참조의 mode/source 교체와 원격 파일 경로를 받지 않는다. 전달할 asset 필드는 종류별 allowlist로 제한한다.
+- 정상 웹 씬 목록·상세는 PC 이미지를 조회하지 않는다. 웹 수신 이미지 URL은 메인 임시 히스토리 owner의 수명과 함께 해제하고 상세·썸네일을 모두 갱신한다. 구형 `scene-images` 명령만 읽기 전용으로 유지한다.
+- 웹 조각 resolver는 PC 순차 카운터를 사용하지 않는다. shared request builder의 선택적 resolver로 주입하며 일반 PC 호출과 API transport의 프롬프트 의미는 바꾸지 않는다.
+- Coverage: `node scripts/check-remote-workspace.mjs`, `node scripts/check-remote-runtime.mjs`, 기존 remote generation/scene/protocol 검사 및 별도 웹 `check-scenes.mjs`·`check-requests.mjs`·`check-tabs.mjs`.
+
 ### R-XXX — 짧은 제목
 
 - **Date:** YYYY-MM-DD

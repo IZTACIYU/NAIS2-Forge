@@ -13,6 +13,7 @@ import { buildGenerationRequest } from '@/lib/generation-request'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 import i18n from '@/i18n'
 import type { RemoteGenerationSettings } from '@/lib/remote-generation'
+import type { RemoteResolvedWorkspace } from '@/services/remote-workspace'
 import { toast } from '@/components/ui/use-toast'
 import {
     AVAILABLE_MODELS,
@@ -170,7 +171,7 @@ interface GenerationState {
         selectedResolution: Resolution
     }) => void
 
-    generate: (options?: { batchCount?: number; settings?: RemoteGenerationSettings; onImage?: (image: string, index: number) => Promise<void>; shouldContinue?: () => boolean }) => Promise<void>
+    generate: (options?: { batchCount?: number; settings?: RemoteGenerationSettings; workspace?: RemoteResolvedWorkspace; onImage?: (image: string, index: number) => Promise<void>; shouldContinue?: () => boolean }) => Promise<void>
     cancelGeneration: () => void
     setPreviewImage: (url: string | null) => void
     setIsGenerating: (v: boolean) => void // Only for Main Mode use ideally
@@ -444,18 +445,19 @@ export const useGenerationStore = create<GenerationState>()(
                             : Math.floor(Math.random() * 4294967295)
                         set({ ...(options?.settings ? {} : { seed: currentSeed }), activeImageSeed: currentSeed })
                         
-                        const { characterImages: allCharImages, vibeImages: allVibeImages } = useCharacterStore.getState()
+                        const { characterImages: allCharImages, vibeImages: allVibeImages } = options?.workspace ?? useCharacterStore.getState()
                         const characterImages = allCharImages.filter(img => img.enabled !== false && (img.filePath || img.base64 || img.cacheKey))
                         const vibeImages = allVibeImages.filter(img => img.enabled !== false && (img.filePath || img.base64 || img.encodedVibe || img.encodedVibePath))
 
                         // Character Prompts (Position-based)
                         const {
-                            characters: characterPrompts,
+                            characters: savedCharacters,
                             groups: characterGroups,
                             positionEnabled,
                         } = useCharacterPromptStore.getState()
+                        const characterPrompts = options?.workspace?.characters ?? savedCharacters
                         const randomSettings = useSettingsStore.getState()
-                        const randomCharacterCandidates = randomSettings.expertSceneRandomCharactersEnabled
+                        const randomCharacterCandidates = !options?.workspace?.charactersEdited && randomSettings.expertSceneRandomCharactersEnabled
                             && randomSettings.sceneRandomCharactersActive
                             ? getRandomCharacterCandidates(
                                 characterPrompts,
@@ -516,6 +518,7 @@ export const useGenerationStore = create<GenerationState>()(
                         }
 
                         const generationParams = await buildGenerationRequest({
+                            fragmentResolver: options?.workspace?.fragmentResolver,
                             positiveParts: [
                                 { value: basePrompt },
                                 { value: i2iMode === 'inpaint' ? inpaintingPrompt : '' },
@@ -525,7 +528,7 @@ export const useGenerationStore = create<GenerationState>()(
                             negativeParts: [{ value: negativePrompt }],
                             characterInputs: characterPromptsForGeneration.map(character => ({ character })),
                             characterPromptLayoutEnabled: expertCharacterPromptLayoutEnabled,
-                            characterPositionEnabled: positionEnabled,
+                            characterPositionEnabled: options?.workspace?.positionEnabled ?? positionEnabled,
                             characterImages,
                             vibeImages,
                             model,

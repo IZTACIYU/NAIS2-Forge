@@ -24,10 +24,12 @@ import {
 import i18n from '@/i18n'
 import type { SceneCard, SceneCharacterSequenceEntry } from '@/stores/scene-store'
 import type { RemoteGenerationSettings, RemoteSceneDraft } from '@/lib/remote-generation'
+import type { RemoteResolvedWorkspace } from './remote-workspace'
 
 export async function generateSceneImage(options: {
     presetId: string; scene: SceneCard; sequenceEntry?: SceneCharacterSequenceEntry | null;
     settings?: RemoteGenerationSettings; draft?: RemoteSceneDraft;
+    workspace?: RemoteResolvedWorkspace;
 }): Promise<string | undefined> {
     const { scene, presetId: activePresetId, sequenceEntry = null } = options
     const { savePath, useStreaming: streamingView } = useSettingsStore.getState()
@@ -37,8 +39,8 @@ export async function generateSceneImage(options: {
     const genState = options.settings ? { ...useGenerationStore.getState(), ...options.settings } : useGenerationStore.getState()
 
     // Get Character & Vibe Data (활성화된 이미지만 필터링)
-    const referenceState = useCharacterStore.getState()
-    const latestPromptStore = useCharacterPromptStore.getState()
+    const referenceState = options.workspace ?? useCharacterStore.getState()
+    const latestPromptStore = { ...useCharacterPromptStore.getState(), ...(options.workspace ? { characters: options.workspace.characters, positionEnabled: options.workspace.positionEnabled } : {}) }
     const latestSceneStore = useSceneStore.getState()
     const latestSettingsStore = useSettingsStore.getState()
     const sequenceMode = !!sequenceEntry
@@ -103,7 +105,7 @@ export async function generateSceneImage(options: {
         ...characterPromptIds,
         ...(sceneAddition?.mode === 'preset' ? sceneAddition.characterPromptIds : []),
     ])
-    const latestCharStore = useCharacterStore.getState()
+    const latestCharStore = referenceState
     const characterImages = latestCharStore.characterImages.filter(img => finalCharacterReferenceIds.includes(img.id) && (img.filePath || img.base64 || img.cacheKey))
     const vibeImages = latestCharStore.vibeImages.filter(img => finalVibeReferenceIds.includes(img.id) && (img.filePath || img.base64 || img.encodedVibe || img.encodedVibePath))
     const requestedVariantIndex = !options.draft && latestSettingsStore.expertSceneCharacterVariantOverrideEnabled
@@ -198,6 +200,7 @@ export async function generateSceneImage(options: {
     }
 
     const params = await buildGenerationRequest({
+        fragmentResolver: options.workspace?.fragmentResolver,
         positiveParts: [
             { value: genState.basePrompt },
             { value: genState.sourceImage && genState.mask && genState.i2iMode === 'inpaint' ? genState.inpaintingPrompt : '' },

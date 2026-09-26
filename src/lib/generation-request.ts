@@ -36,6 +36,7 @@ export interface GenerationPromptPart {
 }
 
 export interface GenerationRequestInput {
+    fragmentResolver?: (path: string, sequential: boolean) => Promise<string | null>
     positiveParts: GenerationPromptPart[]
     negativeParts: GenerationPromptPart[]
     characterInputs: GenerationCharacterInput[]
@@ -174,14 +175,14 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         mainCharacterGenders: activeMainCharacterInputs.map(({ character }) => getCharacterGender(character.prompt)),
     }
     const expandedMain = stripDeleteDirectives(
-        await processWildcards(resolveConditionalPositivePrompt(rawMainPrompt, conditionalContext)), positiveDeletes)
+        await processWildcards(resolveConditionalPositivePrompt(rawMainPrompt, conditionalContext), input.fragmentResolver), positiveDeletes)
     const expandedCharacters = await Promise.all(characterPrompts.map(async ({ rawPrompt, rawNegative, ...character }) => ({
         ...character,
-        prompt: stripDeleteDirectives(await processWildcards(resolveConditionalPositivePrompt(rawPrompt, conditionalContext)), positiveDeletes),
-        negative: stripDeleteDirectives(await processWildcards(resolveConditionalNegativePrompt(rawNegative, conditionalContext)), negativeDeletes),
+        prompt: stripDeleteDirectives(await processWildcards(resolveConditionalPositivePrompt(rawPrompt, conditionalContext), input.fragmentResolver), positiveDeletes),
+        negative: stripDeleteDirectives(await processWildcards(resolveConditionalNegativePrompt(rawNegative, conditionalContext), input.fragmentResolver), negativeDeletes),
     })))
     const expandedNegative = stripDeleteDirectives(
-        await processWildcards(resolveConditionalNegativePrompt(rawMainNegative, conditionalContext)), negativeDeletes)
+        await processWildcards(resolveConditionalNegativePrompt(rawMainNegative, conditionalContext), input.fragmentResolver), negativeDeletes)
     const prompt = appendQuotedTextPrompt(
         deletePromptTags(mergeQualityTags(
             appendTransparentBackgroundPrompt(
