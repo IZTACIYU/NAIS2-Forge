@@ -8,6 +8,10 @@ const MAX_BYTES_PER_WINDOW = 8_000_000
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
+    if (url.origin === env.WEB_ORIGIN && url.pathname === '/forge.web') {
+      if (!['GET', 'HEAD'].includes(request.method)) return new Response('Method not allowed', { status: 405 })
+      return fetch(new URL('/index.html', env.WEB_ORIGIN), { method: request.method })
+    }
     const match = ROOM_PATH.exec(url.pathname)
     const role = url.searchParams.get('role')
     if (!match || !['app', 'phone'].includes(role) || request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {

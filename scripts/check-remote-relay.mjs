@@ -21,6 +21,26 @@ assert.equal((await worker.fetch(new Request(url, { headers: { ...headers, Origi
 assert.equal((await worker.fetch(new Request(url, { headers: { Upgrade: 'websocket', Origin: 'https://ciyu.us' } }), env)).status, 403)
 assert.equal((await worker.fetch(new Request('https://relay.ciyu.us/relay/short?role=phone', { headers }), env)).status, 404)
 
+const originalFetch = globalThis.fetch
+let pageFetch = null
+globalThis.fetch = async (target, options) => {
+  pageFetch = { target: String(target), method: options.method }
+  return new Response('<html>mobile</html>', { headers: { 'Content-Type': 'text/html', 'Content-Security-Policy': "default-src 'none'" } })
+}
+try {
+  const page = await worker.fetch(new Request('https://ciyu.us/forge.web?ignored=1'), env)
+  assert.deepEqual(pageFetch, { target: 'https://ciyu.us/index.html', method: 'GET' })
+  assert.equal(page.status, 200)
+  assert.equal(page.headers.get('Location'), null)
+  assert.equal(page.headers.get('Content-Security-Policy'), "default-src 'none'")
+  await worker.fetch(new Request('https://ciyu.us/forge.web', { method: 'HEAD' }), env)
+  assert.equal(pageFetch.method, 'HEAD')
+  pageFetch = null
+  assert.equal((await worker.fetch(new Request('https://ciyu.us/forge.web', { method: 'POST' }), env)).status, 405)
+  assert.equal((await worker.fetch(new Request('https://relay.ciyu.us/forge.web'), env)).status, 404)
+  assert.equal(pageFetch, null)
+} finally { globalThis.fetch = originalFetch }
+
 const app = { readyState: 1, sent: [], closed: false, send(message) { this.sent.push(message) }, close() { this.closed = true } }
 const phone = { readyState: 1, sent: [], send(message) { this.sent.push(message) } }
 const state = {

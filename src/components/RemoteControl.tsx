@@ -14,7 +14,7 @@ import {
 } from '@/lib/remote-protocol'
 import { clearRemoteSession, loadRemoteSession, saveRemoteSession, type RemoteSession } from '@/lib/remote-pairing-storage'
 
-const WEB_URL = import.meta.env.VITE_REMOTE_WEB_URL || 'https://ciyu.us/index.html'
+const WEB_URL = import.meta.env.VITE_REMOTE_WEB_URL || 'https://ciyu.us/forge.web'
 const RELAY_URL = import.meta.env.VITE_REMOTE_RELAY_URL || 'wss://relay.ciyu.us'
 
 interface PairRequest {

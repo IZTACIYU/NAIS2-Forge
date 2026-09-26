@@ -8,6 +8,10 @@ preview_urls = false
 pattern = "relay.ciyu.us"
 custom_domain = true
 
+[[routes]]
+pattern = "ciyu.us/forge.web"
+zone_name = "ciyu.us"
+
 [vars]
 WEB_ORIGIN = "https://ciyu.us"
 

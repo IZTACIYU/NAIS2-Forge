@@ -11,10 +11,12 @@ may still process connection metadata.
    assets at the bucket root; never publish app data or pairing secrets.
 2. Deploy this Worker in the same account. `wrangler.toml` binds its custom
    domain to `relay.ciyu.us` and disables `workers.dev` and preview URLs.
-   Do not attach it to the static bucket or the image-upload Worker.
+   Only the exact static entry path `ciyu.us/forge.web` is also routed here;
+   it internally fetches the bucket's `/index.html` without a browser redirect.
+   Do not route the entire static domain or attach it to the image-upload Worker.
    The committed public endpoints are:
 
-   `VITE_REMOTE_WEB_URL=https://ciyu.us/index.html`
+   `VITE_REMOTE_WEB_URL=https://ciyu.us/forge.web`
 
    `VITE_REMOTE_RELAY_URL=wss://relay.ciyu.us`
 
@@ -24,7 +26,8 @@ may still process connection metadata.
    Override either URL with the Vite environment variables above only if the
    hostnames change, and update the mobile CSP and `WEB_ORIGIN` together.
 
-The static page, not the Worker, serves HTML. Verify HTTPS for `ciyu.us` and
+The bucket stores HTML; the Worker aliases only `/forge.web`. Existing
+`/index.html` links and `/assets/` remain available. Verify HTTPS for `ciyu.us` and
 WSS for `relay.ciyu.us` before displaying a QR in a release build. This repo
 does not contain Cloudflare account credentials or an automatic deployment.
 
