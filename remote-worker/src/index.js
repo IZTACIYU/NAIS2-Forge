@@ -46,12 +46,16 @@ export class RelayRoom {
   }
 
   webSocketMessage(socket, message) {
-    if (typeof message !== 'string' || message.length > MAX_MESSAGE_SIZE) {
+    const role = this.state.getTags(socket)[0]
+    if (role !== 'app' && role !== 'phone') { socket.close(1008, 'Invalid role'); return }
+    const maxSize = role === 'app' ? 20_000_000 : MAX_MESSAGE_SIZE
+    const maxBytes = role === 'app' ? 40_000_000 : MAX_BYTES_PER_WINDOW
+    if (typeof message !== 'string' || message.length > maxSize) {
       socket.close(1009, 'Message too large')
       return
     }
     const messageBytes = new TextEncoder().encode(message).byteLength
-    if (messageBytes > MAX_MESSAGE_SIZE) {
+    if (messageBytes > maxSize) {
       socket.close(1009, 'Message too large')
       return
     }
@@ -61,14 +65,12 @@ export class RelayRoom {
       ? previous : { startedAt: now, count: 0, bytes: 0 }
     usage.count += 1
     usage.bytes += messageBytes
-    if (usage.count > MAX_MESSAGES_PER_WINDOW || usage.bytes > MAX_BYTES_PER_WINDOW) {
+    if (usage.count > MAX_MESSAGES_PER_WINDOW || usage.bytes > maxBytes) {
       socket.close(1008, 'Message rate exceeded')
       return
     }
     this.messageUsage.set(socket, usage)
-    const role = this.state.getTags(socket)[0]
     const destination = role === 'app' ? 'phone' : 'app'
-    if (role !== 'app' && role !== 'phone') return
     for (const peer of this.state.getWebSockets(destination)) {
       if (peer.readyState === 1) peer.send(message)
     }

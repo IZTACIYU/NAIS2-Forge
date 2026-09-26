@@ -71,9 +71,9 @@ const generationStore = { getState: () => generation }
 const messages = []
 class Socket { static OPEN = 1; readyState = 1; send(value) { messages.push(JSON.parse(value)) } close() { this.readyState = 3 } }
 let source = readFileSync(new URL('../src/components/RemoteControl.tsx', import.meta.url), 'utf8')
-source = source.slice(0, source.lastIndexOf('\n    return (')) + '\n return {handleMessage, revoke, generateQr, sessionRef, socketRef, epochRef, remoteBusyRef};\n}'
+source = source.slice(0, source.lastIndexOf('\n    return (')) + '\n return {handleMessage, revoke, generateQr, sessionRef, socketRef, epochRef, remoteBusyRef, sendSession, outboundUsageRef};\n}'
 source = source.replace(/import\.meta\.env\.[A-Z_]+/g, "''")
-const { RemoteControl } = compile(source, { WebSocket: Socket,
+const { RemoteControl } = compile(source, { WebSocket: Socket, TextEncoder,
   Image: class { width = 1; height = 1; async decode() {} },
   document: { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/webp;base64,eA==' }) },
   require(name) {
@@ -111,15 +111,26 @@ await request('generate'); assert.equal((await response(3)).type, 'error'); asse
 await finishGeneration(); await drain(() => !control.remoteBusyRef.current)
 assert.equal((await response(4)).type, 'image'); assert.equal((await response(5)).type, 'complete')
 await request('generate', true); assert.equal((await response(6)).type, 'error', 'busy arrival must not become a queued generation')
+generation.i2iMode = 'inpaint'
 await request('snapshot'); assert.equal((await response(7)).snapshot.settings.basePrompt, 'base')
+assert.equal((await response(7)).snapshot.i2iMode, null, 'a remembered mode without a source is not active inpaint')
 await request('generate', false, { settings, batchCount: 3, expectedCost: 99 })
 await drain(() => !control.remoteBusyRef.current)
 assert.equal((await response(8)).reason, 'cost-changed'); assert.equal(generationCount, 1)
 await request('generate', false, { settings: { ...settings, token: 'arbitrary' }, batchCount: 1, expectedCost: 0 })
 await drain(() => !control.remoteBusyRef.current)
 assert.equal((await response(9)).type, 'error'); assert.equal(generationCount, 1)
+await request('generate', false, { settings, batchCount: 1, expectedCost: 0, originalImages: true })
+await drain(() => generationCount === 2)
+await finishGeneration(); await drain(() => !control.remoteBusyRef.current)
+assert.equal((await response(11)).preview, generation.previewImage, 'original bytes must bypass thumbnail canvas')
+assert.equal((await response(12)).type, 'complete')
+control.outboundUsageRef.current = { socket, startedAt: Date.now() - 10990, count: 16, bytes: 40_000_000 }
+await control.sendSession({ type: 'pong', requestId }, active, 0, socket)
+assert.equal(control.outboundUsageRef.current.count, 1, 'sender must reset a full relay window before another frame')
+assert.equal((await response(13)).type, 'pong')
 await control.generateQr()
 assert.equal(record, null); assert.equal(socket.readyState, 3); assert.equal(control.sessionRef.current, null)
-await request('generate'); assert.equal(generationCount, 1, 'revoked session must not generate')
-assert.equal(messages.length, 10)
+await request('generate'); assert.equal(generationCount, 2, 'revoked session must not generate')
+assert.equal(messages.length, 14)
 console.log('Remote runtime checks passed: atomic counters, late-save revocation, ping, duplicate rejection, QR invalidation.')

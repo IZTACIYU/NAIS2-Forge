@@ -16,7 +16,7 @@ import {
 } from '@/lib/remote-generation'
 import {
     createInvitation, decryptFrame, deriveKey, encryptFrame, invitationUrl,
-    pairingCode, relaySocketUrl, validateInvitation, isFreshSequence,
+    pairingCode, relaySocketUrl, validateInvitation, isFreshSequence, imageDataUrlByteLength,
     type EncryptedFrame, type PairingInvitation,
 } from '@/lib/remote-protocol'
 import { clearRemoteSession, loadRemoteSession, saveRemoteSession, updateRemoteSession, type RemoteSession } from '@/lib/remote-pairing-storage'
@@ -63,6 +63,7 @@ export function RemoteControl() {
     const outboundRef = useRef<Promise<void>>(Promise.resolve())
     const epochRef = useRef(0)
     const remoteBusyRef = useRef(false)
+    const outboundUsageRef = useRef<{ socket: WebSocket | null; startedAt: number; count: number; bytes: number }>({ socket: null, startedAt: 0, count: 0, bytes: 0 })
 
     useEffect(() => {
         let cancelled = false
@@ -113,7 +114,19 @@ export function RemoteControl() {
             sessionRef.current = next
             setSession(next)
             const frame = await encryptFrame(active.outboundKey, active.room, 'app-to-phone', next.nextOutboundSeq - 1, message)
-            if (isCurrent()) socket.send(JSON.stringify({ kind: 'data', frame }))
+            const packet = JSON.stringify({ kind: 'data', frame })
+            const size = new TextEncoder().encode(packet).byteLength
+            let usage = outboundUsageRef.current
+            if (usage.socket !== socket || Date.now() - usage.startedAt >= 11_000) usage = { socket, startedAt: Date.now(), count: 0, bytes: 0 }
+            // Match relay budgets so large originals in a batch do not close the connection.
+            if (usage.count >= 16 || usage.bytes + size > 40_000_000) {
+                await new Promise(resolve => setTimeout(resolve, Math.max(0, usage.startedAt + 11_000 - Date.now())))
+                usage = { socket, startedAt: Date.now(), count: 0, bytes: 0 }
+            }
+            if (isCurrent()) {
+                outboundUsageRef.current = { socket, startedAt: usage.startedAt, count: usage.count + 1, bytes: usage.bytes + size }
+                socket.send(packet)
+            }
         })
         outboundRef.current = send.catch(() => {})
         return send
@@ -145,7 +158,7 @@ export function RemoteControl() {
         }
         if (packet.kind !== 'data' || !packet.frame || !active) return
         if (Date.now() >= active.expiresAt || !isFreshSequence(active.lastInboundSeq, packet.frame.seq)) return
-        let body: { type?: string; requestId?: string; settings?: unknown; batchCount?: unknown; expectedCost?: unknown }
+        let body: { type?: string; requestId?: string; settings?: unknown; batchCount?: unknown; expectedCost?: unknown; originalImages?: unknown }
         try {
             body = await decryptFrame(active.inboundKey, active.room, 'phone-to-app', packet.frame)
         } catch { return }
@@ -171,7 +184,7 @@ export function RemoteControl() {
                     resolutions: [...RESOLUTION_PRESETS.map(preset => ({ label: t(`resolutions.${preset.key}`), width: preset.width, height: preset.height })),
                         ...useSettingsStore.getState().customResolutions.map(({ label, width, height }) => ({ label, width, height }))],
                     batchCount: Math.min(REMOTE_MAX_BATCH, Math.max(1, state.batchCount)), maxBatch: REMOTE_MAX_BATCH,
-                    i2iMode: state.i2iMode,
+                    i2iMode: state.sourceImage ? (state.i2iMode === 'inpaint' && state.mask ? 'inpaint' : 'i2i') : null,
                 } })
             } catch { await respond({ type: 'error', requestId: body.requestId, reason: 'snapshot-failed' }) }
             return
@@ -184,6 +197,7 @@ export function RemoteControl() {
         void (async () => {
             try {
                 const settings = body.settings === undefined ? undefined : validateRemoteSettings(body.settings)
+                if (body.originalImages !== undefined && typeof body.originalImages !== 'boolean') throw new Error('Invalid original image option')
                 const batchCount = body.batchCount === undefined ? 1 : validateRemoteBatch(body.batchCount)
                 const cost = remoteGenerationCost(settings ?? pickRemoteSettings(useGenerationStore.getState()), batchCount, await costContext())
                 if (settings && (body.expectedCost !== null && (typeof body.expectedCost !== 'number' || !Number.isFinite(body.expectedCost) || body.expectedCost < 0) ||
@@ -200,12 +214,19 @@ export function RemoteControl() {
                 }
                 let completed = 0
                 let legacyPreview: string | undefined
+                let imageTooLarge = false
                 const work = generation.generate({ batchCount, settings, shouldContinue: isCurrent, onImage: async (image, index) => {
-                    completed = index
                     if (isCurrent()) {
-                        const preview = await makePreview(image)
+                        if (body.originalImages) {
+                            try { imageDataUrlByteLength(image) } catch {
+                                imageTooLarge = true
+                                throw new Error('Image too large')
+                            }
+                        }
+                        const preview = body.originalImages ? image : await makePreview(image)
                         if (!settings) legacyPreview = preview // Already-open prototype tabs expect the old complete.preview field.
                         await respond({ type: 'image', requestId: body.requestId, index, total: batchCount, preview })
+                        completed = index
                     }
                 } })
                 // generate() claims the PC owner synchronously; this acknowledges validated request settings.
@@ -213,7 +234,7 @@ export function RemoteControl() {
                 await work
                 if (!isCurrent()) return
                 await respond({ type: completed === batchCount ? 'complete' : 'error', requestId: body.requestId,
-                    completed, total: batchCount, preview: legacyPreview, reason: completed === batchCount ? undefined : 'generation-failed' })
+                    completed, total: batchCount, preview: legacyPreview, reason: imageTooLarge ? 'image-too-large' : completed === batchCount ? undefined : 'generation-failed' })
             } catch {
                 await respond({ type: 'error', requestId: body.requestId, reason: 'generation-failed' }).catch(() => {})
             } finally { remoteBusyRef.current = false }

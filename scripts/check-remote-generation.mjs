@@ -76,4 +76,9 @@ const context = { entitlement: { unlimitedImageGeneration: true }, characterRefe
 assert.equal(remoteGenerationCost(original, 3, context), 0)
 assert.ok(remoteGenerationCost(remote, 3, context) > 0)
 assert.equal(events.length, 5)
+requests = []
+Object.assign(state, { sourceImage: null, mask: null, i2iMode: 'inpaint', inpaintingPrompt: 'inactive inpaint' })
+await store.getState().generate({ batchCount: 1 })
+assert.ok(!requests[0].positiveParts.some(part => part.value === 'inactive inpaint'))
+assert.equal(state.i2iMode, 'inpaint', 'inactive mode detection must not reset persisted settings')
 console.log('Remote generation checks passed: request-local settings/seed, per-image batch delivery, unchanged PC serialization, local generation, revoke, allowlist and costs.')

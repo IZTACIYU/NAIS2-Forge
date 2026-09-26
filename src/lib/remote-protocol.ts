@@ -1,6 +1,18 @@
 export const QR_LIFETIME_MS = 5 * 60 * 1000
 export const MAX_ACCESS_HOURS = 72
 export const MAX_CLOCK_SKEW_MS = 60 * 1000
+export const MAX_IMAGE_BYTES = 10_000_000
+export const MAX_IMAGE_FRAME_SIZE = 20_000_000
+
+export function imageDataUrlByteLength(value: string): number {
+    const prefix = /^data:image\/(png|webp);base64,/.exec(value)
+    if (!prefix || value.length > 4 * Math.ceil(MAX_IMAGE_BYTES / 3) + prefix[0].length) throw new Error('Image too large or invalid')
+    const data = value.slice(prefix[0].length)
+    if (!data.length || data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) throw new Error('Invalid image encoding')
+    const size = data.length / 4 * 3 - (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0)
+    if (size > MAX_IMAGE_BYTES) throw new Error('Image too large')
+    return size
+}
 
 export interface PairingInvitation {
     v: 1
@@ -29,9 +41,11 @@ function bytes(buffer: Uint8Array): ArrayBuffer {
 }
 
 export function toBase64Url(value: Uint8Array): string {
-    let binary = ''
-    for (const byte of value) binary += String.fromCharCode(byte)
-    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    let encoded = ''
+    for (let offset = 0; offset < value.length; offset += 32766) {
+        encoded += btoa(String.fromCharCode(...value.subarray(offset, offset + 32766)))
+    }
+    return encoded.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
 export function fromBase64Url(value: string): Uint8Array {
@@ -138,7 +152,7 @@ export async function encryptFrame(key: CryptoKey, room: string, direction: Dire
 export async function decryptFrame<T>(key: CryptoKey, room: string, direction: Direction, frame: EncryptedFrame): Promise<T> {
     if (frame?.v !== 1 || !Number.isSafeInteger(frame.seq) || frame.seq < 1 ||
         typeof frame.iv !== 'string' || fromBase64Url(frame.iv).length !== 12 ||
-        typeof frame.ciphertext !== 'string' || frame.ciphertext.length > 3_000_000) {
+        typeof frame.ciphertext !== 'string' || frame.ciphertext.length > (direction === 'app-to-phone' ? MAX_IMAGE_FRAME_SIZE : 3_000_000)) {
         throw new Error('Invalid encrypted frame')
     }
     const plaintext = await crypto.subtle.decrypt({

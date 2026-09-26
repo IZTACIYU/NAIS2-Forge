@@ -378,8 +378,9 @@ export const useGenerationStore = create<GenerationState>()(
                     basePrompt, additionalPrompt, detailPrompt, negativePrompt, inpaintingPrompt,
                     model, steps, cfgScale, cfgRescale, sampler, scheduler, smea, smeaDyn, variety,
                     selectedResolution, batchCount: savedBatchCount, lastGenerationTime,
-                    sourceImage, strength, noise, mask, i2iMode
+                    sourceImage, strength, noise, mask, i2iMode: savedI2IMode
                 } = requestState
+                const i2iMode = sourceImage ? (savedI2IMode === 'inpaint' && mask ? 'inpaint' : 'i2i') : null
                 const batchCount = options?.batchCount ?? savedBatchCount
 
                 const token = useAuthStore.getState().token

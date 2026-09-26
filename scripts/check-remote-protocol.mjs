@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import {
   createInvitation, validateInvitation, invitationFromHash, invitationUrl,
-  randomDeviceId, deriveKey, encryptFrame, decryptFrame, isFreshSequence,
+  randomDeviceId, deriveKey, encryptFrame, decryptFrame, isFreshSequence, imageDataUrlByteLength, MAX_IMAGE_BYTES, MAX_IMAGE_FRAME_SIZE, toBase64Url, fromBase64Url,
 } from '../src/lib/remote-protocol.ts'
 
 const now = Date.now()
@@ -32,4 +32,17 @@ assert.equal(isFreshSequence(0, 1), true)
 assert.equal(isFreshSequence(1, 1), false)
 assert.equal(isFreshSequence(2, 1), false)
 
-console.log('Remote QR expiry, field consistency, authenticated encryption, direction binding and replay sequence checks passed.')
+const original = Buffer.alloc(MAX_IMAGE_BYTES, 137)
+const image = `data:image/png;base64,${original.toString('base64')}`
+assert.equal(imageDataUrlByteLength(image), MAX_IMAGE_BYTES)
+assert.throws(() => imageDataUrlByteLength(`data:image/png;base64,${Buffer.alloc(MAX_IMAGE_BYTES + 1).toString('base64')}`))
+assert.throws(() => imageDataUrlByteLength('data:image/png;base64,@@=='))
+for (const size of [1, 2, 3, 32765, 32766, 32767, 100000]) {
+  const value = Uint8Array.from({ length: size }, (_, i) => i % 256)
+  assert.deepEqual(fromBase64Url(toBase64Url(value)), value)
+}
+const imageFrame = await encryptFrame(wrongDirection, invitation.room, 'app-to-phone', 3, { preview: image })
+assert.ok(JSON.stringify({ kind: 'data', frame: imageFrame }).length < MAX_IMAGE_FRAME_SIZE)
+assert.equal((await decryptFrame(wrongDirection, invitation.room, 'app-to-phone', imageFrame)).preview, image)
+await assert.rejects(decryptFrame(wrongDirection, invitation.room, 'phone-to-app', imageFrame), /Invalid encrypted frame/)
+console.log('Remote protocol checks passed, including exact 10 MB original image roundtrip and unchanged command size limits.')

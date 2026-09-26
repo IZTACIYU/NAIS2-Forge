@@ -40,3 +40,10 @@ replace them can see a QR secret as the phone opens the link. The Worker does
 not authenticate room creation, so configure Cloudflare abuse/rate limits
 before opening the relay to other users. A matching confirmation code on both
 devices is required before approving a phone.
+
+Image transfer accepts original PNG/WebP files up to 10,000,000 bytes. Base64
+and AES-GCM wrapping require a larger app-to-phone frame budget (20 MB/frame,
+40 MB/10 seconds). Phone command limits remain 2 MB/frame and 8 MB/10 seconds;
+both roles remain capped at 16 messages/10 seconds. The desktop sender paces
+large batches against these budgets. The relay still cannot read or verify
+image contents; image byte limits are checked at the encrypted endpoints.
