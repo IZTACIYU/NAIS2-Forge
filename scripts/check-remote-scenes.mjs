@@ -50,12 +50,17 @@ const dependencies = name => {
 const core = compile('../src/services/scene-generation.ts', dependencies)
 const owner = compile('../src/services/remote-scene-queue.ts', name => name === './scene-generation' ? core : dependencies(name))
 const draft = { presetId: 'p', sceneId: 'a', scenePrompt: 'WEB A', sceneNegativePrompt: 'WEB negative', characterPromptIds: ['extra'],
+  multiCharacterSlots: [{ id: 'slot', target: 'manual', characterId: 'extra', prompt: 'scene extra', negativePrompt: 'scene extra negative', position: { x: .3, y: .7 } }],
   npcs: [{ id: 'npc', name: 'NPC', prompt: 'npc prompt', negative: 'npc negative', enabled: true }], count: 2 }
 const remoteSettings = { ...gen, basePrompt: 'WEB base', steps: 28 }
 const baseline = JSON.stringify({ scenes, characters, settings, basePrompt: gen.basePrompt, activePresetId: state.activePresetId, sessionId: state.generationSessionId })
 assert.equal(validateRemoteSceneQueue([draft])[0].scenePrompt, 'WEB A')
 for (const invalid of [[], [{ ...draft, folderPath: '/evil' }], [{ ...draft, count: 101 }], [draft, draft], [{ ...draft, characterPromptIds: ['extra', 'extra'] }],
   [{ ...draft, npcs: [{ ...draft.npcs[0], filePath: '/evil' }] }], [{ ...draft, npcs: [{ ...draft.npcs[0], enabled: 'yes' }] }]]) assert.throws(() => validateRemoteSceneQueue(invalid))
+for (const update of [{ filePath: '/evil' }, { target: 'exec' }, { gender: 'invalid' }, { position: { x: -1, y: 0 } }, { position: { x: .5, y: NaN } }]) {
+  assert.throws(() => validateRemoteSceneQueue([{ ...draft, multiCharacterSlots: [{ ...draft.multiCharacterSlots[0], ...update }] }]))
+}
+assert.throws(() => owner.resolveRemoteScene({ ...draft, multiCharacterSlots: [{ ...draft.multiCharacterSlots[0], characterId: 'missing' }] }, gen.model))
 assert.throws(() => owner.resolveRemoteScene({ ...draft, sceneId: 'missing' }, gen.model))
 assert.throws(() => owner.resolveRemoteScene({ ...draft, characterPromptIds: ['missing'] }, gen.model))
 assert.throws(() => owner.resolveRemoteScene({ ...draft, npcs: Array.from({ length: 32 }, (_, id) => ({ ...draft.npcs[0], id: String(id) })) }, gen.model))
@@ -73,6 +78,9 @@ assert.deepEqual(requests[0].positiveParts.map(part => part.value), ['WEB base',
 assert.deepEqual(requests[0].negativeParts.map(part => part.value), ['PC neg', 'WEB negative'])
 assert.deepEqual(requests[0].characterInputs.map(input => input.character.id), ['main', 'extra', 'scene-custom:a:npc'])
 assert.deepEqual(requests[0].mainCharacterInputs.map(input => input.character.id), ['main'])
+assert.deepEqual(requests[0].characterInputs[1].appendedPrompts, ['scene extra'])
+assert.deepEqual(requests[0].characterInputs[1].appendedNegativePrompts, ['scene extra negative'])
+assert.deepEqual(requests[0].characterInputs[1].position, { x: .3, y: .7 })
 assert.equal(requests[0].width, 832); assert.equal(requests[2].width, 1216); assert.equal(saved.length, 3)
 let current = true
 assert.equal(await owner.runRemoteSceneQueue({ settings: remoteSettings, queue: [draft], shouldContinue: () => current, onImage: async () => { current = false } }), 1)

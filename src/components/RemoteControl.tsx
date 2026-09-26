@@ -17,7 +17,7 @@ import { useCharacterStore } from '@/stores/character-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import {
     pickRemoteSettings, validateRemoteSettings, validateRemoteBatch, remoteGenerationCost, remoteModelOptions,
-    REMOTE_SAMPLERS, REMOTE_SCHEDULERS, REMOTE_MAX_BATCH, validateRemoteSceneQueue, type RemoteScenePage, type RemoteCostContext,
+    REMOTE_SAMPLERS, REMOTE_SCHEDULERS, REMOTE_MAX_BATCH, validateRemoteSceneQueue, type RemoteScenePage, type RemoteSceneImagesPage, type RemoteCostContext,
 } from '@/lib/remote-generation'
 import {
     createInvitation, decryptFrame, deriveKey, encryptFrame, invitationUrl,
@@ -164,11 +164,11 @@ export function RemoteControl() {
         }
         if (packet.kind !== 'data' || !packet.frame || !active) return
         if (Date.now() >= active.expiresAt || !isFreshSequence(active.lastInboundSeq, packet.frame.seq)) return
-        let body: { type?: string; requestId?: string; settings?: unknown; batchCount?: unknown; expectedCost?: unknown; originalImages?: unknown; queue?: unknown; presetId?: unknown; page?: unknown }
+        let body: { type?: string; requestId?: string; settings?: unknown; batchCount?: unknown; expectedCost?: unknown; originalImages?: unknown; queue?: unknown; presetId?: unknown; sceneId?: unknown; page?: unknown }
         try {
             body = await decryptFrame(active.inboundKey, active.room, 'phone-to-app', packet.frame)
         } catch { return }
-        if (!['generate', 'scene-generate', 'scene-list', 'ping', 'snapshot'].includes(body.type ?? '') || typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(body.requestId)) return
+        if (!['generate', 'scene-generate', 'scene-list', 'scene-images', 'ping', 'snapshot'].includes(body.type ?? '') || typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(body.requestId)) return
         const isCurrent = () => contextIsCurrent(active, epoch, socket)
         const next = await updateRemoteSession(active, current => isFreshSequence(current.lastInboundSeq, packet.frame!.seq)
             ? { ...current, lastInboundSeq: packet.frame!.seq } : undefined, isCurrent)
@@ -207,7 +207,7 @@ export function RemoteControl() {
                 const context = await costContext()
                 const result: RemoteScenePage = {
                     presets: state.presets.map(({ id, name }) => ({ id, name })), presetId: preset.id, page, totalPages,
-                    characters: useCharacterPromptStore.getState().characters.map(character => ({ id: character.id, name: character.name || character.id })),
+                    characters: useCharacterPromptStore.getState().characters.map(character => ({ id: character.id, name: character.name || character.id, enabled: character.enabled })),
                     scenes: [],
                 }
                 for (const scene of preset.scenes.slice(page * 12, page * 12 + 12)) {
@@ -219,12 +219,30 @@ export function RemoteControl() {
                         catch { /* A missing thumbnail never removes the PC scene or image. */ }
                     }
                     const draft = { presetId: preset.id, sceneId: scene.id, scenePrompt: scene.scenePrompt, sceneNegativePrompt: scene.sceneNegativePrompt || '',
-                        characterPromptIds: addition?.characterPromptIds || [], npcs: addition?.customCharacters || [], count: 0 }
+                        characterPromptIds: addition?.characterPromptIds || [], npcs: addition?.customCharacters || [], multiCharacterSlots: scene.multiCharacterSlots || [], count: 0 }
                     result.scenes.push({ ...structuredClone(draft), name: scene.name, width: scene.width || 832, height: scene.height || 1216, thumbnail,
                         costContext: remoteSceneCostContext(draft, context) })
                 }
                 await respond({ type: 'scene-list', requestId: body.requestId, scenePage: result })
             } catch { await respond({ type: 'error', requestId: body.requestId, reason: 'scene-list-failed' }) }
+            return
+        }
+        if (body.type === 'scene-images') {
+            try {
+                if (typeof body.presetId !== 'string' || body.presetId.length > 100 || typeof body.sceneId !== 'string' || body.sceneId.length > 100) throw new Error('Invalid scene')
+                const scene = useSceneStore.getState().getScene(body.presetId, body.sceneId)
+                if (!scene) throw new Error('Missing scene')
+                const page = body.page ?? 0, totalPages = Math.max(1, Math.ceil(scene.images.length / 12))
+                if (typeof page !== 'number' || !Number.isInteger(page) || page < 0 || page >= totalPages) throw new Error('Invalid page')
+                const result: RemoteSceneImagesPage = { presetId: body.presetId, sceneId: body.sceneId, page, totalPages, totalImages: scene.images.length, images: [] }
+                for (const image of scene.images.slice(page * 12, page * 12 + 12)) {
+                    let thumbnail: string | undefined
+                    try { thumbnail = await makePreview(image.url.startsWith('data:') ? image.url : convertFileSrc(image.url)); if (thumbnail.length > 160_000) thumbnail = undefined }
+                    catch { /* Broken previews remain visible as missing images; source files are never removed. */ }
+                    result.images.push({ id: image.id, thumbnail, isFavorite: image.isFavorite })
+                }
+                await respond({ type: 'scene-images', requestId: body.requestId, sceneImages: result })
+            } catch { await respond({ type: 'error', requestId: body.requestId, reason: 'scene-images-failed' }) }
             return
         }
         if (busyAtArrival || isBusy() || !useAuthStore.getState().isVerified) {

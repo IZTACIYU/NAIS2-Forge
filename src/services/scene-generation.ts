@@ -130,18 +130,19 @@ export async function generateSceneImage(options: {
             ? createSceneCustomCharacters(scene.id, sceneAddition?.customCharacters)
             : []),
     ].slice(0, maxCharacterPrompts)
+    const slots = options.draft?.multiCharacterSlots ?? (latestSettingsStore.expertSceneMultiCharacterEnabled ? scene.multiCharacterSlots : undefined)
     const multiCharacterPromptMap = getSceneMultiCharacterPromptMap(
-        latestSettingsStore.expertSceneMultiCharacterEnabled ? scene.multiCharacterSlots : undefined,
+        slots,
         characterPrompts,
         latestPromptStore.characters,
     )
     const multiCharacterNegativePromptMap = getSceneMultiCharacterNegativePromptMap(
-        latestSettingsStore.expertSceneMultiCharacterEnabled ? scene.multiCharacterSlots : undefined,
+        slots,
         characterPrompts,
         latestPromptStore.characters,
     )
     const multiCharacterPositionMap = getSceneMultiCharacterPositionMap(
-        latestSettingsStore.expertSceneMultiCharacterEnabled ? scene.multiCharacterSlots : undefined,
+        slots,
         characterPrompts,
         latestPromptStore.characters,
     )

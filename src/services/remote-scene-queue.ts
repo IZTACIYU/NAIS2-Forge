@@ -29,9 +29,10 @@ export function resolveRemoteScene(draft: RemoteSceneDraft, model: string) {
     const scene = useSceneStore.getState().getScene(draft.presetId, draft.sceneId)
     const characters = useCharacterPromptStore.getState().characters
     if (!scene || draft.characterPromptIds.some(id => !characters.some(character => character.id === id))) throw new Error('Scene or character no longer exists')
+    if (draft.multiCharacterSlots?.some(slot => slot.target === 'manual' && slot.characterId && !characters.some(character => character.id === slot.characterId))) throw new Error('Slot character no longer exists')
     const selected = selectSceneCharacters(characters, [...characters.filter(character => character.enabled).map(character => character.id), ...draft.characterPromptIds])
     if (selected.length + draft.npcs.filter(npc => npc.enabled !== false && (npc.prompt.trim() || npc.negative.trim())).length > getModelCapabilities(model).maxCharacterPrompts) throw new Error('Too many scene characters')
-    return { ...scene, scenePrompt: draft.scenePrompt, sceneNegativePrompt: draft.sceneNegativePrompt }
+    return { ...scene, scenePrompt: draft.scenePrompt, sceneNegativePrompt: draft.sceneNegativePrompt, multiCharacterSlots: draft.multiCharacterSlots ?? scene.multiCharacterSlots }
 }
 
 export async function runRemoteSceneQueue(options: {

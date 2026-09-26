@@ -66,8 +66,8 @@ const settings = { basePrompt: 'base', additionalPrompt: '', detailPrompt: '', n
   seed: 123, seedLocked: true, selectedResolution: { label: 'Portrait', width: 832, height: 1216 }, strength: .5, noise: 0 }
 let generationCount = 0, finishGeneration
 let finishSceneGeneration, sceneGenerationCount = 0
-const scene = { id: 'scene', name: 'Scene', scenePrompt: 'PC scene', width: 832, height: 1216, folderPath: '/private/path', images: [] }
-const sceneState = { isGenerating: false, activePresetId: 'preset', presets: [{ id: 'preset', name: 'Preset', scenes: [scene] }], sceneCharacterAdditions: {} }
+const scene = { id: 'scene', name: 'Scene', scenePrompt: 'PC scene', width: 832, height: 1216, folderPath: '/private/path', images: [{ id: 'image', url: 'data:image/png;base64,eA==', isFavorite: true }] }
+const sceneState = { isGenerating: false, activePresetId: 'preset', presets: [{ id: 'preset', name: 'Preset', scenes: [scene] }], sceneCharacterAdditions: {}, getScene(presetId, sceneId) { return presetId === 'preset' && sceneId === 'scene' ? scene : undefined } }
 const generation = { ...settings, batchCount: 1, isGenerating: false, generatingMode: null, previewImage: 'data:image/png;base64,eA==',
   generate: options => { generationCount++; return new Promise(resolve => { finishGeneration = async () => { await options.onImage(generation.previewImage, 1); resolve() } }) } }
 const generationStore = { getState: () => generation }
@@ -155,8 +155,13 @@ await request('scene-generate', false, { settings, queue: [sceneDraft], expected
 await finishSceneGeneration(); await drain(() => !control.remoteBusyRef.current)
 assert.equal((await response(20)).sceneId, 'scene'); assert.equal((await response(20)).presetId, 'preset'); assert.equal((await response(21)).type, 'complete')
 assert.equal(scene.scenePrompt, 'PC scene'); assert.equal(sceneState.activePresetId, 'preset')
+await request('scene-images', false, { presetId: 'preset', sceneId: 'scene', page: 0 })
+const gallery = (await response(22)).sceneImages
+assert.equal(gallery.images.length, 1); assert.equal(gallery.images[0].isFavorite, true); assert.equal(gallery.totalImages, 1)
+assert.ok(gallery.images[0].thumbnail.startsWith('data:image/webp')); assert.ok(!JSON.stringify(gallery).includes('url'))
+await request('scene-images', false, { presetId: 'preset', sceneId: 'missing' }); assert.equal((await response(23)).reason, 'scene-images-failed')
 await control.generateQr()
 assert.equal(record, null); assert.equal(socket.readyState, 3); assert.equal(control.sessionRef.current, null)
 await request('generate'); assert.equal(generationCount, 2, 'revoked session must not generate')
-assert.equal(messages.length, 22)
+assert.equal(messages.length, 24)
 console.log('Remote runtime checks passed: atomic counters, late-save revocation, ping, duplicate rejection, QR invalidation.')

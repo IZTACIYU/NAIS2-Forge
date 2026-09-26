@@ -11,10 +11,19 @@ export interface RemoteNpc {
 export interface RemoteSceneDraft {
     presetId: string; sceneId: string; scenePrompt: string; sceneNegativePrompt: string;
     characterPromptIds: string[]; npcs: RemoteNpc[]; count: number;
+    multiCharacterSlots?: RemoteSceneSlot[];
+}
+export interface RemoteSceneSlot {
+    id: string; target: 'manual' | 'gender'; characterId?: string; gender?: 'male' | 'female' | 'unknown';
+    prompt: string; negativePrompt?: string; enabled?: boolean; position?: { x: number; y: number };
+}
+export interface RemoteSceneImagesPage {
+    presetId: string; sceneId: string; page: number; totalPages: number; totalImages: number;
+    images: { id: string; thumbnail?: string; isFavorite: boolean }[];
 }
 export interface RemoteScenePage {
     presets: { id: string; name: string }[]; presetId: string; page: number; totalPages: number;
-    characters: { id: string; name: string }[];
+    characters: { id: string; name: string; enabled?: boolean }[];
     scenes: (RemoteSceneDraft & { name: string; width: number; height: number; thumbnail?: string; costContext: RemoteCostContext })[];
 }
 
@@ -23,7 +32,7 @@ export function validateRemoteSceneQueue(value: unknown): RemoteSceneDraft[] {
     const text = (value: unknown, max: number) => typeof value === 'string' && value.length <= max
     const ids = new Set<string>()
     const result = value.map(item => {
-        if (!item || typeof item !== 'object' || Object.keys(item).some(key => !['presetId', 'sceneId', 'scenePrompt', 'sceneNegativePrompt', 'characterPromptIds', 'npcs', 'count'].includes(key)) ||
+        if (!item || typeof item !== 'object' || Object.keys(item).some(key => !['presetId', 'sceneId', 'scenePrompt', 'sceneNegativePrompt', 'characterPromptIds', 'npcs', 'count', 'multiCharacterSlots'].includes(key)) ||
             !text(item.presetId, 100) || !item.presetId || !text(item.sceneId, 100) || !item.sceneId ||
             !text(item.scenePrompt, 100_000) || !text(item.sceneNegativePrompt, 100_000) ||
             !Array.isArray(item.characterPromptIds) || item.characterPromptIds.length > 32 || !item.characterPromptIds.every((id: unknown) => text(id, 100)) ||
@@ -31,6 +40,21 @@ export function validateRemoteSceneQueue(value: unknown): RemoteSceneDraft[] {
         const identity = JSON.stringify([item.presetId, item.sceneId])
         if (ids.has(identity)) throw new Error('Duplicate scene')
         ids.add(identity)
+        if (item.multiCharacterSlots !== undefined) {
+            if (!Array.isArray(item.multiCharacterSlots) || item.multiCharacterSlots.length > 64) throw new Error('Invalid multi-character slots')
+            const slotIds = new Set<string>()
+            for (const slot of item.multiCharacterSlots) {
+                if (!slot || typeof slot !== 'object' || Object.keys(slot).some(key => !['id', 'target', 'characterId', 'gender', 'prompt', 'negativePrompt', 'enabled', 'position'].includes(key)) ||
+                    !text(slot.id, 100) || !slot.id || slotIds.has(slot.id) || !['manual', 'gender'].includes(slot.target) ||
+                    slot.characterId !== undefined && (!text(slot.characterId, 100) || !slot.characterId) ||
+                    slot.gender !== undefined && !['male', 'female', 'unknown'].includes(slot.gender) ||
+                    !text(slot.prompt, 100_000) || slot.negativePrompt !== undefined && !text(slot.negativePrompt, 100_000) ||
+                    slot.enabled !== undefined && typeof slot.enabled !== 'boolean') throw new Error('Invalid slot')
+                if (slot.position !== undefined && (!slot.position || typeof slot.position !== 'object' || Object.keys(slot.position).some(key => !['x', 'y'].includes(key)) ||
+                    ![slot.position.x, slot.position.y].every(number => typeof number === 'number' && Number.isFinite(number) && number >= 0 && number <= 1))) throw new Error('Invalid position')
+                slotIds.add(slot.id)
+            }
+        }
         const npcIds = new Set<string>()
         for (const npc of item.npcs) {
             if (!npc || typeof npc !== 'object' || Object.keys(npc).some(key => !['id', 'name', 'prompt', 'negative', 'enabled', 'promptEnabled', 'negativeEnabled', 'costumeEnabled'].includes(key)) ||
