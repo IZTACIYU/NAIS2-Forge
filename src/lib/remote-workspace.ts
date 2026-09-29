@@ -2,6 +2,7 @@ export type RemoteAssetKind = 'characters' | 'references' | 'fragments'
 export interface RemoteAsset {
     kind: RemoteAssetKind; id: string; revision?: string; name: string; enabled: boolean;
     prompt?: string; negative?: string; position?: { x: number; y: number };
+    promptEnabled?: boolean; negativeEnabled?: boolean; costumeEnabled?: boolean;
     mode?: 'character' | 'vibe'; referenceType?: 'character' | 'style' | 'character&style';
     strength?: number; fidelity?: number; informationExtracted?: number; image?: string;
     folder?: string; content?: string[];
@@ -24,12 +25,13 @@ export function validateRemoteAssets(value: unknown): RemoteAsset[] {
         if (!item || typeof item !== 'object' || !['characters', 'references', 'fragments'].includes(item.kind) ||
             !text(item.id, 100) || !item.id || !text(item.name, 200) || typeof item.enabled !== 'boolean' ||
             item.revision !== undefined && (typeof item.revision !== 'string' || !/^[a-f0-9]{64}$/.test(item.revision))) throw new Error('Invalid asset')
-        const allowed = ['kind', 'id', 'revision', 'name', 'enabled', ...(item.kind === 'characters' ? ['prompt', 'negative', 'position'] : item.kind === 'references' ? ['mode', 'referenceType', 'strength', 'fidelity', 'informationExtracted', 'image'] : ['folder', 'content'])]
+        const allowed = ['kind', 'id', 'revision', 'name', 'enabled', ...(item.kind === 'characters' ? ['prompt', 'negative', 'position', 'promptEnabled', 'negativeEnabled', 'costumeEnabled'] : item.kind === 'references' ? ['mode', 'referenceType', 'strength', 'fidelity', 'informationExtracted', 'image'] : ['folder', 'content'])]
         if (Object.keys(item).some(key => !allowed.includes(key)) || ids.has(`${item.kind}:${item.id}`)) throw new Error('Invalid asset fields')
         ids.add(`${item.kind}:${item.id}`)
         if (!item.revision && !item.id.startsWith('web-')) throw new Error('Invalid new asset')
         if (item.kind === 'characters' && (!text(item.prompt, 100_000) || !text(item.negative, 100_000) || !item.position ||
-            Object.keys(item.position).some(key => !['x', 'y'].includes(key)) || ![item.position.x, item.position.y].every(number => typeof number === 'number' && Number.isFinite(number) && number >= 0 && number <= 1))) throw new Error('Invalid character')
+            Object.keys(item.position).some(key => !['x', 'y'].includes(key)) || ![item.position.x, item.position.y].every(number => typeof number === 'number' && Number.isFinite(number) && number >= 0 && number <= 1) ||
+            ['promptEnabled', 'negativeEnabled', 'costumeEnabled'].some(key => item[key] !== undefined && typeof item[key] !== 'boolean'))) throw new Error('Invalid character')
         if (item.kind === 'references' && (!['character', 'vibe'].includes(item.mode) || !['character', 'style', 'character&style'].includes(item.referenceType) ||
             ![item.strength, item.fidelity, item.informationExtracted].every(number => typeof number === 'number' && Number.isFinite(number) && number >= 0 && number <= 1) ||
             item.image !== undefined && (!text(item.image, 1_000_000) || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(item.image)) || !item.revision && !item.image)) throw new Error('Invalid reference')

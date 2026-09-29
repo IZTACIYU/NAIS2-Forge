@@ -213,7 +213,7 @@ export function RemoteControl() {
                 const context = await costContext()
                 const result: RemoteScenePage = {
                     presets: state.presets.map(({ id, name }) => ({ id, name })), presetId: preset.id, page, totalPages,
-                    characters: useCharacterPromptStore.getState().characters.map(character => ({ id: character.id, name: character.name || character.id, enabled: character.enabled })),
+                    characters: useCharacterPromptStore.getState().characters.map(character => ({ id: character.id, name: character.name || '', enabled: character.enabled })),
                     scenes: [],
                 }
                 for (const scene of preset.scenes.slice(page * 12, page * 12 + 12)) {

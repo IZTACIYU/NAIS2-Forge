@@ -22,7 +22,8 @@ export async function readRemoteAsset(kind: RemoteAssetKind, id: string): Promis
     if (kind === 'characters') {
         const item = useCharacterPromptStore.getState().characters.find(item => item.id === id)
         if (!item) throw new Error('Missing character')
-        asset = { kind, id, name: item.name || '', enabled: item.enabled, prompt: item.prompt, negative: item.negative, position: { ...item.position } }
+        asset = { kind, id, name: item.name || '', enabled: item.enabled, prompt: item.prompt, negative: item.negative, position: { ...item.position },
+            ...(item.promptEnabled !== undefined && { promptEnabled: item.promptEnabled }), ...(item.negativeEnabled !== undefined && { negativeEnabled: item.negativeEnabled }), ...(item.costumeEnabled !== undefined && { costumeEnabled: item.costumeEnabled }) }
     } else if (kind === 'references') {
         const state = useCharacterStore.getState(), item = [...state.characterImages, ...state.vibeImages].find(item => item.id === id)
         if (!item) throw new Error('Missing reference')
@@ -41,7 +42,7 @@ export async function remoteAssetPage(kind: unknown, page: unknown, id?: unknown
     const source = kind === 'characters' ? characters.characters : kind === 'references' ? [...refs.characterImages, ...refs.vibeImages] : fragments.files
     const totalPages = Math.max(1, Math.ceil(source.length / 12))
     if (page >= totalPages) throw new Error('Invalid page')
-    return { kind: kind as RemoteAssetKind, page, totalPages, items: source.slice(page * 12, page * 12 + 12).map(item => ({ id: item.id, name: item.name || item.id,
+    return { kind: kind as RemoteAssetKind, page, totalPages, items: source.slice(page * 12, page * 12 + 12).map(item => ({ id: item.id, name: item.name || (kind === 'characters' ? '' : item.id),
         enabled: 'enabled' in item ? item.enabled : true, thumbnail: 'thumbnail' in item && item.thumbnail && item.thumbnail.length < 80_000 ? item.thumbnail : undefined })),
         asset: id === undefined ? undefined : await readRemoteAsset(kind as RemoteAssetKind, id as string),
         cached: kind === 'references' && typeof id === 'string' ? refs.vibeImages.some(item => item.id === id && !!(item.encodedVibe || item.encodedVibePath)) : undefined }
@@ -58,7 +59,8 @@ export async function resolveRemoteAssets(assets: RemoteAsset[], model: string):
         } else if (asset.kind === 'characters' && characterState.characters.some(item => item.id === asset.id) || asset.kind === 'references' && [...refs.characterImages, ...refs.vibeImages].some(item => item.id === asset.id)) throw new Error('Duplicate asset')
         if (asset.kind === 'characters') {
             const index = result.characters.findIndex(item => item.id === asset.id)
-            const item = { ...(index < 0 ? {} : result.characters[index]), id: asset.id, name: asset.name, enabled: asset.enabled, prompt: asset.prompt!, negative: asset.negative!, position: asset.position! }
+            const item = { ...(index < 0 ? {} : result.characters[index]), id: asset.id, name: asset.name, enabled: asset.enabled, prompt: asset.prompt!, negative: asset.negative!, position: asset.position!,
+                ...(asset.promptEnabled !== undefined && { promptEnabled: asset.promptEnabled }), ...(asset.negativeEnabled !== undefined && { negativeEnabled: asset.negativeEnabled }), ...(asset.costumeEnabled !== undefined && { costumeEnabled: asset.costumeEnabled }) }
             if (index < 0) result.characters.push(item); else result.characters[index] = item
         } else if (asset.kind === 'references') {
             if (asset.image) {
@@ -114,9 +116,10 @@ export async function applyRemoteAssets(assets: RemoteAsset[], model: string, is
             if (old?.revision !== asset.revision) throw new Error('PC item changed')
             if (!isCurrent()) throw new Error('Connection expired')
             if (asset.kind === 'characters') {
-                const state = useCharacterPromptStore.getState(), fields = { name: asset.name, enabled: asset.enabled, prompt: asset.prompt!, negative: asset.negative!, position: asset.position! }
+                const state = useCharacterPromptStore.getState(), fields = { name: asset.name, enabled: asset.enabled, prompt: asset.prompt!, negative: asset.negative!, position: asset.position!,
+                    ...(asset.promptEnabled !== undefined && { promptEnabled: asset.promptEnabled }), ...(asset.negativeEnabled !== undefined && { negativeEnabled: asset.negativeEnabled }), ...(asset.costumeEnabled !== undefined && { costumeEnabled: asset.costumeEnabled }) }
                 const read = () => useCharacterPromptStore.getState().characters.find(item => item.id === asset.id)
-                if (old) { state.updateCharacter(asset.id, fields); guardedUndo(read, () => state.updateCharacter(asset.id, { name: old.name, enabled: old.enabled, prompt: old.prompt!, negative: old.negative!, position: old.position! })) }
+                if (old) { const previous = structuredClone(read()!); state.updateCharacter(asset.id, fields); guardedUndo(read, () => useCharacterPromptStore.setState(current => ({ characters: current.characters.map(item => item.id === asset.id ? previous : item) }))) }
                 else { state.addCharacter({ id: asset.id, ...fields }); guardedUndo(read, () => state.removeCharacter(asset.id)) }
                 applied.push({ kind: asset.kind, id: asset.id, originalId: asset.id })
             } else if (asset.kind === 'fragments') {

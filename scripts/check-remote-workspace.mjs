@@ -62,6 +62,13 @@ assert.throws(() => contract.validateRemoteAssets([{ ...edited, filePath: '/priv
 assert.throws(() => contract.validateRemoteAssets([{ ...edited, revision: undefined, id: 'not-web' }]))
 const saved = await api.applyRemoteAssets([edited], settings.model, () => true)
 assert.equal(chars.getState().characters[0].prompt, 'web'); await saved.rollback(); assert.equal(chars.getState().characters[0].prompt, 'original')
+const toggled = { ...asset, promptEnabled: false, negativeEnabled: false, costumeEnabled: false }
+assert.equal((await api.resolveRemoteAssets(contract.validateRemoteAssets([toggled]), settings.model)).characters[0].promptEnabled, false)
+const toggleSave = await api.applyRemoteAssets([toggled], settings.model, () => true)
+assert.equal(chars.getState().characters[0].negativeEnabled, false)
+await toggleSave.rollback()
+assert.equal(JSON.stringify(chars.getState()), original, 'rollback preserves absent optional fields')
+assert.throws(() => contract.validateRemoteAssets([{ ...toggled, promptEnabled: 'false' }]))
 const fragment = await api.readRemoteAsset('fragments', 'f')
 fragmentFailure = () => { chars.getState().updateCharacter('pc', { prompt: 'concurrent PC' }); throw Error('save failed') }
 await assert.rejects(api.applyRemoteAssets([edited, { ...fragment, content: ['new'] }], settings.model, () => true), /save failed/)

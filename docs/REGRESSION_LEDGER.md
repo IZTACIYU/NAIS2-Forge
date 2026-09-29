@@ -658,6 +658,7 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ### 원격 workspace 확장 — R-051 추가 invariant (2026-09-26)
 
+- 캐릭터 저장 이름의 ` - 해시 - 변형번호`는 내부 식별 정보다. 웹 목록·이름 편집·씬 선택에는 표시 이름만 쓰고, 이름 변경 시 원래 해시·번호를 보존한다. 이름 없는 항목의 ID를 표시 이름으로 대신 노출하지 않는다. 기존 캐릭터의 선택적 prompt/negative/costume 사용 플래그는 웹 읽기·쓰기·실패 복원에서 원래 값 또는 필드 부재를 유지한다.
 - 사용자 승인 후에도 기본은 request-only다. 앱 반영 체크를 명시적으로 보낸 경우에만 기존 항목별 저장 action을 실행한다. 전체 store snapshot 교체·storage key/schema 변경·기존 이미지 교체/삭제를 금지한다.
 - 저장 중 PC 생성과의 경쟁은 기존 main 생성 잠금과 generation session identity로 막는다. 잠금 해제는 같은 session에만 수행해 다른 생성의 잠금을 지우지 않는다.
 - PC item/main/scene revision 충돌은 오류다. 실패 복원은 현재 값이 이 작업의 write와 일치할 때만 실행해 이후 PC 편집을 덮어쓰지 않는다. 조각 content의 조건부 write는 metadata identity와 연결 유효성을 IndexedDB transaction 내부에서 확인하고 stale write를 abort한다. 새 파일 실패 정리는 원본 삭제 대신 metadata 복원만 수행한다.
