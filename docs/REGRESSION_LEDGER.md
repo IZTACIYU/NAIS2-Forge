@@ -667,6 +667,12 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - 웹 조각 resolver는 PC 순차 카운터를 사용하지 않는다. shared request builder의 선택적 resolver로 주입하며 일반 PC 호출과 API transport의 프롬프트 의미는 바꾸지 않는다.
 - Coverage: `node scripts/check-remote-workspace.mjs`, `node scripts/check-remote-runtime.mjs`, 기존 remote generation/scene/protocol 검사 및 별도 웹 `check-scenes.mjs`·`check-requests.mjs`·`check-tabs.mjs`.
 
+### 모바일 캐릭터 검색 invariant (2026-09-30)
+
+- 캐릭터 도구를 여는 행위만으로 PC 캐릭터 전부 또는 첫 페이지를 요청하지 않는다. 명시적 이름 검색은 PC의 표시 이름에만 적용하고 최대 12개씩 반환한다. 상세는 선택된 ID만 요청한다.
+- 반복 조회 절감을 위한 검색 결과·상세 캐시는 해당 웹 탭의 메모리에만 두고 앱 반영 뒤 검색 캐시를 비운다. PC persisted 캐릭터·프리셋 저장 구조를 바꾸거나 프롬프트 전체를 목록 응답에 싣지 않는다.
+- 빈 화면→검색→카드 열기→같은 검색/카드 재열기의 요청 수는 별도 웹 `check-assets.html`에서 확인한다. 검색 필터와 내부 해시 제외는 `node scripts/check-remote-workspace.mjs`로 확인한다. 실제 PC·휴대폰 왕복은 새 앱 실행 후 별도 확인한다.
+
 ### R-XXX — 짧은 제목
 
 - **Date:** YYYY-MM-DD

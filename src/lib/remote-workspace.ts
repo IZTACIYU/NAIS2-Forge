@@ -8,7 +8,7 @@ export interface RemoteAsset {
     folder?: string; content?: string[];
 }
 export interface RemoteAssetPage {
-    kind: RemoteAssetKind; page: number; totalPages: number;
+    kind: RemoteAssetKind; page: number; totalPages: number; query?: string;
     items: { id: string; name: string; enabled: boolean; thumbnail?: string }[];
     asset?: RemoteAsset;
     cached?: boolean;

@@ -47,12 +47,18 @@ const dependencies = {
   '@/stores/fragment-store': { useFragmentStore: fragments, normalizeFragmentPath: path => path.trim().toLowerCase() },
   '@/stores/scene-store': { useSceneStore: scenes }, '@/stores/generation-store': { useGenerationStore: generation },
   '@/lib/model-capabilities': { getModelCapabilities }, '@/lib/remote-generation': remote, '@/lib/remote-workspace': contract,
+  '@/lib/random-character-selection': { getRandomCharacterDisplayName: item => item.name.replace(/\s-\s[a-z0-9]{6}\s-\s\d+$/i, '') },
   './remote-scene-queue': { resolveRemoteScene: item => { if (!scenes.getState().presets.some(p => p.id === item.presetId)) throw Error('Missing preset'); if (!item.newScene && !scenes.getState().getScene(item.presetId, item.sceneId)) throw Error('Missing scene') } },
 }
 const module = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/services/remote-workspace.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
   { module, exports: module.exports, require: name => { assert.ok(dependencies[name], name); return dependencies[name] }, structuredClone, crypto, TextEncoder, Image: class { width = 2; height = 2; async decode() {} } })
 const api = module.exports
+chars.setState({ characters: [{ id: 'pc', name: 'PC', prompt: 'original', negative: '', enabled: true, position: { x: .5, y: .5 } }, { id: 'a', name: 'Alice - abc123 - 0', prompt: '', negative: '', enabled: true, position: { x: .5, y: .5 } }] })
+assert.equal((await api.remoteAssetPage('characters', 0, undefined, 'ali')).items[0].id, 'a')
+assert.equal((await api.remoteAssetPage('characters', 0, undefined, 'abc123')).items.length, 0, 'internal variant hash is not searchable')
+await assert.rejects(api.remoteAssetPage('characters', 0, undefined, ' '.repeat(2)))
+chars.setState({ characters: chars.getState().characters.slice(0, 1) })
 const original = JSON.stringify(chars.getState()), asset = await api.readRemoteAsset('characters', 'pc')
 const edited = { ...asset, prompt: 'web', position: { x: .2, y: .8 } }
 const workspace = await api.resolveRemoteAssets(contract.validateRemoteAssets([edited]), settings.model)

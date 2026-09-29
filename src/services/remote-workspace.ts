@@ -7,6 +7,7 @@ import { useSceneStore } from '@/stores/scene-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { pickRemoteSettings, type RemoteGenerationSettings, type RemoteSceneDraft } from '@/lib/remote-generation'
 import { remoteRevision, type RemoteAsset, type RemoteAssetKind, type RemoteAssetPage } from '@/lib/remote-workspace'
+import { getRandomCharacterDisplayName } from '@/lib/random-character-selection'
 import type { CharacterPrompt } from '@/stores/character-prompt-store'
 import { resolveRemoteScene } from './remote-scene-queue'
 export interface RemoteResolvedWorkspace {
@@ -36,13 +37,16 @@ export async function readRemoteAsset(kind: RemoteAssetKind, id: string): Promis
     }
     return { ...asset, revision: await remoteRevision(asset) }
 }
-export async function remoteAssetPage(kind: unknown, page: unknown, id?: unknown): Promise<RemoteAssetPage> {
-    if (!['characters', 'references', 'fragments'].includes(String(kind)) || typeof page !== 'number' || !Number.isInteger(page) || page < 0 || id !== undefined && (typeof id !== 'string' || id.length > 100)) throw new Error('Invalid asset query')
+export async function remoteAssetPage(kind: unknown, page: unknown, id?: unknown, query?: unknown): Promise<RemoteAssetPage> {
+    if (!['characters', 'references', 'fragments'].includes(String(kind)) || typeof page !== 'number' || !Number.isInteger(page) || page < 0 || id !== undefined && (typeof id !== 'string' || id.length > 100) ||
+        query !== undefined && (kind !== 'characters' || typeof query !== 'string' || query.trim().length < 1 || query.length > 80)) throw new Error('Invalid asset query')
     const characters = useCharacterPromptStore.getState(), refs = useCharacterStore.getState(), fragments = useFragmentStore.getState()
-    const source = kind === 'characters' ? characters.characters : kind === 'references' ? [...refs.characterImages, ...refs.vibeImages] : fragments.files
+    const search = typeof query === 'string' ? query.trim() : undefined
+    const needle = search?.toLocaleLowerCase()
+    const source = kind === 'characters' ? needle ? characters.characters.filter(item => item.name && getRandomCharacterDisplayName(item).toLocaleLowerCase().includes(needle)) : characters.characters : kind === 'references' ? [...refs.characterImages, ...refs.vibeImages] : fragments.files
     const totalPages = Math.max(1, Math.ceil(source.length / 12))
     if (page >= totalPages) throw new Error('Invalid page')
-    return { kind: kind as RemoteAssetKind, page, totalPages, items: source.slice(page * 12, page * 12 + 12).map(item => ({ id: item.id, name: item.name || (kind === 'characters' ? '' : item.id),
+    return { kind: kind as RemoteAssetKind, page, totalPages, ...(search && { query: search }), items: source.slice(page * 12, page * 12 + 12).map(item => ({ id: item.id, name: item.name || (kind === 'characters' ? '' : item.id),
         enabled: 'enabled' in item ? item.enabled : true, thumbnail: 'thumbnail' in item && item.thumbnail && item.thumbnail.length < 80_000 ? item.thumbnail : undefined })),
         asset: id === undefined ? undefined : await readRemoteAsset(kind as RemoteAssetKind, id as string),
         cached: kind === 'references' && typeof id === 'string' ? refs.vibeImages.some(item => item.id === id && !!(item.encodedVibe || item.encodedVibePath)) : undefined }

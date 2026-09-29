@@ -169,7 +169,7 @@ export function RemoteControl() {
         }
         if (packet.kind !== 'data' || !packet.frame || !active) return
         if (Date.now() >= active.expiresAt || !isFreshSequence(active.lastInboundSeq, packet.frame.seq)) return
-        let body: { type?: string; requestId?: string; settings?: unknown; batchCount?: unknown; expectedCost?: unknown; originalImages?: unknown; queue?: unknown; presetId?: unknown; sceneId?: unknown; page?: unknown; assets?: unknown; applyToApp?: unknown; revision?: unknown; assetKind?: unknown; assetId?: unknown }
+        let body: { type?: string; requestId?: string; settings?: unknown; batchCount?: unknown; expectedCost?: unknown; originalImages?: unknown; queue?: unknown; presetId?: unknown; sceneId?: unknown; page?: unknown; assets?: unknown; applyToApp?: unknown; revision?: unknown; assetKind?: unknown; assetId?: unknown; assetQuery?: unknown }
         try {
             body = await decryptFrame(active.inboundKey, active.room, 'phone-to-app', packet.frame)
         } catch { return }
@@ -228,7 +228,7 @@ export function RemoteControl() {
             return
         }
         if (body.type === 'assets') {
-            try { await respond({ type: 'assets', requestId: body.requestId, assets: await remoteAssetPage(body.assetKind, body.page ?? 0, body.assetId) }) }
+            try { await respond({ type: 'assets', requestId: body.requestId, assets: await remoteAssetPage(body.assetKind, body.page ?? 0, body.assetId, body.assetQuery) }) }
             catch { await respond({ type: 'error', requestId: body.requestId, reason: 'assets-failed' }) }
             return
         }
