@@ -26,7 +26,7 @@ export interface RemoteSceneImagesPage {
 export interface RemoteScenePage {
     presets: { id: string; name: string }[]; presetId: string; page: number; totalPages: number;
     characters: { id: string; name: string; enabled?: boolean }[];
-    scenes: (RemoteSceneDraft & { name: string; width: number; height: number; thumbnail?: string; costContext: RemoteCostContext })[];
+    scenes: (RemoteSceneDraft & { name: string; width: number; height: number; thumbnail?: string; costContext: RemoteCostContext; deleteRevision?: string })[];
 }
 
 export function validateRemoteSceneQueue(value: unknown): RemoteSceneDraft[] {

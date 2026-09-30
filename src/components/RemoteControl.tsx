@@ -15,7 +15,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { useCharacterStore } from '@/stores/character-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { validateRemoteAssets, remoteRevision } from '@/lib/remote-workspace'
-import { remoteAssetPage, resolveRemoteAssets, applyRemoteWorkspace, remoteSceneDocument, type RemoteResolvedWorkspace } from '@/services/remote-workspace'
+import { remoteAssetPage, resolveRemoteAssets, applyRemoteWorkspace, remoteSceneDocument, remoteSceneDeleteRevision, deleteRemoteScene, type RemoteResolvedWorkspace } from '@/services/remote-workspace'
 import {
     pickRemoteSettings, validateRemoteSettings, validateRemoteBatch, remoteGenerationCost, remoteModelOptions,
     REMOTE_SAMPLERS, REMOTE_SCHEDULERS, REMOTE_MAX_BATCH, validateRemoteSceneQueue, type RemoteScenePage, type RemoteSceneImagesPage, type RemoteCostContext,
@@ -173,7 +173,7 @@ export function RemoteControl() {
         try {
             body = await decryptFrame(active.inboundKey, active.room, 'phone-to-app', packet.frame)
         } catch { return }
-        if (!['generate', 'scene-generate', 'scene-list', 'scene-images', 'assets', 'apply', 'ping', 'snapshot'].includes(body.type ?? '') || typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(body.requestId)) return
+        if (!['generate', 'scene-generate', 'scene-list', 'scene-delete', 'scene-images', 'assets', 'apply', 'ping', 'snapshot'].includes(body.type ?? '') || typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(body.requestId)) return
         const isCurrent = () => contextIsCurrent(active, epoch, socket)
         const next = await updateRemoteSession(active, current => isFreshSequence(current.lastInboundSeq, packet.frame!.seq)
             ? { ...current, lastInboundSeq: packet.frame!.seq } : undefined, isCurrent)
@@ -221,7 +221,7 @@ export function RemoteControl() {
                     const addition = state.sceneCharacterAdditions[preset.id]?.[scene.id]
                     const draft = { presetId: preset.id, sceneId: scene.id, scenePrompt: scene.scenePrompt, sceneNegativePrompt: scene.sceneNegativePrompt || '',
                         characterPromptIds: addition?.characterPromptIds || [], npcs: addition?.customCharacters || [], multiCharacterSlots: scene.multiCharacterSlots || [], count: 0 }
-                    result.scenes.push({ ...structuredClone(draft), revision: await remoteRevision(remoteSceneDocument(preset.id, scene.id)), name: scene.name, width: scene.width || 832, height: scene.height || 1216,
+                    result.scenes.push({ ...structuredClone(draft), revision: await remoteRevision(remoteSceneDocument(preset.id, scene.id)), deleteRevision: await remoteSceneDeleteRevision(preset.id, scene.id), name: scene.name, width: scene.width || 832, height: scene.height || 1216,
                         costContext: remoteSceneCostContext(draft, context) })
                 }
                 await respond({ type: 'scene-list', requestId: body.requestId, scenePage: result })
@@ -258,6 +258,11 @@ export function RemoteControl() {
         remoteBusyRef.current = true // Reserve before any awaited acknowledgement.
         void (async () => {
             try {
+                if (body.type === 'scene-delete') {
+                    const deleted = await deleteRemoteScene(body.presetId, body.sceneId, body.revision, isCurrent)
+                    await respond({ type: 'deleted', requestId: body.requestId, ...deleted })
+                    return
+                }
                 const settings = body.settings === undefined ? undefined : validateRemoteSettings(body.settings)
                 if (body.applyToApp !== undefined && typeof body.applyToApp !== 'boolean') throw new Error('Invalid apply option')
                 if (body.positionEnabled !== undefined && typeof body.positionEnabled !== 'boolean' || body.expectedPositionEnabled !== undefined && typeof body.expectedPositionEnabled !== 'boolean' || body.applyToApp === true && body.positionEnabled !== undefined && body.expectedPositionEnabled === undefined) throw new Error('Invalid position option')
@@ -332,7 +337,7 @@ export function RemoteControl() {
                 await respond({ type: completed === batchCount ? 'complete' : 'error', requestId: body.requestId,
                     completed, total: batchCount, preview: legacyPreview, reason: imageTooLarge ? 'image-too-large' : completed === batchCount ? undefined : 'generation-failed' })
             } catch (error) {
-                await respond({ type: 'error', requestId: body.requestId, reason: error instanceof Error && /^(PC .*changed|Fragment changed)/.test(error.message) ? 'edit-conflict' : error instanceof Error && error.message === 'Image too large' ? 'image-too-large' : body.applyToApp ? 'apply-or-generation-failed' : 'generation-failed' }).catch(() => {})
+                await respond({ type: 'error', requestId: body.requestId, reason: error instanceof Error && /^(PC .*changed|Fragment changed)/.test(error.message) ? 'edit-conflict' : error instanceof Error && error.message === 'Image too large' ? 'image-too-large' : body.type === 'scene-delete' ? 'scene-delete-failed' : body.applyToApp ? 'apply-or-generation-failed' : 'generation-failed' }).catch(() => {})
             } finally { remoteBusyRef.current = false }
         })() // Do not block authenticated ping/busy handling until generation completes.
     }

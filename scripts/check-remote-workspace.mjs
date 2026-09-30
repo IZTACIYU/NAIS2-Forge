@@ -38,17 +38,20 @@ const generation = store({ ...settings, modelOptionMemory: {}, applyPreset: valu
 for (const key of ['modelMode', 'qualityTagPreset', 'transparentBackground', 'seed', 'seedLocked', 'inpaintingPrompt', 'strength', 'noise']) generation.getState()[`set${key[0].toUpperCase()}${key.slice(1)}`] = value => generation.setState({ [key]: value })
 const scenes = store({ presets: [{ id: 'p', name: 'Preset', scenes: [{ id: 's', name: 'Scene', scenePrompt: 'original', sceneNegativePrompt: '', images: [], folderPath: '/preserved/scene' }] }], sceneCharacterAdditions: {} })
 scenes.getState().getScene = (p, id) => scenes.getState().presets.find(item => item.id === p)?.scenes.find(item => item.id === id)
+scenes.getState().deleteScene = (p, id) => scenes.setState(s => ({ presets: s.presets.map(item => item.id === p ? { ...item, scenes: item.scenes.filter(scene => scene.id !== id) } : item) }))
 scenes.getState().addScene = (p, name, id) => scenes.setState(s => ({ presets: s.presets.map(item => item.id === p ? { ...item, scenes: [...item.scenes, { id, name, scenePrompt: '', images: [] }] } : item) }))
 const updateScene = (p, id, value) => scenes.setState(s => ({ presets: s.presets.map(item => item.id === p ? { ...item, scenes: item.scenes.map(scene => scene.id === id ? { ...scene, ...value } : scene) } : item) }))
 for (const [name, field] of [['Prompt', 'scenePrompt'], ['NegativePrompt', 'sceneNegativePrompt'], ['MultiCharacterSlots', 'multiCharacterSlots']]) scenes.getState()[`updateScene${name}`] = (p, id, value) => updateScene(p, id, { [field]: value })
 scenes.getState().updateSceneSettings = updateScene
 scenes.getState().updateSceneCharacterAddition = (p, id, value) => scenes.setState(s => ({ sceneCharacterAdditions: { ...s.sceneCharacterAdditions, [p]: { ...s.sceneCharacterAdditions[p], [id]: value } } }))
+let flushFailure = 0
 const dependencies = {
   '@/stores/character-prompt-store': { useCharacterPromptStore: chars }, '@/stores/character-store': { useCharacterStore: refs },
   '@/stores/fragment-store': { useFragmentStore: fragments, normalizeFragmentPath: path => path.trim().toLowerCase() },
   '@/stores/scene-store': { useSceneStore: scenes }, '@/stores/generation-store': { useGenerationStore: generation },
   '@/lib/model-capabilities': { getModelCapabilities }, '@/lib/remote-generation': remote, '@/lib/remote-workspace': contract,
   '@/lib/random-character-selection': { getRandomCharacterDisplayName: item => item.name.replace(/\s-\s[a-z0-9]{6}\s-\s\d+$/i, '') },
+  '@/lib/indexed-db': { flushAllPendingWrites: async () => { if (flushFailure > 0) { flushFailure--; throw Error('flush failed') } }, readStoredStateItem: async () => JSON.stringify({ state: { presets: scenes.getState().presets } }) },
   './remote-scene-queue': { resolveRemoteScene: item => { if (!scenes.getState().presets.some(p => p.id === item.presetId)) throw Error('Missing preset'); if (!item.newScene && !scenes.getState().getScene(item.presetId, item.sceneId)) throw Error('Missing scene') } },
 }
 const module = { exports: {} }
@@ -111,6 +114,14 @@ await assert.rejects(api.applyRemoteWorkspace({ ...settings, basePrompt: 'must r
 assert.equal(generation.getState().basePrompt, beforeFailure)
 await assert.rejects(api.applyRemoteAssets([], settings.model, () => false), /Connection expired/)
 assert.throws(() => remote.validateRemoteSceneQueue([draft, { ...draft, sceneId: 'web-second' }]), /Duplicate scene name/)
+const deleteRevision = await api.remoteSceneDeleteRevision('p', 's')
+await assert.rejects(api.deleteRemoteScene('p', 's', '0'.repeat(64), () => true), /PC scene changed/)
+assert.equal(scenes.getState().getScene('p', 's').folderPath, '/preserved/scene')
+flushFailure = 1
+await assert.rejects(api.deleteRemoteScene('p', 's', deleteRevision, () => true), /flush failed/)
+assert.equal(scenes.getState().getScene('p', 's').folderPath, '/preserved/scene', 'failed persistence restores scene metadata')
+await api.deleteRemoteScene('p', 's', deleteRevision, () => true)
+assert.equal(scenes.getState().getScene('p', 's'), undefined)
 // Run the actual fragment owner against a transaction stub: stale writes must abort before commit.
 let fragmentStore, interfere, dbContent = new Map()
 const nativeModule = { exports: {} }

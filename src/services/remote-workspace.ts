@@ -8,6 +8,7 @@ import { useGenerationStore } from '@/stores/generation-store'
 import { pickRemoteSettings, type RemoteGenerationSettings, type RemoteSceneDraft } from '@/lib/remote-generation'
 import { remoteRevision, type RemoteAsset, type RemoteAssetKind, type RemoteAssetPage } from '@/lib/remote-workspace'
 import { getRandomCharacterDisplayName } from '@/lib/random-character-selection'
+import { flushAllPendingWrites, readStoredStateItem } from '@/lib/indexed-db'
 import type { CharacterPrompt } from '@/stores/character-prompt-store'
 import { resolveRemoteScene } from './remote-scene-queue'
 export interface RemoteResolvedWorkspace {
@@ -175,6 +176,38 @@ export function remoteSceneDocument(presetId: string, sceneId: string) {
     const addition = state.sceneCharacterAdditions[presetId]?.[sceneId]
     return { scenePrompt: scene.scenePrompt, sceneNegativePrompt: scene.sceneNegativePrompt || '', multiCharacterSlots: scene.multiCharacterSlots || [], characterPromptIds: addition?.characterPromptIds || [], npcs: addition?.customCharacters || [] }
 }
+export async function remoteSceneDeleteRevision(presetId: string, sceneId: string) {
+    const state = useSceneStore.getState(), scene = state.getScene(presetId, sceneId)
+    if (!scene) throw new Error('Missing scene')
+    return remoteRevision({ scene, addition: state.sceneCharacterAdditions[presetId]?.[sceneId] })
+}
+
+export async function deleteRemoteScene(presetId: unknown, sceneId: unknown, revision: unknown, isCurrent: () => boolean) {
+    if (typeof presetId !== 'string' || !presetId || presetId.length > 100 || typeof sceneId !== 'string' || !sceneId || sceneId.length > 100 ||
+        typeof revision !== 'string' || !/^[a-f0-9]{64}$/.test(revision)) throw new Error('Invalid scene delete request')
+    const state = useSceneStore.getState(), before = state.presets, beforeAddition = state.sceneCharacterAdditions[presetId]?.[sceneId]
+    if (revision !== await remoteSceneDeleteRevision(presetId, sceneId)) throw new Error('PC scene changed; reload before deleting')
+    if (useSceneStore.getState().presets !== before || useSceneStore.getState().sceneCharacterAdditions[presetId]?.[sceneId] !== beforeAddition) throw new Error('PC scene changed; reload before deleting')
+    if (!isCurrent()) throw new Error('Connection expired')
+    state.deleteScene(presetId, sceneId)
+    const written = useSceneStore.getState().presets
+    try {
+        if (written === before || useSceneStore.getState().getScene(presetId, sceneId)) throw new Error('Scene delete failed')
+        await flushAllPendingWrites()
+        const raw = await readStoredStateItem('nais2-forge-scenes')
+        const saved = raw ? JSON.parse(raw) as { state?: { presets?: { id: string; scenes: { id: string }[] }[] } } : undefined
+        if (!saved?.state?.presets?.some(preset => preset.id === presetId && !preset.scenes.some(scene => scene.id === sceneId))) throw new Error('Scene delete verification failed')
+        if (!isCurrent()) throw new Error('Connection expired')
+    } catch (error) {
+        if (useSceneStore.getState().presets === written) {
+            useSceneStore.setState({ presets: before })
+            await flushAllPendingWrites()
+        }
+        throw error
+    }
+    return { presetId, sceneId }
+}
+
 export async function applyRemoteWorkspace(settings: RemoteGenerationSettings, revision: unknown, assets: RemoteAsset[], queue: RemoteSceneDraft[] | undefined, isCurrent: () => boolean, positionEnabled?: boolean, expectedPositionEnabled?: boolean) {
     const generation = useGenerationStore.getState(), previous = pickRemoteSettings(generation)
     if (typeof revision !== 'string' || revision !== await remoteRevision(previous)) throw new Error('PC settings changed; reload before applying')

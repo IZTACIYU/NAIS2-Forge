@@ -679,6 +679,12 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - 위치 사용 여부는 기존 PC의 전체 캐릭터 공통 `positionEnabled` 하나만 사용한다. 웹 전용 생성은 persisted 값을 바꾸지 않고, 명시적 앱 반영은 snapshot의 기존 값과 현재 값을 비교한 뒤 저장한다. 캐릭터 개별 필드를 추가하거나 웹 캐릭터 수정만으로 위치 지정을 강제로 켜지 않는다.
 - `node scripts/check-remote-workspace.mjs`에서 요청별 off, PC 값 보존, 충돌 거절, 명시적 저장을 확인한다.
 
+### 모바일 씬 대량 예약·원격 삭제 invariant (2026-09-30)
+
+- 웹에서 프리셋 전체 선택은 모든 목록 페이지를 조회하되 기존 웹 초안을 덮지 않고, 큐에는 씬당 한 장씩만 추가한다. 웹 큐는 PC 큐나 저장 기록에 반영하지 않으며 기존 100장 제한을 넘기지 않는다.
+- 사용자 승인 후 원격 삭제는 기존 PC 씬 삭제 action으로 **씬 기록만** 제거한다. 이미지 파일·폴더와 다른 씬은 보존한다. 삭제 전 전체 씬 revision을 재확인하고 저장값에서 삭제를 검증하며 실패 시 해당 작업이 쓴 상태만 복원한다. 구형 앱의 삭제 revision이 없는 응답으로는 삭제하지 않는다.
+- Coverage: `node scripts/check-remote-workspace.mjs`, `node scripts/check-remote-runtime.mjs`, 별도 웹의 `node check-scenes.mjs`.
+
 ### R-XXX — 짧은 제목
 
 - **Date:** YYYY-MM-DD

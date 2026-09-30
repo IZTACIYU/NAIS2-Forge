@@ -68,7 +68,7 @@ const settings = { basePrompt: 'base', additionalPrompt: '', detailPrompt: '', n
 let generationCount = 0, finishGeneration, finishApply
 let finishSceneGeneration, sceneGenerationCount = 0
 const scene = { id: 'scene', name: 'Scene', scenePrompt: 'PC scene', width: 832, height: 1216, folderPath: '/private/path', images: [{ id: 'image', url: '/private/path/image.png', isFavorite: true }] }
-const sceneState = { isGenerating: false, activePresetId: 'preset', presets: [{ id: 'preset', name: 'Preset', scenes: [scene] }], sceneCharacterAdditions: {}, getScene(presetId, sceneId) { return presetId === 'preset' && sceneId === 'scene' ? scene : undefined } }
+const sceneState = { isGenerating: false, activePresetId: 'preset', presets: [{ id: 'preset', name: 'Preset', scenes: [scene] }], sceneCharacterAdditions: {}, getScene(presetId, sceneId) { return this.presets.find(item => item.id === presetId)?.scenes.find(item => item.id === sceneId) } }
 const generation = { ...settings, batchCount: 1, isGenerating: false, generatingMode: null, previewImage: 'data:image/png;base64,eA==',
   generate: options => { generationCount++; return new Promise(resolve => { finishGeneration = async () => { await options.onImage(generation.previewImage, 1); resolve() } }) } }
 const generationStore = { getState: () => generation }
@@ -79,7 +79,7 @@ let source = readFileSync(new URL('../src/components/RemoteControl.tsx', import.
 source = source.slice(0, source.lastIndexOf('\n    return (')) + '\n return {handleMessage, revoke, generateQr, sessionRef, socketRef, epochRef, remoteBusyRef, sendSession, outboundUsageRef};\n}'
 source = source.replace(/import\.meta\.env\.[A-Z_]+/g, "''")
 const previewReads = [], previewUrls = new Set(); let canvasSource
-const { RemoteControl } = compile(source, { WebSocket: Socket, TextEncoder, Blob,
+const { RemoteControl } = compile(source, { WebSocket: Socket, TextEncoder, Blob, Error,
   URL: { createObjectURL: () => { const url = `blob:preview-${previewReads.length}`; previewUrls.add(url); return url }, revokeObjectURL: url => previewUrls.delete(url) },
   Image: class { width = 1; height = 1; async decode() {} },
   document: { createElement: () => ({ getContext: () => ({ drawImage(image) { canvasSource = image.src } }), toDataURL: () => { assert.ok(canvasSource.startsWith('data:') || canvasSource.startsWith('blob:'), 'asset image can render but cannot safely export its canvas'); return 'data:image/webp;base64,eA==' } }) },
@@ -93,6 +93,8 @@ const { RemoteControl } = compile(source, { WebSocket: Socket, TextEncoder, Blob
     if (name.endsWith('/remote-generation')) return remote
     if (name === '@/lib/remote-workspace') return workspace
     if (name === '@/services/remote-workspace') return { remoteSceneDocument: () => ({ scenePrompt: scene.scenePrompt, sceneNegativePrompt: '', multiCharacterSlots: [], characterPromptIds: [], npcs: [] }),
+      remoteSceneDeleteRevision: async () => workspace.remoteRevision({ scene, addition: undefined }),
+      deleteRemoteScene: async (presetId, sceneId, revision) => { if (revision !== await workspace.remoteRevision({ scene, addition: undefined })) throw Error('PC scene changed'); sceneState.presets[0].scenes = sceneState.presets[0].scenes.filter(item => item.id !== sceneId); return { presetId, sceneId } },
       resolveRemoteAssets: async () => ({ characters: [], characterImages: [], vibeImages: [], fragments: {} }),
       applyRemoteWorkspace: (_, __, ___, ____, current) => new Promise(resolve => { finishApply = () => { assert.equal(current(), true); resolve({ assets: [], revision: 'a'.repeat(64), sceneRevisions: [] }) } }),
     }
@@ -178,8 +180,14 @@ await drain(() => !!finishApply); assert.equal(generation.isGenerating, true); a
 await request('generate'); assert.equal((await response(beforeApply)).reason, 'busy-or-not-ready')
 finishApply(); await drain(() => !control.remoteBusyRef.current)
 assert.equal((await response(beforeApply + 1)).type, 'applied'); assert.equal(generation.isGenerating, false); assert.equal(generation.generatingMode, null)
+const staleDelete = messages.length
+await request('scene-delete', false, { presetId: 'preset', sceneId: 'scene', revision: '0'.repeat(64) }); await drain(() => !control.remoteBusyRef.current)
+assert.equal((await response(staleDelete)).reason, 'edit-conflict'); assert.equal(sceneState.getScene('preset', 'scene'), scene)
+const deleteIndex = messages.length
+await request('scene-delete', false, { presetId: 'preset', sceneId: 'scene', revision: page.scenes[0].deleteRevision }); await drain(() => !control.remoteBusyRef.current)
+assert.equal((await response(deleteIndex)).type, 'deleted'); assert.equal(sceneState.getScene('preset', 'scene'), undefined)
 await control.generateQr()
 assert.equal(record, null); assert.equal(socket.readyState, 3); assert.equal(control.sessionRef.current, null)
 await request('generate'); assert.equal(generationCount, 2, 'revoked session must not generate')
-assert.equal(messages.length, 27)
+assert.equal(messages.length, 29)
 console.log('Remote runtime checks passed: atomic counters, late-save revocation, ping, duplicate rejection, QR invalidation.')
