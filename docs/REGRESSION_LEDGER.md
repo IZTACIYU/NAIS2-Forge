@@ -685,6 +685,13 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - 사용자 승인 후 원격 삭제는 기존 PC 씬 삭제 action으로 **씬 기록만** 제거한다. 이미지 파일·폴더와 다른 씬은 보존한다. 삭제 전 전체 씬 revision을 재확인하고 저장값에서 삭제를 검증하며 실패 시 해당 작업이 쓴 상태만 복원한다. 구형 앱의 삭제 revision이 없는 응답으로는 삭제하지 않는다.
 - Coverage: `node scripts/check-remote-workspace.mjs`, `node scripts/check-remote-runtime.mjs`, 별도 웹의 `node check-scenes.mjs`.
 
+### 모바일 탭의 연결 대상 고정 — R-051 추가 invariant (2026-09-30)
+
+- 프롬프트·씬·캐릭터 초안을 가진 탭은 해당 데이터를 읽었던 pairing에만 명령을 보낸다. 다른 탭에서 QR을 등록해 브라우저의 active 연결을 교체해도 기존 탭이 새 연결을 자동 채택하지 않는다.
+- 요청 시작 시 탭과 저장 레코드의 `room/deviceId/createdAt/expiresAt`을 비교하고, 같을 때만 최신 sequence를 읽는다. 불일치는 socket 연결·만료 cleanup·상태 교체 전에 거절하며 편집 내용과 새 pairing을 보존한다. sequence나 CryptoKey 객체 자체를 identity로 비교하지 않는다.
+- 생성뿐 아니라 snapshot·씬 목록/이미지·asset 조회·앱 반영·씬 삭제도 같은 검사를 거친다. 최초 시작과 승인된 QR 등록만 새 pairing을 채택한다. 기존 Web Lock과 transaction 내부 identity 검사는 유지한다.
+- Coverage: 별도 웹 `node check-session-context.mjs`에서 패치 전 A 초안→B 연결 재현과 8개 요청 진입점의 거절·편집 보존·정상 counter 갱신을 확인한다. `node check-requests.mjs`에서는 실제 암호화 응답을 기다리는 사이 pairing이 바뀌어도 생성 명령을 전송하지 않음을 검사한다.
+
 ### R-XXX — 짧은 제목
 
 - **Date:** YYYY-MM-DD
