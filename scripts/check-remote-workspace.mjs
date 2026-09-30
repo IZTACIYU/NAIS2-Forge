@@ -12,6 +12,7 @@ const store = initial => {
 }
 const chars = store({ characters: [{ id: 'pc', name: 'PC', prompt: 'original', negative: '', enabled: true, position: { x: .5, y: .5 } }], positionEnabled: false, activeCharacterLimit: 6 })
 Object.assign(chars.getState(), {
+  setPositionEnabled: value => chars.setState({ positionEnabled: value }),
   setActiveCharacterLimit: value => chars.setState({ activeCharacterLimit: value }),
   addCharacter: value => chars.setState(s => ({ characters: [...s.characters, value] })),
   updateCharacter: (id, value) => chars.setState(s => ({ characters: s.characters.map(item => item.id === id ? { ...item, ...value } : item) })),
@@ -63,6 +64,8 @@ const original = JSON.stringify(chars.getState()), asset = await api.readRemoteA
 const edited = { ...asset, prompt: 'web', position: { x: .2, y: .8 } }
 const workspace = await api.resolveRemoteAssets(contract.validateRemoteAssets([edited]), settings.model)
 assert.equal(workspace.characters[0].prompt, 'web'); assert.equal(workspace.positionEnabled, true); assert.equal(JSON.stringify(chars.getState()), original)
+assert.equal((await api.resolveRemoteAssets([edited], settings.model, false)).positionEnabled, false, 'web-only toggle must not force positions on when characters are edited')
+assert.equal(chars.getState().positionEnabled, false, 'request-only toggle must not change PC state')
 assert.equal(await workspace.fragmentResolver('file', true), 'one'); assert.equal(await workspace.fragmentResolver('file', true), 'two'); assert.equal(fragments.getState().sequentialIndex, 42)
 assert.throws(() => contract.validateRemoteAssets([{ ...edited, filePath: '/private/path' }]))
 assert.throws(() => contract.validateRemoteAssets([{ ...edited, revision: undefined, id: 'not-web' }]))
@@ -88,10 +91,20 @@ const refSave = await api.applyRemoteAssets(contract.validateRemoteAssets([newRe
 assert.equal(refSave.assets[0].id, 'saved-ref'); assert.equal('filePath' in refSave.assets[0], false); assert.equal(refs.getState().characterImages[0].filePath, '/preserved/new.png'); await refSave.rollback(); assert.equal(refs.getState().characterImages.length, 0)
 await assert.rejects(api.resolveRemoteAssets([edited], settings.model), /PC item changed/)
 const revision = await contract.remoteRevision(remote.pickRemoteSettings(generation.getState()))
+await assert.rejects(api.applyRemoteWorkspace(settings, revision, [], undefined, () => true, true, true), /PC position changed/)
+assert.equal(chars.getState().positionEnabled, false, 'stale web toggle must not overwrite PC state')
+await api.applyRemoteWorkspace(settings, revision, [], undefined, () => true, true, false)
+assert.equal(chars.getState().positionEnabled, true, 'explicit app apply must update the existing PC-wide toggle')
+chars.setState({ positionEnabled: false })
 await assert.rejects(api.applyRemoteWorkspace({ ...settings, basePrompt: 'WEB' }, '0'.repeat(64), [], undefined, () => true), /PC settings changed/)
 const draft = { presetId: 'p', sceneId: 'web-new', newScene: { name: 'New', width: 832, height: 1216 }, scenePrompt: 'new prompt', sceneNegativePrompt: '', characterPromptIds: [], npcs: [], count: 1 }
 const result = await api.applyRemoteWorkspace({ ...settings, basePrompt: 'WEB' }, revision, [], [draft], () => true)
 assert.equal(generation.getState().basePrompt, 'WEB'); assert.equal(scenes.getState().getScene('p', 'web-new').scenePrompt, 'new prompt'); assert.equal(scenes.getState().getScene('p', 's').folderPath, '/preserved/scene'); assert.equal(result.sceneRevisions.length, 1)
+const updatePrompt = scenes.getState().updateScenePrompt
+scenes.getState().updateScenePrompt = () => { throw Error('scene save failed') }
+await assert.rejects(api.applyRemoteWorkspace({ ...settings, basePrompt: 'WEB' }, result.revision, [], [{ ...draft, sceneId: 'web-failing' }], () => true, true, false), /scene save failed/)
+assert.equal(chars.getState().positionEnabled, false, 'failed app apply must restore the existing position toggle')
+scenes.getState().updateScenePrompt = updatePrompt
 const beforeFailure = generation.getState().basePrompt
 generation.getState().setNoise = () => { throw Error('owner failed') }
 await assert.rejects(api.applyRemoteWorkspace({ ...settings, basePrompt: 'must rollback' }, result.revision, [], undefined, () => true), /owner failed/)

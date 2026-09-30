@@ -169,7 +169,7 @@ export function RemoteControl() {
         }
         if (packet.kind !== 'data' || !packet.frame || !active) return
         if (Date.now() >= active.expiresAt || !isFreshSequence(active.lastInboundSeq, packet.frame.seq)) return
-        let body: { type?: string; requestId?: string; settings?: unknown; batchCount?: unknown; expectedCost?: unknown; originalImages?: unknown; queue?: unknown; presetId?: unknown; sceneId?: unknown; page?: unknown; assets?: unknown; applyToApp?: unknown; revision?: unknown; assetKind?: unknown; assetId?: unknown; assetQuery?: unknown }
+        let body: { type?: string; requestId?: string; settings?: unknown; batchCount?: unknown; expectedCost?: unknown; originalImages?: unknown; queue?: unknown; presetId?: unknown; sceneId?: unknown; page?: unknown; assets?: unknown; applyToApp?: unknown; revision?: unknown; assetKind?: unknown; assetId?: unknown; assetQuery?: unknown; positionEnabled?: unknown; expectedPositionEnabled?: unknown }
         try {
             body = await decryptFrame(active.inboundKey, active.room, 'phone-to-app', packet.frame)
         } catch { return }
@@ -196,6 +196,7 @@ export function RemoteControl() {
                     resolutions: [...RESOLUTION_PRESETS.map(preset => ({ label: t(`resolutions.${preset.key}`), width: preset.width, height: preset.height })),
                         ...useSettingsStore.getState().customResolutions.map(({ label, width, height }) => ({ label, width, height }))],
                     batchCount: Math.min(REMOTE_MAX_BATCH, Math.max(1, state.batchCount)), maxBatch: REMOTE_MAX_BATCH,
+                    positionEnabled: useCharacterPromptStore.getState().positionEnabled,
                     i2iMode: state.sourceImage ? (state.i2iMode === 'inpaint' && state.mask ? 'inpaint' : 'i2i') : null,
                 } })
             } catch { await respond({ type: 'error', requestId: body.requestId, reason: 'snapshot-failed' }) }
@@ -259,8 +260,9 @@ export function RemoteControl() {
             try {
                 const settings = body.settings === undefined ? undefined : validateRemoteSettings(body.settings)
                 if (body.applyToApp !== undefined && typeof body.applyToApp !== 'boolean') throw new Error('Invalid apply option')
+                if (body.positionEnabled !== undefined && typeof body.positionEnabled !== 'boolean' || body.expectedPositionEnabled !== undefined && typeof body.expectedPositionEnabled !== 'boolean' || body.applyToApp === true && body.positionEnabled !== undefined && body.expectedPositionEnabled === undefined) throw new Error('Invalid position option')
                 const assets = body.assets === undefined ? undefined : validateRemoteAssets(body.assets)
-                const workspace = assets ? await resolveRemoteAssets(assets, settings?.model || useGenerationStore.getState().model) : undefined
+                const workspace = assets ? await resolveRemoteAssets(assets, settings?.model || useGenerationStore.getState().model, body.positionEnabled as boolean | undefined) : undefined
                 if (body.originalImages !== undefined && typeof body.originalImages !== 'boolean') throw new Error('Invalid original image option')
                 const sceneQueue = body.type === 'scene-generate' || body.type === 'apply' && body.queue !== undefined ? validateRemoteSceneQueue(body.queue) : undefined
                 if (sceneQueue && !settings) throw new Error('Missing settings')
@@ -297,7 +299,7 @@ export function RemoteControl() {
                     try {
                         applied = await applyRemoteWorkspace(settings, body.revision, assets || [], sceneQueue, () => isCurrent()
                             && useGenerationStore.getState().generationSessionId === ownerSession
-                            && useGenerationStore.getState().isGenerating && useGenerationStore.getState().generatingMode === 'main')
+                            && useGenerationStore.getState().isGenerating && useGenerationStore.getState().generatingMode === 'main', body.positionEnabled as boolean | undefined, body.expectedPositionEnabled as boolean | undefined)
                     } finally {
                         const state = useGenerationStore.getState()
                         if (state.generationSessionId === ownerSession && state.generatingMode === 'main') state.setIsGenerating(false)

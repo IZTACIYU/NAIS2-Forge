@@ -51,10 +51,10 @@ export async function remoteAssetPage(kind: unknown, page: unknown, id?: unknown
         asset: id === undefined ? undefined : await readRemoteAsset(kind as RemoteAssetKind, id as string),
         cached: kind === 'references' && typeof id === 'string' ? refs.vibeImages.some(item => item.id === id && !!(item.encodedVibe || item.encodedVibePath)) : undefined }
 }
-export async function resolveRemoteAssets(assets: RemoteAsset[], model: string): Promise<RemoteResolvedWorkspace> {
+export async function resolveRemoteAssets(assets: RemoteAsset[], model: string, positionEnabled?: boolean): Promise<RemoteResolvedWorkspace> {
     const characterState = useCharacterPromptStore.getState(), refs = useCharacterStore.getState()
     const charactersEdited = assets.some(asset => asset.kind === 'characters')
-    const result: RemoteResolvedWorkspace = { characters: structuredClone(characterState.characters), charactersEdited, positionEnabled: characterState.positionEnabled || charactersEdited, characterImages: refs.characterImages.map(item => ({ ...item })), vibeImages: refs.vibeImages.map(item => ({ ...item })), fragments: Object.create(null) }
+    const result: RemoteResolvedWorkspace = { characters: structuredClone(characterState.characters), charactersEdited, positionEnabled: positionEnabled ?? (characterState.positionEnabled || charactersEdited), characterImages: refs.characterImages.map(item => ({ ...item })), vibeImages: refs.vibeImages.map(item => ({ ...item })), fragments: Object.create(null) }
     for (const asset of assets) {
         if (asset.revision) {
             const current = await readRemoteAsset(asset.kind, asset.id)
@@ -175,9 +175,10 @@ export function remoteSceneDocument(presetId: string, sceneId: string) {
     const addition = state.sceneCharacterAdditions[presetId]?.[sceneId]
     return { scenePrompt: scene.scenePrompt, sceneNegativePrompt: scene.sceneNegativePrompt || '', multiCharacterSlots: scene.multiCharacterSlots || [], characterPromptIds: addition?.characterPromptIds || [], npcs: addition?.customCharacters || [] }
 }
-export async function applyRemoteWorkspace(settings: RemoteGenerationSettings, revision: unknown, assets: RemoteAsset[], queue: RemoteSceneDraft[] | undefined, isCurrent: () => boolean) {
+export async function applyRemoteWorkspace(settings: RemoteGenerationSettings, revision: unknown, assets: RemoteAsset[], queue: RemoteSceneDraft[] | undefined, isCurrent: () => boolean, positionEnabled?: boolean, expectedPositionEnabled?: boolean) {
     const generation = useGenerationStore.getState(), previous = pickRemoteSettings(generation)
     if (typeof revision !== 'string' || revision !== await remoteRevision(previous)) throw new Error('PC settings changed; reload before applying')
+    if (positionEnabled !== undefined && useCharacterPromptStore.getState().positionEnabled !== expectedPositionEnabled) throw new Error('PC position changed; reload before applying')
     const sceneDocuments = new Map<string, string>()
     for (const item of queue || []) {
         const scene = useSceneStore.getState().getScene(item.presetId, item.sceneId)
@@ -189,6 +190,7 @@ export async function applyRemoteWorkspace(settings: RemoteGenerationSettings, r
     const saved = await applyRemoteAssets(assets, settings.model, isCurrent)
     // Synchronous owner actions after all awaited reads, so late PC prompt changes are not overwritten.
     if (!isCurrent() || JSON.stringify(previous) !== JSON.stringify(pickRemoteSettings(useGenerationStore.getState()))) { await saved.rollback(); throw new Error('PC settings changed; reload before applying') }
+    if (positionEnabled !== undefined && useCharacterPromptStore.getState().positionEnabled !== expectedPositionEnabled) { await saved.rollback(); throw new Error('PC position changed; reload before applying') }
     for (const item of queue || []) {
         const scene = useSceneStore.getState().getScene(item.presetId, item.sceneId)
         if (sceneDocuments.get(JSON.stringify([item.presetId, item.sceneId])) !== JSON.stringify(scene ? remoteSceneDocument(item.presetId, item.sceneId) : null)) { await saved.rollback(); throw new Error('PC scene changed') }
@@ -202,6 +204,7 @@ export async function applyRemoteWorkspace(settings: RemoteGenerationSettings, r
         generation.setModelMode(settings.modelMode); generation.setQualityTagPreset(settings.qualityTagPreset)
         generation.setTransparentBackground(settings.transparentBackground); generation.setSeed(settings.seed); generation.setSeedLocked(settings.seedLocked)
         generation.setInpaintingPrompt(settings.inpaintingPrompt); generation.setStrength(settings.strength); generation.setNoise(settings.noise)
+        if (positionEnabled !== undefined) useCharacterPromptStore.getState().setPositionEnabled(positionEnabled)
         for (const item of queue || []) {
             const state = useSceneStore.getState()
             if (!state.getScene(item.presetId, item.sceneId)) state.addScene(item.presetId, item.newScene!.name, item.sceneId)
@@ -218,7 +221,7 @@ export async function applyRemoteWorkspace(settings: RemoteGenerationSettings, r
         // No awaits inside this commit block: no later user edits can be overwritten by restoration.
         useGenerationStore.setState(generationBefore)
         useSceneStore.setState({ presets: sceneBefore.presets, sceneCharacterAdditions: sceneBefore.sceneCharacterAdditions })
-        useCharacterPromptStore.setState({ characters: characterBefore.characters, activeCharacterLimit: characterBefore.activeCharacterLimit })
+        useCharacterPromptStore.setState({ characters: characterBefore.characters, activeCharacterLimit: characterBefore.activeCharacterLimit, positionEnabled: characterBefore.positionEnabled })
         await saved.rollback()
         throw error
     }

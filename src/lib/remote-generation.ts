@@ -116,6 +116,7 @@ export const remoteModelOptions = () => AVAILABLE_MODELS.map(model => ({
 }))
 export interface RemoteSnapshot {
     revision?: string
+    positionEnabled?: boolean
     settings: RemoteGenerationSettings
     costContext: RemoteCostContext
     models: ReturnType<typeof remoteModelOptions>
