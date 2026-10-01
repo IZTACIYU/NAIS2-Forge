@@ -26,6 +26,15 @@ export interface LibraryFolder {
 
 export type LibraryThumbnailLayout = 'vertical' | 'horizontal' | 'square'
 
+export const LIBRARY_ALL_FOLDER_ID = '__all__'
+export const LIBRARY_UNGROUPED_FOLDER_ID = '__ungrouped__'
+
+export function resolveLibraryDefaultFolderId(defaultFolderId: string | null | undefined, folders: LibraryFolder[]): string {
+    return defaultFolderId === LIBRARY_ALL_FOLDER_ID || defaultFolderId === LIBRARY_UNGROUPED_FOLDER_ID
+        || folders.some(folder => folder.id === defaultFolderId)
+        ? defaultFolderId! : LIBRARY_ALL_FOLDER_ID
+}
+
 export function getLibraryFolderDescendantIds(folders: LibraryFolder[], folderId: string): Set<string> {
     const descendants = new Set<string>()
     const pending = [folderId]
@@ -230,6 +239,7 @@ function reorder(source: LibraryItem[], activeId: string, overId: string): Libra
 interface LibraryState {
     items: LibraryItem[]
     folders: LibraryFolder[]
+    defaultFolderId: string | null
     draggedSource: { name: string, path: string } | null
     gridColumns: number
     thumbnailLayout: LibraryThumbnailLayout
@@ -240,6 +250,7 @@ interface LibraryState {
 
     setGridColumns: (columns: number) => void
     setThumbnailLayout: (layout: LibraryThumbnailLayout) => void
+    setDefaultFolderId: (folderId: string | null) => void
     addItem: (item: LibraryItem) => void
     removeItem: (id: string) => void
     removeItems: (ids: string[]) => void
@@ -273,6 +284,7 @@ export const useLibraryStore = create<LibraryState>()(
         (set, get) => ({
             items: [],
             folders: [],
+            defaultFolderId: null,
             draggedSource: null,
             gridColumns: 4,
             thumbnailLayout: 'vertical',
@@ -283,6 +295,10 @@ export const useLibraryStore = create<LibraryState>()(
 
             setGridColumns: (columns) => set({ gridColumns: columns }),
             setThumbnailLayout: (thumbnailLayout) => set({ thumbnailLayout }),
+            setDefaultFolderId: (defaultFolderId) => set(state => {
+                if (defaultFolderId !== null && resolveLibraryDefaultFolderId(defaultFolderId, state.folders) !== defaultFolderId) return state
+                return { defaultFolderId }
+            }),
 
             addItem: (item) => set(state => {
                 if (!state.currentStackId) return { items: [item, ...state.items] }
@@ -490,6 +506,7 @@ export const useLibraryStore = create<LibraryState>()(
                         ? assignFolderToTree(item, folder.parentId)
                         : item
                     ),
+                    defaultFolderId: state.defaultFolderId === id ? null : state.defaultFolderId,
                 }
             }),
 
@@ -545,6 +562,7 @@ export const useLibraryStore = create<LibraryState>()(
             partialize: state => ({
                 items: state.items,
                 folders: state.folders,
+                defaultFolderId: state.defaultFolderId,
                 gridColumns: state.gridColumns,
                 thumbnailLayout: state.thumbnailLayout,
             }),

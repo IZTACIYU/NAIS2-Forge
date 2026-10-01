@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import {
     DndContext,
     pointerWithin,
@@ -27,6 +27,7 @@ import {
     flattenLibraryItems,
     flattenLibraryLeaves,
     getFirstLibraryLeaf,
+    resolveLibraryDefaultFolderId,
 } from '@/stores/library-store'
 import { SortableLibraryItem } from '@/components/library/SortableLibraryItem'
 import { LibraryItem as LibraryItemComponent } from '@/components/library/LibraryItem'
@@ -88,12 +89,30 @@ import { isEditableEventTarget } from '@/lib/utils'
 
 // ... existing imports
 
+function subscribeLibraryHydration(onChange: () => void) {
+    const unsubscribers = [
+        useLibraryStore.persist.onHydrate(onChange),
+        useLibraryStore.persist.onFinishHydration(onChange),
+        useSettingsStore.persist.onHydrate(onChange),
+        useSettingsStore.persist.onFinishHydration(onChange),
+    ]
+    return () => unsubscribers.forEach(unsubscribe => unsubscribe())
+}
+
+const isLibraryHydrated = () => useLibraryStore.persist.hasHydrated() && useSettingsStore.persist.hasHydrated()
+
 export default function Library() {
+    const hydrated = useSyncExternalStore(subscribeLibraryHydration, isLibraryHydrated)
+    return hydrated ? <LibraryContent /> : null
+}
+
+function LibraryContent() {
     const { t } = useTranslation()
     const [searchParams, setSearchParams] = useSearchParams()
     const { 
         items,
         folders,
+        defaultFolderId,
         addItem, 
         setItems, 
         updateItem, 
@@ -127,7 +146,7 @@ export default function Library() {
     const activeDragDescendantIdsRef = useRef<Set<string>>(new Set())
     const [isDraggingFile, setIsDraggingFile] = useState(false)
     const [folderPanelOpen, setFolderPanelOpen] = useState(true)
-    const [selectedFolderId, setSelectedFolderId] = useState<LibraryFolderSelection>(LIBRARY_ALL_FOLDER_ID)
+    const [selectedFolderId, setSelectedFolderId] = useState<LibraryFolderSelection>(() => resolveLibraryDefaultFolderId(defaultFolderId, folders))
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const setStackNavigation = useCallback((stackId: string | null) => {

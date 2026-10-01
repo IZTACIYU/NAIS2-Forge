@@ -692,6 +692,13 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - 생성뿐 아니라 snapshot·씬 목록/이미지·asset 조회·앱 반영·씬 삭제도 같은 검사를 거친다. 최초 시작과 승인된 QR 등록만 새 pairing을 채택한다. 기존 Web Lock과 transaction 내부 identity 검사는 유지한다.
 - Coverage: 별도 웹 `node check-session-context.mjs`에서 패치 전 A 초안→B 연결 재현과 8개 요청 진입점의 거절·편집 보존·정상 counter 갱신을 확인한다. `node check-requests.mjs`에서는 실제 암호화 응답을 기다리는 사이 pairing이 바뀌어도 생성 명령을 전송하지 않음을 검사한다.
 
+### 라이브러리 기본 진입 위치 invariant (2026-10-01)
+
+- 기본 진입 설정은 현재 탐색 중인 폴더와 다른 의미다. 설정 변경 즉시 탐색 위치를 강제로 바꾸지 않으며 다음 라이브러리 진입 때만 적용한다.
+- 기존 `nais2-forge-library`의 nullable `defaultFolderId`만 추가한다(사용자 승인 2026-10-01). null·필드 부재·없어진 ID는 전체보기로 해석하며 기존 key/backend·이미지·폴더·스택·파일 경로는 그대로 둔다. 폴더 이름이 아닌 stable ID로 기억하고 지정 폴더의 명시적 삭제 action에서만 설정을 해제한다.
+- 라이브러리와 폴더 기능 설정 hydration 완료 전에는 라이브러리 본문을 mount하지 않는다. 첫 렌더의 선택을 기본 진입 ID로 초기화해야 하며 전체 썸네일을 렌더한 뒤 effect로 폴더를 바꾸지 않는다. 기존 스택 URL/브라우저 뒤로가기와 확장 기능 off의 전체보기는 유지한다.
+- 설정/해제·구버전 hydrate·재실행·기존 데이터 보존·rename/move/reorder·지정 폴더 삭제·hydration-first mount는 `node scripts/check-library-default-entry.mjs`로 검사한다. 설치된 Playwright 경로를 인자로 전달하면 격리된 메모리 저장소에서 실제 Sidebar 메뉴와 화면 폭/번역을 추가 검사한다.
+
 ### R-XXX — 짧은 제목
 
 - **Date:** YYYY-MM-DD

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDroppable } from '@dnd-kit/core'
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, Images, Pencil, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, Home, Images, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -20,13 +20,15 @@ import {
     LibraryFolder,
     LibraryItem,
     useLibraryStore,
+    LIBRARY_ALL_FOLDER_ID,
+    LIBRARY_UNGROUPED_FOLDER_ID,
+    resolveLibraryDefaultFolderId,
 } from '@/stores/library-store'
 import { cn } from '@/lib/utils'
 import { FOLDER_COLORS } from '@/stores/character-prompt-store'
 import { FolderColorContextMenu } from '@/components/common/FolderColorContextMenu'
 
-export const LIBRARY_ALL_FOLDER_ID = '__all__'
-export const LIBRARY_UNGROUPED_FOLDER_ID = '__ungrouped__'
+export { LIBRARY_ALL_FOLDER_ID, LIBRARY_UNGROUPED_FOLDER_ID } from '@/stores/library-store'
 export const LIBRARY_FOLDER_DROP_PREFIX = 'library-folder:'
 
 export type LibraryFolderSelection = string
@@ -84,6 +86,8 @@ export function LibraryFolderSidebar({
     const { t } = useTranslation()
     const {
         folders,
+        defaultFolderId,
+        setDefaultFolderId,
         addFolder,
         updateFolder,
         deleteFolder,
@@ -93,6 +97,14 @@ export function LibraryFolderSidebar({
     } = useLibraryStore()
     const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
     const [editingFolderName, setEditingFolderName] = useState('')
+    const entryFolderId = resolveLibraryDefaultFolderId(defaultFolderId, folders)
+
+    const renderDefaultEntryMenu = (folderId: string) => (
+        <ContextMenuItem onSelect={() => setDefaultFolderId(defaultFolderId === folderId ? null : folderId)}>
+            <Home className="mr-2 h-4 w-4" />
+            {t(defaultFolderId === folderId ? 'library.clearDefaultEntry' : 'library.setDefaultEntry')}
+        </ContextMenuItem>
+    )
 
     const folderIds = useMemo(() => new Set(folders.map(folder => folder.id)), [folders])
     const childrenByParent = useMemo(() => {
@@ -183,8 +195,10 @@ export function LibraryFolderSidebar({
                                     'group/folder flex h-8 cursor-pointer items-center gap-1 rounded-md pr-1 text-xs transition-colors',
                                     selectedFolderId === folder.id
                                         ? 'bg-primary/15 text-foreground'
-                                        : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+                                        : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
+                                    entryFolderId === folder.id && 'ring-1 ring-inset ring-primary/70'
                                 )}
+                                title={entryFolderId === folder.id ? t('library.defaultEntry') : undefined}
                                 style={{ paddingLeft: `${4 + depth * 12}px` }}
                                 onClick={() => onSelectFolder(folder.id)}
                             >
@@ -297,6 +311,8 @@ export function LibraryFolderSidebar({
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 {t('actions.delete', '삭제')}
                             </ContextMenuItem>
+                            <ContextMenuSeparator />
+                            {renderDefaultEntryMenu(folder.id)}
                         </ContextMenuContent>
                     </ContextMenu>
                 </DroppableFolderRow>
@@ -315,35 +331,53 @@ export function LibraryFolderSidebar({
             </div>
             <ScrollArea className="min-h-0 flex-1">
                 <div className="space-y-0.5 p-2">
-                    <button
-                        type="button"
-                        className={cn(
-                            'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs transition-colors',
-                            selectedFolderId === LIBRARY_ALL_FOLDER_ID
-                                ? 'bg-primary/15 text-foreground'
-                                : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
-                        )}
-                        onClick={() => onSelectFolder(LIBRARY_ALL_FOLDER_ID)}
-                    >
-                        <Images className="h-4 w-4 shrink-0" />
-                        <span className="min-w-0 flex-1 truncate">{t('library.allView', '전체 보기')}</span>
-                        <span className="text-[10px] opacity-50">{items.length}</span>
-                    </button>
+                    <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                            <button
+                                type="button"
+                                className={cn(
+                                    'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs transition-colors',
+                                    selectedFolderId === LIBRARY_ALL_FOLDER_ID
+                                        ? 'bg-primary/15 text-foreground'
+                                        : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
+                                    entryFolderId === LIBRARY_ALL_FOLDER_ID && 'ring-1 ring-inset ring-primary/70'
+                                )}
+                                title={entryFolderId === LIBRARY_ALL_FOLDER_ID ? t('library.defaultEntry') : undefined}
+                                onClick={() => onSelectFolder(LIBRARY_ALL_FOLDER_ID)}
+                            >
+                                <Images className="h-4 w-4 shrink-0" />
+                                <span className="min-w-0 flex-1 truncate">{t('library.allView', '전체 보기')}</span>
+                                <span className="text-[10px] opacity-50">{items.length}</span>
+                            </button>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="w-56">
+                            {renderDefaultEntryMenu(LIBRARY_ALL_FOLDER_ID)}
+                        </ContextMenuContent>
+                    </ContextMenu>
                     <DroppableFolderRow dropId={LIBRARY_UNGROUPED_FOLDER_ID} enabled={isDraggingItem}>
-                        <button
-                            type="button"
-                            className={cn(
-                                'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs transition-colors',
-                                selectedFolderId === LIBRARY_UNGROUPED_FOLDER_ID
-                                    ? 'bg-primary/15 text-foreground'
-                                    : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
-                            )}
-                            onClick={() => onSelectFolder(LIBRARY_UNGROUPED_FOLDER_ID)}
-                        >
-                            <Folder className="h-4 w-4 shrink-0" />
-                            <span className="min-w-0 flex-1 truncate">{t('library.ungrouped', '미분류')}</span>
-                            <span className="text-[10px] opacity-50">{ungroupedCount}</span>
-                        </button>
+                        <ContextMenu>
+                            <ContextMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    className={cn(
+                                        'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs transition-colors',
+                                        selectedFolderId === LIBRARY_UNGROUPED_FOLDER_ID
+                                            ? 'bg-primary/15 text-foreground'
+                                            : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
+                                        entryFolderId === LIBRARY_UNGROUPED_FOLDER_ID && 'ring-1 ring-inset ring-primary/70'
+                                    )}
+                                    title={entryFolderId === LIBRARY_UNGROUPED_FOLDER_ID ? t('library.defaultEntry') : undefined}
+                                    onClick={() => onSelectFolder(LIBRARY_UNGROUPED_FOLDER_ID)}
+                                >
+                                    <Folder className="h-4 w-4 shrink-0" />
+                                    <span className="min-w-0 flex-1 truncate">{t('library.ungrouped', '미분류')}</span>
+                                    <span className="text-[10px] opacity-50">{ungroupedCount}</span>
+                                </button>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent className="w-56">
+                                {renderDefaultEntryMenu(LIBRARY_UNGROUPED_FOLDER_ID)}
+                            </ContextMenuContent>
+                        </ContextMenu>
                     </DroppableFolderRow>
                     {(childrenByParent.get('root') || []).map(folder => renderFolder(folder))}
                 </div>
