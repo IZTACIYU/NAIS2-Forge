@@ -8,6 +8,11 @@ import { Switch } from '@/components/ui/switch'
 import { invoke } from '@tauri-apps/api/core'
 import { Store } from '@tauri-apps/plugin-store'
 import { SHORTCUT_EVENTS } from '@/hooks/useShortcuts'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { toast } from '@/components/ui/use-toast'
+import { useCharacterPromptStore } from '@/stores/character-prompt-store'
+import { lookupTags } from '@/lib/tag-search-client'
+import { readWikiCharacters, eligibleCharacters, characterPreset } from '@/lib/danbooru-characters'
 import {
     Globe,
     Home,
@@ -20,6 +25,7 @@ import {
     ZoomOut,
     Settings2,
     Copy,
+    Users,
 } from 'lucide-react'
 
 interface QuickLink {
@@ -36,6 +42,7 @@ const DEFAULT_QUICK_LINKS: QuickLink[] = [
 
 const STORE_KEY = 'webview_quick_links'
 const DANBOORU_TAG_CATEGORIES_KEY = 'danbooru_tag_categories'
+const CHARACTER_EXTRACTION_KEY = 'danbooru_character_extraction'
 
 type DanbooruTagCategory = 'artist' | 'copyright' | 'characters' | 'general' | 'meta'
 type DanbooruTagCategories = Record<DanbooruTagCategory, boolean>
@@ -92,6 +99,11 @@ export default function WebView() {
     const storeRef = useRef<Store | null>(null)
     const hiddenForOverlayRef = useRef(false)
     const [zoomLevel, setZoomLevel] = useState(1.0)
+    const [extraction, setExtraction] = useState({ minimum: 100, gender: true })
+    const [draftExtraction, setDraftExtraction] = useState(extraction)
+    const [extracting, setExtracting] = useState(false)
+    const extractionOwner = useRef(0)
+    useEffect(() => () => { extractionOwner.current++ }, [])
 
     // Zoom function for buttons
     const handleZoom = useCallback(async (delta: number) => {
@@ -126,6 +138,8 @@ export default function WebView() {
                 setDanbooruTagCategories(readDanbooruTagCategories(
                     await storeRef.current.get(DANBOORU_TAG_CATEGORIES_KEY)
                 ))
+                const saved = await storeRef.current.get<typeof extraction>(CHARACTER_EXTRACTION_KEY)
+                if (saved && Number.isSafeInteger(saved.minimum) && saved.minimum >= 0 && typeof saved.gender === 'boolean') setExtraction(saved)
             } catch (error) {
                 console.error('Failed to load quick links:', error)
             }
@@ -149,13 +163,15 @@ export default function WebView() {
         try {
             if (!storeRef.current) return
             await storeRef.current.set(DANBOORU_TAG_CATEGORIES_KEY, draftDanbooruTagCategories)
+            await storeRef.current.set(CHARACTER_EXTRACTION_KEY, draftExtraction)
             await storeRef.current.save()
             setDanbooruTagCategories(draftDanbooruTagCategories)
+            setExtraction(draftExtraction)
             setIsDanbooruSettingsOpen(false)
         } catch (error) {
             console.error('Failed to save Danbooru tag settings:', error)
         }
-    }, [draftDanbooruTagCategories])
+    }, [draftDanbooruTagCategories, draftExtraction])
 
     const addQuickLink = () => {
         if (!newLinkName.trim() || !newLinkUrl.trim()) return
@@ -400,6 +416,58 @@ export default function WebView() {
         }
     }, [danbooruTagCategories, isDanbooruPage, refreshDanbooruPage])
 
+    const extractCharacters = async () => {
+        if (extracting || !isDanbooruPage) return
+        const owner = ++extractionOwner.current
+        setExtracting(true)
+        try {
+            const read = (path?: string) => invoke<{ url: string; html: string }>('read_danbooru_page', { path: path ?? null })
+            const page = await read()
+            const candidates = readWikiCharacters(new DOMParser().parseFromString(page.html, 'text/html'), page.url)
+            const tags = await lookupTags(candidates.map(candidate => candidate.tag.replace(/_/g, ' ')))
+            const eligible = eligibleCharacters(candidates, tags, extraction.minimum)
+            const pending = []
+            let unknown = 0
+            for (const candidate of eligible) {
+                if (owner !== extractionOwner.current) return
+                let genderTags = ''
+                if (extraction.gender) {
+                    try {
+                        let postId = candidate.postId
+                        if (!postId) {
+                            const wiki = await read(new URL(`/wiki_pages/${encodeURIComponent(candidate.tag)}`, page.url).href)
+                            postId = readWikiCharacters(new DOMParser().parseFromString(wiki.html, 'text/html'), wiki.url)[0]?.postId
+                        }
+                        if (postId) {
+                            const post = JSON.parse((await read(new URL(`/posts/${postId}.json`, page.url).href)).html)
+                            if (typeof post.tag_string === 'string' && post.tag_string.split(/\s+/).includes(candidate.tag)) genderTags = post.tag_string
+                        }
+                    } catch { /* Gender is optional; report unresolved entries below. */ }
+                }
+                const preset = characterPreset(candidate.tag, genderTags)
+                pending.push(preset)
+            }
+            if (owner !== extractionOwner.current) return
+            if (!useCharacterPromptStore.persist.hasHydrated()) throw new Error(t('web.extractionNotReady'))
+            const store = useCharacterPromptStore.getState()
+            const existing = new Set(store.characters.map(character => character.prompt.trim().toLowerCase()))
+            let added = 0
+            for (const preset of pending) {
+                const prompt = preset.prompt.trim().toLowerCase()
+                if (existing.has(prompt)) continue
+                store.addCharacter({ id: crypto.randomUUID(), name: preset.prompt, prompt: preset.prompt, negative: '', enabled: false })
+                existing.add(prompt)
+                if (extraction.gender && preset.prompt === preset.name) unknown++
+                added++
+            }
+            toast({ title: t('web.extractionDone', { count: added }), description: t('web.extractionSummary', { skipped: candidates.length - added, unknown }) })
+        } catch (error) {
+            if (owner === extractionOwner.current) toast({ title: t('web.extractionFailed'), description: String(error), variant: 'destructive' })
+        } finally {
+            if (owner === extractionOwner.current) setExtracting(false)
+        }
+    }
+
     useEffect(() => {
         const handleCopyDanbooruTags = () => void copyDanbooruTags()
         window.addEventListener(SHORTCUT_EVENTS.COPY_DANBOORU_TAGS, handleCopyDanbooruTags)
@@ -588,6 +656,7 @@ export default function WebView() {
                             className="h-7 w-7 rounded-md"
                             onClick={() => {
                                 setDraftDanbooruTagCategories(danbooruTagCategories)
+                                setDraftExtraction(extraction)
                                 setIsDanbooruSettingsOpen(true)
                             }}
                             title={t('web.danbooruSettings')}
@@ -596,13 +665,19 @@ export default function WebView() {
                         </Button>
                         <Button
                             variant="outline"
-                            size="sm"
-                            className="h-7 rounded-md px-2 text-xs"
+                            size="icon"
+                            className="h-7 w-7 rounded-md"
                             disabled={!isDanbooruPage}
                             onClick={() => void copyDanbooruTags()}
+                            title={t('web.copyPrompt')}
+                            aria-label={t('web.copyPrompt')}
                         >
-                            <Copy className="mr-1.5 h-3.5 w-3.5" />
-                            {t('common.copy')}
+                            <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="outline" size="icon" className="h-7 w-7 rounded-md"
+                            disabled={!isDanbooruPage || extracting} onClick={() => void extractCharacters()}
+                            title={t('web.extractCharacters')} aria-label={t('web.extractCharacters')}>
+                            {extracting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
                         </Button>
                     </>
                 )}
@@ -666,11 +741,16 @@ export default function WebView() {
             </Dialog>
 
             <Dialog open={isDanbooruSettingsOpen} onOpenChange={setIsDanbooruSettingsOpen}>
-                <DialogContent className="w-72 gap-3 p-4 [&>button]:hidden">
+                <DialogContent className="w-80 gap-3 p-4 [&>button]:hidden">
                     <DialogHeader className="sr-only">
                         <DialogTitle>{t('web.danbooruSettings')}</DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-2">
+                    <Tabs defaultValue="copy">
+                    <TabsList className="w-full">
+                        <TabsTrigger value="copy">{t('web.copyPrompt')}</TabsTrigger>
+                        <TabsTrigger value="characters">{t('web.extractCharacters')}</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="copy" className="space-y-2">
                         {DANBOORU_TAG_CATEGORY_OPTIONS.map(({ key, label }) => (
                             <div key={key} className="flex items-center justify-between">
                                 <label className="text-sm font-medium" htmlFor={`danbooru-tag-category-${key}`}>
@@ -686,12 +766,23 @@ export default function WebView() {
                                 />
                             </div>
                         ))}
-                    </div>
+                    </TabsContent>
+                    <TabsContent value="characters" className="space-y-3">
+                        <label className="block text-sm" htmlFor="character-minimum">{t('web.minimumCount')}</label>
+                        <Input id="character-minimum" type="number" min={0} step={1} value={draftExtraction.minimum}
+                            onChange={event => setDraftExtraction(value => ({ ...value, minimum: event.target.valueAsNumber }))} />
+                        <div className="flex items-center justify-between gap-2">
+                            <label htmlFor="character-gender" className="text-sm">{t('web.extractGender')}</label>
+                            <Switch id="character-gender" checked={draftExtraction.gender}
+                                onChange={event => setDraftExtraction(value => ({ ...value, gender: event.target.checked }))} />
+                        </div>
+                    </TabsContent>
+                    </Tabs>
                     <DialogFooter className="mt-1 gap-2 sm:justify-end sm:space-x-0">
                         <Button variant="outline" onClick={() => setIsDanbooruSettingsOpen(false)}>
                             {t('common.cancel')}
                         </Button>
-                        <Button onClick={() => void saveDanbooruTagCategories()}>
+                        <Button disabled={!Number.isSafeInteger(draftExtraction.minimum) || draftExtraction.minimum < 0} onClick={() => void saveDanbooruTagCategories()}>
                             {t('common.save')}
                         </Button>
                     </DialogFooter>

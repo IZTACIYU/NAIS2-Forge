@@ -313,6 +313,12 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ## R-024 — 외부 WebView 태그 추출은 페이지 표시 문자열을 신뢰하지 않는다
 
+- **Hidden legacy presets / reminder (2026-09-29):** 이 저장소에는 `nais2-forge-character-prompts`의 `presets`와 현재 캐릭터 프롬프트 화면의 `characters`가 별도로 있다. 캐릭터 삭제·`clearAll()`은 `characters`만 지우므로 예전에 저장된 프리셋이 다수 남아 있을 수 있다. 쓰이지 않던 `CharacterPromptDialog`를 화면에 연결하자 이 오래된 목록이 처음 노출되어 사용자가 원하지 않는다고 밝혔다. 사용자 요청에 따라 진입 버튼을 다시 제거했으며 프리셋 원본은 삭제·이동하지 않았다. **나중에 질문하면 이 사실을 설명한다.** 단부루 추출의 의도한 대상은 별도 프리셋 창이 아니라 이미 있는 캐릭터 프롬프트 화면의 `characters`다.
+
+- **403 transport regression (2026-09-29):** 추출에서 새 reqwest 클라이언트로 현재 위키를 재요청하던 경로는 웹뷰의 문서/세션을 사용하지 않았고 사용자가 403을 보고했다. 현재 위키는 DOM에서 읽고 추가 문서는 같은 origin의 웹뷰 fetch로 읽는다. 결과 전용 native protocol은 대기 중 요청의 child WebView label·Origin·크기를 검사하고 응답을 한 번만 소비한다. 외부 페이지에 일반 Tauri 명령 권한을 부여하지 않는다. 브라우저 회귀 검사에서 쿠키를 생략하면 403, 같은 세션이면 성공하며 첫 문서는 재요청되지 않는 것을 확인했다. 실서버의 구체적인 거절 정책은 미확인이다.
+
+- **Character extraction extension (approval 2026-09-29):** 캐릭터 추출은 일반 태그 복사와 독립적이다. 현재 위키의 기본 태그와 `Appearance`·`Skins` 제목부터 각각 다음 동급/상위 제목 전까지의 `tag-type-4` 위키 링크만 읽고 `dtext-wiki-does-not-exist`를 제외한다. UMP45 위키에서는 두 구역이 동급 `<h4>`여서 `Appearance`만 읽으면 `Skins` 항목이 누락된다. 링크 표시 이름 대신 URL의 원본 태그를 사용하며 내장 DB의 정확 일치/type/count를 검사한다. 대표 게시물 태그가 대상 캐릭터를 포함할 때만 성별을 판정하고, 다인/성별 변경/조회 실패는 성별 생략과 미확인 결과로 처리한다. 외부 페이지를 실행하거나 링크 대상의 임의 origin/redirect를 따라가지 않는다. 추출 결과는 hydration 완료 후 기존 캐릭터 화면의 `characters`에 **새 비활성 항목으로만** 추가하며 이름은 전체 프롬프트와 같다. 기존 캐릭터·프리셋은 수정·이동·삭제하지 않고, 동일 프롬프트 재추출은 건너뛰며 화면을 떠난 비동기 작업은 저장하지 않는다. `scripts/check-danbooru-characters.mjs`가 순수 로직과 선택적 실제 DOM/UI/worker/데이터 보존 검사를 제공한다.
+
 - **Date:** 2026-08-27
 - **Area:** Embedded WebView, Danbooru tag copy, shortcut handling
 - **Symptom/Risk:** 외부 단부루 페이지의 `?` 링크·게시물 수·표시용 공백이 프롬프트에 섞이거나, 단부루가 아닌 페이지에 DOM 스크립트를 실행할 수 있다.

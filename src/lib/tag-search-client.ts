@@ -16,7 +16,7 @@ export interface TagMatchResult {
 
 interface SearchResponse {
     id: number
-    kind: 'search' | 'match' | 'random'
+    kind: 'search' | 'match' | 'random' | 'exact'
     matches?: TagSearchResult[]
     results?: TagMatchResult[]
     error?: string
@@ -65,6 +65,14 @@ export function matchTags(tags: string[]): Promise<TagMatchResult[]> {
     return new Promise((resolve, reject) => {
         pending.set(id, { resolve: value => resolve(value as TagMatchResult[]), reject })
         getWorker().postMessage({ kind: 'match', id, tags })
+    })
+}
+
+export function lookupTags(tags: string[]): Promise<TagSearchResult[]> {
+    const id = ++nextRequestId
+    return new Promise((resolve, reject) => {
+        pending.set(id, { resolve: value => resolve(value as TagSearchResult[]), reject })
+        getWorker().postMessage({ kind: 'exact', id, tags })
     })
 }
 

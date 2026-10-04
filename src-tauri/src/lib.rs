@@ -2028,7 +2028,7 @@ async fn open_embedded_browser(
     let webview_builder = tauri::webview::WebviewBuilder::new(
         "embedded_browser",
         tauri::WebviewUrl::External(parsed_url),
-    );
+    ).use_https_scheme(true);
 
     // Add as child webview within the main window
     window
@@ -2147,9 +2147,110 @@ async fn copy_danbooru_tags(
         .map_err(|error| format!("Failed to copy Danbooru tags: {error}"))
 }
 
+fn is_danbooru_read_url(current: &Url, target: &Url) -> bool {
+    is_danbooru_url(current) && current.scheme() == "https"
+        && target.origin() == current.origin() && target.username().is_empty() && target.password().is_none()
+        && (target.path().starts_with("/wiki_pages/") || target.path().starts_with("/posts/"))
+}
+
+struct PendingDanbooruRead {
+    origin: String,
+    sender: tokio::sync::oneshot::Sender<serde_json::Value>,
+}
+
+static DANBOORU_READS: std::sync::LazyLock<Mutex<HashMap<String, PendingDanbooruRead>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+static DANBOORU_READ_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn receive_danbooru_read(webview: &str, request: &tauri::http::Request<Vec<u8>>) -> u16 {
+    if webview != "embedded_browser" || request.method() != "POST" || request.body().len() > 8 * 1024 * 1024 {
+        return 403;
+    }
+    let id = request.uri().path().trim_start_matches('/');
+    let Ok(mut pending) = DANBOORU_READS.lock() else { return 500; };
+    let Some(read) = pending.get(id) else { return 404; };
+    if request.headers().get("Origin").and_then(|value| value.to_str().ok()) != Some(read.origin.as_str()) {
+        return 403;
+    }
+    let Ok(value) = serde_json::from_slice(request.body()) else { return 400; };
+    if let Some(read) = pending.remove(id) { let _ = read.sender.send(value); }
+    204
+}
+
+#[tauri::command]
+async fn read_danbooru_page(app: AppHandle, path: Option<String>) -> Result<serde_json::Value, String> {
+    let webview = app.get_webview("embedded_browser").ok_or("Embedded browser is not open")?;
+    let current = webview.url().map_err(|error| error.to_string())?;
+    if !is_danbooru_url(&current) || current.scheme() != "https" {
+        return Err("Open a Danbooru wiki page first".into());
+    }
+    let url = match &path {
+        Some(path) => current.join(path).map_err(|error| error.to_string())?,
+        None => current.clone(),
+    };
+    if !is_danbooru_read_url(&current, &url) {
+        return Err("Only Danbooru wiki and post pages are allowed".into());
+    }
+    let id = DANBOORU_READ_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed).to_string();
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    let origin = current.origin().ascii_serialization();
+    DANBOORU_READS.lock().map_err(|error| error.to_string())?
+        .insert(id.clone(), PendingDanbooruRead { origin: origin.clone(), sender });
+    let reply_url = if cfg!(any(target_os = "windows", target_os = "android")) {
+        format!("https://danbooru-reader.localhost/{id}")
+    } else { format!("danbooru-reader://localhost/{id}") };
+    let script = format!("{}({}, {}, {});", include_str!("danbooru-read.js"),
+        serde_json::to_string(&path.map(|_| url.as_str())).unwrap(),
+        serde_json::to_string(&origin).unwrap(), serde_json::to_string(&reply_url).unwrap());
+    let result = match webview.eval(script) {
+        Ok(()) => tokio::time::timeout(std::time::Duration::from_secs(25), receiver).await
+            .map_err(|_| "Danbooru browser read timed out; keep the wiki page open".to_string())
+            .and_then(|value| value.map_err(|error| error.to_string())),
+        Err(error) => Err(error.to_string()),
+    };
+    DANBOORU_READS.lock().map_err(|error| error.to_string())?.remove(&id);
+    let value = result?;
+    if let Some(error) = value.get("error").and_then(|error| error.as_str()) { return Err(error.into()); }
+    let returned_url = value.get("url").and_then(|value| value.as_str()).ok_or("Missing page URL")?;
+    let returned_url = Url::parse(returned_url).map_err(|error| error.to_string())?;
+    if !is_danbooru_read_url(&current, &returned_url) || returned_url.path() != url.path() {
+        return Err("Danbooru page changed during extraction".into());
+    }
+    let html = value.get("html").and_then(|value| value.as_str()).ok_or("Missing page content")?;
+    if html.len() > 4 * 1024 * 1024 { return Err("Danbooru page is too large".into()); }
+    Ok(value)
+}
+
 #[cfg(test)]
 mod embedded_browser_tests {
     use super::*;
+
+    #[test]
+    fn browser_read_reply_is_origin_bound_and_consumed_once() {
+        let (sender, mut receiver) = tokio::sync::oneshot::channel();
+        DANBOORU_READS.lock().unwrap().insert("test-reply".into(), PendingDanbooruRead {
+            origin: "https://danbooru.donmai.us".into(), sender,
+        });
+        let request = |origin: &str| tauri::http::Request::builder()
+            .method("POST").uri("https://danbooru-reader.localhost/test-reply")
+            .header("Origin", origin).body(br#"{"html":"test"}"#.to_vec()).unwrap();
+        assert_eq!(receive_danbooru_read("main", &request("https://danbooru.donmai.us")), 403);
+        assert_eq!(receive_danbooru_read("embedded_browser", &request("https://example.com")), 403);
+        assert_eq!(receive_danbooru_read("embedded_browser", &request("https://danbooru.donmai.us")), 204);
+        assert_eq!(receiver.try_recv().unwrap()["html"], "test");
+        assert_eq!(receive_danbooru_read("embedded_browser", &request("https://danbooru.donmai.us")), 404);
+    }
+
+    #[test]
+    fn wiki_reads_stay_on_the_current_https_origin() {
+        let current = Url::parse("https://danbooru.donmai.us/wiki_pages/hatsune_miku").unwrap();
+        for path in ["/wiki_pages/hatsune_miku", "/posts/6549225.json"] {
+            assert!(is_danbooru_read_url(&current, &current.join(path).unwrap()));
+        }
+        for path in ["https://example.com/posts/1", "https://donmai.us.example/posts/1", "http://danbooru.donmai.us/posts/1", "/users/1", "https://user@danbooru.donmai.us/posts/1"] {
+            assert!(!is_danbooru_read_url(&current, &current.join(path).unwrap()));
+        }
+    }
 
     #[test]
     fn accepts_only_danbooru_hosts() {
@@ -2190,6 +2291,15 @@ pub fn run() {
     }
 
     builder
+        .register_uri_scheme_protocol("danbooru-reader", |context, request| {
+            let origin = request.headers().get("Origin").cloned();
+            let status = receive_danbooru_read(context.webview_label(), &request);
+            let mut response = tauri::http::Response::builder().status(status);
+            if status == 204 {
+                if let Some(origin) = origin { response = response.header("Access-Control-Allow-Origin", origin); }
+            }
+            response.body(Vec::<u8>::new()).unwrap()
+        })
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
@@ -2215,6 +2325,7 @@ pub fn run() {
             zoom_embedded_browser,
             is_danbooru_browser_page,
             copy_danbooru_tags,
+            read_danbooru_page,
             r2_list_objects,
             r2_put_object,
             r2_delete_object,

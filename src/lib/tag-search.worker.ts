@@ -255,8 +255,17 @@ function matchSingleTag(index: TagIndex, aliases: Map<string, number>, tag: stri
 
 const scope = self as unknown as DedicatedWorkerGlobalScope
 
-async function handleMessage(data: SearchRequest | MatchRequest | RandomRequest): Promise<void> {
+async function handleMessage(data: SearchRequest | MatchRequest | RandomRequest | { kind: 'exact'; id: number; tags: string[] }): Promise<void> {
     const index = await getTagIndex()
+
+    if (data.kind === 'exact') {
+        const matches = data.tags.flatMap(tag => {
+            const found = index.exactTags.get(tag.toLowerCase())
+            return found === undefined ? [] : [toTag(index, found)]
+        })
+        scope.postMessage({ id: data.id, kind: 'exact', matches })
+        return
+    }
 
     if (data.kind === 'random') {
         const selected = pickRandomTagIndex(index, data.query)
