@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } f
 import { Button } from '@/components/ui/button'
 
 // Replace the ID and translated body together when publishing a new notice.
-const ANNOUNCEMENT_ID = import.meta.env.DEV ? '1.12.0-export-defaults-dev' : '1.12.0-export-defaults'
+const ANNOUNCEMENT_ID = import.meta.env.DEV ? '1.13.0-feature-summary-dev' : '1.13.0-feature-summary'
 function subscribeHydration(onChange: () => void) {
     const start = useSettingsStore.persist.onHydrate(onChange)
     const finish = useSettingsStore.persist.onFinishHydration(onChange)

@@ -2,6 +2,7 @@
   "remote": {
     "title": "Mobile remote test",
     "description": "Pair one phone by QR. Generation and saving remain on this PC.",
+    "experimentalWarning": "This feature is still experimental. Security and stability validation is not complete. Use it cautiously and check important results on your PC.",
     "validHours": "Access duration (hours, max 72)",
     "createQr": "Create QR",
     "qrAlt": "QR code for mobile pairing",
@@ -22,7 +23,7 @@
   },
   "announcement": {
     "title": "Notice",
-    "body": "• Image filenames can now be changed when uploading to Cloudflare.\n\n• You can set the default image format and WebP quality for exports and uploads.\n  Change them in Settings → Save → Default export settings.\n\n• The recommended WebP quality is 85–90. At quality 85, we observed a file size reduction of over 90% compared with the original PNG.",
+    "body": "• Mobile remote access has been added.\n  Pair your phone using a QR code in the PC app to generate images, edit prompts and parameters, select references, characters and fragments, and work with scenes. Generation and saving run on the PC.\n  This feature is still experimental. Security and stability validation is not complete. Use it cautiously and check important results on your PC.\n\n• Choose the library's default entry folder.\n  Set or clear it in the folder's right-click menu to open that location instead of All Images.\n\n• Extract characters from Danbooru wiki pages.\n  The WebView reads the main character and Appearance/Skins entries and adds them to the existing character panel. You can configure the tag DB post-count threshold and gender extraction.\n\n• Upload metadata removal has been fixed.\n  With removal enabled, the final PNG, JPEG or WebP is checked for standard metadata and hidden prompts. If metadata remains or verification fails, that image and subsequent uploads are stopped.",
     "confirm": "I understand"
   },
   "app": {

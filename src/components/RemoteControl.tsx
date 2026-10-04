@@ -470,9 +470,10 @@ export function RemoteControl() {
                 <QrCode className="h-4 w-4" />
             </button>
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="max-w-sm">
+                <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
                     <DialogTitle>{t('remote.title')}</DialogTitle>
                     <DialogDescription>{t('remote.description')}</DialogDescription>
+                    <p role="note" className="text-sm leading-relaxed text-amber-400">{t('remote.experimentalWarning')}</p>
                     <div className="space-y-3 text-sm">
                         <label className="flex items-center gap-3">
                             <span className="flex-1">{t('remote.validHours')}</span>
