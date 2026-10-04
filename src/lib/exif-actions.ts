@@ -1,7 +1,7 @@
 import { exists, mkdir, readDir, writeFile } from '@tauri-apps/plugin-fs'
 import { join, pictureDir } from '@tauri-apps/api/path'
 import { useSettingsStore } from '@/stores/settings-store'
-import { ExifOutputFormat, StrippedImage, stripImageMetadata } from '@/lib/exif-stripper'
+import { ExifOutputFormat, StrippedImage, stripImageMetadata, reencodeImage } from '@/lib/exif-stripper'
 
 const isAbsolutePath = (path: string) => /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('/')
 const safeFileName = (name: string) => name.replace(/[<>:"/\\|?*]/g, '_').trim()
@@ -69,7 +69,10 @@ export const prepareImageForR2Upload = async (source: string, format: ExifOutput
     if (format === 'png' && !removeMetadata && source.startsWith('data:image/png;base64,')) {
         return { contentBase64: source.split(',')[1], contentType: 'image/png', extension: 'png' as const }
     }
-    const image = await stripImageMetadata(source, format, format === 'webp' ? quality / 100 : 0.9, format !== 'png')
+    const encodingQuality = format === 'webp' ? quality / 100 : 0.9
+    const image = removeMetadata
+        ? await stripImageMetadata(source, format, encodingQuality, format !== 'png')
+        : await reencodeImage(source, format, encodingQuality)
     return {
         contentBase64: await blobToBase64(image.blob),
         contentType: image.mimeType,

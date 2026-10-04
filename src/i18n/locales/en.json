@@ -380,6 +380,7 @@
     "noResult": "Run EXIF removal to preview the result.",
     "complete": "EXIF removal complete",
     "failed": "EXIF removal failed",
+    "verificationFailed": "Metadata removal could not be verified. Operation stopped; this image was not uploaded or saved.",
     "autoSaved": "Clean image saved",
     "quickAction": "Send to EXIF Manager",
     "directAction": "Remove EXIF and save now",

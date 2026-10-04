@@ -96,6 +96,12 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Do not "fix" by:** 같은 포맷 PNG를 canvas로 재인코딩해 색상/RGB 전체를 바꾸거나, text chunk만 지워 제거가 끝났다고 판단.
 - **Related:** v1.3.3 EXIF pixel/color preservation 변경
 
+- **Upload/conversion regression (2026-10-05, user-approved):** 업로드 기본 포맷을 추가하며 WebP/JPEG를 항상 canvas 재인코딩하는 분기로 연결했다. 재인코딩이 일반 metadata chunk를 버리는 것과 알파 LSB의 stealth 정보를 제거하는 것은 다르다. 실제 브라우저 합성 이미지에서 85% WebP에 `EXIF` chunk가 없어도 숨은 프롬프트 전체 비트가 남았다. `removeMetadata`는 PNG 원본 통과 여부에만 쓰이던 상태였다.
+- **Shared removal invariant:** 제거 ON은 PNG/JPEG/WebP와 직접/일괄 업로드 모두 같은 제거·검증 경로를 사용한다. 변환 전에 기존 alpha payload 제거를 적용하고, 최종 Blob의 PNG text/EXIF/time, JPEG EXIF/XMP/IPTC/comment, WebP EXIF/XMP와 디코딩한 alpha/RGB stealth signature를 직접 검사한다. ICC 등 색상 정보는 개인정보 metadata와 구분해 유지한다. signature의 JSON/길이 parse 실패를 metadata 부재로 취급하지 않는다.
+- **Fail-closed invariant:** 최종 잔존 metadata, 잘린/잘못된 파일, MIME 불일치, 검사·디코딩 실패는 오류를 throw한다. 검증 전에는 업로드 base64나 저장 결과를 반환하지 않는다. 호출자의 기존 순차 loop 전체가 중단되어 실패한 이미지와 후속 이미지는 전송되지 않는다. 앞서 완료된 업로드를 삭제하거나 rollback했다고 보고하지 않는다. 검사하지 못하는 animated 출력과 제거되지 않은 RGB stealth도 통과시키지 않는다.
+- **Scope/preservation:** 사용자 승인 범위는 앞으로 제거 옵션을 켜 처리할 결과물이다. 기존 원본·DB/key/schema·프리셋·이미지 경로·이미 업로드한 객체는 변경하지 않으며 migration/cleanup은 없다. 제거 OFF의 PNG 원본 바이트 통과와 일반 포맷 변환을 유지한다. OFF가 포맷 변환 시 모든 EXIF를 보존한다는 뜻은 아니다. 같은 PNG 제거의 RGB/profile 보존 invariant는 그대로 유지한다.
+- **Regression coverage extension:** `node scripts/check-upload-metadata.mjs <installed Playwright module path>`는 네트워크가 차단된 실제 Edge에서 9개 포맷 조합×두 stealth 형식, metadata 잔존·고장난 stealth 길이·RGB signature·파일 손상·decode 실패, OFF 동작과 3개 언어 안내를 검사한다. 실제 두 업로드 handler에 최종 encoder 실패를 주입한 12개 시나리오에서 실패 전 완료분만 남고 이후 업로드가 멈추는지 확인한다. 일반 metadata와 stealth 검사를 제거하지 않는다.
+
 ---
 
 ## R-008 — 모델 파라미터와 legacy 저장 상태를 분리한다

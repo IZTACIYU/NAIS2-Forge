@@ -1,3 +1,5 @@
+import i18next from 'i18next'
+
 export interface StrippedImage {
     blob: Blob
     mimeType: 'image/png' | 'image/jpeg' | 'image/webp'
@@ -175,7 +177,7 @@ const filterPngRows = (rows: Uint8Array[], filters: Uint8Array, bytesPerPixel: n
 }
 
 const clearStealthAlphaPayload = (
-    rows: Uint8Array[],
+    rows: Array<Uint8Array | Uint8ClampedArray>,
     width: number,
     height: number,
     bytesPerPixel: number,
@@ -217,7 +219,7 @@ export const stripPngMetadataBytes = async (bytes: Uint8Array) => {
     if (bytes.length < signature.length || signature.some((value, index) => bytes[index] !== value)) return bytes
 
     const chunks: Array<{ type: string; bytes: Uint8Array; data: Uint8Array }> = []
-    const metadataChunks = new Set(['tEXt', 'zTXt', 'iTXt', 'eXIf'])
+    const metadataChunks = new Set(['tEXt', 'zTXt', 'iTXt', 'eXIf', 'tIME'])
     let offset = 8
     while (offset + 12 <= bytes.length) {
         const length = readUint32BE(bytes, offset)
@@ -321,6 +323,8 @@ const stripWebpMetadata = (bytes: Uint8Array) => {
     if (offset !== bytes.length) return bytes
 
     const result = concatBytes(parts)
+    // VP8X must not advertise chunks that were removed.
+    if (fourCC(result, 12) === 'VP8X' && result.length >= 30) result[20] &= ~0x0c
     writeUint32LE(result, 4, result.length - 8)
     return result
 }
@@ -346,22 +350,140 @@ const loadDimensions = (source: string) => new Promise<{ width: number, height: 
     image.src = source
 })
 
+const hasStealthPayload = ({ data, width, height }: ImageData) => {
+    // Inspect the signature even if the payload length/JSON is corrupt: do not treat a parse failure as clean.
+    for (const channels of [[3], [0, 1, 2]]) {
+        let signature = ''
+        const bitCount = 'stealth_pnginfo'.length * 8
+        if (width * height * channels.length < bitCount) continue
+        for (let byte = 0; byte < bitCount; byte += 8) {
+            let value = 0
+            for (let bit = 0; bit < 8; bit++) {
+                const position = byte + bit
+                const pixel = Math.floor(position / channels.length)
+                const x = Math.floor(pixel / height)
+                const y = pixel % height
+                value = (value << 1) | (data[(y * width + x) * 4 + channels[position % channels.length]] & 1)
+            }
+            signature += String.fromCharCode(value)
+        }
+        if (['stealth_pnginfo', 'stealth_pngcomp', 'stealth_rgbinfo', 'stealth_rgbcomp'].includes(signature)) return true
+    }
+    return false
+}
+
+const checkMetadataChunks = (bytes: Uint8Array, mimeType: string) => {
+    const fail = () => { throw new Error('Metadata remains or image structure is invalid') }
+    if (mimeType === 'image/png') {
+        if ([137, 80, 78, 71, 13, 10, 26, 10].some((byte, index) => bytes[index] !== byte)) fail()
+        let offset = 8
+        while (offset + 12 <= bytes.length) {
+            const length = readUint32BE(bytes, offset)
+            const end = offset + 12 + length
+            const type = fourCC(bytes, offset + 4)
+            if (end > bytes.length || ['tEXt', 'zTXt', 'iTXt', 'eXIf', 'tIME', 'acTL'].includes(type)) fail()
+            if (crc32(bytes.subarray(offset + 4, end - 4)) !== readUint32BE(bytes, end - 4)) fail()
+            if (type === 'IEND') {
+                if (length !== 0 || end !== bytes.length) fail()
+                return
+            }
+            offset = end
+        }
+    } else if (mimeType === 'image/webp') {
+        if (bytes.length < 12 || fourCC(bytes, 0) !== 'RIFF' || fourCC(bytes, 8) !== 'WEBP' || readUint32LE(bytes, 4) !== bytes.length - 8) fail()
+        let offset = 12
+        while (offset + 8 <= bytes.length) {
+            const size = readUint32LE(bytes, offset + 4)
+            const end = offset + 8 + size + (size & 1)
+            const type = fourCC(bytes, offset)
+            if (end > bytes.length || ['EXIF', 'XMP ', 'ANIM', 'ANMF'].includes(type)) fail()
+            if (type === 'VP8X' && (size !== 10 || (bytes[offset + 8] & 0x0c))) fail()
+            offset = end
+        }
+        if (offset === bytes.length) return
+    } else if (mimeType === 'image/jpeg') {
+        if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) fail()
+        let offset = 2
+        let inScan = false
+        while (offset < bytes.length) {
+            if (bytes[offset++] !== 0xff) {
+                if (!inScan) fail()
+                continue
+            }
+            while (bytes[offset] === 0xff) offset++
+            if (offset >= bytes.length) fail()
+            const marker = bytes[offset++]
+            if (inScan && (marker === 0 || (marker >= 0xd0 && marker <= 0xd7))) continue
+            if (marker === 0xd9) {
+                if (offset !== bytes.length) fail()
+                return
+            }
+            if ([0xe1, 0xed, 0xfe].includes(marker) || offset + 2 > bytes.length) fail()
+            const length = (bytes[offset] << 8) | bytes[offset + 1]
+            if (length < 2 || offset + length > bytes.length) fail()
+            offset += length
+            inScan = marker === 0xda
+        }
+    }
+    fail()
+}
+
+export class ImageMetadataVerificationError extends Error {
+    readonly cause: unknown
+
+    constructor(cause: unknown) {
+        super(i18next.t('exif.verificationFailed', { defaultValue: 'Metadata removal could not be verified. Operation stopped; no image was uploaded or saved.' }))
+        this.name = 'ImageMetadataVerificationError'
+        this.cause = cause
+    }
+}
+
+export const assertImageMetadataRemoved = async (blob: Blob): Promise<void> => {
+    let bitmap: ImageBitmap | undefined
+    const canvas = document.createElement('canvas')
+    try {
+        // Check the final bytes, not a success flag or a parser that returns null on errors.
+        checkMetadataChunks(new Uint8Array(await blob.arrayBuffer()), blob.type)
+        bitmap = await createImageBitmap(blob)
+        // Only the signature prefix is needed; crop without resizing or decoding the JSON payload.
+        canvas.width = Math.min(bitmap.width, Math.ceil(120 / bitmap.height))
+        canvas.height = Math.min(bitmap.height, 120)
+        const context = canvas.getContext('2d')
+        if (!context) throw new Error('Canvas is not available')
+        context.drawImage(bitmap, 0, 0)
+        if (hasStealthPayload(context.getImageData(0, 0, canvas.width, canvas.height))) throw new Error('Stealth metadata remains')
+    } catch (error) {
+        throw new ImageMetadataVerificationError(error)
+    } finally {
+        bitmap?.close()
+        canvas.width = canvas.height = 0
+    }
+}
+
 export const stripImageMetadata = async (source: string, outputFormat: ExifOutputFormat, quality = 1, reencode = false): Promise<StrippedImage> => {
     const format = outputType(outputFormat)
     const sourceMime = sourceMimeType(source)
-    const { width, height } = await loadDimensions(source)
 
     // Keeping the source format lets us remove only metadata chunks, preserving every pixel and color profile.
     if (sourceMime === format.mimeType && !reencode) {
+        const { width, height } = await loadDimensions(source)
         const cleanBytes = await stripLosslessly(dataUrlBytes(source), sourceMime)
-        return {
+        const result: StrippedImage = {
             blob: new Blob([Uint8Array.from(cleanBytes).buffer], { type: format.mimeType }),
             ...format,
             width,
             height,
         }
+        await assertImageMetadataRemoved(result.blob)
+        return result
     }
 
+    return reencodeImage(source, outputFormat, quality, true)
+}
+
+export const reencodeImage = async (source: string, outputFormat: ExifOutputFormat, quality = 1, removeMetadata = false): Promise<StrippedImage> => {
+    const format = outputType(outputFormat)
+    const { width, height } = await loadDimensions(source)
     // A format conversion must re-encode the image, but it should never resample it first.
     const image = new Image()
     image.decoding = 'async'
@@ -374,21 +496,27 @@ export const stripImageMetadata = async (source: string, outputFormat: ExifOutpu
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
-    const context = canvas.getContext('2d')
-    if (!context) throw new Error('Canvas is not available')
-    context.drawImage(image, 0, 0)
-    image.src = ''
-
-    const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(
-            result => result ? resolve(result) : reject(new Error('Failed to encode image')),
-            format.mimeType,
-            quality
-        )
-    })
-    if (blob.type !== format.mimeType) throw new Error('Requested image format is not supported')
-    canvas.width = 0
-    canvas.height = 0
-
-    return { blob, ...format, width, height }
+    try {
+        const context = canvas.getContext('2d')
+        if (!context) throw new Error('Canvas is not available')
+        context.drawImage(image, 0, 0)
+        if (removeMetadata) {
+            const pixels = context.getImageData(0, 0, width, height)
+            const rows = Array.from({ length: height }, (_, y) => pixels.data.subarray(y * width * 4, (y + 1) * width * 4))
+            if (clearStealthAlphaPayload(rows, width, height, 4, 3)) context.putImageData(pixels, 0, 0)
+        }
+        const blob = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob(
+                result => result ? resolve(result) : reject(new Error('Failed to encode image')),
+                format.mimeType,
+                quality
+            )
+        })
+        if (blob.type !== format.mimeType) throw new Error('Requested image format is not supported')
+        if (removeMetadata) await assertImageMetadataRemoved(blob)
+        return { blob, ...format, width, height }
+    } finally {
+        image.src = ''
+        canvas.width = canvas.height = 0
+    }
 }

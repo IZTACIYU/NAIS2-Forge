@@ -51,7 +51,7 @@ vm.runInNewContext(ts.transpileModule(readFileSync('src/lib/exif-actions.ts', 'u
 }).outputText, {
     exports: imageActions, FileReader: FileReaderStub,
     require: name => name === '@/lib/exif-stripper'
-        ? { stripImageMetadata: async (...args) => {
+        ? { reencodeImage: async (...args) => {
             calls.push(args)
             return { blob: {}, mimeType: 'image/webp', extension: 'webp' }
         } }
@@ -61,7 +61,7 @@ const png = 'data:image/png;base64,cG5n'
 assert.equal((await imageActions.prepareImageForR2Upload(png, 'png', 72, false)).contentBase64, 'cG5n')
 assert.equal(calls.length, 0)
 const converted = await imageActions.prepareImageForR2Upload(png, 'webp', 72, false)
-assert.deepEqual(calls[0], [png, 'webp', 0.72, true])
+assert.deepEqual(calls[0], [png, 'webp', 0.72])
 assert.equal(converted.extension, 'webp')
 assert.equal(converted.contentType, 'image/webp')
 console.log('Export defaults and R2 image preparation checks passed.')

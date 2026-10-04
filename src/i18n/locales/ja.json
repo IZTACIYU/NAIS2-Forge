@@ -379,6 +379,7 @@
     "noResult": "EXIF削除を実行すると結果が表示されます。",
     "complete": "EXIF削除完了",
     "failed": "EXIF削除失敗",
+    "verificationFailed": "メタデータの削除を検証できなかったため、処理を中止しました。この画像はアップロード・保存していません。",
     "autoSaved": "クリーン画像を保存しました",
     "quickAction": "EXIF\u30de\u30cd\u30fc\u30b8\u30e3\u30fc\u3078\u9001\u308b",
     "directAction": "EXIF\u524a\u9664\u5f8c\u3059\u3050\u4fdd\u5b58",

@@ -380,6 +380,7 @@
     "noResult": "EXIF 제거를 실행하면 결과가 표시됩니다.",
     "complete": "EXIF 제거 완료",
     "failed": "EXIF 제거 실패",
+    "verificationFailed": "메타데이터 제거를 검증하지 못해 작업을 중단했습니다. 해당 이미지는 업로드·저장하지 않았습니다.",
     "autoSaved": "정리된 이미지 저장 완료",
     "quickAction": "EXIF \ub9e4\ub2c8\uc800\ub85c \ubcf4\ub0b4\uae30",
     "directAction": "EXIF \uc81c\uac70 \ud6c4 \ubc14\ub85c \uc800\uc7a5",
