@@ -8,6 +8,16 @@ import { stripDeleteDirectives, deletePromptTags } from '../src/lib/delete-promp
 const targets = new Set()
 assert.equal(stripDeleteDirectives('#del-Blue eyes\r\na,\r\n#DEL-bad hands,', targets), 'a,\r\n')
 assert.deepEqual([...targets], ['blue eyes', 'bad hands'])
+for (const directive of ['#del-blue eyes, red hair', '#DEL- Blue eyes, , red hair,', '#del-blue eyes\r\n#del-red hair']) {
+    const multiple = new Set()
+    assert.equal(stripDeleteDirectives(directive, multiple), '')
+    assert.deepEqual([...multiple], ['blue eyes', 'red hair'])
+    assert.equal(deletePromptTags('2::blue eyes, smile::, red hair', multiple), '2:: smile::')
+}
+const quotedTargets = new Set()
+stripDeleteDirectives(`#del-"hello, world", hands on another's head, artist:'a,b'`, quotedTargets)
+assert.deepEqual([...quotedTargets], ['"hello, world"', "hands on another's head", "artist:'a,b'"])
+assert.equal(deletePromptTags(`"hello, world", hands on another's head, artist:'a,b', smile`, quotedTargets), ' smile')
 const del = text => deletePromptTags(text, new Set(['blue eyes']))
 for (const [source, expected] of [
     ['blue eyes', ''],
@@ -93,6 +103,25 @@ assert.doesNotMatch((await build(adjacent)).prompt, /blue eyes|#del-/)
 adjacent.positiveParts = [{ value: 'blue eyes, red hair\n#if+blue eyes: #del-red hair' }]
 assert.match((await build(adjacent)).prompt, /blue eyes/)
 assert.doesNotMatch((await build(adjacent)).prompt, /red hair|#del-/)
+adjacent.positiveParts = [{ value: 'blue eyes, red hair, smile\n#if+blue eyes: #del-blue eyes, red hair' }]
+assert.match((await build(adjacent)).prompt, /smile/)
+assert.doesNotMatch((await build(adjacent)).prompt, /blue eyes|red hair|#del-/)
+for (const model of ['nai-diffusion-5-full', 'nai-diffusion-4-5-full']) {
+    for (const promptWhitespaceMode of ['preserve', 'compact']) {
+        const multiple = structuredClone(input)
+        Object.assign(multiple, { model, promptWhitespaceMode })
+        multiple.positiveParts.push({ value: '#del-blue eyes, red hair, no text' })
+        multiple.negativeParts.push({ value: '#del-bad hands, blue eyes' })
+        const original = JSON.stringify(multiple)
+        const result = await build(multiple)
+        assert.doesNotMatch(result.prompt, /blue eyes|red hair|no text|#del-/)
+        assert.doesNotMatch(result.characterPrompts[0].prompt, /blue eyes|#del-/)
+        assert.doesNotMatch(result.negative_prompt, /blue eyes|bad hands|#del-/)
+        assert.doesNotMatch(result.characterPrompts[0].negative, /blue eyes|bad hands|#del-/)
+        assert.match(result.prompt, /smile/)
+        assert.equal(JSON.stringify(multiple), original)
+    }
+}
 const panel = readFileSync(new URL('../src/components/layout/PromptPanel.tsx', import.meta.url), 'utf8')
 assert.match(panel, /expertCharacterPromptLayoutEnabled \? buildSceneCharacterPrompt\(character\)/)
 assert.match(panel, /stripDeleteDirectives\(text, positiveDeletes\)/)

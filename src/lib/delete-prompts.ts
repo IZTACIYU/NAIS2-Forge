@@ -6,7 +6,23 @@ export function stripDeleteDirectives(prompt: string, targets: Set<string>): str
         if (index % 2) return /^\s*#del-/i.test(lines[index - 1]) ? '' : line
         const match = line.match(/^\s*#del-(.*)$/i)
         if (!match) return line
-        const target = normalize(match[1].replace(/,\s*$/, ''))
+        const content = match[1]
+        let start = 0, quote = ''
+        // Commas inside quoted text belong to the same target, as in the tag parser below.
+        for (let offset = 0; offset < content.length; offset++) {
+            const char = content[offset]
+            if (quote) {
+                if (char === '\\') { offset++; continue }
+                if (char === quote) quote = ''
+            } else if (char === '"' || (char === "'" && !/[\p{L}\p{N}_]/u.test(content[offset - 1] || ''))) {
+                quote = char
+            } else if (char === ',') {
+                const target = normalize(content.slice(start, offset))
+                if (target) targets.add(target)
+                start = offset + 1
+            }
+        }
+        const target = normalize(content.slice(start))
         if (target) targets.add(target)
         return ''
     }).join('')

@@ -285,10 +285,27 @@ export function AutocompleteTextarea({
 
     // --- Helpers ---
     const getCurrentWord = (text: string, position: number) => {
+        const condition = getConditionTag(text, position)
+        if (condition) return text.slice(condition.start, position)
         const left = text.slice(0, position)
         // Match backwards to comma, newline, or :: (for V4 weight syntax like 2::tag::)
         const match = left.match(/[^,\n:]*$/)
         return match ? match[0].trimStart() : ''
+    }
+
+    const getConditionTag = (text: string, position: number) => {
+        const lineStart = text.lastIndexOf('\n', position - 1) + 1
+        const left = text.slice(lineStart, position)
+        const header = left.match(/^\s*#(?:del-|if[+-])/i)
+        if (!header) return null
+        const conditional = /^\s*#if/i.test(header[0])
+        const content = left.slice(header[0].length)
+        if (conditional && content.includes(':')) return null
+        const separator = conditional ? Math.max(content.lastIndexOf('&'), content.lastIndexOf('/')) : content.lastIndexOf(',')
+        const segment = content.slice(separator + 1)
+        const start = position - segment.trimStart().length
+        const tail = text.slice(position).match(conditional ? /^[^&/:\r\n]*/ : /^[^,\r\n]*/)?.[0] ?? ''
+        return { start, end: position + tail.trimEnd().length, conditional }
     }
 
     // `<` ?댄썑????쇰뱶移대뱶 ?대쫫 異붿텧
@@ -308,6 +325,7 @@ export function AutocompleteTextarea({
         if (hashIndex === -1 || !/^\s*$/.test(line.slice(0, hashIndex))) return null
 
         const directive = line.slice(hashIndex)
+        if (getConditionTag(text, position)) return null
         // Random tags end at the next tag/weight separator, unlike line directives.
         if (/^#r(?:Chara|Artist|Copy)\b[^,\r\n]*(?:,|::)/i.test(directive)) return null
         // Once a conditional header is complete, continue with normal tag search
@@ -329,7 +347,7 @@ export function AutocompleteTextarea({
     const checkAutocomplete = useCallback(async (val: string, el: HTMLTextAreaElement) => {
         const requestId = ++autocompleteRequestRef.current
 
-        const pos = el.selectionEnd || val.length
+        const pos = el.selectionEnd ?? val.length
 
         // 1. Prompt directives only apply at the beginning of a line.
         const directiveWord = getDirectiveWord(val, pos)
@@ -478,21 +496,22 @@ export function AutocompleteTextarea({
 
         } else {
             // ?쇰컲 ?쒓렇 ?쎌엯 (:: 臾몃쾿 吏??
+            const condition = getConditionTag(val, pos)
             const left = val.slice(0, pos)
             const wordMatch = left.match(/[^,\n:]*$/)
             if (!wordMatch) return
 
-            const wordStart = wordMatch.index!
+            const wordStart = condition?.start ?? wordMatch.index!
             const before = val.slice(0, wordStart)
-            const after = val.slice(pos)
+            const after = val.slice(condition?.end ?? pos)
 
             // Add space only if not at start and not after special chars
             const lastChar = before.slice(-1)
-            const needsSpace = before.length > 0 && ![' ', '\n', ':'].includes(lastChar)
+            const needsSpace = !condition && before.length > 0 && ![' ', '\n', ':'].includes(lastChar)
             const prefix = needsSpace ? ' ' : ''
 
             // Always use ", " as suffix (user will close :: manually if needed)
-            const suffix = ', '
+            const suffix = condition && (condition.conditional || /^\s*,/.test(after)) ? '' : ', '
 
             // Keep after as-is to preserve newlines and formatting
             const newValue = before + prefix + suggestion.value + suffix + after

@@ -592,6 +592,8 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 
 ### R045 — Delete directives share polarity-wide request ownership
 
+- **Multiple targets (2026-10-15):** `#del-blue eyes, red hair` collects separate comma-delimited exact tags in the shared deletion helper used by requests and token preview. Quoted commas and word-internal apostrophes are preserved; empty targets are ignored. Existing one-target-per-line syntax, active-input ownership, polarity isolation and pre-deletion conditional matching remain unchanged. Do not implement list splitting only in one editor or rewrite saved prompts. Tests cover V4.5/V5, preserve/compact whitespace, character/main positive/negative, conditional output, quoted targets and unchanged original input.
+
 - **Date:** 2026-09-20
 - **Area:** prompt assembly, main/scene/character requests, token preview
 - **Invariant to preserve:** Collect `#del-tag` before whitespace formatting and joining input boxes, only from active inputs. Apply exact-tag deletion across the same polarity after conditional/wildcard expansion and preset merging, before quoted-text extraction. Preserve original input/provenance and unrelated whitespace. Existing condition checks see pre-deletion tags.
@@ -603,6 +605,8 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 ---
 
 ### R046 — Random tag count filters must precede fragment angle parsing
+
+- **Condition autocomplete regression (2026-10-15):** The prior random-directive boundary fix did not cover editable `#if+/-` conditions or `#del-` targets: command-name completion consumed the whole condition and returned before tag search. The shared editor now resolves a condition tag range for both query and replacement. Keep `#if`/`#del` prefixes outside tag queries/replacements; preserve `&`, `/`, `:` and existing deletion-list commas. Conditional completions must not append a prompt comma. Middle-of-condition replacement must consume the remaining current tag, not duplicate it. The actual check/insert functions and isolated real editor + bundled worker are tested, including Tab/click selection and Undo/Redo. Preserve random count-vs-fragment handling and ordinary body completion.
 
 - **Date:** 2026-09-23
 - **Area:** bundled tag worker, prompt expansion and token estimates
