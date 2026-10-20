@@ -725,6 +725,14 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **Coverage:** `cargo test --offline --lib`의 화면 덮음/최대화 여백/분할/예약 공간/일반 창/빈 영역/음수 좌표/고해상도 물리 픽셀 검사. 격리된 Tauri 실동작의 적용·해제 성공은 임시 계측과 Win32 probe로 검사하고 계측은 제거한다. Shell 재생성은 알림 메시지로 검사했으며 실제 Explorer 재시작·다중 모니터/DPI 변경은 미실행.
 - **Do not fix by:** 시스템 작업표시줄 숨김, Explorer 종료, always-on-top, 강제 resize, 일반 창까지 DPI 비례 오차 허용, 프런트엔드 polling/저장 설정 추가.
 
+### 미해결 보류 — 씬 취소 완료 시 생성 잠금 해제 누락 (2026-10-21 기록)
+
+- **상태:** 원인 조사 및 격리 재현 완료, 사용자 요청으로 구현은 보류한다. 해결된 것으로 간주하지 않는다.
+- **증상/원인:** `cancelSceneGeneration`은 `isGenerating=true`를 유지한 채 `isCancelling=true`와 변경된 세션 ID를 설정한다. 실행 중 hook의 `isProcessing` 때문에 취소 후 effect가 일찍 반환하고, 원래 요청 종료 시에는 세션 ID 불일치로 재진입/재시도를 건너뛰어 생성·취소 플래그 및 전역 `generatingMode='scene'`가 남는다. 일반 종료와 달리 취소 후 성공·오류 모두에서 잠금 해제가 누락될 수 있다.
+- **근거:** 2026-10-17 당시 실제 `useSceneGeneration`과 scene store action을 메모리에서 실행하고 API 응답/effect 갱신만 모의했다. 정상 완료는 `false/false/null`, 취소 후 성공·오류는 모두 `true/true/scene`이며 내부 처리 잠금만 false가 되는 시나리오를 확인했다. 설치판에서 실서버 요청을 수행한 재현은 아니다. `070ac476`의 과거 취소 변경 rollback 이력도 다시 확인해야 한다.
+- **연결된 경계:** 메인도 AbortController를 만들지만 당시 `generateImage`/`generateImageStream`의 fetch 및 native reference 호출에 전달하지 않았다. 화면 상태 해제와 실제 통신 취소를 구분한다. 버튼을 강제로 풀거나 타임아웃으로 상태를 지우는 것은 요청 중첩을 만들 수 있다.
+- **후속 작업 주의:** 다중 계정 동시 생성 검토 시 취소·종료는 해당 작업/계정 owner만 정리해야 하며 다른 작업의 잠금·미리보기·참조 데이터를 초기화하지 않는다. 현재 전역 계정 순환 상태와 전역 생성 모드의 충돌 검사만 제거하는 방식은 금지한다. 이 기록은 구현 승인이 아니며 사용자 데이터·저장 구조는 변경하지 않는다.
+
 ### R-XXX — 짧은 제목
 
 - **Date:** YYYY-MM-DD
