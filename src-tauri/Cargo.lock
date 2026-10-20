@@ -2600,7 +2600,7 @@ dependencies = [
 
 [[package]]
 name = "nais2"
-version = "1.13.0"
+version = "1.14.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -2629,6 +2629,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tokio",
  "webp",
+ "windows",
  "zip 2.4.2",
 ]
 

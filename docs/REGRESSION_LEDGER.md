@@ -715,6 +715,16 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - 라이브러리와 폴더 기능 설정 hydration 완료 전에는 라이브러리 본문을 mount하지 않는다. 첫 렌더의 선택을 기본 진입 ID로 초기화해야 하며 전체 썸네일을 렌더한 뒤 effect로 폴더를 바꾸지 않는다. 기존 스택 URL/브라우저 뒤로가기와 확장 기능 off의 전체보기는 유지한다.
 - 설정/해제·구버전 hydrate·재실행·기존 데이터 보존·rename/move/reorder·지정 폴더 삭제·hydration-first mount는 `node scripts/check-library-default-entry.mjs`로 검사한다. 설치된 Playwright 경로를 인자로 전달하면 격리된 메모리 저장소에서 실제 Sidebar 메뉴와 화면 폭/번역을 추가 검사한다.
 
+### Windows 기본 창의 명시적 전체화면 표식 (2026-10-20)
+
+- **Area:** `src-tauri/src/taskbar_fullscreen.rs`, 기본 창 setup.
+- **Symptom/Evidence:** 최대화 버튼 사용 시 자동 숨김 작업표시줄이 하단 접근에 올라왔다. 설치판의 사전 실증에서 `ITaskbarList2::MarkFullscreenWindow(true)`만으로 창 크기는 유지하면서 하단 3지점이 작업표시줄에서 NAIS2로 바뀌었고 사용자가 동작을 확인했다. 내장 Tauri 앱에서도 외부 보조 프로그램 종료 후 1920×1079 클라이언트, 하단 3지점 NAIS2 hit-test를 확인했다.
+- **Root cause:** 현재 앱은 최대화만 수행하며 이 상태를 Shell에 명시적으로 전체화면으로 표시하는 정책이 없었다. 관찰된 최대화 1px 여백 자체의 설치판 라이브러리 내부 원인이나 간헐 증상의 전체 원인은 단정하지 않는다.
+- **Invariant:** 기본 창 자신이 foreground·visible·비최소화이고 실제 client가 monitor를 덮을 때만 true. 최대화에서만 최대 2 물리 픽셀 여백을 허용한다. 일반 창의 1px 부족, 화면 분할, 작업표시줄 예약 공간은 제외한다. 다른 앱 전환·일반 크기·최소화·숨김·종료는 false이며, false는 Shell 자동 감지까지 끄는 명령이 아니다.
+- **Ownership/lifecycle:** HWND 소유 스레드의 subclass에서 Windows/Tauri 이벤트 처리 후 별도 등록 메시지로 최종 geometry/focus를 읽는다. TaskbarCreated/TaskbarButtonCreated에도 재적용한다. COM 초기화 성공(S_FALSE 포함)마다 해제를 짝지으며 interface를 먼저 release한다. NCDESTROY에서 false와 subclass 제거를 수행한다. 별도 polling·프로세스명/설치 경로 추정·authoritative 상태 복제를 하지 않는다.
+- **Coverage:** `cargo test --offline --lib`의 화면 덮음/최대화 여백/분할/예약 공간/일반 창/빈 영역/음수 좌표/고해상도 물리 픽셀 검사. 격리된 Tauri 실동작의 적용·해제 성공은 임시 계측과 Win32 probe로 검사하고 계측은 제거한다. Shell 재생성은 알림 메시지로 검사했으며 실제 Explorer 재시작·다중 모니터/DPI 변경은 미실행.
+- **Do not fix by:** 시스템 작업표시줄 숨김, Explorer 종료, always-on-top, 강제 resize, 일반 창까지 DPI 비례 오차 허용, 프런트엔드 polling/저장 설정 추가.
+
 ### R-XXX — 짧은 제목
 
 - **Date:** YYYY-MM-DD

@@ -1,6 +1,8 @@
 #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
 mod app_data_migration;
 mod reference_paths;
+#[cfg(windows)]
+mod taskbar_fullscreen;
 
 use serde::{Deserialize, Serialize};
 
@@ -2368,6 +2370,11 @@ pub fn run() {
                     .find(|config| config.label == "main")
                     .ok_or_else(|| std::io::Error::other("Main window config is missing"))?;
                 tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?.build()?;
+            }
+
+            #[cfg(windows)]
+            if let Some(window) = app.get_webview_window("main") {
+                taskbar_fullscreen::install(window.hwnd()?)?;
             }
 
             if cfg!(debug_assertions) {
