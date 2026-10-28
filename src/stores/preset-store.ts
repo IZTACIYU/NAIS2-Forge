@@ -78,6 +78,9 @@ interface PresetState {
     getActivePreset: () => Preset | undefined
 }
 
+let syncTimeout: ReturnType<typeof setTimeout> | null = null
+let isLoadingPreset = false
+
 export const usePresetStore = create<PresetState>()(
     persist(
         (set, get) => ({
@@ -180,6 +183,7 @@ export const usePresetStore = create<PresetState>()(
 
             // Sync current generation-store values to active preset
             syncFromGenerationStore: () => {
+                if (!usePresetStore.persist.hasHydrated() || !useGenerationStore.persist.hasHydrated()) return
                 const activeId = get().activePresetId
                 if (!activeId) return
 
@@ -213,19 +217,24 @@ export const usePresetStore = create<PresetState>()(
             },
 
             loadPreset: (id) => {
-                // First sync current state before switching
-                if (get().activePresetId !== id) {
-                    get().syncFromGenerationStore()
+                isLoadingPreset = true
+                try {
+                    // First sync current state before switching
+                    if (get().activePresetId !== id) {
+                        get().syncFromGenerationStore()
+                    }
+
+                    const preset = get().presets.find(p => p.id === id)
+                    if (!preset) return
+
+                    // Set active preset
+                    set({ activePresetId: id })
+
+                    // applyPreset and its subscriptions run synchronously.
+                    useGenerationStore.getState().applyPreset(preset)
+                } finally {
+                    isLoadingPreset = false
                 }
-
-                const preset = get().presets.find(p => p.id === id)
-                if (!preset) return
-
-                // Set active preset
-                set({ activePresetId: id })
-
-                // Load preset values into generation store (single batch update)
-                useGenerationStore.getState().applyPreset(preset)
             },
 
             renamePreset: (id, name) => {
@@ -281,12 +290,10 @@ export const usePresetStore = create<PresetState>()(
 // Debounced Auto-Sync: generation-store → active preset
 // ============================================
 
-let syncTimeout: ReturnType<typeof setTimeout> | null = null
-let isLoadingPreset = false
-
 // Subscribe to generation-store changes
 useGenerationStore.subscribe((state, prevState) => {
-    if (isLoadingPreset) return
+    // Hydration notifications are restored values, not edits to the active preset.
+    if (isLoadingPreset || !usePresetStore.persist.hasHydrated() || !useGenerationStore.persist.hasHydrated()) return
 
     const fieldsToWatch = [
         'basePrompt', 'additionalPrompt', 'detailPrompt', 'negativePrompt',
@@ -302,16 +309,4 @@ useGenerationStore.subscribe((state, prevState) => {
     syncTimeout = setTimeout(() => {
         usePresetStore.getState().syncFromGenerationStore()
     }, 500)
-})
-
-// Wrapper for loadPreset to set loading flag
-const originalLoadPreset = usePresetStore.getState().loadPreset
-usePresetStore.setState({
-    loadPreset: (id: string) => {
-        isLoadingPreset = true
-        originalLoadPreset(id)
-        setTimeout(() => {
-            isLoadingPreset = false
-        }, 100)
-    }
 })
