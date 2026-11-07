@@ -9,6 +9,7 @@ import { useShortcuts } from '@/hooks/useShortcuts'
 import MainMode from '@/pages/MainMode'
 import { DrawOverHost } from '@/components/tools/DrawOverHost'
 import { AnnouncementDialog } from '@/components/AnnouncementDialog'
+import { SceneCommandConsole } from '@/components/SceneCommandConsole'
 
 const SceneMode = lazy(() => import('@/pages/SceneMode'))
 const SceneDetail = lazy(() => import('@/pages/SceneDetail'))
@@ -63,6 +64,7 @@ function AppContent() {
             </ThreeColumnLayout>
             <DrawOverHost />
             <AnnouncementDialog />
+            <SceneCommandConsole />
         </>
     )
 }

@@ -37,6 +37,8 @@ interface SettingsState {
     generationDelay: number  // Delay between batch generations in ms (0-5000)
     generationDelayJitter: number // Upper random offset in ms; 0 disables jitter
     acknowledgedAnnouncementId: string
+    consoleSceneStacksEnabled: boolean
+    consoleCharacterZipEnabled: boolean
 
     // Gemini API settings
     geminiApiKey: string
@@ -114,6 +116,7 @@ interface SettingsState {
     setGenerationDelay: (delay: number) => void
     setGenerationDelayJitter: (delay: number) => void
     acknowledgeAnnouncement: (id: string) => void
+    setConsoleFeature: (feature: 'stack' | 'czip', enabled: boolean) => void
     setGeminiApiKey: (key: string) => void
     setLibraryPath: (path: string, useAbsolute?: boolean) => void
     setImageFormat: (format: 'png' | 'webp') => void
@@ -173,6 +176,8 @@ export const useSettingsStore = create<SettingsState>()(
             generationDelay: 500, // Default: 500ms delay between batch generations
             generationDelayJitter: 0,
             acknowledgedAnnouncementId: '',
+            consoleSceneStacksEnabled: false,
+            consoleCharacterZipEnabled: false,
             geminiApiKey: '', // Default: empty
             libraryPath: 'NAIS_Library', // Default: relative to Pictures folder
             useAbsoluteLibraryPath: false, // Default: relative to Pictures folder
@@ -258,6 +263,9 @@ export const useSettingsStore = create<SettingsState>()(
             setGenerationDelay: (delay) => set({ generationDelay: Math.max(0, Math.min(5000, delay)) }),
             setGenerationDelayJitter: (delay) => set({ generationDelayJitter: Number.isFinite(delay) ? Math.max(0, Math.min(5000, delay)) : 0 }),
             acknowledgeAnnouncement: (acknowledgedAnnouncementId) => set({ acknowledgedAnnouncementId }),
+            setConsoleFeature: (feature, enabled) => set(feature === 'stack'
+                ? { consoleSceneStacksEnabled: enabled }
+                : { consoleCharacterZipEnabled: enabled }),
             setGeminiApiKey: (key) => set({ geminiApiKey: key }),
             setLibraryPath: (libraryPath, useAbsolute) => set({
                 libraryPath,

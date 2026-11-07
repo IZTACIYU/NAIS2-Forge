@@ -20,7 +20,7 @@ export const getRandomCharacterStackKey = (character: CharacterPrompt) => {
     return hash ? `${character.groupId || 'root'}:${hash}` : character.id
 }
 
-export const getRandomCharacterDisplayName = (character: CharacterPrompt, fallbackIndex = 0) => {
+export const getRandomCharacterDisplayName = (character: Pick<CharacterPrompt, 'name' | 'prompt'>, fallbackIndex = 0) => {
     const rawName = character.name?.trim() || ''
     const variant = rawName.match(VARIANT_NAME_PATTERN)
     const legacy = rawName.match(LEGACY_VARIANT_HASH_PATTERN)

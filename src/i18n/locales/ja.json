@@ -1,4 +1,21 @@
 {
+  "scenePrivate": {
+    "console": "コンソール",
+    "command": "コマンド",
+    "invalidCommand": "未対応のコマンドです。scene.stack または scene.czip に on/off を指定してください。",
+    "notReady": "設定を読み込み中です。完了後に再入力してください。",
+    "characterZip": "キャラクター別ZIP出力",
+    "reading": "キャラクターメタデータを確認中…",
+    "firstFour": "先頭4シーンのForge名一覧です。選択したキャラクターは全シーンから出力し、複数の選択に一致する画像は除外します。",
+    "noCharacters": "先頭4シーンにForgeキャラクター名が見つかりません。",
+    "search": "キャラクター検索",
+    "selectAll": "すべて選択",
+    "selectNone": "選択解除",
+    "exportAll": "選択キャラクターを一括出力",
+    "exportResult": "ZIP {{archives}}件 · 画像 {{images}}枚 · ファイル除外 {{skipped}}枚 · 未分類 {{unknown}}枚 · 複数一致 {{ambiguous}}枚 · 読込失敗 {{failed}}枚",
+    "exportError": "出力を中断しました。完了済みZIPは保持されます。{{error}}",
+    "allStacks": "スタック一覧"
+  },
   "remote": {
     "title": "モバイル遠隔テスト",
     "description": "QRでスマートフォン1台を接続します。生成と保存はこのPCで行います。",

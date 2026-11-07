@@ -6,29 +6,16 @@ import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SceneCard } from '@/stores/scene-store'
 import { save } from '@tauri-apps/plugin-dialog'
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { toast } from '@/components/ui/use-toast'
 import { useSettingsStore } from '@/stores/settings-store'
-import { getUniqueSceneOutputFileName } from '@/lib/scene-export-name'
-import { pickSceneRepresentativeImage } from '@/lib/scene-image-selection'
+import { createSceneZipEntries } from '@/lib/scene-zip-entries'
+import { exportSceneZip } from '@/services/scene-zip'
 
 interface ExportDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     activePresetName: string
     scenes: SceneCard[]
-}
-
-interface SceneZipExportResult {
-    exportedCount: number
-    skippedCount: number
-}
-
-interface SceneZipProgress {
-    exportId: string
-    completed: number
-    total: number
 }
 
 export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: ExportDialogProps) {
@@ -55,24 +42,7 @@ export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: E
         setProgress(0)
 
         try {
-            const usedFileNames = new Set<string>()
-            const entries: Array<{ source: string; fileName: string }> = []
-
-            for (const scene of scenes) {
-                const targetImage = pickSceneRepresentativeImage(scene.images)
-                if (!targetImage) continue
-
-                const ext = format === 'jpeg' ? 'jpg' : format
-                const fileName = getUniqueSceneOutputFileName({
-                    sceneName: scene.name,
-                    enabled: expertSceneExportNameEnabled,
-                    part: sceneExportNamePart,
-                    extension: ext,
-                    usedFileNames,
-                    fallback: `Scene_${entries.length}`,
-                })
-                entries.push({ source: targetImage.url, fileName })
-            }
+            const entries = createSceneZipEntries(scenes, format, expertSceneExportNameEnabled, sceneExportNamePart)
 
             if (entries.length === 0) {
                 toast({ title: t('scene.noImagesToExport'), variant: 'destructive' })
@@ -83,32 +53,16 @@ export function ExportDialog({ open, onOpenChange, activePresetName, scenes }: E
             const filePath = await save({ defaultPath: fileName, filters: [{ name: 'ZIP File', extensions: ['zip'] }] })
             if (!filePath) return
 
-            const exportId = `scene-zip-${Date.now()}`
-            const unlisten = await listen<SceneZipProgress>('scene-zip-progress', ({ payload }) => {
-                if (payload.exportId === exportId) {
-                    setProgress(Math.round((payload.completed / payload.total) * 100))
-                }
-            })
-            try {
-                const result = await invoke<SceneZipExportResult>('export_scene_images_zip', {
-                    outputPath: filePath,
-                    entries,
-                    format,
-                    quality: format === 'webp' ? quality : 90,
-                    exportId,
+            const result = await exportSceneZip(filePath, entries, format, quality, setProgress)
+            if (result.exportedCount > 0) {
+                toast({
+                    title: t('common.saved'),
+                    description: result.skippedCount > 0 ? `${result.skippedCount} image(s) could not be exported.` : undefined,
+                    variant: 'success',
                 })
-                if (result.exportedCount > 0) {
-                    toast({
-                        title: t('common.saved'),
-                        description: result.skippedCount > 0 ? `${result.skippedCount} image(s) could not be exported.` : undefined,
-                        variant: 'success',
-                    })
-                    onOpenChange(false)
-                } else {
-                    toast({ title: t('scene.noImagesToExport'), variant: 'destructive' })
-                }
-            } finally {
-                unlisten()
+                onOpenChange(false)
+            } else {
+                toast({ title: t('scene.noImagesToExport'), variant: 'destructive' })
             }
         } catch (error) {
             console.error(error)

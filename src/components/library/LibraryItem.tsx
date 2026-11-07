@@ -1,10 +1,10 @@
 import { memo, useState, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 import { getFirstLibraryLeaf, LibraryItem as LibraryItemType, type LibraryThumbnailLayout, useLibraryStore } from '@/stores/library-store'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { LibraryContextMenu } from './LibraryContextMenu'
 import { cn } from '@/lib/utils'
-import { Check, Square, Layers } from 'lucide-react'
+import { Check, Square } from 'lucide-react'
+import { ImageStackBadge } from '@/components/common/ImageStackBadge'
 import { ensureLibraryThumbnail, LIBRARY_THUMBNAIL_VERSION } from '@/lib/library-thumbnail'
 import { useNearViewport } from '@/hooks/use-near-viewport'
 
@@ -30,7 +30,6 @@ const getThumbnailAspectClass = (layout: LibraryThumbnailLayout) => {
 }
 
 export const LibraryItem = memo(function LibraryItem({ item, className, isOverlay, onRename, onAddRef, onLoadMetadata, onImageClick, isEditMode, isSelected, onSelectionClick, isDropTarget, thumbnailLayout = 'vertical' }: LibraryItemProps) {
-    const { t } = useTranslation()
     const [imageUrl, setImageUrl] = useState<string>('')
     const [isLoading, setIsLoading] = useState(true)
     const [containerRef, isNearViewport] = useNearViewport<HTMLDivElement>('500px 0px', !isOverlay)
@@ -165,10 +164,7 @@ export const LibraryItem = memo(function LibraryItem({ item, className, isOverla
 
             {/* Stack Badge */}
             {item.isStack && (
-                <div className="absolute top-2 right-2 z-30 px-2 py-1 bg-purple-500 text-white text-xs font-bold rounded-full flex items-center gap-1">
-                    <Layers className="h-3 w-3" />
-                    {t('library.stackCount', '{{count}}개', { count: item.stackItems?.length || 0 })}
-                </div>
+                <ImageStackBadge count={item.stackItems?.length || 0} />
             )}
 
             <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">

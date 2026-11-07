@@ -1,4 +1,21 @@
 {
+  "scenePrivate": {
+    "console": "콘솔",
+    "command": "명령어",
+    "invalidCommand": "지원하지 않는 명령어입니다. scene.stack 또는 scene.czip 뒤에 on/off를 입력하세요.",
+    "notReady": "설정을 불러오는 중입니다. 완료 후 다시 입력해 주세요.",
+    "characterZip": "캐릭터별 ZIP 내보내기",
+    "reading": "캐릭터 메타데이터 확인 중…",
+    "firstFour": "첫 4개 씬의 Forge 캐릭터 이름 목록입니다. 선택한 캐릭터는 전체 씬에서 추출하며 복수 일치 이미지는 제외합니다.",
+    "noCharacters": "첫 4개 씬에서 Forge 캐릭터 이름을 찾지 못했습니다.",
+    "search": "캐릭터 검색",
+    "selectAll": "전체 선택",
+    "selectNone": "선택 해제",
+    "exportAll": "선택한 캐릭터 전체 추출",
+    "exportResult": "ZIP {{archives}}개 · 이미지 {{images}}장 · 파일 제외 {{skipped}}장 · 미분류 {{unknown}}장 · 복수 일치 {{ambiguous}}장 · 읽기 실패 {{failed}}장",
+    "exportError": "추출이 중단되었습니다. 이미 완료된 ZIP은 유지됩니다. {{error}}",
+    "allStacks": "스택 목록"
+  },
   "remote": {
     "title": "모바일 원격 테스트",
     "description": "QR을 스캔한 휴대폰 한 대만 연결합니다. 생성과 저장은 이 PC에서 실행됩니다.",

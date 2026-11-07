@@ -168,6 +168,7 @@ import { join, pictureDir } from '@tauri-apps/api/path'
 import { Command } from '@tauri-apps/plugin-shell'
 import { save } from '@tauri-apps/plugin-dialog'
 import { ExportDialog } from '@/components/scene/ExportDialog'
+import { CharacterZipDialog } from '@/components/scene/CharacterZipDialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { RESOLUTION_PRESETS, ResolutionPresetSelector, Resolution } from '@/components/ui/ResolutionSelector'
 import { Switch } from '@/components/ui/switch'
@@ -625,6 +626,8 @@ export default function SceneMode() {
     }
 
     const [showExportDialog, setShowExportDialog] = useState(false)
+    const [showCharacterZip, setShowCharacterZip] = useState(false)
+    const characterZipEnabled = useSettingsStore(state => state.consoleCharacterZipEnabled === true)
     const [exportScenesFilter, setExportScenesFilter] = useState<'all' | 'selected'>('all')
     const [showDeletePresetDialog, setShowDeletePresetDialog] = useState(false)
     const [showCharacterSequenceDialog, setShowCharacterSequenceDialog] = useState(false)
@@ -1077,6 +1080,13 @@ export default function SceneMode() {
                                             <span className="text-[10px] font-bold leading-none">.zip</span>
                                         </Button>
                                     </Tip>
+                                    {characterZipEnabled && (
+                                        <Tip content={t('scenePrivate.characterZip')}>
+                                            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg" onClick={() => setShowCharacterZip(true)} disabled={scenes.length === 0}>
+                                                <span className="text-[10px] font-bold leading-none">C.zip</span>
+                                            </Button>
+                                        </Tip>
+                                    )}
                                     {expertR2DirectUploadEnabled && (
                                         <Tip content={t('scene.r2DirectUpload.title', 'R2 Direct Upload')}>
                                             <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg" onClick={() => setShowR2DirectUploadDialog(true)} disabled={scenesForOutput.length === 0 || isGenerating}>
@@ -1195,6 +1205,8 @@ export default function SceneMode() {
                 )
             }
 
+
+            {characterZipEnabled && activePreset && <CharacterZipDialog key={activePreset.id} open={showCharacterZip} onOpenChange={setShowCharacterZip} scenes={scenes} />}
 
             <ConfirmDialog
                 open={showDeletePresetDialog}

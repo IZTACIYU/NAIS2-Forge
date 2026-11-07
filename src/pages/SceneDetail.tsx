@@ -1,6 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { ImageStackBadge } from '@/components/common/ImageStackBadge'
+import { groupSceneCharacterImages, sceneCharacterImageKey, type SceneCharacterIndex } from '@/lib/scene-character-groups'
+import { indexSceneCharacters } from '@/services/scene-character-images'
 import { useShallow } from 'zustand/react/shallow'
 import { Button } from '@/components/ui/button'
 import {
@@ -169,6 +172,27 @@ export default function SceneDetail() {
     // Edit mode state
     const [isEditMode, setIsEditMode] = useState(false)
     const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set())
+    const stacksEnabled = useSettingsStore(state => state.consoleSceneStacksEnabled === true)
+    const [characterIndex, setCharacterIndex] = useState<SceneCharacterIndex | null>(null)
+    const characterCache = useRef<SceneCharacterIndex>(new Map())
+    const [openStackKey, setOpenStackKey] = useState<string | null>(null)
+    useEffect(() => {
+        if (!stacksEnabled || !scene) {
+            characterCache.current.clear(); setCharacterIndex(null); setOpenStackKey(null)
+            return
+        }
+        let active = true
+        const keys = new Set(scene.images.map(sceneCharacterImageKey))
+        const cache = new Map([...characterCache.current].filter(([key]) => keys.has(key)))
+        characterCache.current = cache
+        void indexSceneCharacters([scene], cache, () => active).then(() => {
+            if (active) setCharacterIndex(new Map(cache))
+        })
+        return () => { active = false }
+    }, [stacksEnabled, scene?.id, scene?.images])
+    const characterGroups = useMemo(() => stacksEnabled && characterIndex && !isEditMode
+        ? groupSceneCharacterImages(showFavoritesOnly ? scene?.images.filter(image => image.isFavorite) || [] : scene?.images || [], characterIndex)
+        : null, [stacksEnabled, characterIndex, isEditMode, showFavoritesOnly, scene?.images])
 
     // Auto-save prompt logic - hooks must be before conditional return
     const updateScenePrompt = useSceneStore(state => state.updateScenePrompt)
@@ -207,9 +231,12 @@ export default function SceneDetail() {
     // ESC key handler for closing viewer or navigating back
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
-            if (e.key !== 'Escape' || e.defaultPrevented || isEditableEventTarget(e.target)) return
+            if (e.key !== 'Escape' || e.defaultPrevented || isEditableEventTarget(e.target)
+                || document.querySelector('[role="dialog"][data-state="open"]')) return
             if (viewerImageSrc) {
                 setViewerImageSrc(null)
+            } else if (stacksEnabled && openStackKey) {
+                setOpenStackKey(null)
             } else {
                 // Navigate back to scene list
                 nav('/scenes')
@@ -217,7 +244,7 @@ export default function SceneDetail() {
         }
         window.addEventListener('keydown', handleEsc)
         return () => window.removeEventListener('keydown', handleEsc)
-    }, [viewerImageSrc, nav])
+    }, [viewerImageSrc, nav, stacksEnabled, openStackKey])
 
     // Memory cleanup on unmount - release streaming data when leaving scene detail
     // This prevents OOM when switching between modes (Issue #6)
@@ -380,6 +407,12 @@ export default function SceneDetail() {
     const sortedImages = showFavoritesOnly
         ? scene.images.filter(img => img.isFavorite)
         : scene.images
+    const currentStack = characterGroups?.find(group => group.key === openStackKey)
+    const imageRows = currentStack
+        ? currentStack.images.map(image => ({ image, count: 1, key: image.id, label: '' }))
+        : characterGroups
+            ? characterGroups.map(group => ({ image: group.top, count: group.images.length, key: group.key, label: group.names.join(', ') }))
+            : sortedImages.map(image => ({ image, count: 1, key: image.id, label: '' }))
 
     return (
         <div className="relative flex h-full flex-col gap-4">
@@ -749,6 +782,10 @@ export default function SceneDetail() {
                         )}
                     </div>
                 </div>
+                {currentStack && <Button variant="ghost" size="sm" className="self-start gap-2" onClick={() => setOpenStackKey(null)}>
+                    <ChevronLeft className="h-4 w-4" />{t('scenePrivate.allStacks')} — {currentStack.names.join(', ')}
+                </Button>}
+                {stacksEnabled && !characterIndex && <p role="status" className="text-xs text-muted-foreground">{t('scenePrivate.reading')}</p>}
                 <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pt-3 pr-1">
                     {sortedImages.length === 0 && !isStreaming ? (
                         <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
@@ -767,10 +804,12 @@ export default function SceneDetail() {
                                 </div>
                             )}
 
-                            {sortedImages.map((image) => (
+                            {imageRows.map(({ image, count, key, label }) => (
                                 <SceneImageCard
-                                    key={image.id}
+                                    key={key}
                                     image={image}
+                                    stackCount={count}
+                                    stackLabel={label}
                                     thumbnailLayout={thumbnailLayout}
                                     isEditMode={isEditMode}
                                     isSelected={selectedImageIds.has(image.id)}
@@ -828,6 +867,7 @@ export default function SceneDetail() {
                                         setInpaintDialogOpen(true)
                                     }}
                                     onImageClick={(imgSrc) => {
+                                        if (count > 1) { setOpenStackKey(key); return }
                                         setViewerImageSrc(imgSrc)
                                         setViewerImage(image)
                                     }}
@@ -962,6 +1002,8 @@ import { SceneImageContextMenu } from '@/components/scene/SceneImageContextMenu'
 
 function SceneImageCard({
     image,
+    stackCount = 1,
+    stackLabel,
     thumbnailLayout,
     isEditMode,
     isSelected,
@@ -974,6 +1016,8 @@ function SceneImageCard({
     onInpaint,
 }: {
     image: SceneImage
+    stackCount?: number
+    stackLabel?: string
     thumbnailLayout: 'vertical' | 'horizontal' | 'square'
     isEditMode?: boolean
     isSelected?: boolean
@@ -1051,6 +1095,8 @@ function SceneImageCard({
                 )}
 
                 {/* Edit mode selection overlay */}
+                {!isEditMode && stackCount > 1 && <ImageStackBadge count={stackCount} />}
+                {!isEditMode && stackLabel && <span title={stackLabel} className="pointer-events-none absolute left-2 top-2 max-w-[65%] truncate rounded bg-black/70 px-2 py-1 text-xs text-white">{stackLabel}</span>}
                 {isEditMode && (
                     <div className={cn(
                         "absolute top-2 left-2 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all",

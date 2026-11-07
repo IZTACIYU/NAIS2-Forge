@@ -1,4 +1,21 @@
 {
+  "scenePrivate": {
+    "console": "Console",
+    "command": "Command",
+    "invalidCommand": "Unsupported command. Use scene.stack or scene.czip followed by on/off.",
+    "notReady": "Settings are loading. Try again when loading finishes.",
+    "characterZip": "Export character ZIPs",
+    "reading": "Reading character metadata…",
+    "firstFour": "Forge names from the first 4 scenes. Selected characters are exported from all scenes; images matching multiple selections are excluded.",
+    "noCharacters": "No Forge character names found in the first 4 scenes.",
+    "search": "Search characters",
+    "selectAll": "Select all",
+    "selectNone": "Clear selection",
+    "exportAll": "Export all selected characters",
+    "exportResult": "ZIPs {{archives}} · Images {{images}} · Files skipped {{skipped}} · Unclassified {{unknown}} · Ambiguous {{ambiguous}} · Read failures {{failed}}",
+    "exportError": "Export stopped. Previously completed ZIPs were kept. {{error}}",
+    "allStacks": "All stacks"
+  },
   "remote": {
     "title": "Mobile remote test",
     "description": "Pair one phone by QR. Generation and saving remain on this PC.",
