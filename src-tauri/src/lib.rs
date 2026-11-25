@@ -1496,6 +1496,7 @@ fn read_reference_bytes(
 
 async fn prepare_character_reference(
     reference: NativeCharacterReference,
+    model: String,
 ) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {
         use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -1507,6 +1508,11 @@ async fn prepare_character_reference(
             reference.file_path.as_deref(),
             reference.source_base64.as_deref(),
         )?;
+        if model.starts_with("nai-diffusion-5-") {
+            // V5 receives its reference pixels in the model's own preparation
+            // path. The V4.5 letterbox/JPEG conversion changes those pixels.
+            return Ok(STANDARD.encode(bytes));
+        }
         let source = image::load_from_memory(&bytes)
             .map_err(|error| format!("Unsupported character reference image: {error}"))?;
         let (width, height) = source.dimensions();
@@ -1549,6 +1555,12 @@ async fn prepare_generation_references(
 ) -> Result<(serde_json::Value, Vec<String>), NativeGenerationError> {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
 
+    let model = payload
+        .get("model")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+
     let mut processed_characters = Vec::new();
     let mut cached_characters = Vec::new();
     for mut reference in character_references {
@@ -1558,7 +1570,7 @@ async fn prepare_generation_references(
             if let Some(path) = reference.file_path.take().filter(|path| !path.is_empty()) {
                 reference.file_path = Some(resolve_reference_path(app.clone(), path)?);
             }
-            processed_characters.push(prepare_character_reference(reference).await?);
+            processed_characters.push(prepare_character_reference(reference, model.clone()).await?);
         }
     }
 

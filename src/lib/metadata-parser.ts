@@ -187,7 +187,7 @@ function parseGenerationSources(value: unknown): Nais2GenerationSources | undefi
             || !isFiniteNumber(entry.informationExtracted)
             || !isFiniteNumber(entry.strength)
             || !isFiniteNumber(entry.fidelity)
-            || (entry.referenceType !== 'character' && entry.referenceType !== 'style' && entry.referenceType !== 'character&style')
+            || (entry.referenceType !== 'character' && entry.referenceType !== 'style' && entry.referenceType !== 'character&style' && entry.referenceType !== 'outfit')
         ) return []
 
         return [{
@@ -197,6 +197,7 @@ function parseGenerationSources(value: unknown): Nais2GenerationSources | undefi
             strength: entry.strength,
             fidelity: entry.fidelity,
             referenceType: entry.referenceType,
+            preferSameOutfit: typeof entry.preferSameOutfit === 'boolean' ? entry.preferSameOutfit : undefined,
         }]
     })
 

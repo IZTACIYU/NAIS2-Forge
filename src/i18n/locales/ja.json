@@ -538,6 +538,8 @@
     "typeCharacterStyle": "キャラクター & スタイル",
     "typeCharacter": "キャラクター",
     "typeStyle": "スタイル",
+    "typeOutfit": "衣装",
+    "preferSameOutfit": "同じ衣装を優先",
     "fidelity": "忠実度 (Fidelity)",
     "vibeDisabledMsg": "参照リファレンスがある場合は使用できません。",
     "clickToDisable": "クリックで無効化",
@@ -546,7 +548,13 @@
     "downloadImage": "元画像をダウンロード",
     "downloadFolderZip": "ZIPとしてエクスポート",
     "downloadComplete": "ダウンロード完了",
-    "downloadFailed": "ダウンロード失敗"
+    "downloadFailed": "ダウンロード失敗",
+    "copyToV5": "V5レファレンスにコピー",
+    "copyToV45": "V4.5レファレンスにコピー",
+    "copyComplete": "他モデルのレファレンスにコピーしました。",
+    "copyFailed": "レファレンスのコピーに失敗しました",
+    "copyImageUnavailable": "元画像を読み込めませんでした。",
+    "copySaveFailed": "コピーした画像を保存できませんでした。"
   },
   "imageRef": {
     "title": "画像参照を追加",

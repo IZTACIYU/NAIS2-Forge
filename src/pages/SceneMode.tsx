@@ -161,6 +161,9 @@ const SceneQueueControls = memo(function SceneQueueControls({ activePresetId, sc
 import { Tip } from '@/components/ui/tooltip'
 import { useSceneStore, type SceneImage, type ScenePreset } from '@/stores/scene-store'
 import { useGenerationStore } from '@/stores/generation-store'
+import { useCharacterStore } from '@/stores/character-store'
+import { useV5ReferenceStore } from '@/stores/v5-reference-store'
+import { isV5Model } from '@/lib/model-capabilities'
 import { toast } from '@/components/ui/use-toast'
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { mkdir, writeFile } from '@tauri-apps/plugin-fs'
@@ -1321,6 +1324,12 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
     const expertSceneCharacterAdditionsEnabled = useSettingsStore(s => s.expertSceneCharacterAdditionsEnabled)
     const sceneCharacterAdditionMode = useSettingsStore(s => s.sceneCharacterAdditionMode)
     const sceneCharacterAdditionsEnabled = useSceneStore(s => s.sceneCharacterAdditionsEnabled)
+    const model = useGenerationStore(s => s.model)
+    const isV5 = isV5Model(model)
+    const legacyCharacterReferences = useCharacterStore(s => s.characterImages)
+    const legacyVibeReferences = useCharacterStore(s => s.vibeImages)
+    const v5CharacterReferences = useV5ReferenceStore(s => s.characterImages)
+    const characterReferences = isV5 ? v5CharacterReferences : legacyCharacterReferences
     const sceneCharacterAddition = useSceneStore(s => {
         const presetId = s.activePresetId
         if (!presetId) return null
@@ -1403,8 +1412,8 @@ const SceneCardItem = memo(function SceneCardItem({ scene, onClick, disabled = f
         characters: sceneCharacterAddition?.mode === 'custom'
             ? sceneCharacterAddition.customCharacters?.filter(character => character.enabled !== false).length || 0
             : sceneCharacterAddition?.characterPromptIds.length || 0,
-        refs: sceneCharacterAddition?.characterReferenceIds.length || 0,
-        vibes: sceneCharacterAddition?.vibeReferenceIds.length || 0,
+        refs: sceneCharacterAddition?.characterReferenceIds.filter(id => characterReferences.some(image => image.id === id)).length || 0,
+        vibes: isV5 ? 0 : sceneCharacterAddition?.vibeReferenceIds.filter(id => legacyVibeReferences.some(image => image.id === id)).length || 0,
     }
     const hasAdditions = additionCounts.characters + additionCounts.refs + additionCounts.vibes > 0
 

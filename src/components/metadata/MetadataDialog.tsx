@@ -28,9 +28,10 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { toast } from '@/components/ui/use-toast'
 import { FileImage, Download, AlertCircle } from 'lucide-react'
 import { useCharacterStore } from '@/stores/character-store'
+import { useV5ReferenceStore } from '@/stores/v5-reference-store'
 import { stripQualityTags, stripUcPreset } from '@/lib/nai-presets'
 import { stripQuotedTextPrompt, stripTransparentBackgroundPrompt } from '@/lib/prompt-formatting'
-import { getModelCapabilities } from '@/lib/model-capabilities'
+import { getModelCapabilities, isV5Model } from '@/lib/model-capabilities'
 
 interface MetadataDialogProps {
     open: boolean
@@ -310,29 +311,42 @@ export function MetadataDialog({ open, onOpenChange, initialImage }: MetadataDia
             if (sources) {
                 // Original reference images never leave local storage. Match by
                 // stable local ID and restore only the settings used to generate.
-                referenceStore.disableAllReferenceImages('character')
-                referenceStore.disableAllReferenceImages('vibe')
+                if (isV5Model(genStore.model)) {
+                    const v5ReferenceStore = useV5ReferenceStore.getState()
+                    v5ReferenceStore.disableAllReferenceImages()
+                    for (const source of sources.characterReferences) {
+                        const existing = v5ReferenceStore.characterImages.find(image => image.id === source.id)
+                        if (existing) v5ReferenceStore.updateCharacterImage(existing.id, {
+                            ...source,
+                            preferSameOutfit: source.preferSameOutfit ?? true,
+                            enabled: true,
+                        })
+                    }
+                } else {
+                    referenceStore.disableAllReferenceImages('character')
+                    referenceStore.disableAllReferenceImages('vibe')
 
-                for (const source of sources.characterReferences) {
-                    const existing = referenceStore.characterImages.find(image => image.id === source.id)
-                    if (existing) referenceStore.updateCharacterImage(existing.id, { ...source, enabled: true })
-                }
+                    for (const source of sources.characterReferences) {
+                        const existing = referenceStore.characterImages.find(image => image.id === source.id)
+                        if (existing) referenceStore.updateCharacterImage(existing.id, { ...source, enabled: true })
+                    }
 
-                const restoredVibeIds = new Set<string>()
-                for (const source of sources.vibeReferences) {
-                    const existing = referenceStore.vibeImages.find(image => image.id === source.id)
-                    if (!existing) continue
-                    restoredVibeIds.add(source.id)
-                    referenceStore.updateVibeImage(existing.id, { ...source, enabled: true })
-                }
+                    const restoredVibeIds = new Set<string>()
+                    for (const source of sources.vibeReferences) {
+                        const existing = referenceStore.vibeImages.find(image => image.id === source.id)
+                        if (!existing) continue
+                        restoredVibeIds.add(source.id)
+                        referenceStore.updateVibeImage(existing.id, { ...source, enabled: true })
+                    }
 
-                // Missing Vibe originals can still use NAI's encoded payload.
-                for (let index = 0; index < sources.vibeReferences.length; index++) {
-                    const source = sources.vibeReferences[index]
-                    if (restoredVibeIds.has(source.id)) continue
-                    const encoded = metadata.encodedVibes?.[index]
-                    if (!encoded) continue
-                    await referenceStore.addVibeImage('', encoded, source.informationExtracted, source.strength, source.name)
+                    // Missing Vibe originals can still use NAI's encoded payload.
+                    for (let index = 0; index < sources.vibeReferences.length; index++) {
+                        const source = sources.vibeReferences[index]
+                        if (restoredVibeIds.has(source.id)) continue
+                        const encoded = metadata.encodedVibes?.[index]
+                        if (!encoded) continue
+                        await referenceStore.addVibeImage('', encoded, source.informationExtracted, source.strength, source.name)
+                    }
                 }
             } else if (metadata.encodedVibes && metadata.encodedVibes.length > 0) {
                 // Legacy / external image fallback: only encoded Vibe data is available.

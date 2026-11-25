@@ -13,6 +13,8 @@ import { readFile } from '@tauri-apps/plugin-fs'
 import { runRemoteSceneQueue, resolveRemoteScene, remoteSceneCostContext } from '@/services/remote-scene-queue'
 import { useAuthStore } from '@/stores/auth-store'
 import { useCharacterStore } from '@/stores/character-store'
+import { useV5ReferenceStore } from '@/stores/v5-reference-store'
+import { isV5Model } from '@/lib/model-capabilities'
 import { useSettingsStore } from '@/stores/settings-store'
 import { validateRemoteAssets, remoteRevision } from '@/lib/remote-workspace'
 import { remoteAssetPage, resolveRemoteAssets, applyRemoteWorkspace, remoteSceneDocument, remoteSceneDeleteRevision, deleteRemoteScene, type RemoteResolvedWorkspace } from '@/services/remote-workspace'
@@ -98,7 +100,7 @@ export function RemoteControl() {
 
     const isBusy = () => remoteBusyRef.current || !!useGenerationStore.getState().generatingMode || useGenerationStore.getState().isGenerating || useSceneStore.getState().isGenerating
 
-    const costContext = async (workspace?: RemoteResolvedWorkspace): Promise<RemoteCostContext> => {
+    const costContext = async (workspace?: RemoteResolvedWorkspace, model = useGenerationStore.getState().model): Promise<RemoteCostContext> => {
         const state = useGenerationStore.getState()
         let sourceDimensions: RemoteCostContext['sourceDimensions'] = null
         if (state.sourceImage) {
@@ -108,10 +110,14 @@ export function RemoteControl() {
             sourceDimensions = { width: Math.round(image.width / 64) * 64, height: Math.round(image.height / 64) * 64 }
         }
         const references = workspace ?? useCharacterStore.getState()
+        const characterImages = isV5Model(model)
+            ? workspace?.v5CharacterImages ?? useV5ReferenceStore.getState().characterImages
+            : references.characterImages
+        const vibeImages = isV5Model(model) ? [] : references.vibeImages
         return {
             sourceDimensions, entitlement: useAuthStore.getState().imageGenerationEntitlement,
-            characterReferenceCount: references.characterImages.filter(image => image.enabled !== false).length,
-            uncachedVibeCount: references.vibeImages.filter(image => image.enabled !== false && !image.encodedVibe && !image.encodedVibePath).length,
+            characterReferenceCount: characterImages.filter(image => image.enabled !== false).length,
+            uncachedVibeCount: vibeImages.filter(image => image.enabled !== false && !image.encodedVibe && !image.encodedVibePath).length,
         }
     }
 
@@ -272,10 +278,10 @@ export function RemoteControl() {
                 const sceneQueue = body.type === 'scene-generate' || body.type === 'apply' && body.queue !== undefined ? validateRemoteSceneQueue(body.queue) : undefined
                 if (sceneQueue && !settings) throw new Error('Missing settings')
                 const batchCount = sceneQueue ? sceneQueue.reduce((sum, item) => sum + item.count, 0) : body.batchCount === undefined ? 1 : validateRemoteBatch(body.batchCount)
-                const context = await costContext(workspace)
+                const context = await costContext(workspace, settings?.model)
                 const sceneCosts = sceneQueue?.map(item => {
                     const scene = resolveRemoteScene(item, settings!.model, workspace)
-                    const itemContext = remoteSceneCostContext(item, context, workspace)
+                    const itemContext = remoteSceneCostContext(item, context, workspace, settings!.model)
                     return { presetId: item.presetId, sceneId: item.sceneId, width: scene.width || 832, height: scene.height || 1216, costContext: itemContext }
                 })
                 const cost = sceneQueue ? sceneQueue.reduce<number | null>((sum, item, index) => {

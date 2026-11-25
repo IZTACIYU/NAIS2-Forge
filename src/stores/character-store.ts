@@ -5,7 +5,7 @@ import { saveReferenceImage, loadReferenceImage, deleteReferenceImage, saveEncod
 import { invoke } from '@tauri-apps/api/core'
 
 // 참조 레퍼런스 타입 (NovelAI 2026년 2월 업데이트)
-export type PreciseReferenceType = 'character' | 'style' | 'character&style'
+export type PreciseReferenceType = 'character' | 'style' | 'character&style' | 'outfit'
 export type ReferenceMode = 'character' | 'vibe'
 
 export interface ReferenceFolder {
@@ -29,6 +29,7 @@ export interface ReferenceImage {
     strength: number
     fidelity: number
     referenceType: PreciseReferenceType
+    preferSameOutfit?: boolean
     cacheKey?: string
     folderId?: string
 }
@@ -40,7 +41,7 @@ interface CharacterState {
     _imagesLoaded: boolean      // Runtime flag: are base64 loaded from files?
 
     // Actions
-    addCharacterImage: (base64: string, name?: string) => Promise<void>
+    addCharacterImage: (base64: string, name?: string, id?: string) => Promise<string>
     updateCharacterImage: (id: string, updates: Partial<ReferenceImage>) => void
     removeCharacterImage: (id: string) => void
 
@@ -69,7 +70,7 @@ interface CharacterState {
 }
 
 export const MAX_ACTIVE_REFERENCE_IMAGES = 10
-const THUMBNAIL_VERSION = 4
+export const THUMBNAIL_VERSION = 4
 const REFERENCE_CACHE_LIMIT_BYTES = 64 * 1024 * 1024
 const referenceAccessOrder = new Map<string, number>()
 let referenceAccessCounter = 0
@@ -119,7 +120,7 @@ async function makeThumbnailWithCanvas(base64: string, width: number, height: nu
 }
 
 /** Keep image decoding and resizing outside the WebView renderer. */
-async function makeThumbnail(base64?: string, filePath?: string, width = 384, height = 264): Promise<string> {
+export async function makeReferenceThumbnail(base64?: string, filePath?: string, width = 384, height = 264): Promise<string> {
     try {
         return await invoke<string>('create_reference_thumbnail', {
             sourceBase64: filePath ? null : base64 || null,
@@ -142,7 +143,7 @@ async function makeThumbnail(base64?: string, filePath?: string, width = 384, he
 async function persistImageToFile(id: string, base64: string, store: typeof useCharacterStore, field: 'characterImages' | 'vibeImages') {
     try {
         const filePath = await saveReferenceImage(id, base64)
-        const thumbnail = await makeThumbnail(base64, filePath)
+        const thumbnail = await makeReferenceThumbnail(base64, filePath)
         store.getState()[field === 'characterImages' ? 'updateCharacterImage' : 'updateVibeImage'](id, {
             filePath,
             thumbnail,
@@ -174,8 +175,7 @@ export const useCharacterStore = create<CharacterState>()(
             referenceFolders: [],
             _imagesLoaded: false,
 
-            addCharacterImage: async (base64, name) => {
-                const id = Date.now().toString()
+            addCharacterImage: async (base64, name, id = Date.now().toString()) => {
                 set((state) => {
                     const newImages = [
                         ...state.characterImages,
@@ -191,6 +191,7 @@ export const useCharacterStore = create<CharacterState>()(
                 })
                 // Async: save to file
                 await persistImageToFile(id, base64, useCharacterStore, 'characterImages')
+                return id
             },
 
             updateCharacterImage: (id, updates) => set((state) => {
@@ -384,6 +385,7 @@ export const useCharacterStore = create<CharacterState>()(
                 const loaded = [...state.characterImages, ...state.vibeImages]
                     .filter(image => image.base64 || image.encodedVibe)
                     .sort((a, b) => (referenceAccessOrder.get(b.id) || 0) - (referenceAccessOrder.get(a.id) || 0))
+                if (loaded.length === 0) return
                 const retained = new Set<string>()
                 let retainedBytes = 0
                 if (!force) {
@@ -393,6 +395,7 @@ export const useCharacterStore = create<CharacterState>()(
                         retained.add(image.id)
                         retainedBytes += bytes
                     }
+                    if (retained.size === loaded.length) return
                 }
                 const evict = (image: ReferenceImage): ReferenceImage => {
                     if (retained.has(image.id)) return image
@@ -422,7 +425,7 @@ export const useCharacterStore = create<CharacterState>()(
                             if (image.thumbnail && image.thumbnailVersion === THUMBNAIL_VERSION) continue
                             if (!image.filePath && !image.base64) continue
                             await yieldToUI()
-                            const thumbnail = await makeThumbnail(image.base64 || undefined, image.filePath)
+                            const thumbnail = await makeReferenceThumbnail(image.base64 || undefined, image.filePath)
                             if (thumbnail) refreshed.set(image.id, thumbnail)
                         }
                     }

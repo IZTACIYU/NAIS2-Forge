@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent, type DragEvent } from 'react'
 import {
     DndContext,
     DragOverlay,
@@ -52,8 +52,13 @@ import {
 import { FolderColorContextMenu } from '@/components/common/FolderColorContextMenu'
 import { toast } from '@/components/ui/use-toast'
 import { cn } from '@/lib/utils'
+import { isV5Model } from '@/lib/model-capabilities'
 import { parseMetadataFromBase64 } from '@/lib/metadata-parser'
 import { downloadReferenceFolder, downloadReferenceImage } from '@/lib/reference-export'
+import { loadReferenceImage } from '@/lib/image-utils'
+import { useGenerationStore } from '@/stores/generation-store'
+import { useV5ReferenceStore } from '@/stores/v5-reference-store'
+import { copyReferencedCharacterFoldersToV5, useV5ReferenceFolderStore } from '@/stores/v5-reference-folder-store'
 import {
     type PreciseReferenceType,
     type ReferenceFolder,
@@ -69,10 +74,25 @@ interface CharacterSettingsDialogProps {
     onOpenChange: (open: boolean) => void
 }
 
+const referenceStoresHydrated = () =>
+    useCharacterStore.persist.hasHydrated()
+    && useV5ReferenceStore.persist.hasHydrated()
+    && useV5ReferenceFolderStore.persist.hasHydrated()
+
+function subscribeReferenceStoreHydration(onChange: () => void) {
+    const stores = [useCharacterStore, useV5ReferenceStore, useV5ReferenceFolderStore]
+    const unsubscribe = stores.flatMap(store => [
+        store.persist.onHydrate(onChange),
+        store.persist.onFinishHydration(onChange),
+    ])
+    return () => unsubscribe.forEach(dispose => dispose())
+}
+
 interface SortableImageCardProps {
     image: ReferenceImage
     fallbackName: string
     isVibe: boolean
+    isV5: boolean
     enabledCharacterCount: number
     enabledVibeCount: number
     collapsed: boolean
@@ -84,11 +104,12 @@ interface SortableImageCardProps {
     onCommitRename: () => void
     onCancelRename: () => void
     onDownload: () => void
+    onCopy: () => void
     onUpdate: (updates: Partial<ReferenceImage>) => void
     onRemove: () => void
 }
 
-function SafeSlider({ value, onValueCommit, label }: { value: number; onValueCommit: (value: number) => void; label: string }) {
+function SafeSlider({ value, onValueCommit, label, max = 1 }: { value: number; onValueCommit: (value: number) => void; label: string; max?: number }) {
     const [localValue, setLocalValue] = useState([value])
 
     useEffect(() => setLocalValue([value]), [value])
@@ -99,7 +120,7 @@ function SafeSlider({ value, onValueCommit, label }: { value: number; onValueCom
                 <Label className="truncate text-xs text-muted-foreground">{label}</Label>
                 <span className="shrink-0 font-mono text-xs">{localValue[0].toFixed(2)}</span>
             </div>
-            <Slider value={localValue} min={0} max={1} step={0.01} onValueChange={setLocalValue} onValueCommit={([next]) => onValueCommit(next)} />
+            <Slider value={localValue} min={0} max={max} step={max > 1 ? 0.05 : 0.01} onValueChange={setLocalValue} onValueCommit={([next]) => onValueCommit(next)} />
         </div>
     )
 }
@@ -108,6 +129,7 @@ function SortableImageCard({
     image,
     fallbackName,
     isVibe,
+    isV5,
     enabledCharacterCount,
     enabledVibeCount,
     collapsed,
@@ -119,6 +141,7 @@ function SortableImageCard({
     onCommitRename,
     onCancelRename,
     onDownload,
+    onCopy,
     onUpdate,
     onRemove,
 }: SortableImageCardProps) {
@@ -129,7 +152,7 @@ function SortableImageCard({
     })
     const enabled = image.enabled !== false
     const enabledModeCount = isVibe ? enabledVibeCount : enabledCharacterCount
-    const enableBlocked = !enabled && (
+    const enableBlocked = !isV5 && !enabled && (
         (isVibe ? enabledCharacterCount > 0 : enabledVibeCount > 0)
         || enabledModeCount >= MAX_ACTIVE_REFERENCE_IMAGES
     )
@@ -222,6 +245,7 @@ function SortableImageCard({
                                     <SelectItem value="character&style">{t('characterDialog.typeCharacterStyle')}</SelectItem>
                                     <SelectItem value="character">{t('characterDialog.typeCharacter')}</SelectItem>
                                     <SelectItem value="style">{t('characterDialog.typeStyle')}</SelectItem>
+                                    {isV5 && <SelectItem value="outfit">{t('characterDialog.typeOutfit')}</SelectItem>}
                                 </SelectContent>
                             </Select>
                         )}
@@ -234,8 +258,14 @@ function SortableImageCard({
                         </>
                     ) : (
                         <>
-                            <SafeSlider label={t('characterDialog.strength')} value={image.strength} onValueCommit={value => onUpdate({ strength: value })} />
-                            <SafeSlider label={t('characterDialog.fidelity')} value={image.fidelity ?? 0.6} onValueCommit={value => onUpdate({ fidelity: value })} />
+                            <SafeSlider label={t('characterDialog.strength')} value={image.strength} max={isV5 ? 5 : 1} onValueCommit={value => onUpdate({ strength: value })} />
+                            {isV5 && (image.referenceType === 'character' || image.referenceType === 'character&style') && (
+                                <div className="flex items-center justify-between gap-2">
+                                    <Label className="text-xs text-muted-foreground">{t('characterDialog.preferSameOutfit')}</Label>
+                                    <Switch checked={image.preferSameOutfit !== false} onChange={event => onUpdate({ preferSameOutfit: event.target.checked })} />
+                                </div>
+                            )}
+                            {!isV5 && <SafeSlider label={t('characterDialog.fidelity')} value={image.fidelity ?? 0.6} onValueCommit={value => onUpdate({ fidelity: value })} />}
                         </>
                     )}
                 </div>
@@ -250,6 +280,10 @@ function SortableImageCard({
                 <ContextMenuItem onClick={onDownload}>
                     <Download className="mr-2 h-4 w-4" />
                     {t('characterDialog.downloadImage')}
+                </ContextMenuItem>
+                <ContextMenuItem onClick={onCopy}>
+                    <ImageIcon className="mr-2 h-4 w-4" />
+                    {t(isV5 ? 'characterDialog.copyToV45' : 'characterDialog.copyToV5')}
                 </ContextMenuItem>
             </ContextMenuContent>
         </ContextMenu>
@@ -371,23 +405,43 @@ const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
 
 export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSettingsDialogProps) {
     const { t } = useTranslation()
-    const characterImages = useCharacterStore(state => state.characterImages)
-    const vibeImages = useCharacterStore(state => state.vibeImages)
-    const folders = useCharacterStore(state => state.referenceFolders)
+    const referenceStoresReady = useSyncExternalStore(subscribeReferenceStoreHydration, referenceStoresHydrated)
+    const model = useGenerationStore(state => state.model)
+    const isV5 = isV5Model(model)
+    const legacyCharacterImages = useCharacterStore(state => state.characterImages)
+    const legacyVibeImages = useCharacterStore(state => state.vibeImages)
+    const v5CharacterImages = useV5ReferenceStore(state => state.characterImages)
+    const characterImages = isV5 ? v5CharacterImages : legacyCharacterImages
+    const vibeImages = isV5 ? [] : legacyVibeImages
+    const legacyFolders = useCharacterStore(state => state.referenceFolders)
+    const v5Folders = useV5ReferenceFolderStore(state => state.referenceFolders)
+    const folders = isV5 ? v5Folders : legacyFolders
     const addCharacterImage = useCharacterStore(state => state.addCharacterImage)
     const removeCharacterImage = useCharacterStore(state => state.removeCharacterImage)
     const updateCharacterImage = useCharacterStore(state => state.updateCharacterImage)
+    const addV5CharacterImage = useV5ReferenceStore(state => state.addCharacterImage)
+    const removeV5CharacterImage = useV5ReferenceStore(state => state.removeCharacterImage)
+    const updateV5CharacterImage = useV5ReferenceStore(state => state.updateCharacterImage)
     const addVibeImage = useCharacterStore(state => state.addVibeImage)
     const removeVibeImage = useCharacterStore(state => state.removeVibeImage)
     const updateVibeImage = useCharacterStore(state => state.updateVibeImage)
-    const addFolder = useCharacterStore(state => state.addReferenceFolder)
-    const renameFolder = useCharacterStore(state => state.renameReferenceFolder)
-    const setFolderColor = useCharacterStore(state => state.setReferenceFolderColor)
-    const removeFolder = useCharacterStore(state => state.removeReferenceFolder)
-    const reorderFolders = useCharacterStore(state => state.reorderReferenceFolders)
+    const addLegacyFolder = useCharacterStore(state => state.addReferenceFolder)
+    const renameLegacyFolder = useCharacterStore(state => state.renameReferenceFolder)
+    const setLegacyFolderColor = useCharacterStore(state => state.setReferenceFolderColor)
+    const removeLegacyFolder = useCharacterStore(state => state.removeReferenceFolder)
+    const reorderLegacyFolders = useCharacterStore(state => state.reorderReferenceFolders)
+    const addV5Folder = useV5ReferenceFolderStore(state => state.addReferenceFolder)
+    const renameV5Folder = useV5ReferenceFolderStore(state => state.renameReferenceFolder)
+    const setV5FolderColor = useV5ReferenceFolderStore(state => state.setReferenceFolderColor)
+    const removeV5Folder = useV5ReferenceFolderStore(state => state.removeReferenceFolder)
+    const reorderV5Folders = useV5ReferenceFolderStore(state => state.reorderReferenceFolders)
     const moveImage = useCharacterStore(state => state.moveReferenceImage)
     const disableAll = useCharacterStore(state => state.disableAllReferenceImages)
     const ensureHighQualityThumbnails = useCharacterStore(state => state.ensureHighQualityThumbnails)
+    const moveV5Image = useV5ReferenceStore(state => state.moveReferenceImage)
+    const unfileV5ImagesFromFolder = useV5ReferenceStore(state => state.unfileImagesFromFolder)
+    const disableAllV5Images = useV5ReferenceStore(state => state.disableAllReferenceImages)
+    const ensureV5HighQualityThumbnails = useV5ReferenceStore(state => state.ensureHighQualityThumbnails)
     const inputRef = useRef<HTMLInputElement>(null)
     const [activeTab, setActiveTab] = useState<ReferenceMode>('character')
     const [dragOverFiles, setDragOverFiles] = useState(false)
@@ -405,14 +459,23 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
 
     useEffect(() => {
         if (!open) return
-
         const current = useCharacterStore.getState()
+        const currentV5 = useV5ReferenceStore.getState()
         setCollapsedImageIds(new Set([
-            ...current.characterImages.map(image => image.id),
-            ...current.vibeImages.map(image => image.id),
+            ...(isV5 ? currentV5.characterImages : current.characterImages).map(image => image.id),
+            ...(!isV5 ? current.vibeImages.map(image => image.id) : []),
         ]))
-        void ensureHighQualityThumbnails()
-    }, [open, ensureHighQualityThumbnails])
+        if (isV5) void ensureV5HighQualityThumbnails()
+        else void ensureHighQualityThumbnails()
+    }, [open, isV5, ensureHighQualityThumbnails, ensureV5HighQualityThumbnails])
+
+    useEffect(() => {
+        if (open && isV5 && referenceStoresReady) copyReferencedCharacterFoldersToV5()
+    }, [open, isV5, referenceStoresReady, legacyFolders, v5CharacterImages, v5Folders])
+
+    useEffect(() => {
+        if (open && isV5 && activeTab === 'vibe') setActiveTab('character')
+    }, [open, isV5, activeTab])
 
     const addFiles = useCallback(async (files: FileList | File[], mode: ReferenceMode) => {
         for (const file of Array.from(files)) {
@@ -420,7 +483,8 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
             const base64 = await fileToBase64(file)
             const name = file.name.replace(/\.[^.]+$/, '')
             if (mode === 'character') {
-                await addCharacterImage(base64, name)
+                if (isV5) await addV5CharacterImage(base64, name)
+                else await addCharacterImage(base64, name)
                 continue
             }
             try {
@@ -432,7 +496,7 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                 await addVibeImage(base64, undefined, undefined, undefined, name)
             }
         }
-    }, [addCharacterImage, addVibeImage])
+    }, [addCharacterImage, addV5CharacterImage, addVibeImage, isV5])
 
     const handleInput = async (event: ChangeEvent<HTMLInputElement>) => {
         if (event.target.files) await addFiles(event.target.files, activeTab)
@@ -496,7 +560,10 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
 
     const commitFolderCreation = () => {
         const name = newFolderName.trim()
-        if (name) addFolder(activeTab, name)
+        if (name) {
+            if (isV5) addV5Folder(name)
+            else addLegacyFolder(activeTab, name)
+        }
         setNewFolderName('')
         setCreatingFolder(false)
     }
@@ -521,6 +588,40 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
         }
     }
 
+    const handleCopyImage = async (image: ReferenceImage) => {
+        try {
+            const base64 = image.base64 || (image.filePath ? await loadReferenceImage(image.filePath) : null)
+            if (!base64) throw new Error(t('characterDialog.copyImageUnavailable'))
+            if (isV5) {
+                const folderId = image.folderId && useCharacterStore.getState().referenceFolders.some(folder => folder.id === image.folderId)
+                    ? image.folderId
+                    : undefined
+                const id = await addCharacterImage(base64, image.name, `copy-v5-${crypto.randomUUID()}`)
+                const copy = useCharacterStore.getState().characterImages.find(item => item.id === id)
+                if (!copy?.filePath) {
+                    removeCharacterImage(id)
+                    throw new Error(t('characterDialog.copySaveFailed'))
+                }
+                updateCharacterImage(id, {
+                    referenceType: image.referenceType === 'outfit' ? 'character&style' : image.referenceType,
+                    folderId,
+                })
+            } else {
+                const folderId = image.folderId && useV5ReferenceFolderStore.getState().referenceFolders.some(folder => folder.id === image.folderId)
+                    ? image.folderId
+                    : undefined
+                const id = await addV5CharacterImage(base64, image.name, folderId)
+                updateV5CharacterImage(id, {
+                    referenceType: image.referenceType === 'outfit' ? 'character&style' : image.referenceType,
+                    preferSameOutfit: true,
+                })
+            }
+            toast({ title: t('characterDialog.copyComplete'), variant: 'success' })
+        } catch (error) {
+            toast({ title: t('characterDialog.copyFailed'), description: String(error), variant: 'destructive' })
+        }
+    }
+
     const handleDragStart = (event: DragStartEvent) => {
         const data = event.active.data.current
         if (data?.type === 'image') {
@@ -537,22 +638,37 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
         const overData = event.over?.data.current
         if (!activeData || !overData || !event.over) return
         if (activeData.type === 'folder' && overData.type === 'folder') {
-            reorderFolders(activeTab, activeData.folderId, overData.folderId)
+            if (isV5) reorderV5Folders(activeData.folderId, overData.folderId)
+            else reorderLegacyFolders(activeTab, activeData.folderId, overData.folderId)
             return
         }
         if (activeData.type !== 'image') return
         if (overData.type === 'image') {
             const overImage = allImages.find(image => image.id === overData.imageId)
-            if (overImage) moveImage(activeTab, activeData.imageId, overImage.folderId, overImage.id)
+            if (overImage) {
+                if (activeTab === 'character' && isV5) moveV5Image(activeData.imageId, overImage.folderId, overImage.id)
+                else moveImage(activeTab, activeData.imageId, overImage.folderId, overImage.id)
+            }
         } else if (overData.type === 'folder') {
-            moveImage(activeTab, activeData.imageId, overData.folderId)
+            if (activeTab === 'character' && isV5) moveV5Image(activeData.imageId, overData.folderId)
+            else moveImage(activeTab, activeData.imageId, overData.folderId)
             setCollapsedFolderIds(current => {
                 const next = new Set(current)
                 next.delete(overData.folderId)
                 return next
             })
         } else if (overData.type === 'root') {
-            moveImage(activeTab, activeData.imageId, undefined)
+            if (activeTab === 'character' && isV5) moveV5Image(activeData.imageId)
+            else moveImage(activeTab, activeData.imageId, undefined)
+        }
+    }
+
+    const handleFolderRemoval = (folderId: string) => {
+        if (isV5) {
+            unfileV5ImagesFromFolder(folderId)
+            removeV5Folder(folderId)
+        } else {
+            removeLegacyFolder(folderId)
         }
     }
 
@@ -560,8 +676,8 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
 
     const renderImage = (image: ReferenceImage) => {
         const isVibe = activeTab === 'vibe'
-        const update = isVibe ? updateVibeImage : updateCharacterImage
-        const remove = isVibe ? removeVibeImage : removeCharacterImage
+        const update = isVibe ? updateVibeImage : isV5 ? updateV5CharacterImage : updateCharacterImage
+        const remove = isVibe ? removeVibeImage : isV5 ? removeV5CharacterImage : removeCharacterImage
         const index = allImages.findIndex(item => item.id === image.id)
         const fallbackName = `${isVibe ? t('characterDialog.tabVibe') : t('characterDialog.tabCharacter')} ${index + 1}`
         return (
@@ -570,6 +686,7 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                 image={image}
                 fallbackName={fallbackName}
                 isVibe={isVibe}
+                isV5={isV5}
                 enabledCharacterCount={enabledCharacterCount}
                 enabledVibeCount={enabledVibeCount}
                 collapsed={collapsedImageIds.has(image.id)}
@@ -581,6 +698,7 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                 onCommitRename={() => { const name = editingName.trim(); if (name) update(image.id, { name }); setEditingImageId(null) }}
                 onCancelRename={() => setEditingImageId(null)}
                 onDownload={() => void handleImageDownload(image, fallbackName)}
+                onCopy={() => void handleCopyImage(image)}
                 onUpdate={updates => update(image.id, updates)}
                 onRemove={() => remove(image.id)}
             />
@@ -611,9 +729,9 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                     </Button>
                 </div>
                 <Tabs value={activeTab} onValueChange={value => { setActiveTab(value as ReferenceMode); setSearch(''); setCreatingFolder(false) }}>
-                    <TabsList className="grid h-9 w-full grid-cols-2 rounded-none bg-transparent px-3">
+                    <TabsList className={cn('grid h-9 w-full rounded-none bg-transparent px-3', isV5 ? 'grid-cols-1' : 'grid-cols-2')}>
                         <TabsTrigger value="character" className="h-8 text-xs">{t('characterDialog.tabCharacter')} ({enabledCharacterCount})</TabsTrigger>
-                        <TabsTrigger value="vibe" className="h-8 text-xs">{t('characterDialog.tabVibe')} ({enabledVibeCount})</TabsTrigger>
+                        {!isV5 && <TabsTrigger value="vibe" className="h-8 text-xs">{t('characterDialog.tabVibe')} ({enabledVibeCount})</TabsTrigger>}
                     </TabsList>
                 </Tabs>
             </div>
@@ -650,7 +768,7 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCreatingFolder(true)}><FolderPlus className="h-4 w-4" /></Button>
                     </Tip>
                     <Tip content={t('characterDialog.disableAll')}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled={enabledImages.length === 0} onClick={() => disableAll(activeTab)}><Power className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled={enabledImages.length === 0} onClick={() => activeTab === 'character' && isV5 ? disableAllV5Images() : disableAll(activeTab)}><Power className="h-4 w-4" /></Button>
                     </Tip>
                 </div>
                 {creatingFolder && (
@@ -698,11 +816,21 @@ export function CharacterSettingsDialog({ open, onOpenChange }: CharacterSetting
                                         onEditingNameChange={setEditingName}
                                         onToggle={() => toggleSetItem(setCollapsedFolderIds, folder.id)}
                                         onStartRename={() => { setEditingName(folder.name); setEditingImageId(null); setEditingFolderId(folder.id) }}
-                                        onCommitRename={() => { const name = editingName.trim(); if (name) renameFolder(folder.id, name); setEditingFolderId(null) }}
+                                        onCommitRename={() => {
+                                            const name = editingName.trim()
+                                            if (name) {
+                                                if (isV5) renameV5Folder(folder.id, name)
+                                                else renameLegacyFolder(folder.id, name)
+                                            }
+                                            setEditingFolderId(null)
+                                        }}
                                         onCancelRename={() => setEditingFolderId(null)}
-                                        onSetColor={colorIndex => setFolderColor(folder.id, colorIndex)}
+                                        onSetColor={colorIndex => {
+                                            if (isV5) setV5FolderColor(folder.id, colorIndex)
+                                            else setLegacyFolderColor(folder.id, colorIndex)
+                                        }}
                                         onDownload={() => void handleFolderDownload(folder, folderImages)}
-                                        onRemove={() => removeFolder(folder.id)}
+                                        onRemove={() => handleFolderRemoval(folder.id)}
                                         renderImage={renderImage}
                                     />
                                 )

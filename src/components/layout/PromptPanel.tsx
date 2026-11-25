@@ -63,10 +63,11 @@ import {
     selectSceneCharacters,
 } from '@/lib/scene-character-prompts'
 import { useCharacterStore } from '@/stores/character-store'
+import { useV5ReferenceStore } from '@/stores/v5-reference-store'
 import { useFragmentStore } from '@/stores/fragment-store'
 import { ResolutionSelector } from '@/components/ui/ResolutionSelector'
 import { useSceneQueueHasItems, useSceneQueueTotal } from '@/hooks/use-scene-queue'
-import { getModelCapabilities } from '@/lib/model-capabilities'
+import { getModelCapabilities, isV5Model } from '@/lib/model-capabilities'
 import { mergeQualityTags, mergeUcPreset } from '@/lib/nai-presets'
 import {
     appendQuotedTextPrompt,
@@ -205,16 +206,15 @@ export function PromptPanel() {
     const fragmentRevision = useFragmentStore(state =>
         state.files.map(file => `${file.id}:${file.updatedAt}`).join('|')
     )
-    const activeReferenceCount = useCharacterStore(state =>
-        state.characterImages.filter(image => image.enabled !== false).length
-        + state.vibeImages.filter(image => image.enabled !== false).length
-    )
-    const activeCharacterReferenceCount = useCharacterStore(state =>
-        state.characterImages.reduce((count, image) => count + (image.enabled !== false ? 1 : 0), 0)
-    )
-    const activeUncachedVibeCount = useCharacterStore(state =>
-        state.vibeImages.reduce((count, image) => count + (image.enabled !== false && !image.encodedVibe && !image.encodedVibePath ? 1 : 0), 0)
-    )
+    const legacyCharacterImages = useCharacterStore(state => state.characterImages)
+    const vibeImages = useCharacterStore(state => state.vibeImages)
+    const v5CharacterImages = useV5ReferenceStore(state => state.characterImages)
+    const activeCharacterImages = isV5Model(model) ? v5CharacterImages : legacyCharacterImages
+    const activeVibeImages = isV5Model(model) ? [] : vibeImages
+    const activeReferenceCount = activeCharacterImages.filter(image => image.enabled !== false).length
+        + activeVibeImages.filter(image => image.enabled !== false).length
+    const activeCharacterReferenceCount = activeCharacterImages.filter(image => image.enabled !== false).length
+    const activeUncachedVibeCount = activeVibeImages.filter(image => image.enabled !== false && !image.encodedVibe && !image.encodedVibePath).length
     const imageGenerationEntitlement = useAuthStore(state => state.imageGenerationEntitlement)
     const [sourceImageDimensions, setSourceImageDimensions] = useState<{ width: number; height: number } | null>(null)
     const [shareCardOpen, setShareCardOpen] = useState(false)

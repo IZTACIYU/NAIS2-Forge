@@ -16,6 +16,9 @@ import { cn } from '@/lib/utils'
 import { useSceneStore, SceneCharacterAddition, SceneCharacterAdditionMode } from '@/stores/scene-store'
 import { useCharacterPromptStore, CharacterPrompt, FOLDER_COLORS } from '@/stores/character-prompt-store'
 import { useCharacterStore, ReferenceImage } from '@/stores/character-store'
+import { useV5ReferenceStore } from '@/stores/v5-reference-store'
+import { useGenerationStore } from '@/stores/generation-store'
+import { isV5Model } from '@/lib/model-capabilities'
 
 interface SceneCharacterAdditionDialogProps {
     open: boolean
@@ -47,8 +50,13 @@ export function SceneCharacterAdditionDialog({ open, onOpenChange, presetId, sce
     const { t } = useTranslation()
     const promptCharacters = useCharacterPromptStore(s => s.characters)
     const promptGroups = useCharacterPromptStore(s => s.groups)
-    const characterImages = useCharacterStore(s => s.characterImages)
-    const vibeImages = useCharacterStore(s => s.vibeImages)
+    const model = useGenerationStore(s => s.model)
+    const isV5 = isV5Model(model)
+    const legacyCharacterImages = useCharacterStore(s => s.characterImages)
+    const legacyVibeImages = useCharacterStore(s => s.vibeImages)
+    const v5CharacterImages = useV5ReferenceStore(s => s.characterImages)
+    const characterImages = isV5 ? v5CharacterImages : legacyCharacterImages
+    const vibeImages = isV5 ? [] : legacyVibeImages
     const sceneName = useSceneStore(s => {
         const preset = s.presets.find(p => p.id === presetId)
         return preset?.scenes.find(scene => scene.id === sceneId)?.name
@@ -112,7 +120,7 @@ export function SceneCharacterAdditionDialog({ open, onOpenChange, presetId, sce
                 onRemove: () => save({ characterPromptIds: current.characterPromptIds.filter(v => v !== id) }),
             }
         }),
-        ...current.characterReferenceIds.map(id => {
+        ...current.characterReferenceIds.filter(id => characterImages.some(image => image.id === id)).map(id => {
             const index = characterImages.findIndex(image => image.id === id)
             return {
                 key: `ref-${id}`,
@@ -121,7 +129,7 @@ export function SceneCharacterAdditionDialog({ open, onOpenChange, presetId, sce
                 onRemove: () => save({ characterReferenceIds: current.characterReferenceIds.filter(v => v !== id) }),
             }
         }),
-        ...current.vibeReferenceIds.map(id => {
+        ...(!isV5 ? current.vibeReferenceIds.filter(id => vibeImages.some(image => image.id === id)).map(id => {
             const index = vibeImages.findIndex(image => image.id === id)
             return {
                 key: `vibe-${id}`,
@@ -129,7 +137,7 @@ export function SceneCharacterAdditionDialog({ open, onOpenChange, presetId, sce
                 className: 'bg-violet-500/15 text-violet-700 hover:bg-violet-500/25 dark:text-violet-300',
                 onRemove: () => save({ vibeReferenceIds: current.vibeReferenceIds.filter(v => v !== id) }),
             }
-        }),
+        }) : []),
     ]
 
     const toggleGroupCollapsed = (groupId: string) => {
@@ -217,7 +225,7 @@ export function SceneCharacterAdditionDialog({ open, onOpenChange, presetId, sce
                                 emptyLabel={t('sceneSequence.noCharacterRefs', 'No character references.')}
                             />
 
-                            <ReferencePicker
+                            {!isV5 && <ReferencePicker
                                 title={t('sceneSequence.vibeReferences', 'Vibe References')}
                                 icon={Waves}
                                 images={vibeImages}
@@ -225,7 +233,7 @@ export function SceneCharacterAdditionDialog({ open, onOpenChange, presetId, sce
                                 onChange={(ids) => save({ vibeReferenceIds: ids })}
                                 toggleId={toggleId}
                                 emptyLabel={t('sceneSequence.noVibeRefs', 'No vibe references.')}
-                            />
+                            />}
                         </div>
 
                         {selectedItems.length > 0 && (

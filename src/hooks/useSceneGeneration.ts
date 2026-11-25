@@ -8,6 +8,7 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { calculateGenerationDelay } from '@/lib/generation-delay'
 import { useAuthStore } from '@/stores/auth-store'
 import { useCharacterStore } from '@/stores/character-store'
+import { useV5ReferenceStore } from '@/stores/v5-reference-store'
 import { sendSystemNotification } from '@/lib/system-notification'
 import { generateSceneImage } from '@/services/scene-generation'
 import { isRemoteSceneQueueRunning } from '@/services/remote-scene-queue'
@@ -127,6 +128,7 @@ export function useSceneGeneration() {
                 isProcessing = false  // CRITICAL: Reset flag
                 // Release character/vibe base64 from memory after all scene generation completes
                 useCharacterStore.getState().releaseImageData(true)
+                useV5ReferenceStore.getState().releaseImageData()
                 toast({ title: t('generate.complete', '생성 완료'), description: t('generate.allComplete', '모든 예약된 작업이 완료되었습니다.'), variant: 'success' })
                 void sendSystemNotification(t('generate.complete', '생성 완료'), t('generate.allComplete', '모든 예약된 작업이 완료되었습니다.'))
                 return
@@ -169,6 +171,7 @@ export function useSceneGeneration() {
             } catch (e) {
                 console.error('Process queue error:', e)
                 useCharacterStore.getState().releaseImageData()
+                useV5ReferenceStore.getState().releaseImageData()
                 isProcessing = false
                 setStreamingData(null, null, 0)
 
@@ -209,6 +212,7 @@ export function useSceneGeneration() {
         if (!isGenerating) {
             isProcessing = false
             useCharacterStore.getState().releaseImageData(true)
+            useV5ReferenceStore.getState().releaseImageData()
         }
     }, [isGenerating])
 

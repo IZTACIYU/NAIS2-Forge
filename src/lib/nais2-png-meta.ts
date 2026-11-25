@@ -34,7 +34,8 @@ export interface Nais2ReferenceSource {
     informationExtracted: number
     strength: number
     fidelity: number
-    referenceType: 'character' | 'style' | 'character&style'
+    referenceType: 'character' | 'style' | 'character&style' | 'outfit'
+    preferSameOutfit?: boolean
 }
 
 export interface Nais2GenerationSources {

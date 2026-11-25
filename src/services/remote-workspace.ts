@@ -1,8 +1,10 @@
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { useCharacterStore } from '@/stores/character-store'
 import type { ReferenceImage } from '@/stores/character-store'
+import { useV5ReferenceStore } from '@/stores/v5-reference-store'
+import type { V5ReferenceImage } from '@/stores/v5-reference-store'
 import { useFragmentStore, normalizeFragmentPath } from '@/stores/fragment-store'
-import { getModelCapabilities } from '@/lib/model-capabilities'
+import { getModelCapabilities, isV5Model } from '@/lib/model-capabilities'
 import { useSceneStore } from '@/stores/scene-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { pickRemoteSettings, type RemoteGenerationSettings, type RemoteSceneDraft } from '@/lib/remote-generation'
@@ -13,6 +15,7 @@ import type { CharacterPrompt } from '@/stores/character-prompt-store'
 import { resolveRemoteScene } from './remote-scene-queue'
 export interface RemoteResolvedWorkspace {
     characters: CharacterPrompt[]; characterImages: ReferenceImage[]; vibeImages: ReferenceImage[];
+    v5CharacterImages?: V5ReferenceImage[];
     positionEnabled: boolean;
     charactersEdited: boolean;
     fragments: Record<string, string[]>;
@@ -29,7 +32,7 @@ export async function readRemoteAsset(kind: RemoteAssetKind, id: string): Promis
     } else if (kind === 'references') {
         const state = useCharacterStore.getState(), item = [...state.characterImages, ...state.vibeImages].find(item => item.id === id)
         if (!item) throw new Error('Missing reference')
-        asset = { kind, id, name: item.name || '', enabled: item.enabled, mode: state.characterImages.includes(item) ? 'character' : 'vibe', referenceType: item.referenceType,
+        asset = { kind, id, name: item.name || '', enabled: item.enabled, mode: state.characterImages.includes(item) ? 'character' : 'vibe', referenceType: item.referenceType === 'outfit' ? 'character&style' : item.referenceType,
             strength: item.strength, fidelity: item.fidelity, informationExtracted: item.informationExtracted }
     } else {
         const item = await useFragmentStore.getState().getFileWithContent(id)
@@ -55,7 +58,7 @@ export async function remoteAssetPage(kind: unknown, page: unknown, id?: unknown
 export async function resolveRemoteAssets(assets: RemoteAsset[], model: string, positionEnabled?: boolean): Promise<RemoteResolvedWorkspace> {
     const characterState = useCharacterPromptStore.getState(), refs = useCharacterStore.getState()
     const charactersEdited = assets.some(asset => asset.kind === 'characters')
-    const result: RemoteResolvedWorkspace = { characters: structuredClone(characterState.characters), charactersEdited, positionEnabled: positionEnabled ?? (characterState.positionEnabled || charactersEdited), characterImages: refs.characterImages.map(item => ({ ...item })), vibeImages: refs.vibeImages.map(item => ({ ...item })), fragments: Object.create(null) }
+    const result: RemoteResolvedWorkspace = { characters: structuredClone(characterState.characters), charactersEdited, positionEnabled: positionEnabled ?? (characterState.positionEnabled || charactersEdited), characterImages: refs.characterImages.map(item => ({ ...item })), vibeImages: refs.vibeImages.map(item => ({ ...item })), v5CharacterImages: useV5ReferenceStore.getState().characterImages.map(item => ({ ...item })), fragments: Object.create(null) }
     for (const asset of assets) {
         if (asset.revision) {
             const current = await readRemoteAsset(asset.kind, asset.id)
@@ -84,8 +87,9 @@ export async function resolveRemoteAssets(assets: RemoteAsset[], model: string, 
             result.fragments[path] = asset.content!
         }
     }
-    const activeRefs = result.characterImages.filter(item => item.enabled), activeVibes = result.vibeImages.filter(item => item.enabled)
-    if (activeRefs.length && activeVibes.length || activeRefs.length > 10 || activeVibes.length > 10 || result.characters.filter(item => item.enabled).length > getModelCapabilities(model).maxCharacterPrompts) throw new Error('Invalid active reference or character count')
+    const activeRefs = (isV5Model(model) ? result.v5CharacterImages || [] : result.characterImages).filter(item => item.enabled)
+    const activeVibes = isV5Model(model) ? [] : result.vibeImages.filter(item => item.enabled)
+    if (activeRefs.length && activeVibes.length || !isV5Model(model) && (activeRefs.length > 10 || activeVibes.length > 10) || result.characters.filter(item => item.enabled).length > getModelCapabilities(model).maxCharacterPrompts) throw new Error('Invalid active reference or character count')
     const counters = new Map<string, number>()
     result.fragmentResolver = async (path, sequential) => {
         if (!(path in result.fragments)) {

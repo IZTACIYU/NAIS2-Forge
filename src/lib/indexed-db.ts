@@ -841,6 +841,8 @@ export async function exportAllData(): Promise<{ [key: string]: unknown }> {
     const keys = [
         'nais2-forge-generation',
         'nais2-forge-character-store',
+        'nais2-forge-v5-reference-store',
+        'nais2-forge-v5-reference-folders',
         'nais2-forge-character-prompts',
         'nais2-forge-presets',
         'nais2-forge-settings',
@@ -1131,6 +1133,8 @@ export async function getStoreSizes(): Promise<{ [key: string]: number }> {
     const keys = [
         'nais2-forge-generation',
         'nais2-forge-character-store',
+        'nais2-forge-v5-reference-store',
+        'nais2-forge-v5-reference-folders',
         'nais2-forge-character-prompts',
         'nais2-forge-presets',
         'nais2-forge-settings',

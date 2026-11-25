@@ -11,6 +11,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { Tip } from '@/components/ui/tooltip'
 import { useCharacterStore } from '@/stores/character-store'
+import { useV5ReferenceStore } from '@/stores/v5-reference-store'
+import { useGenerationStore } from '@/stores/generation-store'
+import { isV5Model } from '@/lib/model-capabilities'
 import { toast } from '@/components/ui/use-toast'
 
 interface ImageReferenceDialogProps {
@@ -22,10 +25,16 @@ interface ImageReferenceDialogProps {
 export function ImageReferenceDialog({ open, onOpenChange, imageBase64 }: ImageReferenceDialogProps) {
     const { t } = useTranslation()
     const { addVibeImage, addCharacterImage, characterImages } = useCharacterStore()
+    const addV5Reference = useV5ReferenceStore(state => state.addCharacterImage)
+    const v5CharacterImages = useV5ReferenceStore(state => state.characterImages)
+    const model = useGenerationStore(state => state.model)
+    const isV5 = isV5Model(model)
     const [isProcessing, setIsProcessing] = useState(false)
     
     // 활성화된 참조 레퍼런스 이미지가 있는지 확인
-    const hasEnabledCharacterImages = characterImages.some(img => img.enabled !== false)
+    const hasEnabledCharacterImages = isV5
+        ? v5CharacterImages.some(img => img.enabled !== false)
+        : characterImages.some(img => img.enabled !== false)
 
     const handleAddAsVibe = async () => {
         if (!imageBase64) return
@@ -46,7 +55,8 @@ export function ImageReferenceDialog({ open, onOpenChange, imageBase64 }: ImageR
         if (!imageBase64) return
         setIsProcessing(true)
         try {
-            await addCharacterImage(imageBase64)
+            if (isV5) await addV5Reference(imageBase64)
+            else await addCharacterImage(imageBase64)
             toast({
                 title: t('imageRef.addedChar', '캐릭터 레퍼런스에 추가됨'),
                 variant: 'success',
@@ -103,7 +113,7 @@ export function ImageReferenceDialog({ open, onOpenChange, imageBase64 }: ImageR
                         </Button>
 
                         {/* Vibe Transfer Button - Bottom */}
-                        <Tip content={hasEnabledCharacterImages ? t('characterDialog.vibeDisabledMsg') : undefined}>
+                        {!isV5 && <Tip content={hasEnabledCharacterImages ? t('characterDialog.vibeDisabledMsg') : undefined}>
                             <Button
                                 variant="outline"
                                 className="flex-1 flex items-center justify-start gap-3 hover:bg-primary/10 hover:border-primary"
@@ -122,7 +132,7 @@ export function ImageReferenceDialog({ open, onOpenChange, imageBase64 }: ImageR
                                     </div>
                                 </div>
                             </Button>
-                        </Tip>
+                        </Tip>}
                     </div>
                 </div>
             </DialogContent>

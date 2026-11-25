@@ -745,6 +745,44 @@ Codex는 회귀/인접 버그 작업 전에 관련 키워드를 검색한다.
 - **동일 기능 경로:** 일반 ZIP과 C.zip은 같은 대표/파일명/PNG·WebP·JPEG native 내보내기를 호출한다. C.zip은 기존 ZIP과 `.partial` 이름을 피하고, 예외 시 후속 캐릭터 실행을 중단한다. 이미 끝난 ZIP을 취소했다고 표시하지 않는다.
 - **검증:** `node scripts/check-scene-console.mjs`의 격리 저장소·메타데이터·대표 선택·배치 호출 검사와 선택적 브라우저 UI 검사. 실제 설치판 DB 및 native codec 결과물 검사는 포함하지 않았다.
 
+### R052 — V5 Precise Reference는 4.5 저장 데이터를 분리해 보존한다
+
+- **Date:** 2026-11-25
+- **Area:** Character Settings, V5 reference persistence, generation request, scene generation
+- **Symptom:** 모델 전환만으로 V5와 V4.5의 Precise Reference가 섞이면, 모델별 reference type/default/strength가 달라 기존 4.5 목록을 직접 수정하거나 잘못 전송할 수 있다.
+- **Root cause:** 기존 참조 목록과 파일 연결은 `nais2-forge-character-store`의 단일 저장 목록이며 모델별 owner가 없었다. V5는 Outfit과 Prefer same outfit이 추가되고 strength 범위가 달라 같은 목록을 그대로 쓰면 설정 의미가 달라진다.
+- **Evidence:** NovelAI V5 공식 출시 자료는 4종 UI 의미(캐릭터&스타일, 캐릭터, 스타일, 아웃핏), 0~5 strength, fidelity 제거, Prefer same outfit 및 V4.5와 같은 참조별 5 Anlas 비용을 정의한다. 공식 웹 클라이언트의 wire description은 same-outfit 선택에 따라 캐릭터 계열 설명 문자열을 바꾼다.
+- **Invariant to preserve:** 모델 변경은 참조 데이터를 옮기거나 삭제하지 않고 모델별 목록을 선택한다. V5는 별도 `nais2-forge-v5-reference-store` 및 `nais2-forge-v5-reference-folders` keys와 고유 이미지 파일 ID를 쓰며, V4.5 key/partialize 계약은 유지한다. 폴더 복사는 hydration 완료 후 V5 이미지가 실제 참조하는 character 폴더만 stable ID 그대로 추가하고, V4.5 폴더/연결은 유지한다. 목적지에 같은 folder ID가 없는 모델 간 이미지 복사는 미분류로 추가한다. V4.5 API에는 V5의 outfit/prefer-same-outfit 의미를 보내지 않는다.
+- **Fix:** V5 모델별 이미지/폴더 저장소와 UI 설정을 추가하고 공통 generation request builder가 모델별 타입과 강도/secondary strength를 조립한다. metadata와 씬/원격 생성에서도 선택 모델의 저장소를 읽는다. 백업 내보내기도 두 V5 key를 포함한다.
+- **Regression coverage:** 이 작업에서는 실행판 데이터 snapshot이나 실제 NovelAI 생성 요청을 수행하지 않았다. `npm run build`, `cargo check` 및 향후 격리 상태 검사에서 모델 전환, 양방향 복사(새 ID·원본 유지), 4.5 요청 payload 보존, V5 일반/stream/native payload를 확인한다. V5 Curated 공식 bucketing/crop 전처리는 미해결이다.
+- **Do not "fix" by:** 기존 4.5 key 전체를 V5 구조로 변환하거나 삭제하기, 같은 file ID로 모델 간 공유하기, 화면에서 별도 저장 데이터를 강제 동기화하기, Curated crop 규칙을 추정해 적용하기.
+- **Related:** v1.15.0 개발 로그; NovelAI 공식 V5 Precise Reference 출시 자료
+
+### R053 — 레퍼런스 캐시 해제는 내용이 바뀔 때만 저장한다
+
+- **Date:** 2026-11-25
+- **Area:** V4.5/V5 reference stores, main and scene generation cleanup
+- **Symptom/Risk:** 참조 원본이 메모리에 없거나 캐시 한도 내에서 전부 유지되는 generation 종료에도 store가 새 배열을 만들어 전체 참조 목록을 다시 직렬화할 수 있다. V5 추가 뒤에는 매 요청이 두 store의 release를 모두 호출했다.
+- **Evidence:** generation 및 scene 종료 경로에서 양 store의 `releaseImageData`를 반복 호출한다. V5 `releaseImageData`는 기존에 항상 `map`으로 새 배열을 반환했고, Zustand `createJSONStorage`는 IndexedDB debounce 앞에서 동기 `JSON.stringify`를 수행한다. V4.5 release도 변경될 데이터가 없으면 동일한 payload를 재직렬화했다.
+- **Invariant to preserve:** 이미지 원본/encoded payload가 실제로 해제될 때만 store를 갱신한다. 데이터가 없거나 캐시 유지 정책상 모두 남길 때는 저장 경로와 구독자 갱신을 발생시키지 않는다. 실제 해제 대상이 있으면 기존 cache limit/force 동작을 유지한다.
+- **Fix:** 두 store에서 release 대상이 없거나 모두 유지될 경우 일찍 반환하며, 참조 설정창은 선택 모델의 thumbnail만 검사한다.
+- **Regression coverage:** `npm run build` 통과. 호출 경로와 persist middleware에서 동기 직렬화를 확인하고, 무변경 cleanup은 store `set` 이전에 반환하도록 검토했다. 사용자 데이터량으로 실행한 runtime profiler/A-B 시간 측정은 하지 않았다.
+- **Do not "fix" by:** IndexedDB debounce를 늘리거나, 다른 storage backend로 바꾸거나, 실제 base64/encoded payload 해제까지 막기.
+- **Related:** R052; v1.15.0 개발 로그
+
+### R054 — 레퍼런스 폴더도 V5 이미지와 같은 저장소를 사용한다
+
+- **Date:** 2026-11-25
+- **Area:** Character Settings, V4.5/V5 reference folder persistence
+- **Symptom:** V4.5에서 V5로 모델을 바꾸면 이미지 목록은 비어 있어도 V4.5 폴더들이 그대로 표시되어 빈 폴더가 남는다.
+- **Root cause:** 설정창은 모델별 이미지 store를 선택하면서 폴더 목록과 폴더 CRUD는 계속 `nais2-forge-character-store` 하나를 사용했다.
+- **Evidence:** `CharacterSettingsDialog`의 `characterImages`는 모델에 따라 V5/legacy store에서 읽지만, 기존 `folders`, 폴더 생성·이름·색·삭제·정렬 action은 모두 `useCharacterStore`에 연결되어 있었다.
+- **Invariant to preserve:** V5 폴더는 `nais2-forge-v5-reference-folders`에만 저장한다. 첫 V5 참조 화면 진입 시 hydration이 성공한 경우에 한해 현재 V5 이미지가 참조하는 기존 character 폴더만 같은 ID로 복사한다. 반복 실행은 추가 복제를 하지 않으며, 기존 V4.5 폴더·이미지·연결을 삭제하거나 수정하지 않는다. 폴더 삭제는 현재 모델 이미지의 연결만 해제한다.
+- **Fix:** 모델별 폴더 목록과 CRUD를 분리하고, V5에서 사용 중인 기존 folder ID만 idempotent merge한다. 새 V5 key를 백업 내보내기와 저장소 크기 목록에 포함한다. 모델 간 이미지 복사는 해당 모델에 같은 folder ID가 없으면 미분류로 저장한다.
+- **Regression coverage:** `npm run build`와 `git diff --check`로 코드 및 diff를 확인한다. 설치판 IndexedDB를 읽지 않았으므로 기존 폴더와 연결의 실데이터 전후 검증, 실제 모델 전환 UI 동작은 이 작업에서 수행하지 않는다.
+- **Do not "fix" by:** V4.5 폴더 store를 화면에서 필터링만 해 계속 공유하거나, 빈 폴더/이미지를 자동 삭제하거나, V4.5 폴더 전체를 V5 key로 복사하기.
+- **Related:** R052; v1.15.0 개발 로그
+
 ### R-XXX — 짧은 제목
 
 - **Date:** YYYY-MM-DD

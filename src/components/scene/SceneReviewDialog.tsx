@@ -33,6 +33,8 @@ import {
 } from '@/lib/scene-review-generation'
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { useCharacterStore } from '@/stores/character-store'
+import { useV5ReferenceStore } from '@/stores/v5-reference-store'
+import { isV5Model } from '@/lib/model-capabilities'
 import { useGenerationStore } from '@/stores/generation-store'
 import { usePresetStore } from '@/stores/preset-store'
 import { useSceneStore } from '@/stores/scene-store'
@@ -329,10 +331,12 @@ function ReviewPromptStack({ onGenerate }: { onGenerate: () => void }) {
     const setNegativePrompt = useGenerationStore(state => state.setNegativePrompt)
     const activePresetName = usePresetStore(state => state.presets.find(preset => preset.id === state.activePresetId)?.name)
     const characterCount = useCharacterPromptStore(state => state.characters.filter(character => character.enabled).length)
-    const referenceCount = useCharacterStore(state =>
-        state.characterImages.filter(image => image.enabled !== false).length
-        + state.vibeImages.filter(image => image.enabled !== false).length
-    )
+    const generationModel = useGenerationStore(state => state.model)
+    const legacyCharacterImages = useCharacterStore(state => state.characterImages)
+    const vibeImages = useCharacterStore(state => state.vibeImages)
+    const v5CharacterImages = useV5ReferenceStore(state => state.characterImages)
+    const referenceCount = (isV5Model(generationModel) ? v5CharacterImages : legacyCharacterImages).filter(image => image.enabled !== false).length
+        + (isV5Model(generationModel) ? 0 : vibeImages.filter(image => image.enabled !== false).length)
     const isGenerating = useSceneStore(state => state.isGenerating)
     const isCancelling = useSceneStore(state => state.isCancelling)
     const basePromptCollapsed = useSettingsStore(state => state.basePromptCollapsed)

@@ -8,8 +8,9 @@ import { generateImage, generateImageStream } from '@/services/novelai-api'
 import { BaseDirectory, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { buildGenerationRequest } from '@/lib/generation-request'
-import { getModelCapabilities } from '@/lib/model-capabilities'
+import { getModelCapabilities, isV5Model } from '@/lib/model-capabilities'
 import { useCharacterStore } from '@/stores/character-store'
+import { useV5ReferenceStore } from '@/stores/v5-reference-store'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
 import { SCENE_IMAGE_GENERATED_EVENT } from '@/lib/scene-review-generation'
 import {
@@ -58,12 +59,16 @@ export async function generateSceneImage(options: {
     } : originalAddition
     const usesCustomSceneCharacters = sceneAddition?.mode === 'custom'
     const uniqueIds = (ids: string[]) => Array.from(new Set(ids))
+    const modelCharacterImages = isV5Model(genState.model)
+        ? options.workspace?.v5CharacterImages ?? useV5ReferenceStore.getState().characterImages
+        : referenceState.characterImages
+    const modelVibeImages = isV5Model(genState.model) ? [] : referenceState.vibeImages
     const characterReferenceIds = sequenceMode
         ? sequenceEntry.characterReferenceIds
-        : referenceState.characterImages.filter(img => img.enabled !== false).map(img => img.id)
+        : modelCharacterImages.filter(img => img.enabled !== false).map(img => img.id)
     const vibeReferenceIds = sequenceMode
-        ? sequenceEntry.vibeReferenceIds
-        : referenceState.vibeImages.filter(img => img.enabled !== false).map(img => img.id)
+        ? (isV5Model(genState.model) ? [] : sequenceEntry.vibeReferenceIds)
+        : modelVibeImages.filter(img => img.enabled !== false).map(img => img.id)
     const randomCharacterCandidates = !options.draft && !sequenceMode
         && latestSettingsStore.expertSceneRandomCharactersEnabled
         && latestSettingsStore.sceneRandomCharactersActive
@@ -105,9 +110,8 @@ export async function generateSceneImage(options: {
         ...characterPromptIds,
         ...(sceneAddition?.mode === 'preset' ? sceneAddition.characterPromptIds : []),
     ])
-    const latestCharStore = referenceState
-    const characterImages = latestCharStore.characterImages.filter(img => finalCharacterReferenceIds.includes(img.id) && (img.filePath || img.base64 || img.cacheKey))
-    const vibeImages = latestCharStore.vibeImages.filter(img => finalVibeReferenceIds.includes(img.id) && (img.filePath || img.base64 || img.encodedVibe || img.encodedVibePath))
+    const characterImages = modelCharacterImages.filter(img => finalCharacterReferenceIds.includes(img.id) && (img.filePath || img.base64 || img.cacheKey))
+    const vibeImages = modelVibeImages.filter(img => finalVibeReferenceIds.includes(img.id) && (img.filePath || img.base64 || img.encodedVibe || img.encodedVibePath))
     const requestedVariantIndex = !options.draft && latestSettingsStore.expertSceneCharacterVariantOverrideEnabled
         && latestSettingsStore.expertCharacterPromptVariantsEnabled
         ? sceneConfig?.characterVariantIndex
@@ -303,6 +307,7 @@ export async function generateSceneImage(options: {
     characterImages.length = 0
     vibeImages.length = 0
     useCharacterStore.getState().releaseImageData()
+    useV5ReferenceStore.getState().releaseImageData()
 
     // NOTE: Removed isGenerating check here - it causes a race condition.
     // When queueCount changes to 0, useEffect re-runs and sets isGenerating=false

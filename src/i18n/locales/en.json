@@ -539,6 +539,8 @@
     "typeCharacterStyle": "Character & Style",
     "typeCharacter": "Character",
     "typeStyle": "Style",
+    "typeOutfit": "Outfit",
+    "preferSameOutfit": "Prefer same outfit",
     "fidelity": "Fidelity",
     "vibeDisabledMsg": "Cannot use with Reference active.",
     "clickToDisable": "Click to disable",
@@ -547,7 +549,13 @@
     "downloadImage": "Download original image",
     "downloadFolderZip": "Export as ZIP",
     "downloadComplete": "Download complete",
-    "downloadFailed": "Download failed"
+    "downloadFailed": "Download failed",
+    "copyToV5": "Copy to V5 references",
+    "copyToV45": "Copy to V4.5 references",
+    "copyComplete": "Copied to the other model's references.",
+    "copyFailed": "Reference copy failed",
+    "copyImageUnavailable": "The original image could not be loaded.",
+    "copySaveFailed": "The copied image could not be saved."
   },
   "imageRef": {
     "title": "Add Image Reference",

@@ -5,6 +5,7 @@ import type { Nais2GenerationSources } from '@/lib/nais2-png-meta'
 import { processWildcards } from '@/lib/fragment-processor'
 import {
     getModelCapabilities,
+    isV5Model,
     type ModelMode,
     type QualityTagPresetId,
 } from '@/lib/model-capabilities'
@@ -74,6 +75,18 @@ export interface GenerationRequestInput {
     generationSources?: Nais2GenerationSources
 }
 
+export function toDirectorReferenceDescription(
+    referenceType: ReferenceImage['referenceType'],
+    preferSameOutfit: boolean | undefined,
+    isV5: boolean,
+): 'character' | 'style' | 'character&style' | 'character&style_anyoutfit' | 'character_mainoutfit' | 'costume' {
+    if (!isV5) return referenceType === 'outfit' ? 'character&style' : referenceType
+    if (referenceType === 'outfit') return 'costume'
+    if (referenceType === 'style') return 'style'
+    if (referenceType === 'character') return preferSameOutfit === false ? 'character' : 'character_mainoutfit'
+    return preferSameOutfit === false ? 'character&style_anyoutfit' : 'character&style'
+}
+
 const joinPromptParts = (
     parts: GenerationPromptPart[],
     whitespaceMode: PromptWhitespaceMode,
@@ -88,6 +101,9 @@ const joinPromptParts = (
         .join(insertBlankLines ? '\n\n' : ', ')
 
 export const buildGenerationRequest = async (input: GenerationRequestInput): Promise<GenerationParams> => {
+    const v5Model = isV5Model(input.model)
+    const characterImages = v5Model && input.mask ? [] : input.characterImages
+    const vibeImages = v5Model ? [] : input.vibeImages
     const positiveDeletes = new Set<string>()
     const negativeDeletes = new Set<string>()
     const format = (prompt: string, targets: Set<string>) =>
@@ -219,15 +235,16 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
                 costumeEnabled: costumeEnabled ?? character.costumeEnabled,
                 position: position || character.position,
             })),
-        characterReferences: input.characterImages.map(image => ({
+        characterReferences: characterImages.map(image => ({
             id: image.id,
             name: image.name,
             informationExtracted: image.informationExtracted,
             strength: image.strength,
             fidelity: image.fidelity,
             referenceType: image.referenceType,
+            ...(image.preferSameOutfit !== undefined && { preferSameOutfit: image.preferSameOutfit }),
         })),
-        vibeReferences: input.vibeImages.map(image => ({
+        vibeReferences: vibeImages.map(image => ({
             id: image.id,
             name: image.name,
             informationExtracted: image.informationExtracted,
@@ -257,18 +274,18 @@ export const buildGenerationRequest = async (input: GenerationRequestInput): Pro
         strength: input.strength,
         noise: input.noise,
         mask: input.mask,
-        charImages: input.characterImages.map(image => image.base64 || ''),
-        charImagePaths: input.characterImages.map(image => image.filePath || null),
-        charStrength: input.characterImages.map(image => image.strength),
-        charFidelity: input.characterImages.map(image => image.fidelity ?? 0.6),
-        charReferenceType: input.characterImages.map(image => image.referenceType ?? 'character&style'),
-        charCacheKeys: input.characterImages.map(image => image.cacheKey || null),
-        vibeImages: input.vibeImages.map(image => image.base64 || ''),
-        vibeImagePaths: input.vibeImages.map(image => image.filePath || null),
-        vibeEncodedPaths: input.vibeImages.map(image => image.encodedVibePath || null),
-        vibeInfo: input.vibeImages.map(image => image.informationExtracted),
-        vibeStrength: input.vibeImages.map(image => image.strength),
-        preEncodedVibes: input.vibeImages.map(image => image.encodedVibe || null),
+        charImages: characterImages.map(image => image.base64 || ''),
+        charImagePaths: characterImages.map(image => image.filePath || null),
+        charStrength: characterImages.map(image => image.strength),
+        charFidelity: characterImages.map(image => v5Model ? 1 : image.fidelity ?? 0.6),
+        charReferenceType: characterImages.map(image => toDirectorReferenceDescription(image.referenceType ?? 'character&style', image.preferSameOutfit, v5Model)),
+        charCacheKeys: characterImages.map(image => image.cacheKey || null),
+        vibeImages: vibeImages.map(image => image.base64 || ''),
+        vibeImagePaths: vibeImages.map(image => image.filePath || null),
+        vibeEncodedPaths: vibeImages.map(image => image.encodedVibePath || null),
+        vibeInfo: vibeImages.map(image => image.informationExtracted),
+        vibeStrength: vibeImages.map(image => image.strength),
+        preEncodedVibes: vibeImages.map(image => image.encodedVibe || null),
         characterPrompts: resolvedCharacterPrompts,
         characterPositionEnabled: input.characterPositionEnabled,
         imageFormat: input.imageFormat,

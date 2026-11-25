@@ -17,6 +17,9 @@ import { cn } from '@/lib/utils'
 import { useSceneStore, SceneCharacterSequenceEntry } from '@/stores/scene-store'
 import { useCharacterPromptStore, CharacterPrompt, FOLDER_COLORS } from '@/stores/character-prompt-store'
 import { useCharacterStore, ReferenceImage } from '@/stores/character-store'
+import { useV5ReferenceStore } from '@/stores/v5-reference-store'
+import { useGenerationStore } from '@/stores/generation-store'
+import { isV5Model } from '@/lib/model-capabilities'
 
 interface SceneCharacterSequenceDialogProps {
     open: boolean
@@ -45,8 +48,13 @@ export function SceneCharacterSequenceDialog({ open, onOpenChange }: SceneCharac
 
     const promptCharacters = useCharacterPromptStore(s => s.characters)
     const promptGroups = useCharacterPromptStore(s => s.groups)
-    const characterImages = useCharacterStore(s => s.characterImages)
-    const vibeImages = useCharacterStore(s => s.vibeImages)
+    const model = useGenerationStore(s => s.model)
+    const isV5 = isV5Model(model)
+    const legacyCharacterImages = useCharacterStore(s => s.characterImages)
+    const legacyVibeImages = useCharacterStore(s => s.vibeImages)
+    const v5CharacterImages = useV5ReferenceStore(s => s.characterImages)
+    const characterImages = isV5 ? v5CharacterImages : legacyCharacterImages
+    const vibeImages = isV5 ? [] : legacyVibeImages
     const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set())
 
     useEffect(() => {
@@ -139,6 +147,7 @@ export function SceneCharacterSequenceDialog({ open, onOpenChange }: SceneCharac
                                 getCharacterName={getCharacterName}
                                 characterImages={characterImages}
                                 vibeImages={vibeImages}
+                                showVibeReferences={!isV5}
                                 onUpdate={(updates) => updateEntry(entry.id, updates)}
                                 onDelete={() => deleteEntry(entry.id)}
                                 toggleId={toggleId}
@@ -163,6 +172,7 @@ function SequenceEntryEditor({
     getCharacterName,
     characterImages,
     vibeImages,
+    showVibeReferences,
     onUpdate,
     onDelete,
     toggleId,
@@ -178,6 +188,7 @@ function SequenceEntryEditor({
     getCharacterName: (character: CharacterPrompt, fallbackIndex?: number) => string
     characterImages: ReferenceImage[]
     vibeImages: ReferenceImage[]
+    showVibeReferences: boolean
     onUpdate: (updates: Partial<SceneCharacterSequenceEntry>) => void
     onDelete: () => void
     toggleId: (ids: string[], id: string) => string[]
@@ -186,8 +197,14 @@ function SequenceEntryEditor({
     t: ReturnType<typeof useTranslation>['t']
 }) {
     const selectedPromptNames = entry.characterPromptIds.map(promptName)
-    const selectedCharacterRefs = entry.characterReferenceIds.map(id => refName(characterImages, id))
-    const selectedVibeRefs = entry.vibeReferenceIds.map(id => refName(vibeImages, id))
+    const selectedCharacterRefs = entry.characterReferenceIds.flatMap(id => {
+        const image = characterImages.find(item => item.id === id)
+        return image ? [{ id, label: refName(characterImages, id) }] : []
+    })
+    const selectedVibeRefs = showVibeReferences ? entry.vibeReferenceIds.flatMap(id => {
+        const image = vibeImages.find(item => item.id === id)
+        return image ? [{ id, label: refName(vibeImages, id) }] : []
+    }) : []
     const selectedItems = [
         ...selectedPromptNames.map((label, index) => ({
             key: `prompt-${entry.characterPromptIds[index]}`,
@@ -195,17 +212,17 @@ function SequenceEntryEditor({
             className: 'bg-sky-500/15 text-sky-700 hover:bg-sky-500/25 dark:text-sky-300',
             onRemove: () => onUpdate({ characterPromptIds: entry.characterPromptIds.filter((_, i) => i !== index) }),
         })),
-        ...selectedCharacterRefs.map((label, index) => ({
-            key: `ref-${entry.characterReferenceIds[index]}`,
+        ...selectedCharacterRefs.map(({ id, label }) => ({
+            key: `ref-${id}`,
             label: `${t('sceneSequence.refBadge')} ${label}`,
             className: 'bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-300',
-            onRemove: () => onUpdate({ characterReferenceIds: entry.characterReferenceIds.filter((_, i) => i !== index) }),
+            onRemove: () => onUpdate({ characterReferenceIds: entry.characterReferenceIds.filter(value => value !== id) }),
         })),
-        ...selectedVibeRefs.map((label, index) => ({
-            key: `vibe-${entry.vibeReferenceIds[index]}`,
+        ...selectedVibeRefs.map(({ id, label }) => ({
+            key: `vibe-${id}`,
             label: `${t('sceneSequence.vibeBadge')} ${label}`,
             className: 'bg-violet-500/15 text-violet-700 hover:bg-violet-500/25 dark:text-violet-300',
-            onRemove: () => onUpdate({ vibeReferenceIds: entry.vibeReferenceIds.filter((_, i) => i !== index) }),
+            onRemove: () => onUpdate({ vibeReferenceIds: entry.vibeReferenceIds.filter(value => value !== id) }),
         })),
     ]
 
@@ -283,7 +300,7 @@ function SequenceEntryEditor({
                     emptyLabel={t('sceneSequence.noCharacterRefs', 'No character references.')}
                 />
 
-                <ReferencePicker
+                {showVibeReferences && <ReferencePicker
                     title={t('sceneSequence.vibeReferences', 'Vibe References')}
                     icon={Waves}
                     images={vibeImages}
@@ -291,7 +308,7 @@ function SequenceEntryEditor({
                     onChange={(ids) => onUpdate({ vibeReferenceIds: ids })}
                     toggleId={toggleId}
                     emptyLabel={t('sceneSequence.noVibeRefs', 'No vibe references.')}
-                />
+                />}
             </div>
 
             <div className="flex flex-wrap gap-1.5 px-4 pb-4">

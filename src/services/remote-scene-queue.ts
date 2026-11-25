@@ -2,6 +2,8 @@ import { useSceneStore } from '@/stores/scene-store'
 import { useGenerationStore } from '@/stores/generation-store'
 import { useCharacterPromptStore } from '@/stores/character-prompt-store'
 import { useCharacterStore } from '@/stores/character-store'
+import { useV5ReferenceStore } from '@/stores/v5-reference-store'
+import { isV5Model } from '@/lib/model-capabilities'
 import { useSettingsStore } from '@/stores/settings-store'
 import { calculateGenerationDelay } from '@/lib/generation-delay'
 import { getModelCapabilities } from '@/lib/model-capabilities'
@@ -14,15 +16,17 @@ import type { RemoteResolvedWorkspace } from './remote-workspace'
 let running = false
 export const isRemoteSceneQueueRunning = () => running
 
-export function remoteSceneCostContext(item: RemoteSceneDraft, base: RemoteCostContext, workspace?: RemoteResolvedWorkspace): RemoteCostContext {
+export function remoteSceneCostContext(item: RemoteSceneDraft, base: RemoteCostContext, workspace?: RemoteResolvedWorkspace, model = useGenerationStore.getState().model): RemoteCostContext {
     const settings = useSettingsStore.getState()
     const sceneState = useSceneStore.getState()
     const config = sceneState.sceneCharacterAdditions[item.presetId]?.[item.sceneId]
     const addition = settings.expertSceneCharacterAdditionsEnabled && (settings.sceneCharacterAdditionMode !== 'preset' || sceneState.sceneCharacterAdditionsEnabled)
         && (config?.mode || 'preset') === settings.sceneCharacterAdditionMode && config?.mode !== 'custom' ? config : null
     const refs = workspace ?? useCharacterStore.getState()
-    const characters = refs.characterImages.filter(image => image.enabled !== false || addition?.characterReferenceIds.includes(image.id))
-    const vibes = refs.vibeImages.filter(image => image.enabled !== false || addition?.vibeReferenceIds.includes(image.id))
+    const characters = isV5Model(model)
+        ? (workspace?.v5CharacterImages ?? useV5ReferenceStore.getState().characterImages).filter(image => image.enabled !== false || addition?.characterReferenceIds.includes(image.id))
+        : refs.characterImages.filter(image => image.enabled !== false || addition?.characterReferenceIds.includes(image.id))
+    const vibes = isV5Model(model) ? [] : refs.vibeImages.filter(image => image.enabled !== false || addition?.vibeReferenceIds.includes(image.id))
     return { ...base, characterReferenceCount: characters.length, uncachedVibeCount: vibes.filter(image => !image.encodedVibe && !image.encodedVibePath).length }
 }
 
@@ -78,6 +82,7 @@ export async function runRemoteSceneQueue(options: {
         useSceneStore.setState({ isGenerating: false, isCancelling: false, completedCount: 0, totalQueuedCount: 0 })
         useGenerationStore.getState().setGeneratingMode(null)
         useCharacterStore.getState().releaseImageData(true)
+        useV5ReferenceStore.getState().releaseImageData()
         running = false
     }
 }

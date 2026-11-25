@@ -8,6 +8,7 @@ import { generateImage, generateImageStream } from '@/services/novelai-api'
 import { writeFile, mkdir, exists, BaseDirectory } from '@tauri-apps/plugin-fs'
 import { pictureDir, join } from '@tauri-apps/api/path'
 import { useCharacterStore } from './character-store'
+import { useV5ReferenceStore } from './v5-reference-store'
 import { useCharacterPromptStore } from './character-prompt-store'
 import { buildGenerationRequest } from '@/lib/generation-request'
 import { getRandomCharacterCandidates, pickRandomCharacters } from '@/lib/random-character-selection'
@@ -18,6 +19,7 @@ import { toast } from '@/components/ui/use-toast'
 import {
     AVAILABLE_MODELS,
     getModelCapabilities,
+    isV5Model,
     normalizeModelMode,
     normalizeQualityTagPreset,
     normalizeUcPreset,
@@ -445,7 +447,11 @@ export const useGenerationStore = create<GenerationState>()(
                             : Math.floor(Math.random() * 4294967295)
                         set({ ...(options?.settings ? {} : { seed: currentSeed }), activeImageSeed: currentSeed })
                         
-                        const { characterImages: allCharImages, vibeImages: allVibeImages } = options?.workspace ?? useCharacterStore.getState()
+                        const referenceWorkspace = options?.workspace ?? useCharacterStore.getState()
+                        const allCharImages = isV5Model(model)
+                            ? options?.workspace?.v5CharacterImages ?? useV5ReferenceStore.getState().characterImages
+                            : referenceWorkspace.characterImages
+                        const allVibeImages = isV5Model(model) ? [] : referenceWorkspace.vibeImages
                         const characterImages = allCharImages.filter(img => img.enabled !== false && (img.filePath || img.base64 || img.cacheKey))
                         const vibeImages = allVibeImages.filter(img => img.enabled !== false && (img.filePath || img.base64 || img.encodedVibe || img.encodedVibePath))
 
@@ -623,6 +629,7 @@ export const useGenerationStore = create<GenerationState>()(
                         characterImages.length = 0
                         vibeImages.length = 0
                         useCharacterStore.getState().releaseImageData()
+                        useV5ReferenceStore.getState().releaseImageData()
 
                         // Check if cancelled or session changed after API call
                         if (get().isCancelled || get().generationSessionId !== sessionId) {
@@ -767,6 +774,7 @@ export const useGenerationStore = create<GenerationState>()(
                     // Release character/vibe base64 from memory after generation (~30-60MB)
                     // They will be reloaded from files on next generation
                     useCharacterStore.getState().releaseImageData(true)
+                    useV5ReferenceStore.getState().releaseImageData()
                 }
             },
 

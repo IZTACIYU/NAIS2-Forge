@@ -41,6 +41,8 @@ export interface AvailableModel extends ModelCapabilities {
     name: string
 }
 
+export const isV5Model = (modelId: string) => modelId.startsWith('nai-diffusion-5-')
+
 const NONE_QUALITY_TAGS: QualityTagPresetOption = { value: 'none', label: 'None', suffix: '' }
 const V5_MODES: readonly ModelModeOption[] = [
     { value: 'anime', label: 'Anime' },

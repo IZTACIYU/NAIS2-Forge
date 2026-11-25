@@ -4,6 +4,7 @@ import { Channel, invoke } from '@tauri-apps/api/core'
 import { embedNais2Params, type Nais2GenerationSources } from '@/lib/nais2-png-meta'
 import { removePromptComments } from '@/lib/prompt-comments'
 import type { ImageGenerationEntitlement } from '@/lib/anlas-calculator'
+import { isV5Model } from '@/lib/model-capabilities'
 
 // TESTING: Always use native window.fetch
 // Tauri's plugin-http causes 500 errors - the webview may handle CORS differently
@@ -57,9 +58,9 @@ export interface GenerationParams {
     // Precise Reference (Director Tools) - 2026년 2월 업데이트
     charImages?: string[]
     charImagePaths?: (string | null)[]
-    charStrength?: number[]      // Strength 값 (0~1)
+    charStrength?: number[]      // V4.5: 0~1, V5: 0~5
     charFidelity?: number[]      // Fidelity 값 (0~1) - API에서는 1-fidelity로 전송
-    charReferenceType?: ('character' | 'style' | 'character&style')[]  // 참조 타입
+    charReferenceType?: ('character' | 'style' | 'character&style' | 'character&style_anyoutfit' | 'character_mainoutfit' | 'costume')[]  // wire descriptions
     charCacheKeys?: (string | null)[]  // 캐시 키 (이미 서버에 캐시된 경우)
 
     // Legacy (하위 호환용)
@@ -427,7 +428,9 @@ async function encodeVibeImage(token: string, imageBase64: string, info: number 
  * Adheres to NovelAI Official Specs: 1472x1472, 1536x1024, or 1024x1536
  * Arbitrary sizes cause 400 Bad Request errors.
  */
-function processCharacterImage(imageBase64: string): Promise<string> {
+function processCharacterImage(imageBase64: string, model: string): Promise<string> {
+    // Do not apply V4.5's fixed canvas/JPEG conversion to V5 references.
+    if (isV5Model(model)) return Promise.resolve(stripBase64Header(imageBase64))
     return new Promise((resolve, reject) => {
         const img = new Image()
         img.onload = () => {
@@ -538,7 +541,7 @@ export async function generateImage(
                     continue
                 }
                 try {
-                    const processed = await processCharacterImage(params.charImages[i])
+                    const processed = await processCharacterImage(params.charImages[i], params.model)
                     processedCharImages.push(processed)
                     charImagesThatNeedProcessing.push(i)
                 } catch (e) {
@@ -624,7 +627,9 @@ export async function generateImage(
                 }),
                 director_reference_information_extracted: processedCharImages.map(() => 1),
                 director_reference_strength_values: params.charStrength || processedCharImages.map(() => 0.6),
-                director_reference_secondary_strength_values: (params.charFidelity || processedCharImages.map(() => 0.6)).map(f => 1 - f),
+                director_reference_secondary_strength_values: isV5Model(params.model)
+                    ? processedCharImages.map(() => 0)
+                    : (params.charFidelity || processedCharImages.map(() => 0.6)).map(f => 1 - f),
                 director_reference_descriptions: (params.charReferenceType || processedCharImages.map(() => 'character&style')).map(type => ({
                     caption: {
                         base_caption: type,
@@ -1093,7 +1098,7 @@ export async function generateImageStream(
                     continue
                 }
                 try {
-                    const processed = await processCharacterImage(params.charImages[i])
+                    const processed = await processCharacterImage(params.charImages[i], params.model)
                     processedCharImages.push(processed)
                     charImagesThatNeedProcessingStream.push(i)
                 } catch (e) {
@@ -1246,7 +1251,9 @@ export async function generateImageStream(
             }
             apiParameters.director_reference_information_extracted = processedCharImages.map(() => 1)
             apiParameters.director_reference_strength_values = params.charStrength || processedCharImages.map(() => 0.6)
-            apiParameters.director_reference_secondary_strength_values = (params.charFidelity || processedCharImages.map(() => 0.6)).map(f => 1 - f)
+            apiParameters.director_reference_secondary_strength_values = isV5Model(params.model)
+                ? processedCharImages.map(() => 0)
+                : (params.charFidelity || processedCharImages.map(() => 0.6)).map(f => 1 - f)
             apiParameters.director_reference_descriptions = (params.charReferenceType || processedCharImages.map(() => 'character&style')).map(type => ({
                 caption: {
                     base_caption: type,
